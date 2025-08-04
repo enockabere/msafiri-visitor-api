@@ -15,9 +15,7 @@ def read_tenants(
     limit: int = 100,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    Retrieve tenants. Only super admins can see all tenants.
-    """
+    """Retrieve tenants."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -33,16 +31,13 @@ def create_tenant(
     tenant_in: schemas.TenantCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    Create new tenant. Only super admins can create tenants.
-    """
+    """Create new tenant."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
     
-    # Check if tenant with same slug exists
     existing_tenant = crud.tenant.get_by_slug(db, slug=tenant_in.slug)
     if existing_tenant:
         raise HTTPException(
@@ -51,7 +46,64 @@ def create_tenant(
         )
     
     tenant = crud.tenant.create(db, obj_in=tenant_in)
+    
+    # TODO: Send tenant creation notification here
+    
     return tenant
+
+@router.post("/activate/{tenant_id}", response_model=schemas.Tenant)
+def activate_tenant(
+    *,
+    db: Session = Depends(get_db),
+    tenant_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Activate a tenant."""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant = crud.tenant.get(db, id=tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    updated_tenant = crud.tenant.update(db, db_obj=tenant, obj_in={"is_active": True})
+    
+    # TODO: Send tenant activation notification here
+    
+    return updated_tenant
+
+@router.post("/deactivate/{tenant_id}", response_model=schemas.Tenant)
+def deactivate_tenant(
+    *,
+    db: Session = Depends(get_db),
+    tenant_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Deactivate a tenant."""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant = crud.tenant.get(db, id=tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    updated_tenant = crud.tenant.update(db, db_obj=tenant, obj_in={"is_active": False})
+    
+    # TODO: Send tenant deactivation notification here
+    
+    return updated_tenant
 
 @router.get("/{tenant_id}", response_model=schemas.Tenant)
 def read_tenant(
@@ -60,9 +112,7 @@ def read_tenant(
     tenant_id: int,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """
-    Get tenant by ID.
-    """
+    """Get tenant by ID."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

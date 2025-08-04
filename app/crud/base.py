@@ -2,8 +2,7 @@ from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.declarative import DeclarativeMeta, declarative_base
-from app.db.database import Base
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
 ModelType = TypeVar("ModelType", bound=DeclarativeMeta)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
