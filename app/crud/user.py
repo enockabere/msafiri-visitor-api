@@ -5,6 +5,9 @@ from app.crud.base import CRUDBase
 from app.models.user import User, AuthProvider, UserRole, UserStatus
 from app.schemas.user import UserCreate, UserUpdate, UserSSO
 from app.core.security import get_password_hash, verify_password
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     
@@ -68,9 +71,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             del update_data["password"]
             update_data["hashed_password"] = hashed_password
         return super().update(db, db_obj=db_obj, obj_in=update_data)
-
-    # ========== MISSING METHODS (THIS IS WHAT YOU NEED) ==========
-    
+   
     def authenticate_local(self, db: Session, *, email: str, password: str, tenant_id: Optional[str] = None) -> Optional[User]:
         """Traditional email/password authentication for LOCAL users"""
         user = self.get_by_email(db, email=email, tenant_id=tenant_id)
@@ -190,4 +191,127 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         }
         return self.update(db, db_obj=user, obj_in=update_data)
 
+    def is_first_login(self, user: User) -> bool:
+        """Check if this is the user's first login"""
+        return user.last_login is None
+    
+    def record_login(self, db: Session, *, user: User) -> User:
+        """Record user login and return updated user"""
+        from sqlalchemy import func
+        
+        is_first = self.is_first_login(user)
+        
+        # Update last_login timestamp
+        user.last_login = func.now()
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        # Send first login welcome notification
+        if is_first and user.tenant_id:
+            from app.core.enhanced_notifications import notification_service
+            try:
+                notification_service.notify_first_login_welcome(
+                    db,
+                    user=user,
+                    tenant_id=user.tenant_id
+                )
+            except Exception as e:
+                logger.error(f"Failed to send first login notification to {user.email}: {e}")
+        
+        return user
+    
+    def create_with_notifications(self, db: Session, *, obj_in: UserCreate, created_by: str) -> User:
+        """Create user and trigger notifications"""
+        user = self.create(db, obj_in=obj_in)
+        
+        # Send notifications
+        if user.tenant_id:
+            from app.core.enhanced_notifications import notification_service
+            try:
+                notification_service.notify_user_created(
+                    db,
+                    new_user=user,
+                    created_by=created_by,
+                    tenant_id=user.tenant_id,
+                    is_first_login=True  # New users haven't logged in yet
+                )
+            except Exception as e:
+                logger.error(f"Failed to send user creation notifications for {user.email}: {e}")
+        
+        return user
+    
+    def update_role_with_notifications(
+        self, 
+        db: Session, 
+        *, 
+        user: User, 
+        new_role: UserRole, 
+        changed_by: str
+    ) -> User:
+        """Update user role and send notifications"""
+        old_role = user.role
+        
+        # Update the role
+        updated_user = self.update(db, db_obj=user, obj_in={"role": new_role})
+        
+        # Send notifications if role actually changed
+        if old_role != new_role and user.tenant_id:
+            from app.core.enhanced_notifications import notification_service
+            try:
+                notification_service.notify_role_changed(
+                    db,
+                    user=updated_user,
+                    old_role=old_role,
+                    new_role=new_role,
+                    changed_by=changed_by,
+                    tenant_id=user.tenant_id
+                )
+            except Exception as e:
+                logger.error(f"Failed to send role change notifications for {user.email}: {e}")
+        
+        return updated_user
+    
+    def update_status_with_notifications(
+        self,
+        db: Session,
+        *,
+        user: User,
+        is_active: bool,
+        status: UserStatus,
+        changed_by: str
+    ) -> User:
+        """Update user status and send notifications"""
+        old_status = user.status
+        old_active = user.is_active
+        
+        # Update status
+        updated_user = self.update(db, db_obj=user, obj_in={
+            "is_active": is_active,
+            "status": status
+        })
+        
+        # Determine action for notifications
+        if not old_active and is_active:
+            action = "activated"
+        elif old_active and not is_active:
+            action = "deactivated"
+        else:
+            action = None
+        
+        # Send notifications if status actually changed
+        if action and user.tenant_id:
+            from app.core.enhanced_notifications import notification_service
+            try:
+                notification_service.notify_user_status_changed(
+                    db,
+                    user=updated_user,
+                    action=action,
+                    changed_by=changed_by,
+                    tenant_id=user.tenant_id
+                )
+            except Exception as e:
+                logger.error(f"Failed to send status change notifications for {user.email}: {e}")
+        
+        return updated_user
 user = CRUDUser(User)
