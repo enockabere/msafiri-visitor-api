@@ -31,7 +31,7 @@ def create_tenant(
     tenant_in: schemas.TenantCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Create new tenant."""
+    """Create new tenant with notifications."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -45,9 +45,12 @@ def create_tenant(
             detail="Tenant with this slug already exists"
         )
     
-    tenant = crud.tenant.create(db, obj_in=tenant_in)
-    
-    # TODO: Send tenant creation notification here
+    # ENHANCED: Use method with notifications
+    tenant = crud.tenant.create_with_notifications(
+        db, 
+        obj_in=tenant_in,
+        created_by=current_user.email
+    )
     
     return tenant
 
@@ -58,7 +61,7 @@ def activate_tenant(
     tenant_id: int,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Activate a tenant."""
+    """Activate a tenant with notifications."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -72,9 +75,13 @@ def activate_tenant(
             detail="Tenant not found"
         )
     
-    updated_tenant = crud.tenant.update(db, db_obj=tenant, obj_in={"is_active": True})
-    
-    # TODO: Send tenant activation notification here
+    # ENHANCED: Use method with notifications
+    updated_tenant = crud.tenant.update_status_with_notifications(
+        db,
+        tenant=tenant,
+        is_active=True,
+        changed_by=current_user.email
+    )
     
     return updated_tenant
 
@@ -85,7 +92,7 @@ def deactivate_tenant(
     tenant_id: int,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Deactivate a tenant."""
+    """Deactivate a tenant with notifications."""
     if current_user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -99,9 +106,13 @@ def deactivate_tenant(
             detail="Tenant not found"
         )
     
-    updated_tenant = crud.tenant.update(db, db_obj=tenant, obj_in={"is_active": False})
-    
-    # TODO: Send tenant deactivation notification here
+    # ENHANCED: Use method with notifications
+    updated_tenant = crud.tenant.update_status_with_notifications(
+        db,
+        tenant=tenant,
+        is_active=False,
+        changed_by=current_user.email
+    )
     
     return updated_tenant
 

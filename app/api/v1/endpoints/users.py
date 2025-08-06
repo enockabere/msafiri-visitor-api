@@ -22,7 +22,7 @@ def create_user(
     user_in: schemas.UserCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Create new user."""
+    """Create new user with notifications."""
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -43,7 +43,12 @@ def create_user(
                 detail="Cannot create user in different tenant"
             )
     
-    user = crud.user.create(db, obj_in=user_in)
+    # ENHANCED: Use method with notifications
+    user = crud.user.create_with_notifications(
+        db, 
+        obj_in=user_in, 
+        created_by=current_user.email
+    )
     return user
 
 @router.get("/", response_model=List[schemas.User])
@@ -73,7 +78,7 @@ def activate_user(
     user_id: int,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Activate a user account."""
+    """Activate a user account with notifications."""
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -94,12 +99,14 @@ def activate_user(
             detail="Cannot manage user from different tenant"
         )
     
-    updated_user = crud.user.update(db, db_obj=user, obj_in={
-        "is_active": True,
-        "status": UserStatus.ACTIVE
-    })
-    
-    # TODO: Send notification here
+    # ENHANCED: Use method with notifications
+    updated_user = crud.user.update_status_with_notifications(
+        db,
+        user=user,
+        is_active=True,
+        status=UserStatus.ACTIVE,
+        changed_by=current_user.email
+    )
     
     return updated_user
 
@@ -110,7 +117,7 @@ def deactivate_user(
     user_id: int,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Deactivate a user account."""
+    """Deactivate a user account with notifications."""
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -138,12 +145,14 @@ def deactivate_user(
             detail="Cannot manage user from different tenant"
         )
     
-    updated_user = crud.user.update(db, db_obj=user, obj_in={
-        "is_active": False,
-        "status": UserStatus.INACTIVE
-    })
-    
-    # TODO: Send notification here
+    # ENHANCED: Use method with notifications
+    updated_user = crud.user.update_status_with_notifications(
+        db,
+        user=user,
+        is_active=False,
+        status=UserStatus.INACTIVE,
+        changed_by=current_user.email
+    )
     
     return updated_user
 
@@ -155,7 +164,7 @@ def change_user_role(
     new_role: UserRole,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Change user role."""
+    """Change user role with notifications."""
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -176,9 +185,12 @@ def change_user_role(
             detail="Cannot assign admin roles"
         )
     
-    old_role = user.role
-    updated_user = crud.user.update(db, db_obj=user, obj_in={"role": new_role})
-    
-    # TODO: Send role change notification here
+    # ENHANCED: Use method with notifications
+    updated_user = crud.user.update_role_with_notifications(
+        db,
+        user=user,
+        new_role=new_role,
+        changed_by=current_user.email
+    )
     
     return updated_user

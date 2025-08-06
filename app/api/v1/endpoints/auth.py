@@ -10,10 +10,12 @@ from app.core.config import settings
 from app.core.sso import MicrosoftSSO
 from app.db.database import get_db
 from app.models.user import AuthProvider, UserRole, UserStatus
+import logging
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ========== REGULAR LOGIN ENDPOINTS (MISSING FROM YOUR SWAGGER) ==========
+# ========== REGULAR LOGIN ENDPOINTS (ENHANCED) ==========
 
 @router.post("/login", response_model=schemas.Token)
 def login_access_token(
@@ -22,7 +24,7 @@ def login_access_token(
 ) -> Any:
     """
     OAuth2 compatible token login for LOCAL AUTH users (username/password)
-    This is what you need for testing regular users!
+    Enhanced with first login detection and notifications
     """
     # Handle multi-tenant login format: user@domain@tenant
     email_parts = form_data.username.split("@")
@@ -56,6 +58,10 @@ def login_access_token(
             detail="Inactive user"
         )
     
+    # ENHANCED: Record login and handle first login notifications
+    is_first_login = crud.user.is_first_login(user)
+    crud.user.record_login(db, user=user)
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         subject=user.email,
@@ -63,10 +69,17 @@ def login_access_token(
         expires_delta=access_token_expires
     )
     
-    return {
+    response_data = {
         "access_token": access_token,
         "token_type": "bearer",
     }
+    
+    # Add first login flag for frontend
+    if is_first_login:
+        response_data["first_login"] = True
+        response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+    
+    return response_data
 
 @router.post("/login/tenant", response_model=schemas.Token)
 def login_with_tenant(
@@ -75,7 +88,7 @@ def login_with_tenant(
 ) -> Any:
     """
     Login with explicit tenant specification (JSON format)
-    Better for testing different user types
+    Enhanced with first login detection and notifications
     """
     tenant_id = None
     if login_data.tenant_slug:
@@ -101,6 +114,10 @@ def login_with_tenant(
             detail="Inactive user"
         )
     
+    # ENHANCED: Record login and handle first login notifications
+    is_first_login = crud.user.is_first_login(user)
+    crud.user.record_login(db, user=user)
+    
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = security.create_access_token(
         subject=user.email,
@@ -108,10 +125,17 @@ def login_with_tenant(
         expires_delta=access_token_expires
     )
     
-    return {
+    response_data = {
         "access_token": access_token,
         "token_type": "bearer",
     }
+    
+    # Add first login flag for frontend
+    if is_first_login:
+        response_data["first_login"] = True
+        response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+    
+    return response_data
 
 @router.post("/test-token", response_model=schemas.User)
 def test_token(current_user: schemas.User = Depends(deps.get_current_user)) -> Any:
@@ -120,7 +144,7 @@ def test_token(current_user: schemas.User = Depends(deps.get_current_user)) -> A
     """
     return current_user
 
-# ========== SSO ENDPOINTS (ALREADY EXIST) ==========
+# ========== SSO ENDPOINTS (ENHANCED) ==========
 
 @router.post("/sso/microsoft", response_model=schemas.Token)
 async def microsoft_sso_login(
@@ -129,7 +153,7 @@ async def microsoft_sso_login(
 ) -> Any:
     """
     Microsoft SSO authentication with AUTO-REGISTRATION
-    Any MSF staff can login without being pre-invited
+    Enhanced with first login detection and notifications
     """
     try:
         # Initialize Microsoft SSO handler
@@ -147,6 +171,10 @@ async def microsoft_sso_login(
         if not tenant_id and is_msf_user:
             # Default to global tenant for MSF users without specific tenant
             tenant_id = "msf-global"
+        
+        # Track if this is a new user (for first login detection)
+        existing_user = crud.user.get_by_email(db, email=user_data["email"])
+        is_new_user = existing_user is None
         
         # Create or update user in our database (AUTO-REGISTRATION happens here)
         user = crud.user.create_or_update_sso_user(
@@ -171,6 +199,10 @@ async def microsoft_sso_login(
                 detail="User account is inactive. Contact administrator."
             )
         
+        # ENHANCED: Record login and handle first login notifications
+        is_first_login = crud.user.is_first_login(user) or is_new_user
+        crud.user.record_login(db, user=user)
+        
         # Generate our application token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = security.create_access_token(
@@ -179,14 +211,22 @@ async def microsoft_sso_login(
             expires_delta=access_token_expires
         )
         
-        return {
+        response_data = {
             "access_token": access_token,
             "token_type": "bearer",
         }
         
+        # Add first login flag for frontend
+        if is_first_login:
+            response_data["first_login"] = True
+            response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+        
+        return response_data
+        
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"SSO authentication failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"SSO authentication failed: {str(e)}"
@@ -199,6 +239,7 @@ async def microsoft_sso_mobile_login(
 ) -> Any:
     """
     Microsoft SSO for mobile app - more permissive for news/updates access
+    Enhanced with first login detection and notifications
     """
     try:
         ms_sso = MicrosoftSSO()
@@ -214,6 +255,10 @@ async def microsoft_sso_mobile_login(
             )
         
         tenant_id = ms_sso.get_tenant_from_email(user_data["email"]) or "msf-global"
+        
+        # Track if this is a new user (for first login detection)
+        existing_user = crud.user.get_by_email(db, email=user_data["email"])
+        is_new_user = existing_user is None
         
         # Auto-register with immediate access for mobile
         user = crud.user.create_or_update_sso_user(
@@ -233,6 +278,10 @@ async def microsoft_sso_mobile_login(
                 detail="Account access denied. Contact administrator."
             )
         
+        # ENHANCED: Record login and handle first login notifications
+        is_first_login = crud.user.is_first_login(user) or is_new_user
+        crud.user.record_login(db, user=user)
+        
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = security.create_access_token(
             subject=user.email,
@@ -240,14 +289,22 @@ async def microsoft_sso_mobile_login(
             expires_delta=access_token_expires
         )
         
-        return {
+        response_data = {
             "access_token": access_token,
             "token_type": "bearer",
         }
         
+        # Add first login flag for frontend
+        if is_first_login:
+            response_data["first_login"] = True
+            response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+        
+        return response_data
+        
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Mobile SSO authentication failed: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Mobile SSO authentication failed: {str(e)}"
