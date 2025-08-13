@@ -21,8 +21,14 @@ def generate_reset_token() -> str:
     return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
 
 def send_password_reset_email(user: User, reset_token: str) -> bool:
-    """Send password reset email"""
-    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+    """Send password reset email with dynamic frontend URL"""
+    
+    # FIXED: Use dynamic frontend URL based on environment
+    frontend_url = settings.frontend_url
+    reset_url = f"{frontend_url}/login?token={reset_token}"
+    
+    # Log for debugging
+    logger.info(f"Sending password reset email to {user.email} with URL: {reset_url}")
     
     html_content = f"""
     <html>
@@ -69,7 +75,8 @@ def send_password_reset_email(user: User, reset_token: str) -> bool:
         
         <p style="color: #666; font-size: 14px;">
             This reset link will expire in 1 hour for security reasons.<br>
-            If you have any questions, please contact your administrator.
+            Environment: {settings.ENVIRONMENT}<br>
+            Frontend URL: {frontend_url}
         </p>
         
         <p style="color: #666; font-size: 12px;">
