@@ -8,8 +8,14 @@ import sys
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+# FIXED: Import database and Base first
 from app.db.database import Base
-from app.models import *  # Import all models
+
+# FIXED: Import ALL models explicitly to ensure they're registered
+from app.models.base import BaseModel, TenantBaseModel
+from app.models.tenant import Tenant
+from app.models.user import User, UserRole, AuthProvider, UserStatus
+from app.models.notification import Notification, NotificationType, NotificationPriority
 
 # this is the Alembic Config object
 config = context.config
@@ -18,7 +24,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set target metadata for autogenerate support
+# FIXED: Set target metadata with explicit model registration
 target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
@@ -29,6 +35,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,  # Enable type comparison
+        compare_server_default=True,  # Enable default comparison
     )
 
     with context.begin_transaction():
@@ -44,7 +52,10 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            compare_type=True,  # Enable type comparison
+            compare_server_default=True,  # Enable default comparison
         )
 
         with context.begin_transaction():

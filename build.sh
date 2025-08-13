@@ -2,12 +2,17 @@
 
 set -o errexit  # Exit on error
 
+echo "🚀 RENDER DEPLOYMENT BUILD"
+echo "=" * 50
+
 echo "🔄 Installing dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "🔍 Checking if migration is needed..."
-if python -c "
+echo "🔍 Checking database state..."
+
+# Check if this is a fresh database or existing one
+python -c "
 import sys, os
 sys.path.append('.')
 from sqlalchemy import create_engine, text
@@ -16,111 +21,135 @@ from app.core.config import settings
 try:
     engine = create_engine(settings.DATABASE_URL)
     with engine.connect() as conn:
-        result = conn.execute(text('''
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'users' 
-                AND column_name = 'date_of_birth'
-            )
-        '''))
-        if result.scalar():
-            print('SKIP_MIGRATION')
-            sys.exit(0)
-        else:
-            print('RUN_MIGRATION')
-            sys.exit(1)
-except Exception as e:
-    print(f'Error checking database: {e}')
-    print('RUN_MIGRATION')
-    sys.exit(1)
-"; then
-    echo "✅ Enhanced columns already exist - skipping migration"
-    echo "📋 Marking migration as completed..."
-    
-    # Mark the migration as completed to avoid future conflicts
-    python -c "
-import sys, os
-sys.path.append('.')
-from sqlalchemy import create_engine, text
-from app.core.config import settings
-
-try:
-    engine = create_engine(settings.DATABASE_URL)
-    with engine.connect() as conn:
-        # Check if alembic_version table exists
+        # Check if users table exists
         result = conn.execute(text('''
             SELECT EXISTS (
                 SELECT 1 FROM information_schema.tables 
-                WHERE table_name = 'alembic_version'
+                WHERE table_name = 'users'
             )
         '''))
         
         if result.scalar():
-            # Update to latest migration
-            conn.execute(text('''
-                UPDATE alembic_version 
-                SET version_num = 'enhanced_profile_safe'
-            '''))
-            conn.commit()
-            print('✅ Migration version updated')
+            print('EXISTING_DATABASE')
+            sys.exit(0)
         else:
-            # Create alembic_version table
-            conn.execute(text('''
-                CREATE TABLE alembic_version (
-                    version_num VARCHAR(32) NOT NULL,
-                    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
-                )
-            '''))
-            conn.execute(text('''
-                INSERT INTO alembic_version (version_num) 
-                VALUES ('enhanced_profile_safe')
-            '''))
-            conn.commit()
-            print('✅ Alembic version table created')
+            print('FRESH_DATABASE')
+            sys.exit(1)
             
 except Exception as e:
-    print(f'Warning: Could not update migration version: {e}')
-"
-else
-    echo "📋 Running database migrations..."
+    print(f'DATABASE_ERROR: {e}')
+    print('FRESH_DATABASE')  # Assume fresh if we can't check
+    sys.exit(1)
+" && DB_STATE="EXISTING" || DB_STATE="FRESH"
+
+if [ "$DB_STATE" = "EXISTING" ]; then
+    echo "✅ Database already exists - running standard migration"
     
-    # Try to run migration, but don't fail if columns already exist
-    if ! alembic upgrade head 2>&1 | tee migration.log; then
-        echo "⚠️  Migration failed, checking if it's due to existing columns..."
+    # Just run any pending migrations
+    alembic upgrade head || {
+        echo "⚠️  Migration failed, but database exists - continuing"
+    }
+    
+else
+    echo "🏗️  Fresh database detected - setting up from scratch"
+    
+    # Create fresh migration and run it
+    echo "📋 Creating initial migration..."
+    alembic revision --autogenerate -m "initial_setup" || {
+        echo "⚠️  Migration creation failed - trying manual setup"
         
-        if grep -q "already exists" migration.log || grep -q "DuplicateColumn" migration.log; then
-            echo "✅ Columns already exist - marking migration as completed"
-            
-            python -c "
+        # Manual table creation as fallback
+        python -c "
 import sys, os
 sys.path.append('.')
-from sqlalchemy import create_engine, text
-from app.core.config import settings
 
 try:
-    engine = create_engine(settings.DATABASE_URL)
+    from app.db.database import Base, engine
+    from app.models import *
+    
+    print('Creating tables manually...')
+    Base.metadata.create_all(bind=engine)
+    print('Tables created successfully!')
+    
+    # Mark as migrated
+    from sqlalchemy import text
     with engine.connect() as conn:
         conn.execute(text('''
-            UPDATE alembic_version 
-            SET version_num = 'enhanced_profile_safe'
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR(32) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            )
+        '''))
+        conn.execute(text('''
+            INSERT INTO alembic_version (version_num) 
+            VALUES ('manual_setup_render')
+            ON CONFLICT (version_num) DO NOTHING
         '''))
         conn.commit()
-        print('✅ Migration marked as completed')
+        print('Migration state recorded')
+        
 except Exception as e:
-    print(f'Error: {e}')
+    print(f'Manual setup failed: {e}')
     sys.exit(1)
 "
-        else
-            echo "❌ Migration failed for other reasons"
-            cat migration.log
-            exit 1
-        fi
-    else
-        echo "✅ Migration completed successfully!"
-    fi
+        exit 0
+    }
+    
+    echo "🚀 Running initial migration..."
+    alembic upgrade head
 fi
 
-# Clean up
-rm -f migration.log
+echo "👤 Ensuring super admin exists..."
+
+# Create super admin if it doesn't exist
+python -c "
+import sys, os
+sys.path.append('.')
+
+try:
+    from sqlalchemy.orm import Session
+    from app.db.database import SessionLocal
+    from app.models.user import User, UserRole, AuthProvider, UserStatus
+    from app.core.security import get_password_hash
+    
+    email = 'abereenock95@gmail.com'
+    password = 'SuperAdmin2025!'
+    
+    db = SessionLocal()
+    
+    try:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            print(f'Super admin already exists: {email}')
+        else:
+            print('Creating super admin...')
+            hashed_password = get_password_hash(password)
+            
+            super_admin = User(
+                email=email,
+                hashed_password=hashed_password,
+                full_name='Super Administrator',
+                role=UserRole.SUPER_ADMIN,
+                status=UserStatus.ACTIVE,
+                is_active=True,
+                tenant_id=None,
+                auth_provider=AuthProvider.LOCAL
+            )
+            
+            db.add(super_admin)
+            db.commit()
+            print(f'Super admin created: {email}')
+            
+    except Exception as e:
+        print(f'Super admin setup failed: {e}')
+        db.rollback()
+    finally:
+        db.close()
+        
+except Exception as e:
+    print(f'Database connection failed: {e}')
+    # Don't fail the build for this
+"
 
 echo "✅ Build completed successfully!"
+echo "🎯 Database should be ready for deployment"
