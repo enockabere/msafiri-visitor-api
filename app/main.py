@@ -1,9 +1,10 @@
-# File: app/main.py (FIXED - Complete version with middleware)
+# File: app/main.py (FINAL FIXED VERSION)
 import os
 import time
 import logging
 from typing import Callable
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from app.api.v1.api import api_router
@@ -81,7 +82,7 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         )
         raise
 
-# Database connection test on startup
+# Database connection test on startup (FIXED - use lifespan instead of deprecated on_event)
 @app.on_event("startup")
 async def startup_event():
     """Test database connection on startup"""
@@ -161,25 +162,31 @@ def api_status():
         }
     }
 
-# Error handlers
+# Error handlers (FIXED - return JSONResponse instead of dict)
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc: Exception):
     """Handle internal server errors"""
     logger.error(f"Internal server error: {str(exc)}")
-    return {
-        "error": "Internal server error",
-        "message": "Something went wrong on our end",
-        "status_code": 500
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "message": "Something went wrong on our end",
+            "status_code": 500
+        }
+    )
 
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: Exception):
     """Handle 404 errors"""
-    return {
-        "error": "Not found",
-        "message": f"The requested resource {request.url.path} was not found",
-        "status_code": 404
-    }
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "Not found", 
+            "message": f"The requested resource {request.url.path} was not found",
+            "status_code": 404
+        }
+    )
 
 # For local development and Render deployment
 if __name__ == "__main__":
