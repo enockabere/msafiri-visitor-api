@@ -1,6 +1,6 @@
-# File: app/api/v1/api.py (UPDATED WITH PASSWORD ENDPOINTS)
+# File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, tenants, users, notifications, password
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile
 
 # Create main API router
 api_router = APIRouter()
@@ -16,6 +16,12 @@ api_router.include_router(
     password.router, 
     prefix="/password", 
     tags=["password-management"]
+)
+
+api_router.include_router(
+    profile.router,
+    prefix="/profile", 
+    tags=["profile-management"]
 )
 
 api_router.include_router(
@@ -46,6 +52,7 @@ async def api_root():
         "endpoints": {
             "auth": "/auth - Authentication endpoints",
             "password": "/password - Password management",
+            "profile": "/profile - User profile management",
             "users": "/users - User management", 
             "tenants": "/tenants - Tenant management",
             "notifications": "/notifications - Notification system"
