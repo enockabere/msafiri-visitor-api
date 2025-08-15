@@ -1,6 +1,6 @@
-# File: app/schemas/user.py (COMPLETE REWRITE)
+# File: app/schemas/user.py (COMPLETE REWRITE WITH FIXES)
 from pydantic import BaseModel, EmailStr, validator
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 from app.models.user import UserRole, AuthProvider, UserStatus
 
@@ -226,7 +226,7 @@ class ProfileCompletion(BaseModel):
     percentage: int
     completed_fields: int
     total_basic_fields: int
-    missing_fields: list[str]
+    missing_fields: List[str]  # FIXED: Changed from list[str] to List[str] for Python 3.8 compatibility
 
 class SecurityStatus(BaseModel):
     """Security status information"""
@@ -242,9 +242,9 @@ class ActivityInfo(BaseModel):
 
 class EditableFieldsResponse(BaseModel):
     """Response from editable fields endpoint"""
-    basic_fields: list[str]
-    enhanced_fields: list[str]
-    readonly_fields: list[str]
+    basic_fields: List[str]  # FIXED: Changed from list[str] to List[str]
+    enhanced_fields: List[str]  # FIXED: Changed from list[str] to List[str]
+    readonly_fields: List[str]  # FIXED: Changed from list[str] to List[str]
     can_change_password: bool
     profile_completion: ProfileCompletion
 
@@ -280,7 +280,7 @@ class UserProfileBasic(BaseModel):
 
 class UserBulkOperation(BaseModel):
     """Schema for bulk user operations"""
-    user_ids: list[int]
+    user_ids: List[int]  # FIXED: Changed from list[int] to List[int]
     operation: str  
     reason: Optional[str] = None
 
@@ -292,4 +292,124 @@ class UserSearchFilters(BaseModel):
     is_active: Optional[bool] = None
     auth_provider: Optional[AuthProvider] = None
     department: Optional[str] = None
-    search_term: Optional[str] = None  
+    search_term: Optional[str] = None
+
+# ==========================================
+# ROLE AND PERMISSION SCHEMAS
+# ==========================================
+
+class UserRoleChange(BaseModel):
+    """Schema for changing user role"""
+    new_role: UserRole
+    reason: Optional[str] = None
+
+class UserStatusChange(BaseModel):
+    """Schema for changing user status"""
+    is_active: bool
+    status: UserStatus
+    reason: Optional[str] = None
+
+# ==========================================
+# VALIDATION AND VERIFICATION SCHEMAS
+# ==========================================
+
+class EmailVerificationRequest(BaseModel):
+    """Schema for requesting email verification"""
+    email: EmailStr
+
+class EmailVerificationConfirm(BaseModel):
+    """Schema for confirming email verification"""
+    token: str
+
+class ProfileValidationErrors(BaseModel):
+    """Schema for profile validation errors"""
+    field_errors: dict
+    global_errors: List[str]
+
+# ==========================================
+# EXPORT SCHEMAS FOR FRONTEND INTEGRATION
+# ==========================================
+
+class UserExport(BaseModel):
+    """Schema for exporting user data"""
+    include_sensitive: bool = False
+    format: str = "json"  # json, csv, excel
+    fields: Optional[List[str]] = None
+
+class UserImport(BaseModel):
+    """Schema for importing user data"""
+    users: List[UserCreate]
+    send_welcome_emails: bool = True
+    auto_activate: bool = False
+
+# ==========================================
+# API RESPONSE WRAPPERS
+# ==========================================
+
+class UserListResponse(BaseModel):
+    """Paginated user list response"""
+    users: List[User]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
+    has_prev: bool
+
+class ProfileUpdateResponse(BaseModel):
+    """Response for profile updates"""
+    success: bool
+    user: User
+    updated_fields: List[str]
+    validation_errors: Optional[ProfileValidationErrors] = None
+
+class SecurityAuditResponse(BaseModel):
+    """Response for security audit"""
+    user_id: int
+    security_score: int  # 0-100
+    recommendations: List[str]
+    last_security_check: datetime
+
+# ==========================================
+# ADVANCED PROFILE FEATURES
+# ==========================================
+
+class ProfilePreferences(BaseModel):
+    """User profile preferences"""
+    language: str = "en"
+    timezone: str = "UTC"
+    email_notifications: bool = True
+    push_notifications: bool = True
+    theme: str = "light"  # light, dark, auto
+
+class ProfileEmergencyContact(BaseModel):
+    """Emergency contact information"""
+    name: str
+    relationship: str
+    phone_number: str
+    email: Optional[EmailStr] = None
+
+class ProfileWorkDetails(BaseModel):
+    """Work-related profile details"""
+    employee_id: Optional[str] = None
+    start_date: Optional[date] = None
+    manager_email: Optional[EmailStr] = None
+    office_location: Optional[str] = None
+    cost_center: Optional[str] = None
+
+# ==========================================
+# COMPLETE EXTENDED PROFILE
+# ==========================================
+
+class ExtendedUserProfile(UserProfile):
+    """Extended user profile with all possible fields"""
+    preferences: Optional[ProfilePreferences] = None
+    emergency_contact: Optional[ProfileEmergencyContact] = None
+    work_details: Optional[ProfileWorkDetails] = None
+    profile_picture_url: Optional[str] = None
+    bio: Optional[str] = None
+    social_links: Optional[dict] = None
+    
+    # Compliance and legal
+    gdpr_consent: Optional[datetime] = None
+    terms_accepted: Optional[datetime] = None
+    data_retention_consent: Optional[datetime] = None

@@ -1,4 +1,4 @@
-# File: app/main.py (FINAL FIXED VERSION)
+# File: app/main.py (CORS SECTION FIX)
 import os
 import time
 import logging
@@ -22,10 +22,11 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
 )
 
-# CORS middleware - Updated for production
+# FIXED CORS CONFIGURATION
 allowed_origins = [
-    "http://localhost:3000",  # Local development
+    "http://localhost:3000",  # Next.js dev server
     "http://localhost:3001",  # Alternative local port
+    "http://127.0.0.1:3000",  # Alternative localhost
     "https://your-nextjs-app.vercel.app",  # Your deployed Next.js app
     "https://msafiri-admin.vercel.app",  # Example production URL
 ]
@@ -36,19 +37,32 @@ if settings.ENVIRONMENT == "production":
     if frontend_urls and frontend_urls[0]:  # If environment variable exists
         allowed_origins = [url.strip() for url in frontend_urls if url.strip()]
 
+# CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-Tenant-ID",
+        "X-Microsoft-Token",
+        "X-Request-ID",
+    ],
+    expose_headers=["X-Process-Time"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-# Request logging middleware (FIXED)
+# Request logging middleware (AFTER CORS)
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log all requests with timing"""
-    start_time = time.time()  # FIXED: Use time.time() instead of logging.time()
+    start_time = time.time()
     
     # Log request details
     logger.info(f"🌐 {request.method} {request.url.path} - Client: {request.client.host}")
@@ -82,7 +96,17 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         )
         raise
 
-# Database connection test on startup (FIXED - use lifespan instead of deprecated on_event)
+# Test CORS endpoint (for debugging)
+@app.get("/test-cors")
+def test_cors():
+    """Test endpoint to verify CORS is working"""
+    return {
+        "message": "CORS is working!",
+        "timestamp": time.time(),
+        "environment": settings.ENVIRONMENT
+    }
+
+# Database connection test on startup
 @app.on_event("startup")
 async def startup_event():
     """Test database connection on startup"""
@@ -90,6 +114,7 @@ async def startup_event():
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
     logger.info(f"💾 Database URL: {settings.DATABASE_URL[:50]}...")
+    logger.info(f"🔗 Allowed CORS origins: {allowed_origins}")
     
     try:
         # Test database connection
@@ -118,7 +143,8 @@ def read_root():
         "version": "1.0.0",
         "environment": settings.ENVIRONMENT,
         "docs_url": "/docs" if settings.ENVIRONMENT == "development" else "disabled",
-        "status": "running"
+        "status": "running",
+        "cors_origins": allowed_origins
     }
 
 @app.get("/health")
@@ -134,35 +160,19 @@ def health_check():
             "status": "healthy",
             "environment": settings.ENVIRONMENT,
             "database": "connected",
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "cors_configured": True
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "environment": settings.ENVIRONMENT,
             "database": f"error: {str(e)}",
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "cors_configured": True
         }
 
-@app.get("/api/status")
-def api_status():
-    """Detailed API status for monitoring"""
-    return {
-        "service": settings.PROJECT_NAME,
-        "version": "1.0.0",
-        "environment": settings.ENVIRONMENT,
-        "debug": settings.DEBUG,
-        "log_level": settings.LOG_LEVEL,
-        "database_connected": True,
-        "endpoints": {
-            "auth": f"{settings.API_V1_STR}/auth",
-            "users": f"{settings.API_V1_STR}/users",
-            "tenants": f"{settings.API_V1_STR}/tenants",
-            "notifications": f"{settings.API_V1_STR}/notifications"
-        }
-    }
-
-# Error handlers (FIXED - return JSONResponse instead of dict)
+# Error handlers
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc: Exception):
     """Handle internal server errors"""
@@ -195,6 +205,7 @@ if __name__ == "__main__":
     host = "0.0.0.0" if settings.ENVIRONMENT == "production" else "127.0.0.1"
     
     logger.info(f"🚀 Starting server on {host}:{port}")
+    logger.info(f"🔗 CORS configured for: {allowed_origins}")
     uvicorn.run(
         app, 
         host=host, 
