@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 # Create FastAPI app
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.ENVIRONMENT == "development" else None,
-    docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
-    redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # FIXED CORS CONFIGURATION
@@ -167,7 +167,7 @@ def read_root():
         "message": f"Welcome to {settings.PROJECT_NAME}",
         "version": "1.0.0",
         "environment": settings.ENVIRONMENT,
-        "docs_url": "/docs" if settings.ENVIRONMENT == "development" else "disabled",
+        "docs_url": "/docs",
         "status": "running",
         "cors_origins": allowed_origins
     }
