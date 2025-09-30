@@ -16,22 +16,38 @@ depends_on = None
 
 
 def upgrade():
-    # Add reply_to_message_id column to chat_messages table
-    op.add_column('chat_messages', sa.Column('reply_to_message_id', sa.Integer(), nullable=True))
+    # Check if chat_messages table exists before adding column
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
     
-    # Add foreign key constraint
-    op.create_foreign_key(
-        'fk_chat_messages_reply_to_message_id',
-        'chat_messages', 
-        'chat_messages',
-        ['reply_to_message_id'], 
-        ['id']
-    )
+    if 'chat_messages' in inspector.get_table_names():
+        # Add reply_to_message_id column to chat_messages table
+        op.add_column('chat_messages', sa.Column('reply_to_message_id', sa.Integer(), nullable=True))
+        
+        # Add foreign key constraint
+        op.create_foreign_key(
+            'fk_chat_messages_reply_to_message_id',
+            'chat_messages', 
+            'chat_messages',
+            ['reply_to_message_id'], 
+            ['id']
+        )
+    else:
+        # Table doesn't exist, skip this migration
+        pass
 
 
 def downgrade():
-    # Drop foreign key constraint
-    op.drop_constraint('fk_chat_messages_reply_to_message_id', 'chat_messages', type_='foreignkey')
+    # Check if chat_messages table exists before dropping
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
     
-    # Drop column
-    op.drop_column('chat_messages', 'reply_to_message_id')
+    if 'chat_messages' in inspector.get_table_names():
+        # Drop foreign key constraint
+        op.drop_constraint('fk_chat_messages_reply_to_message_id', 'chat_messages', type_='foreignkey')
+        
+        # Drop column
+        op.drop_column('chat_messages', 'reply_to_message_id')
+    else:
+        # Table doesn't exist, skip this migration
+        pass
