@@ -15,8 +15,12 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
+    # Create the gender enum type first
+    gender_enum = sa.Enum('male', 'female', 'other', name='gender')
+    gender_enum.create(op.get_bind())
+    
     # Add gender column to users table
-    op.add_column('users', sa.Column('gender', sa.Enum('male', 'female', 'other', name='gender'), nullable=True))
+    op.add_column('users', sa.Column('gender', gender_enum, nullable=True))
 
 def downgrade():
     # Remove gender column from users table
