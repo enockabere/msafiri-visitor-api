@@ -1,14 +1,13 @@
-# File: app/schemas/notification.py (COMPLETE)
+# File: app/schemas/notification.py (FIXED)
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 from datetime import datetime
-from app.models.notification import NotificationType, NotificationPriority
 
 class NotificationBase(BaseModel):
     title: str
     message: str
-    notification_type: NotificationType
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    notification_type: str
+    priority: str = 'medium'
     send_in_app: bool = True
     send_email: bool = False
     send_push: bool = False
@@ -52,7 +51,7 @@ class NotificationStats(BaseModel):
 class BroadcastNotification(BaseModel):
     title: str
     message: str
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    priority: str = 'medium'
     send_email: bool = False
     action_url: Optional[str] = None
 
@@ -61,7 +60,7 @@ class UserNotification(BaseModel):
     user_id: int
     title: str
     message: str
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    priority: str = 'medium'
     send_email: bool = False
     send_push: bool = False
     action_url: Optional[str] = None
@@ -70,7 +69,7 @@ class TenantNotification(BaseModel):
     """Send notification to all users in tenant"""
     title: str
     message: str
-    priority: NotificationPriority = NotificationPriority.MEDIUM
+    priority: str = 'medium'
     send_email: bool = False
     send_push: bool = False
     action_url: Optional[str] = None
@@ -79,7 +78,7 @@ class NotificationEdit(BaseModel):
     """Edit notification (if not read)"""
     title: Optional[str] = None
     message: Optional[str] = None
-    priority: Optional[NotificationPriority] = None
+    priority: Optional[str] = None
     action_url: Optional[str] = None
 
 class NotificationWithEditInfo(Notification):

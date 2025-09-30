@@ -7,6 +7,7 @@ from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.core.enhanced_notifications import notification_service
+from app.core.tenant_admin_assignment import assign_user_to_tenant_on_admin_change
 import json
 import logging
 
@@ -21,7 +22,8 @@ def read_tenants(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Retrieve tenants with user statistics."""
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HR_ADMIN]:
+        print(f"DEBUG: Tenants access denied - User role: {current_user.role}, Required: [SUPER_ADMIN, HR_ADMIN]")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -32,14 +34,23 @@ def read_tenants(
     # Add user statistics for each tenant
     enhanced_tenants = []
     for tenant in tenants:
-        # Get user statistics
-        total_users = len(crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000))
-        active_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.is_active])
-        pending_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.status.value == "pending_approval"])
+        # Get user statistics from user_tenants table
+        tenant_users = crud.user_tenant.get_tenant_users(db, tenant_id=tenant.slug)
+        total_users = len(tenant_users)
+        active_users = len([ut for ut in tenant_users if ut.is_active])
         
-        # Get last user activity (simplified - you might want to track this separately)
-        users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=5)
-        last_activity = max([u.last_login for u in users if u.last_login], default=None)
+        # Get pending users (legacy support)
+        legacy_users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000)
+        pending_users = len([u for u in legacy_users if u.status.value == "pending_approval"])
+        
+        # Get last user activity from tenant users
+        last_activity = None
+        if tenant_users:
+            user_ids = [ut.user_id for ut in tenant_users[:5]]
+            users = [crud.user.get(db, id=uid) for uid in user_ids]
+            users = [u for u in users if u and u.last_login]
+            if users:
+                last_activity = max([u.last_login for u in users])
         
         tenant_data = {
             **tenant.__dict__,
@@ -67,7 +78,7 @@ def create_tenant(
             detail="Not enough permissions"
         )
     
-    # Check if tenant already exists
+    # Check if tenant already exists by slug
     existing_tenant = crud.tenant.get_by_slug(db, slug=tenant_in.slug)
     if existing_tenant:
         raise HTTPException(
@@ -75,18 +86,26 @@ def create_tenant(
             detail="Tenant with this slug already exists"
         )
     
+    # Check if tenant already exists by name
+    existing_tenant_name = crud.tenant.get_by_name(db, name=tenant_in.name)
+    if existing_tenant_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant with this name already exists"
+        )
+    
     # Prepare tenant data with tracking
     tenant_data = tenant_in.dict()
     tenant_data["created_by"] = current_user.email
     
-    # Handle additional admin emails
-    if tenant_in.additional_admin_emails:
-        tenant_data["secondary_admin_emails"] = json.dumps([
-            email.strip() for email in tenant_in.additional_admin_emails.split(',')
-        ])
+    # Note: additional_admin_emails field has been removed
     
     # Create tenant
     tenant = crud.tenant.create(db, obj_in=schemas.TenantCreate(**tenant_data))
+    
+    # Auto-assign user to tenant if admin_email is provided
+    if tenant.admin_email:
+        assign_user_to_tenant_on_admin_change(db, tenant)
     
     # Send notifications in background
     background_tasks.add_task(
@@ -132,14 +151,16 @@ def update_tenant(
     update_data = tenant_update.changes.dict(exclude_unset=True)
     update_data["last_modified_by"] = current_user.email
     
-    # Handle additional admin emails
-    if hasattr(tenant_update.changes, 'additional_admin_emails') and tenant_update.changes.additional_admin_emails:
-        update_data["secondary_admin_emails"] = json.dumps([
-            email.strip() for email in tenant_update.changes.additional_admin_emails.split(',')
-        ])
+    # Force updated_at to be set
+    from sqlalchemy import func
+    update_data["updated_at"] = func.now()
     
     # Update tenant
     updated_tenant = crud.tenant.update(db, db_obj=tenant, obj_in=update_data)
+    
+    # Auto-assign user to tenant if admin_email changed
+    if "admin_email" in update_data and update_data["admin_email"] != original_values["admin_email"]:
+        assign_user_to_tenant_on_admin_change(db, updated_tenant, original_values["admin_email"])
     
     # Track changes and send notifications
     if tenant_update.notify_admins:
@@ -241,6 +262,38 @@ def deactivate_tenant(
     
     return updated_tenant
 
+@router.get("/slug/{tenant_slug}", response_model=schemas.TenantWithStats)
+def read_tenant_by_slug(
+    *,
+    db: Session = Depends(get_db),
+    tenant_slug: str,
+) -> Any:
+    """Get tenant by slug with statistics (no auth required for dashboard)."""
+    tenant = crud.tenant.get_by_slug(db, slug=tenant_slug)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    # Add statistics
+    total_users = len(crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000))
+    active_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.is_active])
+    pending_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.status.value == "pending_approval"])
+    
+    users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=5)
+    last_activity = max([u.last_login for u in users if u.last_login], default=None)
+    
+    tenant_data = {
+        **tenant.__dict__,
+        "total_users": total_users,
+        "active_users": active_users,
+        "pending_users": pending_users,
+        "last_user_activity": last_activity
+    }
+    
+    return schemas.TenantWithStats(**tenant_data)
+
 @router.get("/{tenant_id}", response_model=schemas.TenantWithStats)
 def read_tenant(
     *,
@@ -302,7 +355,7 @@ def send_tenant_creation_notifications(db: Session, tenant, created_by: str):
         
         # Send email notifications
         if admin_emails:
-            from app.core.email import email_service
+            from app.core.email_service import email_service
             
             subject = f"New Organization Created: {tenant.name}"
             
@@ -384,7 +437,7 @@ def send_tenant_update_notifications(db: Session, tenant, original_values: dict,
         
         # Send notifications
         if admin_emails:
-            from app.core.email import email_service
+            from app.core.email_service import email_service
             
             subject = f"Organization Updated: {tenant.name}"
             
@@ -446,7 +499,7 @@ def send_tenant_status_change_notifications(db: Session, tenant, action: str, ch
             admin_emails.extend([email for email in additional_emails if email not in admin_emails])
         
         if admin_emails:
-            from app.core.email import email_service
+            from app.core.email_service import email_service
             
             color = "#28a745" if action == "activated" else "#dc3545"
             subject = f"Organization {action.title()}: {tenant.name}"

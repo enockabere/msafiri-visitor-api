@@ -38,7 +38,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             "email": obj_in.email,
             "full_name": obj_in.full_name,
             "phone_number": obj_in.phone_number,
-            "role": obj_in.role,
+            "role": obj_in.role or UserRole.GUEST,  # Default to GUEST if no role specified
             "tenant_id": obj_in.tenant_id,
             "auth_provider": obj_in.auth_provider,
             "external_id": obj_in.external_id,
@@ -57,6 +57,20 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
+        
+        # Create corresponding UserRole entry for Guest users
+        if db_obj.role == UserRole.GUEST:
+            from app.models.user_roles import UserRole as UserRoleModel, RoleType
+            guest_role = UserRoleModel(
+                user_id=db_obj.id,
+                role=RoleType.GUEST,
+                granted_by="system",
+                granted_at=func.now(),
+                is_active=True
+            )
+            db.add(guest_role)
+            db.commit()
+        
         return db_obj
 
     def update(
@@ -95,79 +109,58 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         """
         Create or update user from SSO data - supports auto-registration
         """
-        # First, try to find existing user by external_id
-        existing_user = self.get_by_external_id(
-            db, 
-            external_id=user_data["external_id"], 
-            auth_provider=AuthProvider.MICROSOFT_SSO
-        )
+        # First, try to find existing user by email (primary check)
+        existing_user = self.get_by_email(db, email=user_data["email"])
         
         if existing_user:
             # Update existing user with latest SSO data
             update_data = {
-                "full_name": user_data["full_name"],
+                "full_name": user_data.get("full_name", existing_user.full_name),
                 "department": user_data.get("department"),
                 "job_title": user_data.get("job_title"),
-                "profile_picture_url": user_data.get("profile_picture_url"),
+                "external_id": user_data.get("external_id"),
+                "azure_tenant_id": user_data.get("azure_tenant_id"),
                 "last_login": func.now()
             }
             return self.update(db, db_obj=existing_user, obj_in=update_data)
         else:
-            # Try to find by email (in case external_id changed)
-            existing_user_by_email = self.get_by_email(db, email=user_data["email"])
-            if existing_user_by_email and existing_user_by_email.auth_provider == AuthProvider.MICROSOFT_SSO:
-                # Update the external_id and other fields
-                update_data = {
-                    "external_id": user_data["external_id"],
-                    "full_name": user_data["full_name"],
-                    "department": user_data.get("department"),
-                    "job_title": user_data.get("job_title"),
-                    "profile_picture_url": user_data.get("profile_picture_url"),
-                    "last_login": func.now()
-                }
-                return self.update(db, db_obj=existing_user_by_email, obj_in=update_data)
-            else:
-                # Auto-register new user
-                return self.auto_register_sso_user(db, user_data=user_data, tenant_id=tenant_id)
+            # Auto-register new user with role from invitation or default
+            role = user_data.get("role", "guest")  # Use role from invitation if available
+            return self.auto_register_sso_user(db, user_data=user_data, tenant_id=tenant_id, role=role)
 
-    def auto_register_sso_user(self, db: Session, *, user_data: Dict[str, Any], tenant_id: Optional[str] = None) -> User:
+    def auto_register_sso_user(self, db: Session, *, user_data: Dict[str, Any], tenant_id: Optional[str] = None, role: str = "guest") -> User:
         """
-        Auto-register a new SSO user (no pre-invitation required)
+        Auto-register a new SSO user with minimal required data
         """
-        from app.core.sso import MicrosoftSSO
-        
-        ms_sso = MicrosoftSSO()
-        
-        # Determine role based on user profile
-        auto_role = ms_sso.determine_auto_role(user_data)
-        
-        # Create new user with auto-registration
+        # Convert string role to UserRole enum
+        try:
+            user_role = UserRole(role.upper())
+        except ValueError:
+            user_role = UserRole.GUEST
+            
+        # Create new user with minimal data from SSO
         new_user = User(
             email=user_data["email"],
-            full_name=user_data["full_name"],
+            full_name=user_data.get("full_name", user_data["email"].split("@")[0]),  # Use email prefix if no name
             auth_provider=AuthProvider.MICROSOFT_SSO,
-            external_id=user_data["external_id"],
+            external_id=user_data.get("external_id"),
             azure_tenant_id=user_data.get("azure_tenant_id"),
             department=user_data.get("department"),
             job_title=user_data.get("job_title"),
-            profile_picture_url=user_data.get("profile_picture_url"),
             tenant_id=tenant_id,
-            role=UserRole(auto_role),
-            status=UserStatus.ACTIVE,  # Active immediately for MSF staff
+            role=user_role,  # Use role from invitation or default to GUEST
+            status=UserStatus.ACTIVE,  # Active immediately for SSO users
             is_active=True,
-            hashed_password=None,
+            hashed_password=None,  # No password for SSO users
             auto_registered=True,  # Mark as auto-registered
             last_login=func.now()
         )
         
-        # If it's not MSF staff, require approval
-        if auto_role == "guest":
-            new_user.status = UserStatus.PENDING_APPROVAL
-            new_user.is_active = False  # Inactive until approved
-        
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        
+        logger.info(f"Auto-registered new SSO user: {new_user.email} in tenant: {tenant_id}")
         return new_user
 
     def get_pending_approvals(self, db: Session, *, tenant_id: Optional[str] = None, skip: int = 0, limit: int = 100) -> List[User]:

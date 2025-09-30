@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Invoice INV-001</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background-color: #f5f5f5;
+        padding: 40px 20px;
+        color: #333;
+      }
+
+      .invoice-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 50px 40px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 40px;
+      }
+
+      .company-name {
+        font-size: 18px;
+        font-weight: 500;
+        letter-spacing: 3px;
+        color: #666;
+        text-transform: uppercase;
+      }
+
+      .invoice-details {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 40px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .billed-to h3 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #666;
+        margin-bottom: 10px;
+      }
+
+      .client-info {
+        font-size: 14px;
+        line-height: 1.6;
+        color: #333;
+      }
+
+      .invoice-meta {
+        text-align: right;
+        font-size: 14px;
+        color: #666;
+      }
+
+      .invoice-number {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 5px;
+      }
+
+      .invoice-table {
+        width: 100%;
+        margin-bottom: 30px;
+      }
+
+      .table-header {
+        display: grid;
+        grid-template-columns: 3fr 60px 100px 100px;
+        padding: 15px 0;
+        border-bottom: 1px solid #eee;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #666;
+        gap: 20px;
+      }
+
+      .table-row {
+        display: grid;
+        grid-template-columns: 3fr 60px 100px 100px;
+        padding: 15px 0;
+        border-bottom: 1px solid #f5f5f5;
+        font-size: 14px;
+        align-items: center;
+        gap: 20px;
+      }
+
+      .table-row:last-child {
+        border-bottom: none;
+      }
+
+      .qty,
+      .rate,
+      .total {
+        text-align: center;
+      }
+
+      .totals-section {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+      }
+
+      .total-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 14px;
+      }
+
+      .subtotal-row {
+        color: #666;
+      }
+
+      .discount-row {
+        color: #666;
+      }
+
+      .final-total {
+        border-top: 1px solid #eee;
+        margin-top: 10px;
+        padding-top: 15px;
+        font-weight: 600;
+        font-size: 16px;
+        color: #333;
+      }
+
+      .thank-you {
+        margin: 40px 0 30px 0;
+        font-family: "Brush Script MT", cursive;
+        font-size: 28px;
+        color: #666;
+      }
+
+      .payment-info {
+        margin-bottom: 30px;
+      }
+
+      .payment-info h3 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #666;
+        margin-bottom: 15px;
+      }
+
+      .bank-details {
+        font-size: 14px;
+        line-height: 1.8;
+        color: #333;
+      }
+
+      .payment-terms {
+        font-size: 13px;
+        color: #666;
+        line-height: 1.6;
+        margin-top: 15px;
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+        font-size: 13px;
+        color: #666;
+      }
+
+      .contact-info {
+        margin-top: 5px;
+      }
+
+      /* Download button styles */
+      .download-section {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      .download-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .download-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      }
+
+      .download-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+      }
+
+      .download-icon {
+        width: 16px;
+        height: 16px;
+      }
+
+      @media print {
+        body {
+          background: white;
+          padding: 0;
+        }
+        .invoice-container {
+          box-shadow: none;
+          border-radius: 0;
+        }
+        .download-section {
+          display: none;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .invoice-container {
+          padding: 30px 20px;
+        }
+
+        .invoice-details {
+          flex-direction: column;
+          gap: 20px;
+        }
+
+        .invoice-meta {
+          text-align: left;
+        }
+
+        .table-header,
+        .table-row {
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+
+        .table-header {
+          display: none;
+        }
+
+        .table-row {
+          background: #f9f9f9;
+          padding: 15px;
+          margin-bottom: 10px;
+          border-radius: 6px;
+          border: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Download Button Section -->
+    <div class="download-section">
+      <button class="download-btn" onclick="downloadPDF()">
+        <svg class="download-icon" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fill-rule="evenodd"
+            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+            clip-rule="evenodd"
+          />
+        </svg>
+        Download as PDF
+      </button>
+    </div>
+
+    <div class="invoice-container">
+      <div class="header">
+        <div class="company-name">ENOCK ABERE</div>
+      </div>
+
+      <div class="invoice-details">
+        <div class="billed-to">
+          <h3>Billed To:</h3>
+          <div class="client-info">
+            MEDECINS SANS FRONTIERES-HOLLAND<br />
+            Sarin - Syokimau<br />
+            Mombasa Road, Kenya<br />
+            P.O. Box 5659 – 00506
+          </div>
+        </div>
+
+        <div class="invoice-meta">
+          <div class="invoice-number">INVOICE: #00001</div>
+          <div>29 September 2025</div>
+        </div>
+      </div>
+
+      <div class="invoice-table">
+        <div class="table-header">
+          <div>Description</div>
+          <div>Qty</div>
+          <div>Rate</div>
+          <div>Total</div>
+        </div>
+
+        <div class="table-row">
+          <div>
+            Initial installment upon signing of the Service Level Agreement and
+            for project kickoff
+          </div>
+          <div class="qty">1</div>
+          <div class="rate">KES 250,000</div>
+          <div class="total">KES 250,000</div>
+        </div>
+      </div>
+
+      <div class="totals-section">
+        <div class="total-row subtotal-row">
+          <span>Total</span>
+          <span>KES 250,000</span>
+        </div>
+        <div class="total-row discount-row">
+          <span>Withholding Tax (5%)</span>
+          <span>KES 12,500</span>
+        </div>
+        <div class="total-row final-total">
+          <span>TOTAL DUE</span>
+          <span>KES 237,500</span>
+        </div>
+      </div>
+
+      <div class="thank-you">Thank you</div>
+
+      <div class="payment-info">
+        <h3>Payment Information:</h3>
+        <div class="bank-details">
+          <strong>Bank:</strong> Family Bank<br />
+          <strong>Account Name:</strong> Enock Maeba Abere<br />
+          <strong>Branch:</strong> Kikuyu<br />
+          <strong>Account Number:</strong> 4641600111026021
+        </div>
+        <div class="payment-terms">
+          Please send remittance to maebaenock95@gmail.com.
+        </div>
+      </div>
+
+      <div class="footer">
+        <div><strong>ENOCK ABERE</strong></div>
+        <div class="contact-info">
+          +254 743 332 560<br />
+          maebaenock95@gmail.com<br />
+          PO BOX 2956, Kisii, Kenya
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function downloadPDF() {
+        // Set the document title for the PDF filename
+        const originalTitle = document.title;
+        document.title = "Invoice-INV-00001-MSF-Holland";
+
+        // Trigger the print dialog
+        window.print();
+
+        // Restore original title
+        document.title = originalTitle;
+      }
+    </script>
+  </body>
+</html>

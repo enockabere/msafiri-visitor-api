@@ -1,4 +1,3 @@
-# File: app/core/enhanced_notifications.py (NEW - COMPREHENSIVE)
 """
 Enhanced notification service with email integration and comprehensive triggers
 """
@@ -9,7 +8,7 @@ from app.schemas.notification import NotificationCreate
 from app.models.notification import NotificationType, NotificationPriority
 from app.models.user import User, UserRole, UserStatus
 from app.models.tenant import Tenant
-from app.core.email import email_service
+from app.core.email_service import email_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,6 @@ class NotificationService:
         auto_send_email: bool = True
     ):
         """Create notification and automatically send email if requested"""
-        
-        # Create the in-app notification
         notification_data = NotificationCreate(
             user_id=user_id,
             user_email=user_email,
@@ -52,12 +49,10 @@ class NotificationService:
         )
         
         notification = crud.notification.create_notification(db, notification_data=notification_data)
-        
-        # Send email if requested and auto_send_email is True
+    
         if send_email and auto_send_email:
             try:
                 if user_id:
-                    # Get user details for personalized email
                     user = crud.user.get(db, id=user_id)
                     if user and user.email:
                         email_service.send_notification_email(
@@ -69,10 +64,9 @@ class NotificationService:
                             priority=priority.value.lower()
                         )
                 elif user_email:
-                    # Send to specific email
                     email_service.send_notification_email(
                         to_email=user_email,
-                        user_name="User",  # Generic name
+                        user_name="User",  
                         title=title,
                         message=message,
                         action_url=action_url,
@@ -93,12 +87,10 @@ class NotificationService:
         is_first_login: bool = False
     ):
         """Notify when a new user is created + send welcome email"""
-        
-        # Get tenant info
+    
         tenant = crud.tenant.get_by_slug(db, slug=tenant_id)
         tenant_name = tenant.name if tenant else tenant_id
         
-        # 1. Send welcome email to the new user (always send this)
         if new_user.email:
             try:
                 email_service.send_welcome_email(
@@ -111,7 +103,6 @@ class NotificationService:
             except Exception as e:
                 logger.error(f"Failed to send welcome email to {new_user.email}: {e}")
         
-        # 2. Notify all admins in the tenant
         admin_users = crud.user.get_by_tenant(db, tenant_id=tenant_id)
         admin_users = [u for u in admin_users if u.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN] and u.id != new_user.id]
         
@@ -166,7 +157,6 @@ class NotificationService:
     ):
         """Notify when user role is changed"""
         
-        # 1. Notify the user whose role changed
         NotificationService.send_notification_with_email(
             db,
             user_id=user.id,

@@ -56,20 +56,37 @@ def read_users(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user: schemas.User = Depends(deps.get_current_user),
-    tenant_context: str = Depends(deps.get_tenant_context),
+    tenant: str = None
 ) -> Any:
     """Retrieve users."""
-    if current_user.role == UserRole.SUPER_ADMIN:
-        users = crud.user.get_by_tenant(db, tenant_id=tenant_context, skip=skip, limit=limit)
-    elif current_user.role in [UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
-        users = crud.user.get_by_tenant(db, tenant_id=current_user.tenant_id, skip=skip, limit=limit)
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-    return users
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"🎯 === USERS GET REQUEST START ===")
+        logger.info(f"🏢 Tenant param: {tenant}")
+        logger.info(f"📊 Skip: {skip}, Limit: {limit}")
+        
+        if tenant:
+            logger.info(f"✅ Fetching users for tenant: {tenant}")
+            users = crud.user.get_by_tenant(db, tenant_id=tenant, skip=skip, limit=limit)
+            logger.info(f"📊 Found {len(users)} users for tenant {tenant}")
+        else:
+            logger.info(f"✅ Fetching all users")
+            users = crud.user.get_multi(db, skip=skip, limit=limit)
+            logger.info(f"📊 Found {len(users)} total users")
+        
+        # Log user details for debugging
+        for user in users:
+            logger.info(f"👤 User: {user.email}, tenant_id: {user.tenant_id}, role: {user.role}, active: {user.is_active}")
+        
+        logger.info(f"🎯 === USERS GET REQUEST END ===")
+        return users
+        
+    except Exception as e:
+        logger.error(f"💥 USERS GET ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        raise
 
 @router.post("/activate/{user_id}", response_model=schemas.User)
 def activate_user(
@@ -194,3 +211,81 @@ def change_user_role(
     )
     
     return updated_user
+
+@router.put("/{user_id}/role", response_model=schemas.User)
+def update_user_role(
+    *,
+    db: Session = Depends(get_db),
+    user_id: int,
+    role_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Update user role with notifications."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    user = crud.user.get(db, id=user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    new_role = role_data.get("new_role")
+    if not new_role:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="new_role is required"
+        )
+    
+    # Non-super admins can't create other admins
+    if current_user.role != UserRole.SUPER_ADMIN and new_role in ["SUPER_ADMIN", "MT_ADMIN"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot assign admin roles"
+        )
+    
+    # Update role and send notifications
+    old_role = user.role
+    updated_user = crud.user.update(db, db_obj=user, obj_in={"role": new_role})
+    
+    # Send email notification
+    from app.core.email_service import email_service
+    try:
+        email_service.send_role_change_notification(
+            email=user.email,
+            full_name=user.full_name,
+            old_role=old_role,
+            new_role=new_role,
+            changed_by=current_user.full_name or current_user.email
+        )
+    except Exception as e:
+        print(f"Failed to send role change notification: {e}")
+    
+    return updated_user
+
+@router.get("/by-email/{email}", response_model=schemas.User)
+def get_user_by_email(
+    *,
+    db: Session = Depends(get_db),
+    email: str,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Get user by email address."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    user = crud.user.get_by_email(db, email=email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return user

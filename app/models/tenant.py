@@ -1,5 +1,6 @@
 # File: app/models/tenant.py (FIXED with extend_existing)
 from sqlalchemy import Column, String, Boolean, Text, DateTime
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.models.base import BaseModel
 
@@ -40,3 +41,6 @@ class Tenant(BaseModel):
     # Status tracking
     activated_at = Column(DateTime(timezone=True), nullable=True)
     deactivated_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Relationships - commented out to avoid conflicts
+    # roles = relationship("Role", back_populates="tenant")

@@ -423,3 +423,60 @@ def get_my_notifications_detailed(
         result.append(notification_data)
     
     return result
+
+@router.post("/send-to-super-admins")
+def send_notification_to_super_admins(
+    *,
+    db: Session = Depends(get_db),
+    notification_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Send notification to all super admins"""
+    print(f"🔔 Backend: Received notification request from {current_user.email}")
+    print(f"📝 Backend: Notification data: {notification_data}")
+    
+    if current_user.role != UserRole.SUPER_ADMIN:
+        print(f"❌ Backend: User {current_user.email} does not have super admin role: {current_user.role}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    try:
+        # Get all super admins
+        super_admins = db.query(crud.user.model).filter(
+            crud.user.model.role == UserRole.SUPER_ADMIN
+        ).all()
+        
+        print(f"👥 Backend: Found {len(super_admins)} super admins")
+        
+        # Create notification for each super admin
+        notifications_created = 0
+        for admin in super_admins:
+            print(f"📨 Backend: Creating notification for {admin.email} (ID: {admin.id})")
+            from app.schemas.notification import NotificationCreate
+            notification_obj = NotificationCreate(
+                user_id=admin.id,
+                tenant_id=admin.tenant_id or "system",
+                title=notification_data.get("title", "Notification"),
+                message=notification_data.get("message", ""),
+                notification_type=NotificationType.SYSTEM_ANNOUNCEMENT,
+                priority=NotificationPriority.MEDIUM,
+                send_in_app=True,
+                send_email=False,
+                send_push=False,
+                triggered_by=current_user.email
+            )
+            notification = crud.notification.create_notification(db, notification_data=notification_obj)
+            notifications_created += 1
+            print(f"✅ Backend: Created notification ID {notification.id} for {admin.email}")
+        
+        print(f"🎉 Backend: Successfully created {notifications_created} notifications")
+        return {"message": f"Notifications sent to {notifications_created} super admins"}
+        
+    except Exception as e:
+        print(f"💥 Backend: Error creating notifications: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send notifications: {str(e)}"
+        )

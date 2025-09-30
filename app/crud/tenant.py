@@ -13,6 +13,9 @@ class CRUDTenant(CRUDBase[Tenant, TenantCreate, TenantUpdate]):
     def get_by_slug(self, db: Session, *, slug: str) -> Optional[Tenant]:
         return db.query(Tenant).filter(Tenant.slug == slug).first()
     
+    def get_by_name(self, db: Session, *, name: str) -> Optional[Tenant]:
+        return db.query(Tenant).filter(Tenant.name == name).first()
+    
     def get_by_domain(self, db: Session, *, domain: str) -> Optional[Tenant]:
         return db.query(Tenant).filter(Tenant.domain == domain).first()
     

@@ -20,18 +20,6 @@ class TenantCreate(TenantBase):
     require_admin_approval: bool = True
     max_users: Optional[str] = "unlimited"
     
-    # Additional admin emails (comma-separated string)
-    additional_admin_emails: Optional[str] = None
-    
-    @validator('additional_admin_emails')
-    def validate_admin_emails(cls, v):
-        if v:
-            emails = [email.strip() for email in v.split(',')]
-            for email in emails:
-                if '@' not in email:
-                    raise ValueError(f'Invalid email format: {email}')
-        return v
-    
     @validator('slug')
     def validate_slug(cls, v):
         if not v.replace('-', '').replace('_', '').isalnum():
@@ -53,7 +41,6 @@ class TenantUpdate(BaseModel):
     allow_self_registration: Optional[bool] = None
     require_admin_approval: Optional[bool] = None
     max_users: Optional[str] = None
-    additional_admin_emails: Optional[str] = None
     logo_url: Optional[str] = None
     primary_color: Optional[str] = None
     
@@ -75,7 +62,6 @@ class Tenant(TenantBase):
     allow_self_registration: bool = False
     require_admin_approval: bool = True
     max_users: Optional[str] = None
-    additional_admin_emails: Optional[str] = None
     logo_url: Optional[str] = None
     primary_color: Optional[str] = None
     activated_at: Optional[datetime] = None

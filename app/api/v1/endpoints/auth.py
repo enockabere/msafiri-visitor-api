@@ -11,6 +11,7 @@ from app.api import deps
 from app.core import security
 from app.core.config import settings
 from app.core.sso import MicrosoftSSO
+from app.core.tenant_auto_assignment import auto_assign_tenant_admin
 from app.db.database import get_db
 from app.models.user import AuthProvider, UserRole, UserStatus
 import logging
@@ -24,15 +25,18 @@ def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """OAuth2 compatible token login for LOCAL AUTH users (username/password)"""
+    print(f"DEBUG: Login attempt - Username: {form_data.username}")
     
     # Handle multi-tenant login format: user@domain@tenant
     email_parts = form_data.username.split("@")
     if len(email_parts) > 2:  # Format: user@domain@tenant
         email = "@".join(email_parts[:-1])
         tenant_slug = email_parts[-1]
+        print(f"DEBUG: Multi-tenant login - Email: {email}, Tenant: {tenant_slug}")
         
         tenant = crud.tenant.get_by_slug(db, slug=tenant_slug)
         if not tenant:
+            print(f"DEBUG: Tenant not found: {tenant_slug}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid tenant"
@@ -41,21 +45,32 @@ def login_access_token(
     else:
         email = form_data.username
         tenant_id = None
+        print(f"DEBUG: Single login - Email: {email}, Tenant: {tenant_id}")
 
     # Use local authentication (username/password)
+    print(f"DEBUG: Attempting authentication for email: {email}, tenant: {tenant_id}")
     user = crud.user.authenticate_local(
         db, email=email, password=form_data.password, tenant_id=tenant_id
     )
+    print(f"DEBUG: Authentication result: {user is not None}")
+    if user:
+        print(f"DEBUG: User found - ID: {user.id}, Role: {user.role}, Active: {user.is_active}")
+    
     if not user:
+        print(f"DEBUG: Authentication failed - no user found")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
     elif not crud.user.is_active(user):
+        print(f"DEBUG: User inactive - ID: {user.id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
+    
+    # Auto-assign tenant admin users to their tenant
+    auto_assign_tenant_admin(db, user)
     
     # ENHANCED: Record login and handle first login notifications
     is_first_login = crud.user.is_first_login(user)
@@ -81,6 +96,11 @@ def login_access_token(
     if is_first_login:
         response_data["first_login"] = True
         response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+    
+    # Check if password must be changed (either flag is set or using default password)
+    must_change = (hasattr(user, 'must_change_password') and user.must_change_password) or form_data.password == "password@1234"
+    if must_change:
+        response_data["must_change_password"] = True
     
     return response_data
 
@@ -114,6 +134,9 @@ def login_with_tenant(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
         )
+    
+    # Auto-assign tenant admin users to their tenant
+    auto_assign_tenant_admin(db, user)
     
     # Same enhanced logic as above
     is_first_login = crud.user.is_first_login(user)
@@ -164,6 +187,17 @@ async def microsoft_sso_login(
         existing_user = crud.user.get_by_email(db, email=user_data["email"])
         is_new_user = existing_user is None
         
+        # Check if there's a pending invitation for this email
+        from app.crud.invitation import invitation as crud_invitation
+        pending_invitation = crud_invitation.get_by_email_and_tenant(
+            db, email=user_data["email"], tenant_id=tenant_id
+        )
+        
+        if pending_invitation and pending_invitation.is_accepted == "false":
+            logger.info(f"Found pending invitation for {user_data['email']} with role {pending_invitation.role}")
+            # Use invitation role instead of default GUEST
+            user_data["role"] = pending_invitation.role
+        
         user = crud.user.create_or_update_sso_user(
             db, user_data=user_data, tenant_id=tenant_id
         )
@@ -183,6 +217,9 @@ async def microsoft_sso_login(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive. Contact administrator."
             )
+        
+        # Auto-assign tenant admin users to their tenant
+        auto_assign_tenant_admin(db, user)
         
         is_first_login = crud.user.is_first_login(user) or is_new_user
         crud.user.record_login(db, user=user)
@@ -254,6 +291,9 @@ async def microsoft_sso_mobile_login(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Account access denied. Contact administrator."
             )
+        
+        # Auto-assign tenant admin users to their tenant
+        auto_assign_tenant_admin(db, user)
         
         is_first_login = crud.user.is_first_login(user) or is_new_user
         crud.user.record_login(db, user=user)

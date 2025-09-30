@@ -2,7 +2,7 @@
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, List
 from datetime import datetime, date
-from app.models.user import UserRole, AuthProvider, UserStatus
+from app.models.user import UserRole, AuthProvider, UserStatus, Gender
 
 # ==========================================
 # BASE SCHEMAS
@@ -24,30 +24,16 @@ class UserBase(BaseModel):
 class UserProfileUpdate(BaseModel):
     """Schema for updating user profile information"""
     full_name: Optional[str] = None
-    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
     nationality: Optional[str] = None
     passport_number: Optional[str] = None
     passport_issue_date: Optional[date] = None
     passport_expiry_date: Optional[date] = None
     whatsapp_number: Optional[str] = None
     email_work: Optional[EmailStr] = None
-    email_personal: Optional[EmailStr] = None
     phone_number: Optional[str] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
-    
-    @validator('passport_expiry_date')
-    def validate_passport_expiry(cls, v, values):
-        if v and 'passport_issue_date' in values and values['passport_issue_date']:
-            if v <= values['passport_issue_date']:
-                raise ValueError('Passport expiry date must be after issue date')
-        return v
-    
-    @validator('date_of_birth')
-    def validate_dob(cls, v):
-        if v and v >= date.today():
-            raise ValueError('Date of birth must be in the past')
-        return v
 
 # ==========================================
 # PASSWORD MANAGEMENT SCHEMAS
@@ -91,6 +77,29 @@ class PasswordResetConfirm(BaseModel):
     def passwords_match(cls, v, values):
         if 'new_password' in values and v != values['new_password']:
             raise ValueError('Passwords do not match')
+        return v
+
+class ForcePasswordChangeRequest(BaseModel):
+    """Schema for force changing password (no current password required)"""
+    new_password: str
+    confirm_password: str
+    
+    @validator('confirm_password')
+    def passwords_match(cls, v, values):
+        if 'new_password' in values and v != values['new_password']:
+            raise ValueError('Passwords do not match')
+        return v
+    
+    @validator('new_password')
+    def validate_password_strength(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
         return v
 
 # ==========================================
@@ -148,14 +157,13 @@ class User(UserBase):
     approved_at: Optional[datetime] = None
     
     # Enhanced profile fields
-    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
     nationality: Optional[str] = None
     passport_number: Optional[str] = None
     passport_issue_date: Optional[date] = None
     passport_expiry_date: Optional[date] = None
     whatsapp_number: Optional[str] = None
     email_work: Optional[str] = None
-    email_personal: Optional[str] = None
     profile_updated_at: Optional[datetime] = None
     email_verified_at: Optional[datetime] = None
     password_changed_at: Optional[datetime] = None
@@ -192,14 +200,13 @@ class UserProfile(BaseModel):
     job_title: Optional[str] = None
     
     # Enhanced profile information
-    date_of_birth: Optional[date] = None
+    gender: Optional[Gender] = None
     nationality: Optional[str] = None
     passport_number: Optional[str] = None
     passport_issue_date: Optional[date] = None
     passport_expiry_date: Optional[date] = None
     whatsapp_number: Optional[str] = None
     email_work: Optional[str] = None
-    email_personal: Optional[str] = None
     
     # Timestamps and metadata
     last_login: Optional[datetime] = None

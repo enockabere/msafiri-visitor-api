@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import secrets
 import string
@@ -8,7 +8,7 @@ from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
 from app.core.security import get_password_hash, verify_password
-from app.core.email import email_service
+from app.core.email_service import email_service
 from app.core.config import settings
 from app.models.user import User, AuthProvider
 import logging
@@ -25,7 +25,7 @@ def send_password_reset_email(user: User, reset_token: str) -> bool:
     
     # FIXED: Use dynamic frontend URL based on environment
     frontend_url = settings.frontend_url
-    reset_url = f"{frontend_url}/login?token={reset_token}"
+    reset_url = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Log for debugging
     logger.info(f"Sending password reset email to {user.email} with URL: {reset_url}")
@@ -133,7 +133,7 @@ def request_password_reset(
     
     # Generate reset token
     reset_token = generate_reset_token()
-    expires_at = datetime.utcnow() + timedelta(hours=1)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
     
     # Save token to database
     update_data = {
@@ -149,7 +149,7 @@ def request_password_reset(
     
     return success_response
 
-@router.post("/verify-reset-token")
+@router.get("/verify-reset-token")
 def verify_reset_token(
     *,
     db: Session = Depends(get_db),
@@ -165,9 +165,10 @@ def verify_reset_token(
         )
     
     # Find user with this token
+    now = datetime.now(timezone.utc)
     user = db.query(User).filter(
         User.password_reset_token == token,
-        User.password_reset_expires > datetime.utcnow()
+        User.password_reset_expires > now
     ).first()
     
     if not user:
@@ -182,11 +183,16 @@ def verify_reset_token(
             detail="Account is not active"
         )
     
+    # Handle timezone for expiry calculation
+    expires_at = user.password_reset_expires
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
     return {
         "message": "Token is valid",
         "user_email": user.email,
         "user_name": user.full_name,
-        "expires_in_minutes": int((user.password_reset_expires - datetime.utcnow()).total_seconds() / 60)
+        "expires_in_minutes": int((expires_at - now).total_seconds() / 60)
     }
 
 @router.post("/reset-password")
@@ -211,9 +217,10 @@ def reset_password(
         )
     
     # Find user with valid token
+    now = datetime.now(timezone.utc)
     user = db.query(User).filter(
         User.password_reset_token == reset_data.token,
-        User.password_reset_expires > datetime.utcnow()
+        User.password_reset_expires > now
     ).first()
     
     if not user:
@@ -353,16 +360,72 @@ def change_password(
             detail="New password must be different from current password"
         )
     
-    # Update password
+    # Update password and clear must_change_password flag
     from sqlalchemy import func
     update_data = {
         "hashed_password": get_password_hash(password_data.new_password),
-        "password_changed_at": func.now()
+        "password_changed_at": func.now(),
+        "must_change_password": False
     }
     
     updated_user = crud.user.update(db, db_obj=user, obj_in=update_data)
     
     logger.info(f"Password changed for user: {user.email}")
+    
+    return {
+        "message": "Password has been successfully changed",
+        "status": "success"
+    }
+
+@router.post("/force-change-password")
+def force_change_password(
+    *,
+    db: Session = Depends(get_db),
+    password_data: schemas.ForcePasswordChangeRequest,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Force change password for users who must change password (no current password required)
+    """
+    # Get full user object
+    user = crud.user.get(db, id=current_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Only allow if user must change password
+    if not getattr(user, 'must_change_password', False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change not required for this user"
+        )
+    
+    # Validate new password
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Update password and clear must_change_password flag
+    from sqlalchemy import func
+    update_data = {
+        "hashed_password": get_password_hash(password_data.new_password),
+        "password_changed_at": func.now(),
+        "must_change_password": False
+    }
+    
+    updated_user = crud.user.update(db, db_obj=user, obj_in=update_data)
+    
+    logger.info(f"Forced password change completed for user: {user.email}")
     
     return {
         "message": "Password has been successfully changed",

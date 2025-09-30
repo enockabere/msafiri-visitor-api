@@ -1,0 +1,344 @@
+# File: app/api/v1/endpoints/invitations.py
+from typing import Any, List
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from sqlalchemy.orm import Session
+from app import crud, schemas
+from app.crud.invitation import invitation as crud_invitation
+from app.schemas.invitation import InvitationCreate, Invitation as InvitationSchema
+from app.api import deps
+from app.db.database import get_db
+from app.models.user import UserRole
+from app.core.email_service import email_service
+from datetime import datetime, timedelta
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+@router.post("/", response_model=dict)
+def create_invitation(
+    *,
+    db: Session = Depends(get_db),
+    invitation_in: InvitationCreate,
+    current_user: schemas.User = Depends(deps.get_current_user),
+    background_tasks: BackgroundTasks
+) -> Any:
+    """Create new invitation for a tenant admin user."""
+    logger.info(f"🎯 Invitation endpoint called by user: {current_user.email}")
+    logger.info(f"📧 Invitation data: {invitation_in.dict()}")
+    
+    try:
+        # Check permissions - only super admin or tenant admin can invite
+        logger.info(f"👤 Current user role: {current_user.role}")
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
+            logger.warning(f"❌ Permission denied for role: {current_user.role}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
+    
+        # If not super admin, can only invite for own tenant
+        logger.info(f"🏢 Checking tenant access: user_tenant={current_user.tenant_id}, invite_tenant={invitation_in.tenant_id}")
+        if current_user.role != UserRole.SUPER_ADMIN and current_user.tenant_id != invitation_in.tenant_id:
+            logger.warning(f"❌ Tenant access denied: {current_user.tenant_id} != {invitation_in.tenant_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Can only invite users for your own tenant"
+            )
+    
+        # Check if user already exists
+        logger.info(f"🔍 Checking if user exists: {invitation_in.email}")
+        existing_user = crud.user.get_by_email(db, email=invitation_in.email)
+        if existing_user and existing_user.tenant_id == invitation_in.tenant_id:
+            logger.warning(f"❌ User already exists: {invitation_in.email} for tenant {invitation_in.tenant_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists for this tenant"
+            )
+    
+        # Check if invitation already exists
+        logger.info(f"🔍 Checking existing invitations for: {invitation_in.email}")
+        existing_invitation = crud_invitation.get_by_email_and_tenant(
+            db, email=invitation_in.email, tenant_id=invitation_in.tenant_id
+        )
+        if existing_invitation and existing_invitation.expires_at > datetime.utcnow():
+            logger.warning(f"❌ Active invitation exists: {invitation_in.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Active invitation already exists for this email"
+            )
+    
+        # Create invitation
+        logger.info(f"✨ Creating invitation token")
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days expiry
+        
+        # Create invitation object directly with all required fields
+        from app.models.invitation import Invitation
+        invitation_obj = Invitation(
+            email=invitation_in.email,
+            full_name=invitation_in.full_name,
+            role=invitation_in.role,
+            tenant_id=invitation_in.tenant_id,
+            token=token,
+            expires_at=expires_at,
+            invited_by=current_user.email,
+            is_accepted="false"
+        )
+        
+        logger.info(f"💾 Saving invitation to database")
+        db.add(invitation_obj)
+        db.commit()
+        db.refresh(invitation_obj)
+        invitation = invitation_obj
+        
+        # Send invitation email
+        logger.info(f"📧 Queuing invitation email")
+        background_tasks.add_task(
+            email_service.send_invitation_email,
+            email=invitation_in.email,
+            full_name=invitation_in.full_name,
+            tenant_name=invitation_in.tenant_id,  # You might want to get actual tenant name
+            token=token,
+            invited_by=current_user.full_name or current_user.email
+        )
+        
+        logger.info(f"✅ Invitation created successfully for {invitation_in.email}")
+        return {"message": "Invitation sent successfully"}
+        
+    except Exception as e:
+        logger.error(f"💥 Error creating invitation: {str(e)}")
+        logger.exception("Full error traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create invitation: {str(e)}"
+        )
+
+@router.get("/tenant/{tenant_id}", response_model=List[InvitationSchema])
+def get_tenant_invitations(
+    *,
+    db: Session = Depends(get_db),
+    tenant_id: str
+) -> Any:
+    """Get all pending invitations for a specific tenant."""
+    invitations = crud_invitation.get_by_tenant(db, tenant_id=tenant_id)
+    return invitations
+
+@router.post("/{invitation_id}/resend", response_model=dict)
+def resend_invitation(
+    *,
+    db: Session = Depends(get_db),
+    invitation_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user),
+    background_tasks: BackgroundTasks
+) -> Any:
+    """Resend an invitation email."""
+    invitation = crud_invitation.get(db, id=invitation_id)
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+    
+    # Check permissions
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # If not super admin, can only resend for own tenant
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.tenant_id != invitation.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Can only resend invitations for your own tenant"
+        )
+    
+    # Update expiry date
+    new_expires_at = datetime.utcnow() + timedelta(days=7)
+    crud_invitation.update(db, db_obj=invitation, obj_in={"expires_at": new_expires_at})
+    
+    # Resend invitation email
+    background_tasks.add_task(
+        email_service.send_invitation_email,
+        email=invitation.email,
+        full_name=invitation.full_name,
+        tenant_name=invitation.tenant_id,
+        token=invitation.token,
+        invited_by=current_user.full_name or current_user.email
+    )
+    
+    return {"message": "Invitation resent successfully"}
+
+@router.delete("/{invitation_id}/cancel", response_model=dict)
+def cancel_invitation(
+    *,
+    db: Session = Depends(get_db),
+    invitation_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Cancel an invitation."""
+    invitation = crud_invitation.get(db, id=invitation_id)
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+    
+    # Check permissions
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # If not super admin, can only cancel for own tenant
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.tenant_id != invitation.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Can only cancel invitations for your own tenant"
+        )
+    
+    # Delete the invitation
+    db.delete(invitation)
+    db.commit()
+    
+    return {"message": "Invitation cancelled successfully"}
+
+@router.post("/accept/{token}", response_model=dict)
+def accept_invitation(
+    *,
+    db: Session = Depends(get_db),
+    token: str
+) -> Any:
+    """Accept an invitation using the token."""
+    logger.info(f"🎯 Accept invitation called with token: {token[:10]}...")
+    
+    try:
+        # Find invitation by token
+        invitation = crud_invitation.get_by_token(db, token=token)
+        if not invitation:
+            logger.warning(f"❌ Invitation not found for token: {token[:10]}...")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invalid invitation token"
+            )
+        
+        # Check if invitation is expired
+        if invitation.expires_at < datetime.utcnow():
+            logger.warning(f"❌ Invitation expired: {invitation.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invitation has expired"
+            )
+        
+        # Check if already accepted
+        if invitation.is_accepted == "true":
+            logger.warning(f"❌ Invitation already accepted: {invitation.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invitation has already been accepted"
+            )
+        
+        # Check if user already exists
+        existing_user = crud.user.get_by_email(db, email=invitation.email)
+        
+        if existing_user:
+            # Add new role to existing user
+            logger.info(f"🔄 Adding role to existing user: {invitation.email}")
+            from app.models.user_roles import UserRole as UserRoleModel, RoleType
+            
+            # Check if user already has this role
+            existing_role = db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == existing_user.id,
+                UserRoleModel.role == RoleType(invitation.role.upper()),
+                UserRoleModel.is_active == True
+            ).first()
+            
+            if not existing_role:
+                # Remove Guest role if user is getting a real role
+                if invitation.role.upper() != "GUEST":
+                    guest_roles = db.query(UserRoleModel).filter(
+                        UserRoleModel.user_id == existing_user.id,
+                        UserRoleModel.role == RoleType.GUEST,
+                        UserRoleModel.is_active == True
+                    ).all()
+                    for guest_role in guest_roles:
+                        guest_role.is_active = False
+                        guest_role.revoked_at = datetime.utcnow()
+                        guest_role.revoked_by = invitation.invited_by
+                
+                # Add new role
+                new_role = UserRoleModel(
+                    user_id=existing_user.id,
+                    role=RoleType(invitation.role.upper()),
+                    granted_by=invitation.invited_by,
+                    granted_at=datetime.utcnow(),
+                    is_active=True
+                )
+                db.add(new_role)
+                logger.info(f"➕ Added role {invitation.role} to user {invitation.email}")
+            else:
+                logger.info(f"🔄 User already has role {invitation.role}")
+                
+            # Update tenant if different
+            if existing_user.tenant_id != invitation.tenant_id:
+                existing_user.tenant_id = invitation.tenant_id
+            existing_user.is_active = True
+        else:
+            # Create new user account
+            from app.models.user import User, UserRole, UserStatus, AuthProvider
+            import hashlib
+            
+            # Generate temporary password
+            temp_password = "password@1234"
+            hashed_password = hashlib.sha256(temp_password.encode()).hexdigest()
+            
+            user_obj = User(
+                email=invitation.email,
+                full_name=invitation.full_name,
+                hashed_password=hashed_password,
+                role=UserRole(invitation.role),
+                status=UserStatus.ACTIVE,
+                tenant_id=invitation.tenant_id,
+                auth_provider=AuthProvider.LOCAL,
+                is_active=True,
+                must_change_password=True
+            )
+            
+            logger.info(f"💾 Creating user account: {invitation.email}")
+            db.add(user_obj)
+            db.flush()  # Get the user ID
+            
+            # Create corresponding UserRole entry
+            from app.models.user_roles import UserRole as UserRoleModel, RoleType
+            user_role = UserRoleModel(
+                user_id=user_obj.id,
+                role=RoleType(invitation.role.upper()),
+                granted_by=invitation.invited_by,
+                granted_at=datetime.utcnow(),
+                is_active=True
+            )
+            db.add(user_role)
+            logger.info(f"➕ Added role {invitation.role} to new user {invitation.email}")
+        
+        # Mark invitation as accepted
+        invitation.is_accepted = "true"
+        invitation.accepted_at = datetime.utcnow()
+        
+        db.commit()
+        
+        logger.info(f"✅ Invitation accepted successfully for {invitation.email}")
+        return {
+            "message": "Invitation accepted successfully",
+            "must_change_password": True
+        }
+        
+    except Exception as e:
+        logger.error(f"💥 Error accepting invitation: {str(e)}")
+        logger.exception("Full error traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to accept invitation: {str(e)}"
+        )

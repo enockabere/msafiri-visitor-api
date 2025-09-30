@@ -15,7 +15,7 @@ from .user import (
     EditableFieldsResponse, ProfileStatsResponse,
     
     # Password management
-    PasswordChangeRequest, PasswordResetRequest, PasswordResetConfirm,
+    PasswordChangeRequest, PasswordResetRequest, PasswordResetConfirm, ForcePasswordChangeRequest,
     
     # User operations
     UserRoleChange, UserStatusChange, PendingApproval,
@@ -32,11 +32,33 @@ from .user import (
     # Advanced features
     ProfilePreferences, ProfileEmergencyContact, ProfileWorkDetails
 )
-from .auth import Token, TokenData, LoginRequest
+from .auth import Token, TokenData, LoginRequest, UserRegistrationRequest, UserRegistrationResponse
 from .notification import (
     Notification, NotificationCreate, NotificationUpdate, NotificationStats,
     BroadcastNotification, UserNotification, TenantNotification,
     NotificationEdit, NotificationWithEditInfo
+)
+from .role import Role, RoleCreate, RoleUpdate
+from .event import Event, EventCreate, EventUpdate
+from .event_participant import (
+    EventParticipant, EventParticipantCreate, EventParticipantUpdate
+)
+from .event_allocation import (
+    EventItem, EventItemCreate, ParticipantAllocation, ParticipantAllocationCreate,
+    RedeemItemRequest, RequestExtraItemRequest, RedemptionLog, AllocateItemsRequest
+)
+from .admin_invitations import (
+    AdminInvitationCreate, AdminInvitationResponse, AdminInvitationAccept
+)
+from .useful_contact import (
+    UsefulContact, UsefulContactCreate, UsefulContactUpdate
+)
+from .accommodation import (
+    GuestHouse, GuestHouseCreate, GuestHouseUpdate,
+    Room, RoomCreate, RoomUpdate,
+    VendorAccommodation, VendorAccommodationCreate, VendorAccommodationUpdate,
+    AccommodationAllocation, AccommodationAllocationCreate, AccommodationAllocationUpdate,
+    AccommodationType, RoomType, AllocationStatus
 )
 
 # Legacy compatibility - keep the basic schemas that were in the original __init__.py
@@ -65,7 +87,7 @@ __all__ = [
     "EditableFieldsResponse", "ProfileStatsResponse",
     
     # Password management
-    "PasswordChangeRequest", "PasswordResetRequest", "PasswordResetConfirm",
+    "PasswordChangeRequest", "PasswordResetRequest", "PasswordResetConfirm", "ForcePasswordChangeRequest",
     
     # User operations
     "UserRoleChange", "UserStatusChange", "PendingApproval",
@@ -88,5 +110,31 @@ __all__ = [
     # Notification schemas
     "Notification", "NotificationCreate", "NotificationUpdate", "NotificationStats",
     "BroadcastNotification", "UserNotification", "TenantNotification",
-    "NotificationEdit", "NotificationWithEditInfo"
+    "NotificationEdit", "NotificationWithEditInfo",
+    
+    # Role schemas
+    "Role", "RoleCreate", "RoleUpdate",
+    
+    # Event schemas
+    "Event", "EventCreate", "EventUpdate",
+    
+    # Event participant schemas
+    "EventParticipant", "EventParticipantCreate", "EventParticipantUpdate",
+    
+    # Event allocation schemas
+    "EventItem", "EventItemCreate", "ParticipantAllocation", "ParticipantAllocationCreate",
+    "RedeemItemRequest", "RequestExtraItemRequest", "RedemptionLog", "AllocateItemsRequest",
+    
+    # Admin invitation schemas
+    "AdminInvitationCreate", "AdminInvitationResponse", "AdminInvitationAccept",
+    
+    # Useful contact schemas
+    "UsefulContact", "UsefulContactCreate", "UsefulContactUpdate",
+    
+    # Accommodation schemas
+    "GuestHouse", "GuestHouseCreate", "GuestHouseUpdate",
+    "Room", "RoomCreate", "RoomUpdate",
+    "VendorAccommodation", "VendorAccommodationCreate", "VendorAccommodationUpdate",
+    "AccommodationAllocation", "AccommodationAllocationCreate", "AccommodationAllocationUpdate",
+    "AccommodationType", "RoomType", "AllocationStatus"
 ]

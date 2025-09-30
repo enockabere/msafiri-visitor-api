@@ -1,4 +1,3 @@
-# File: scripts/render_startup_check.py
 """
 Startup check for Render deployment - ensures database is ready
 """

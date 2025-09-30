@@ -6,7 +6,6 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.user import User, UserRole, AuthProvider, UserStatus
 from app.core.security import get_password_hash
@@ -16,7 +15,7 @@ def create_super_admin():
     print("👤 Creating super admin user...")
     
     # User credentials
-    email = "abereenock95@gmail.com"
+    email = "superadmin@gmail.com"
     password = "SuperAdmin2025!"
     full_name = "Super Administrator"
     
@@ -43,7 +42,7 @@ def create_super_admin():
             role=UserRole.SUPER_ADMIN,
             status=UserStatus.ACTIVE,
             is_active=True,
-            tenant_id=None,  # Super admin doesn't belong to any tenant
+            tenant_id=None, 
             auth_provider=AuthProvider.LOCAL
         )
         

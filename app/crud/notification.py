@@ -31,8 +31,8 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         title: str,
         message: str,
         tenant_id: str,
-        notification_type: NotificationType = NotificationType.SYSTEM_ANNOUNCEMENT,  # Now matches database
-        priority: NotificationPriority = NotificationPriority.MEDIUM,
+        notification_type: str = 'SYSTEM_ANNOUNCEMENT',
+        priority: str = 'MEDIUM',
         send_email: bool = False,
         send_push: bool = False,
         action_url: Optional[str] = None,
@@ -66,8 +66,8 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         tenant_id: str,
         title: str,
         message: str,
-        notification_type: NotificationType = NotificationType.SYSTEM_ANNOUNCEMENT,  # Now matches database
-        priority: NotificationPriority = NotificationPriority.MEDIUM,
+        notification_type: str = 'SYSTEM_ANNOUNCEMENT',
+        priority: str = 'MEDIUM',
         send_email: bool = False,
         send_push: bool = False,
         action_url: Optional[str] = None,
@@ -159,7 +159,7 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         notification_id: int,
         title: Optional[str] = None,
         message: Optional[str] = None,
-        priority: Optional[NotificationPriority] = None,
+        priority: Optional[str] = None,
         action_url: Optional[str] = None,
         updated_by: str
     ) -> Optional[Notification]:
@@ -248,17 +248,19 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
     def get_notification_stats(self, db: Session, *, user_id: int, tenant_id: Optional[str]) -> Dict[str, Any]:
         """Get notification statistics for a user"""
         
-        # Base query for this user or broadcast notifications
+        # Base query - get notifications for this user OR broadcast notifications
         base_query = db.query(Notification).filter(
             or_(
                 Notification.user_id == user_id,
-                Notification.user_id.is_(None)
+                Notification.user_id.is_(None)  # Broadcast notifications
             )
         )
         
-        # Apply tenant filter only if user has a tenant (not super admin)
+        # Handle tenant filtering - super admins (tenant_id=None) should see all notifications
         if tenant_id is not None:
+            # Regular users: only see notifications for their tenant
             base_query = base_query.filter(Notification.tenant_id == tenant_id)
+        # Super admins (tenant_id=None): see notifications from all tenants
         
         total = base_query.count()
         
@@ -266,7 +268,7 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         
         urgent = base_query.filter(
             and_(
-                Notification.priority == NotificationPriority.URGENT,
+                Notification.priority == 'URGENT',
                 Notification.is_read == False
             )
         ).count()

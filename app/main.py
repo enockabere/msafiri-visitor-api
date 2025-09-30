@@ -40,19 +40,11 @@ if settings.ENVIRONMENT == "production":
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=False,  # Set to False when using allow_origins=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=[
-        "Accept",
-        "Accept-Language",
-        "Content-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "X-Tenant-ID",
-        "X-Microsoft-Token",
-        "X-Request-ID",
+        "*",  # Allow all headers for development
     ],
     expose_headers=["X-Process-Time"],
     max_age=3600,  # Cache preflight requests for 1 hour
@@ -61,11 +53,21 @@ app.add_middleware(
 # Request logging middleware (AFTER CORS)
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable) -> Response:
-    """Log all requests with timing"""
+    """Log all requests with timing and CORS details"""
     start_time = time.time()
     
-    # Log request details
-    logger.info(f"🌐 {request.method} {request.url.path} - Client: {request.client.host}")
+    # Log request details with headers
+    origin = request.headers.get("origin", "No Origin")
+    user_agent = request.headers.get("user-agent", "No User-Agent")[:100]
+    
+    logger.info(f"🌐 {request.method} {request.url.path}")
+    logger.info(f"   📍 Origin: {origin}")
+    logger.info(f"   💻 Client: {request.client.host}")
+    logger.info(f"   🤖 User-Agent: {user_agent}")
+    
+    # Log query parameters if any
+    if request.query_params:
+        logger.info(f"   🔍 Query: {dict(request.query_params)}")
     
     try:
         # Process request
@@ -84,17 +86,40 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         # Add processing time to response headers
         response.headers["X-Process-Time"] = str(process_time)
         
+        # Log CORS headers in response
+        cors_headers = {
+            k: v for k, v in response.headers.items() 
+            if k.lower().startswith('access-control')
+        }
+        if cors_headers:
+            logger.info(f"   🔗 CORS Headers: {cors_headers}")
+        
         return response
         
     except Exception as e:
-        # Log errors
+        # Log errors with full details
         process_time = time.time() - start_time
         logger.error(
             f"❌ {request.method} {request.url.path} - "
             f"Error: {str(e)} - "
             f"Time: {process_time:.4f}s"
         )
-        raise
+        logger.exception("Full error traceback:")
+        
+        # Return proper error response with CORS headers
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Internal server error",
+                "message": str(e),
+                "path": request.url.path,
+                "method": request.method
+            },
+            headers={
+                "Access-Control-Allow-Origin": origin if origin in allowed_origins else "*",
+                "Access-Control-Allow-Credentials": "true"
+            }
+        )
 
 # Test CORS endpoint (for debugging)
 @app.get("/test-cors")

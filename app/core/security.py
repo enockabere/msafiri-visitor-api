@@ -3,6 +3,8 @@ from typing import Optional, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
+import secrets
+import string
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -37,3 +39,9 @@ def decode_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+def generate_password(length: int = 12) -> str:
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    password = ''.join(secrets.choice(alphabet) for _ in range(length))
+    return password

@@ -25,6 +25,11 @@ class AuthProvider(enum.Enum):
     MICROSOFT_SSO = "microsoft_sso"
     GOOGLE_SSO = "google_sso"
 
+class Gender(enum.Enum):
+    male = "male"
+    female = "female"
+    other = "other"
+
 class User(BaseModel):
     __tablename__ = "users"
     __table_args__ = {'extend_existing': True}  # FIXED: Allow table redefinition
@@ -46,6 +51,7 @@ class User(BaseModel):
     
     # ENHANCED: Extended profile fields
     date_of_birth = Column(Date, nullable=True)
+    gender = Column(Enum(Gender), nullable=True)
     nationality = Column(String(100), nullable=True)
     passport_number = Column(String(50), nullable=True)
     passport_issue_date = Column(Date, nullable=True)
@@ -72,7 +78,12 @@ class User(BaseModel):
     email_verification_expires = Column(DateTime(timezone=True), nullable=True)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
     password_changed_at = Column(DateTime(timezone=True), nullable=True)
+    must_change_password = Column(Boolean, default=False)
     
     # Profile update tracking
     profile_updated_at = Column(DateTime(timezone=True), nullable=True)
     profile_updated_by = Column(String(255), nullable=True)
+    
+    # Relationships - commented out to avoid conflicts
+    # profile = relationship("UserProfile", back_populates="user", uselist=False)
+    # user_tenants = relationship("UserTenant", back_populates="user")
