@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_reply_to_message_id'
-down_revision = None
+down_revision = 'add_must_change_password'
 depends_on = None
 
 

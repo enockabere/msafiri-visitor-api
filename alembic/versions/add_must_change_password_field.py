@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = 'add_must_change_password'
-down_revision = None  # Update this with the latest revision
+down_revision = 'b5a42d5c4bd7'
 branch_labels = None
 depends_on = None
 
