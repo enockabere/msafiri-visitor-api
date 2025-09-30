@@ -1,3 +1,6 @@
+# Development scripts (archived)
+dev-scripts/
+
 venv/
 .env
 
