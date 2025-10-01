@@ -36,12 +36,12 @@ def create_admin():
             
             db.add(admin_user)
             db.commit()
-            print('✅ Super admin created: admin@msafiri.com / admin123')
+            print('Super admin created: admin@msafiri.com / admin123')
         else:
-            print('ℹ️  Super admin already exists')
+            print('Super admin already exists')
             
     except Exception as e:
-        print(f'❌ Error creating admin: {e}')
+        print(f'Error creating admin: {e}')
         db.rollback()
     finally:
         db.close()

@@ -32,6 +32,23 @@ def safe_reset():
         
         # Drop alembic version table
         conn.execute(text('DROP TABLE IF EXISTS alembic_version'))
+        
+        # Drop enum types
+        result = conn.execute(text("""
+            SELECT typname FROM pg_type 
+            WHERE typtype = 'e' AND typnamespace = (
+                SELECT oid FROM pg_namespace WHERE nspname = 'public'
+            )
+        """))
+        enums = [row[0] for row in result]
+        
+        for enum_name in enums:
+            try:
+                conn.execute(text(f'DROP TYPE IF EXISTS "{enum_name}" CASCADE'))
+                print(f"  ✓ Dropped enum {enum_name}")
+            except Exception as e:
+                print(f"  ⚠️  Could not drop enum {enum_name}: {e}")
+        
         conn.commit()
     
     print("✅ Tables dropped")
