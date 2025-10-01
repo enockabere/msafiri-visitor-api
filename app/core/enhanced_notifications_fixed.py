@@ -1,5 +1,5 @@
 """
-Enhanced notification service with email integration and comprehensive triggers - FIXED
+Enhanced notification service with email integration and comprehensive triggers - FIXED VERSION
 """
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
