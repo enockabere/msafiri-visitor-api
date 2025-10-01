@@ -3,6 +3,7 @@ from .tenant import Tenant
 from .user import User, UserRole, AuthProvider, UserStatus
 from .notification import Notification, NotificationType, NotificationPriority
 from .admin_invitations import AdminInvitation, InvitationStatus
+from .user_roles import UserRole as UserRoleModel, RoleChangeLog, RoleType
 from .user_tenants import UserTenant, UserTenantRole
 from .event import Event
 from .event_participant import EventParticipant
@@ -15,7 +16,7 @@ from .transport_booking import TransportBooking, TransportStatusUpdate, Transpor
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole", 
     "AuthProvider", "UserStatus", "Notification", "NotificationType", "NotificationPriority",
-    "AdminInvitation", "InvitationStatus", "UserTenant", "UserTenantRole",
+    "AdminInvitation", "InvitationStatus", "UserRoleModel", "RoleChangeLog", "RoleType", "UserTenant", "UserTenantRole",
     "Event", "EventParticipant", "EventAttachment", "SecurityBrief", "UserBriefAcknowledgment",
     "BriefType", "ContentType", "GuestHouse", "Room", "VendorAccommodation", "AccommodationAllocation",
     "UsefulContact", "TransportBooking", "TransportStatusUpdate", "TransportVendor", 
