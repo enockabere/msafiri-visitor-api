@@ -329,3 +329,65 @@ def notify_event_update(
         )
     
     return {"message": "Notifications sent successfully"}
+
+@router.post("/{event_id}/request-attendance")
+def request_event_attendance(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Request to attend an event."""
+    from app.models.event_participant import EventParticipant
+    
+    event = crud.event.get(db, id=event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Check if event is published and active
+    if event.status.lower() != 'published':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event is not open for registration"
+        )
+    
+    from datetime import datetime
+    if event.end_date < datetime.now().date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event has already ended"
+        )
+    
+    # Check if user already requested attendance
+    existing = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if existing:
+        return {
+            "message": "Attendance request already exists",
+            "status": existing.status
+        }
+    
+    # Create attendance request
+    participant = EventParticipant(
+        event_id=event_id,
+        full_name=current_user.full_name,
+        email=current_user.email,
+        role='attendee',
+        status='requested',
+        invited_by=current_user.email
+    )
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+    
+    return {
+        "message": "Attendance request submitted successfully",
+        "status": "requested",
+        "participant_id": participant.id
+    }
