@@ -40,11 +40,14 @@ if settings.ENVIRONMENT == "production":
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=["*"],  # Allow all origins (includes mobile apps)
     allow_credentials=False,  # Set to False when using allow_origins=["*"]
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=[
-        "*",  # Allow all headers for development
+        "*",  # Allow all headers (includes mobile app headers)
+        "X-Microsoft-Token",  # Specifically allow Microsoft SSO token header
+        "Authorization",  # Allow auth headers
+        "Content-Type",  # Allow content type headers
     ],
     expose_headers=["X-Process-Time"],
     max_age=3600,  # Cache preflight requests for 1 hour

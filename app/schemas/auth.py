@@ -41,7 +41,7 @@ class UserRegistrationRequest(BaseModel):
     email: str
     password: str
     full_name: str
-    phone_number: str
+    phone_number: Optional[str] = None
     tenant_slug: Optional[str] = None
 
 class UserRegistrationResponse(BaseModel):

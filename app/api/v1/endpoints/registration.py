@@ -39,7 +39,7 @@ def register_user(
         user_create = schemas.UserCreate(
             email=user_data.email,
             full_name=user_data.full_name,
-            phone_number=user_data.phone_number,
+            phone_number=user_data.phone_number or None,  # Handle empty string
             password=user_data.password,
             role=UserRole.GUEST,
             tenant_id=tenant_id,
