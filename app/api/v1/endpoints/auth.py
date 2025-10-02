@@ -89,7 +89,9 @@ def login_access_token(
         "token_type": "bearer",
         "user_id": user.id,
         "role": user.role.value,
-        "tenant_id": user.tenant_id
+        "tenant_id": user.tenant_id,
+        "full_name": user.full_name,
+        "email": user.email
     }
     
     # Add first login flag for frontend
@@ -154,7 +156,9 @@ def login_with_tenant(
         "token_type": "bearer",
         "user_id": user.id,
         "role": user.role.value,
-        "tenant_id": user.tenant_id
+        "tenant_id": user.tenant_id,
+        "full_name": user.full_name,
+        "email": user.email
     }
     
     if is_first_login:
@@ -292,7 +296,9 @@ def mobile_login(
         "token_type": "bearer",
         "user_id": user.id,
         "role": user.role.value,
-        "tenant_id": None  # Mobile users can see all tenant data
+        "tenant_id": None,  # Mobile users can see all tenant data
+        "full_name": user.full_name,
+        "email": user.email
     }
     
     if is_first_login:

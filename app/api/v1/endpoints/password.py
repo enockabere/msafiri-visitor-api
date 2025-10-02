@@ -432,6 +432,61 @@ def force_change_password(
         "status": "success"
     }
 
+@router.post("/update-password")
+def update_password(
+    *,
+    db: Session = Depends(get_db),
+    password_data: schemas.ForcePasswordChangeRequest,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """
+    Update password for any authenticated user (no current password required)
+    """
+    # Only allow LOCAL auth users to change passwords
+    if current_user.auth_provider != AuthProvider.LOCAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SSO users cannot change passwords through this system. Contact your administrator."
+        )
+    
+    # Get full user object
+    user = crud.user.get(db, id=current_user.id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Validate new password
+    if password_data.new_password != password_data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Passwords do not match"
+        )
+    
+    if len(password_data.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    # Update password and clear must_change_password flag
+    from sqlalchemy import func
+    update_data = {
+        "hashed_password": get_password_hash(password_data.new_password),
+        "password_changed_at": func.now(),
+        "must_change_password": False
+    }
+    
+    updated_user = crud.user.update(db, db_obj=user, obj_in=update_data)
+    
+    logger.info(f"Password updated for user: {user.email}")
+    
+    return {
+        "message": "Password has been successfully updated",
+        "status": "success"
+    }
+
 @router.get("/password-policy")
 def get_password_policy() -> Any:
     """

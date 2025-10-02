@@ -10,6 +10,8 @@ class Token(BaseModel):
     first_login: Optional[bool] = None
     must_change_password: Optional[bool] = None
     welcome_message: Optional[str] = None
+    full_name: Optional[str] = None
+    email: Optional[str] = None
     
 class TokenData(BaseModel):
     email: Optional[str] = None
