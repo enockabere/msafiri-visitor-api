@@ -63,6 +63,9 @@ from .accommodation import (
 from .emergency_contact import (
     EmergencyContact, EmergencyContactCreate, EmergencyContactUpdate
 )
+from .user_consent import (
+    UserConsent, UserConsentCreate, UserConsentUpdate
+)
 
 # Legacy compatibility - keep the basic schemas that were in the original __init__.py
 class TenantWithStats(Tenant):
@@ -142,5 +145,8 @@ __all__ = [
     "AccommodationType", "RoomType", "AllocationStatus",
     
     # Emergency contact schemas
-    "EmergencyContact", "EmergencyContactCreate", "EmergencyContactUpdate"
+    "EmergencyContact", "EmergencyContactCreate", "EmergencyContactUpdate",
+    
+    # User consent schemas
+    "UserConsent", "UserConsentCreate", "UserConsentUpdate"
 ]

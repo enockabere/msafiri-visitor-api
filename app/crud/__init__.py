@@ -10,5 +10,6 @@ from .user_tenants import user_tenant
 from .useful_contact import useful_contact
 from .accommodation import guesthouse, room, vendor_accommodation, accommodation_allocation
 from .emergency_contact import emergency_contact
+from .user_consent import user_consent
 
-__all__ = ["tenant", "user", "notification", "role", "event", "event_item", "participant_allocation", "redemption_log", "admin_invitation", "user_tenant", "useful_contact", "guesthouse", "room", "vendor_accommodation", "accommodation_allocation", "emergency_contact"]
+__all__ = ["tenant", "user", "notification", "role", "event", "event_item", "participant_allocation", "redemption_log", "admin_invitation", "user_tenant", "useful_contact", "guesthouse", "room", "vendor_accommodation", "accommodation_allocation", "emergency_contact", "user_consent"]

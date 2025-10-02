@@ -13,6 +13,7 @@ from .guesthouse import GuestHouse, Room, VendorAccommodation, AccommodationAllo
 from .useful_contact import UsefulContact
 from .transport_booking import TransportBooking, TransportStatusUpdate, TransportVendor, BookingType, BookingStatus, VendorType
 from .emergency_contact import EmergencyContact
+from .user_consent import UserConsent
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole", 
@@ -21,5 +22,5 @@ __all__ = [
     "Event", "EventParticipant", "EventAttachment", "SecurityBrief", "UserBriefAcknowledgment",
     "BriefType", "ContentType", "GuestHouse", "Room", "VendorAccommodation", "AccommodationAllocation",
     "UsefulContact", "TransportBooking", "TransportStatusUpdate", "TransportVendor", 
-    "BookingType", "BookingStatus", "VendorType", "EmergencyContact"
+    "BookingType", "BookingStatus", "VendorType", "EmergencyContact", "UserConsent"
 ]
