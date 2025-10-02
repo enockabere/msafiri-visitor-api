@@ -35,16 +35,16 @@ def register_user(
         tenant_id = tenant.slug
     
     try:
-        # Create user with GUEST role by default
+        # Create user with GUEST role by default - mobile users can access all tenants
         user_create = schemas.UserCreate(
             email=user_data.email,
             full_name=user_data.full_name,
             phone_number=user_data.phone_number or None,  # Handle empty string
             password=user_data.password,
             role=UserRole.GUEST,
-            tenant_id=tenant_id,
-            status=UserStatus.PENDING_APPROVAL,  # Require approval for registered users
-            is_active=False  # Inactive until approved
+            tenant_id=None,  # Mobile users don't belong to specific tenant
+            status=UserStatus.ACTIVE,  # Mobile users are active immediately
+            is_active=True  # Active for mobile users
         )
         
         user = crud.user.create(db, obj_in=user_create)
@@ -52,9 +52,9 @@ def register_user(
         logger.info(f"New user registered: {user.email} with role {user.role}")
         
         return schemas.UserRegistrationResponse(
-            message="Registration successful. Your account is pending approval.",
+            message="Registration successful. You can now log in.",
             user_id=user.id,
-            status="pending_approval",
+            status="active",
             email=user.email
         )
         

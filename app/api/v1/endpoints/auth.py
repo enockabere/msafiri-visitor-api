@@ -254,6 +254,53 @@ async def microsoft_sso_login(
             detail=f"SSO authentication failed: {str(e)}"
         )
 
+@router.post("/login/mobile", response_model=schemas.Token)
+def mobile_login(
+    login_data: schemas.LoginRequest,
+    db: Session = Depends(get_db)
+) -> Any:
+    """Mobile app login - allows access without tenant restrictions"""
+    
+    # Mobile users can login without tenant restrictions
+    user = crud.user.authenticate_local(
+        db, email=login_data.email, password=login_data.password, tenant_id=None
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+    elif not crud.user.is_active(user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+    
+    # Record login
+    is_first_login = crud.user.is_first_login(user)
+    updated_user = crud.user.record_login(db, user=user)
+    
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        subject=user.email,
+        tenant_id=None,  # Mobile users can access all tenants
+        expires_delta=access_token_expires
+    )
+    
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "role": user.role.value,
+        "tenant_id": None  # Mobile users can see all tenant data
+    }
+    
+    if is_first_login:
+        response_data["first_login"] = True
+        response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+    
+    return response_data
+
 @router.post("/sso/microsoft/mobile", response_model=schemas.Token)
 async def microsoft_sso_mobile_login(
     microsoft_access_token: str = Header(..., alias="X-Microsoft-Token"),
