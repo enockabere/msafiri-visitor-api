@@ -1,6 +1,6 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration
 from app.api.v1.endpoints import event_participants as event_participants_router
 from app.api.v1.endpoints import event_attachments
 
@@ -18,6 +18,12 @@ api_router.include_router(
     auth_refresh.router, 
     prefix="/auth", 
     tags=["authentication"]
+)
+
+api_router.include_router(
+    registration.router,
+    prefix="/registration",
+    tags=["registration"]
 )
 
 api_router.include_router(

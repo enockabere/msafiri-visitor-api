@@ -27,8 +27,9 @@ allowed_origins = [
     "http://localhost:3000",  # Next.js dev server
     "http://localhost:3001",  # Alternative local port
     "http://127.0.0.1:3000",  # Alternative localhost
-    "https://your-nextjs-app.vercel.app",  # Your deployed Next.js app
-    "https://msafiri-admin.vercel.app",  # Example production URL
+    "http://192.168.200.66:3000",  # Server IP Next.js
+    "http://192.168.200.66:8000",  # Server IP API
+    "http://192.168.200.66",  # Server IP without port
 ]
 
 # In production, get allowed origins from environment
