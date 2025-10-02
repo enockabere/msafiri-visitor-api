@@ -87,3 +87,4 @@ class User(BaseModel):
     # Relationships - commented out to avoid conflicts
     # profile = relationship("UserProfile", back_populates="user", uselist=False)
     # user_tenants = relationship("UserTenant", back_populates="user")
+    emergency_contacts = relationship("EmergencyContact", back_populates="user")

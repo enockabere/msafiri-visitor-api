@@ -60,6 +60,9 @@ from .accommodation import (
     AccommodationAllocation, AccommodationAllocationCreate, AccommodationAllocationUpdate,
     AccommodationType, RoomType, AllocationStatus
 )
+from .emergency_contact import (
+    EmergencyContact, EmergencyContactCreate, EmergencyContactUpdate
+)
 
 # Legacy compatibility - keep the basic schemas that were in the original __init__.py
 class TenantWithStats(Tenant):
@@ -136,5 +139,8 @@ __all__ = [
     "Room", "RoomCreate", "RoomUpdate",
     "VendorAccommodation", "VendorAccommodationCreate", "VendorAccommodationUpdate",
     "AccommodationAllocation", "AccommodationAllocationCreate", "AccommodationAllocationUpdate",
-    "AccommodationType", "RoomType", "AllocationStatus"
+    "AccommodationType", "RoomType", "AllocationStatus",
+    
+    # Emergency contact schemas
+    "EmergencyContact", "EmergencyContactCreate", "EmergencyContactUpdate"
 ]
