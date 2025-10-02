@@ -12,6 +12,7 @@ from .security_brief import SecurityBrief, UserBriefAcknowledgment, BriefType, C
 from .guesthouse import GuestHouse, Room, VendorAccommodation, AccommodationAllocation
 from .useful_contact import UsefulContact
 from .transport_booking import TransportBooking, TransportStatusUpdate, TransportVendor, BookingType, BookingStatus, VendorType
+from .emergency_contact import EmergencyContact
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole", 
@@ -20,5 +21,5 @@ __all__ = [
     "Event", "EventParticipant", "EventAttachment", "SecurityBrief", "UserBriefAcknowledgment",
     "BriefType", "ContentType", "GuestHouse", "Room", "VendorAccommodation", "AccommodationAllocation",
     "UsefulContact", "TransportBooking", "TransportStatusUpdate", "TransportVendor", 
-    "BookingType", "BookingStatus", "VendorType"
+    "BookingType", "BookingStatus", "VendorType", "EmergencyContact"
 ]
