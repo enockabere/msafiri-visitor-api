@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = 'create_invitations_table'
-down_revision = 'add_reply_to_message_id'
+down_revision = 'add_user_consent_001'
 depends_on = None
 
 def upgrade():
