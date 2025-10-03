@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.crud.invitation import invitation as crud_invitation
 from app.schemas.invitation import InvitationCreate, Invitation as InvitationSchema
+from app.models.invitation import Invitation
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
@@ -88,10 +89,18 @@ def create_invitation(
         )
         
         logger.info(f"💾 Saving invitation to database")
-        db.add(invitation_obj)
-        db.commit()
-        db.refresh(invitation_obj)
-        invitation = invitation_obj
+        try:
+            db.add(invitation_obj)
+            db.flush()  # Flush to get any database errors before commit
+            logger.info(f"💾 Invitation flushed, ID: {invitation_obj.id}")
+            db.commit()
+            logger.info(f"✅ Invitation committed successfully")
+            db.refresh(invitation_obj)
+            invitation = invitation_obj
+        except Exception as db_error:
+            logger.error(f"💥 Database error: {str(db_error)}")
+            db.rollback()
+            raise
         
         # Send invitation email
         logger.info(f"📧 Queuing invitation email")
@@ -216,9 +225,20 @@ def accept_invitation(
     logger.info(f"🎯 Accept invitation called with token: {token[:10]}...")
     
     try:
+        # Debug: Log the exact token being searched
+        logger.info(f"🔍 Searching for exact token: '{token}'")
+        logger.info(f"🔍 Token length: {len(token)}")
+        
         # Find invitation by token
         invitation = crud_invitation.get_by_token(db, token=token)
         if not invitation:
+            # Debug: Check if token exists without expiry/acceptance filters
+            any_invitation = db.query(Invitation).filter(Invitation.token == token).first()
+            if any_invitation:
+                logger.warning(f"❌ Token found but expired/accepted: expires_at={any_invitation.expires_at}, is_accepted={any_invitation.is_accepted}")
+            else:
+                logger.warning(f"❌ Token not found in database at all")
+            
             logger.warning(f"❌ Invitation not found for token: {token[:10]}...")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
