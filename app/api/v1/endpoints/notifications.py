@@ -50,11 +50,13 @@ def get_my_notifications(
     skip: int = 0,
     limit: int = 50,
 ) -> Any:
-    """Get current user's notifications"""
+    """Get current user's notifications - supports mobile users without tenants"""
+    # For mobile users without tenant, get all notifications for the user
+    # For tenant users, filter by tenant
     notifications = crud.notification.get_user_notifications(
         db, 
         user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        tenant_id=current_user.tenant_id,  # Can be None for mobile users
         unread_only=unread_only,
         skip=skip,
         limit=limit
@@ -99,6 +101,42 @@ def get_sent_notifications(
             "can_edit": can_edit,
             "can_delete": can_edit,
             "user_id": notification.user_id
+        })
+    
+    return result
+
+@router.get("/mobile", response_model=List[Dict[str, Any]])
+def get_mobile_notifications(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    unread_only: bool = Query(False, description="Get only unread notifications"),
+    skip: int = 0,
+    limit: int = 20,
+) -> Any:
+    """Get notifications optimized for mobile app"""
+    notifications = crud.notification.get_user_notifications(
+        db, 
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,  # Can be None for mobile users
+        unread_only=unread_only,
+        skip=skip,
+        limit=limit
+    )
+    
+    # Format for mobile consumption
+    result = []
+    for notification in notifications:
+        result.append({
+            "id": notification.id,
+            "title": notification.title,
+            "message": notification.message,
+            "type": notification.notification_type.value if notification.notification_type else "general",
+            "priority": notification.priority.value if notification.priority else "medium",
+            "isRead": notification.is_read,
+            "createdAt": notification.created_at.isoformat(),
+            "readAt": notification.read_at.isoformat() if notification.read_at else None,
+            "actionUrl": notification.action_url,
+            "sender": notification.triggered_by
         })
     
     return result
@@ -367,11 +405,11 @@ def get_my_notifications_detailed(
     skip: int = 0,
     limit: int = 50,
 ) -> Any:
-    """Get current user's notifications with detailed sender info"""
+    """Get current user's notifications with detailed sender info - mobile friendly"""
     notifications = crud.notification.get_user_notifications(
         db, 
         user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
+        tenant_id=current_user.tenant_id,  # Can be None for mobile users
         unread_only=unread_only,
         skip=skip,
         limit=limit

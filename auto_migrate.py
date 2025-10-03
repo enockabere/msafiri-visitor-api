@@ -9,16 +9,16 @@ import sqlalchemy as sa
 def auto_migrate():
     """Automatically sync database with current models"""
     try:
-        print("🔄 Auto-syncing database with models...")
+        print("Auto-syncing database with models...")
         
         # This creates any missing tables without dropping existing ones
         Base.metadata.create_all(bind=engine, checkfirst=True)
         
-        print("✅ Database synced successfully!")
-        print("📝 All missing tables and columns have been created")
+        print("Database synced successfully!")
+        print("All missing tables and columns have been created")
         
     except Exception as e:
-        print(f"❌ Error syncing database: {e}")
+        print(f"Error syncing database: {e}")
 
 if __name__ == "__main__":
     auto_migrate()
