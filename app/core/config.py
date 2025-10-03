@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     ONESIGNAL_API_KEY: Optional[str] = os.getenv("ONESIGNAL_API_KEY")
 
 
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://192.168.200.66:3000")
     MOBILE_DEEP_LINK: str = os.getenv("MOBILE_DEEP_LINK", "msafiri://auth")
 
 
@@ -71,20 +71,8 @@ class Settings(BaseSettings):
 
     @property
     def frontend_url(self) -> str:
-        explicit = os.getenv("FRONTEND_URL")
-        if explicit:
-            return explicit
-
-        env = self.ENVIRONMENT.lower()
-        if env == "production":
-            # Use your actual Vercel domain in production
-            return "https://msf-msafiri-admin-portal.vercel.app"
-        elif env == "development":
-            return "http://localhost:3000"
-        else:
-            # Staging or any other unspecified environment
-            # You can override by setting FRONTEND_URL in env.
-            return "http://localhost:3000"
+        # Always use FRONTEND_URL from environment if set
+        return self.FRONTEND_URL
 
 
 settings = Settings()

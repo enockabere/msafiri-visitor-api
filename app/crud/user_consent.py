@@ -12,14 +12,16 @@ class CRUDUserConsent(CRUDBase[UserConsent, UserConsentCreate, UserConsentUpdate
     def create_with_user(
         self, db: Session, *, obj_in: UserConsentCreate, user_id: int, tenant_id: str
     ) -> UserConsent:
+        now = datetime.utcnow()
+        
         db_obj = UserConsent(
             user_id=user_id,
             tenant_id=tenant_id,
+            created_at=now,
             **obj_in.dict()
         )
         
         # Set acceptance timestamps
-        now = datetime.utcnow()
         if obj_in.data_protection_accepted:
             db_obj.data_protection_accepted_at = now
         if obj_in.terms_conditions_accepted:
