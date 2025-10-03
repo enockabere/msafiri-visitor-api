@@ -232,6 +232,19 @@ def accept_invitation(
         # Find invitation by token
         invitation = crud_invitation.get_by_token(db, token=token)
         if not invitation:
+            # Check if this is an admin invitation token
+            from app.crud.admin_invitations import admin_invitation
+            admin_inv = admin_invitation.get_by_token(db, token=token)
+            if admin_inv:
+                logger.info(f"🔄 Redirecting to admin invitation acceptance")
+                # This is an admin invitation, redirect to the proper endpoint
+                from app.api.v1.endpoints.super_admin import accept_super_admin_invitation
+                from app.schemas.admin_invitations import AdminInvitationAccept
+                return accept_super_admin_invitation(
+                    db=db,
+                    accept_data=AdminInvitationAccept(token=token)
+                )
+            
             # Debug: Check if token exists without expiry/acceptance filters
             any_invitation = db.query(Invitation).filter(Invitation.token == token).first()
             if any_invitation:
