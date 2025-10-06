@@ -571,6 +571,19 @@ def confirm_event_attendance(
     # Update status to confirmed
     logger.info(f"✅ Updating status from '{participation.status}' to 'confirmed'")
     participation.status = 'confirmed'
+    
+    # Create notification for attendance confirmation
+    from app.models.notification import Notification, NotificationPriority, NotificationType
+    notification = Notification(
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        title="Attendance Confirmed",
+        message=f"Your attendance for the event has been confirmed successfully.",
+        notification_type=NotificationType.EVENT_UPDATE,
+        priority=NotificationPriority.HIGH,
+        triggered_by=current_user.email
+    )
+    db.add(notification)
     db.commit()
     
     return {
