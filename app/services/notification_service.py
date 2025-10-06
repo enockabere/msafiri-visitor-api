@@ -11,10 +11,12 @@ logger = logging.getLogger(__name__)
 
 def get_tenant_admins(db: Session, tenant_id: int) -> List[User]:
     """Get all admin users for a tenant"""
-    # Get users with admin roles in single role field
+    from app.models.user import UserRole
+    
+    # Get users with admin roles in single role field using enum values
     admin_users = db.query(User).filter(
         User.tenant_id == str(tenant_id),
-        User.role.in_(['mt_admin', 'hr_admin', 'event_admin']),
+        User.role.in_([UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]),
         User.is_active == True
     ).all()
     
