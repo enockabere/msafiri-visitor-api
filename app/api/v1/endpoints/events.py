@@ -194,6 +194,20 @@ def create_event(
         from app.services.notification_service import send_event_notifications
         send_event_notifications(db, event, "created", current_user.email)
         
+        # Create notification for event creation
+        from app.models.notification import Notification, NotificationPriority, NotificationType
+        notification = Notification(
+            user_id=current_user.id,
+            tenant_id=tenant_obj.id,
+            title="Event Created",
+            message=f"Event '{event.title}' has been created successfully.",
+            notification_type=NotificationType.EVENT_UPDATE,
+            priority=NotificationPriority.MEDIUM,
+            triggered_by=current_user.email
+        )
+        db.add(notification)
+        db.commit()
+        
         logger.info(f"🎉 Event created successfully with ID: {event.id}")
         return event
         
@@ -505,3 +519,123 @@ def request_event_attendance(
         "status": "requested",
         "participant_id": participant.id
     }
+
+@router.post("/{event_id}/confirm-attendance")
+def confirm_event_attendance(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Confirm attendance for an approved event."""
+    from app.models.event_participant import EventParticipant
+    from app.models.notification import Notification, NotificationPriority, NotificationType
+    
+    # Find the user's participation record
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No participation record found"
+        )
+    
+    if participation.status != 'approved':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only confirm attendance for approved participants"
+        )
+    
+    # Update status to confirmed
+    participation.status = 'confirmed'
+    db.commit()
+    
+    # Create notification for user
+    notification = Notification(
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id or "system",
+        title="Attendance Confirmed",
+        message=f"Your attendance for {crud.event.get(db, id=event_id).title} has been confirmed.",
+        notification_type=NotificationType.EVENT_UPDATE,
+        priority=NotificationPriority.MEDIUM,
+        triggered_by="system"
+    )
+    db.add(notification)
+    db.commit()
+    
+    return {
+        "message": "Attendance confirmed successfully",
+        "status": "confirmed"
+    }
+
+@router.post("/{event_id}/upload-document")
+def upload_event_document(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    document_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Upload document for event participation."""
+    import base64
+    import os
+    from pathlib import Path
+    
+    # Validate participation
+    from app.models.event_participant import EventParticipant
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No participation record found"
+        )
+    
+    document_type = document_data.get('document_type')
+    file_name = document_data.get('file_name')
+    file_data = document_data.get('file_data')
+    file_extension = document_data.get('file_extension')
+    
+    if not all([document_type, file_name, file_data, file_extension]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required document data"
+        )
+    
+    try:
+        # Decode base64
+        file_bytes = base64.b64decode(file_data)
+        
+        # Create upload directory
+        upload_dir = Path(f"uploads/events/{event_id}/participants/{participation.id}")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file
+        file_path = upload_dir / f"{document_type}_{participation.id}.{file_extension}"
+        with open(file_path, 'wb') as f:
+            f.write(file_bytes)
+        
+        # Update participation record
+        if document_type == 'passport':
+            participation.passport_document = str(file_path)
+        elif document_type == 'ticket':
+            participation.ticket_document = str(file_path)
+        
+        db.commit()
+        
+        return {
+            "message": f"{document_type.title()} uploaded successfully",
+            "file_path": str(file_path)
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing document: {str(e)}"
+        )

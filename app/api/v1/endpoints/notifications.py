@@ -462,6 +462,37 @@ def get_my_notifications_detailed(
     
     return result
 
+@router.post("/register-token")
+def register_fcm_token(
+    *,
+    db: Session = Depends(get_db),
+    token_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Register FCM token for push notifications."""
+    from app.models.user import User
+    
+    fcm_token = token_data.get('fcm_token')
+    platform = token_data.get('platform', 'unknown')
+    
+    if not fcm_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="FCM token is required"
+        )
+    
+    # Update user's FCM token
+    user = db.query(User).filter(User.id == current_user.id).first()
+    if user:
+        # Store FCM token in user record
+        setattr(user, 'fcm_token', fcm_token)
+        setattr(user, 'fcm_platform', platform)
+        db.commit()
+    
+    return {"message": "FCM token registered successfully"}
+
+
+
 @router.post("/send-to-super-admins")
 def send_notification_to_super_admins(
     *,
