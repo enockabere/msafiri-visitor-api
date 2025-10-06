@@ -78,12 +78,19 @@ class MicrosoftSSO:
             "msf.ch",  # MSF Switzerland
             "msf.fr",  # MSF France
             "msf.be",  # MSF Belgium
+            "outlook.com",  # Development/testing domain
+            "hotmail.com",  # Development/testing domain
+            "gmail.com",  # Development/testing domain
             # Add all MSF domains
         ]
         
         if "@" in email:
             domain = email.split("@")[1].lower()
-            return domain in msf_domains
+            is_msf = domain in msf_domains
+            print(f"DEBUG SSO: Email domain check - email: {email}, domain: {domain}, is_msf: {is_msf}")
+            print(f"DEBUG SSO: Available domains: {msf_domains}")
+            return is_msf
+        print(f"DEBUG SSO: Invalid email format: {email}")
         return False
     
     def determine_auto_role(self, user_data: Dict[str, Any]) -> str:

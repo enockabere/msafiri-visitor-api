@@ -314,12 +314,17 @@ async def microsoft_sso_mobile_login(
 ) -> Any:
     """Microsoft SSO for mobile app"""
     try:
+        logger.info(f"Mobile SSO login attempt started")
         ms_sso = MicrosoftSSO()
         user_data = await ms_sso.verify_token(microsoft_access_token)
         
+        logger.info(f"User data retrieved: email={user_data.get('email')}, name={user_data.get('full_name')}")
+        
         is_msf_user = ms_sso.is_msf_email(user_data["email"])
+        logger.info(f"MSF email check: email={user_data['email']}, is_msf={is_msf_user}")
         
         if not is_msf_user:
+            logger.warning(f"Non-MSF user rejected: {user_data['email']}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only MSF staff can access the mobile app"
@@ -372,10 +377,11 @@ async def microsoft_sso_mobile_login(
         
         return response_data
         
-    except HTTPException:
+    except HTTPException as he:
+        logger.error(f"Mobile SSO HTTP error: {he.status_code} - {he.detail}")
         raise
     except Exception as e:
-        logger.error(f"Mobile SSO authentication failed: {str(e)}")
+        logger.error(f"Mobile SSO authentication failed: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Mobile SSO authentication failed: {str(e)}"
