@@ -78,6 +78,7 @@ class MicrosoftSSO:
             "msf.ch",  # MSF Switzerland
             "msf.fr",  # MSF France
             "msf.be",  # MSF Belgium
+            "oca.msf.org",  # MSF OCA domain
             "outlook.com",  # Development/testing domain
             "hotmail.com",  # Development/testing domain
             "gmail.com",  # Development/testing domain
