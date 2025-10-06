@@ -26,5 +26,16 @@ class CRUDEvent(CRUDBase[Event, EventCreate, EventUpdate]):
         db.commit()
         db.refresh(db_obj)
         return db_obj
+    
+    def get_published_events(self, db: Session, *, skip: int = 0, limit: int = 100) -> List[Event]:
+        """Get all published events regardless of tenant for mobile app"""
+        return (
+            db.query(Event)
+            .filter(Event.status.ilike('published'), Event.is_active == True)
+            .order_by(Event.start_date.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
 event = CRUDEvent(Event)

@@ -330,6 +330,78 @@ def notify_event_update(
     
     return {"message": "Notifications sent successfully"}
 
+@router.get("/published", response_model=List[schemas.Event])
+def get_published_events(
+    *,
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100
+) -> Any:
+    """Get published events (public endpoint for mobile)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"🎯 === PUBLISHED EVENTS GET REQUEST START ===")
+        logger.info(f"📊 Skip: {skip}, Limit: {limit}")
+        
+        # Get all published events regardless of tenant
+        events = crud.event.get_published_events(db, skip=skip, limit=limit)
+        logger.info(f"📊 Found {len(events)} published events")
+        
+        return events
+        
+    except Exception as e:
+        logger.error(f"💥 PUBLISHED EVENTS GET ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@router.get("/mobile/{event_id}", response_model=schemas.Event)
+def get_event_for_mobile(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int
+) -> Any:
+    """Get specific event details for mobile (public endpoint)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"🎯 === MOBILE EVENT DETAILS REQUEST START ===")
+        logger.info(f"📝 Event ID: {event_id}")
+        
+        event = crud.event.get(db, id=event_id)
+        if not event:
+            logger.error(f"❌ Event not found: {event_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Event not found"
+            )
+        
+        # Only return published events for mobile
+        if event.status.lower() != 'published':
+            logger.error(f"❌ Event not published: {event_id}, status: {event.status}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Event not available"
+            )
+        
+        logger.info(f"✅ Returning event details for mobile: {event.title}")
+        return event
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"💥 MOBILE EVENT DETAILS ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.post("/{event_id}/request-attendance")
 def request_event_attendance(
     *,

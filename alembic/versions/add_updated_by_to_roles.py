@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = 'add_updated_by_to_roles'
-down_revision = 'create_events_table'
+down_revision = 'create_roles_table'
 depends_on = None
 
 def upgrade():
