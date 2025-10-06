@@ -402,6 +402,28 @@ def notify_event_update(
     
     return {"message": "Notifications sent successfully"}
 
+@router.get("/my-participation")
+def check_my_event_participation(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Check if current user has any event participation."""
+    from app.models.event_participant import EventParticipant
+    
+    # Check if user has any event participation (approved or confirmed)
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.email == current_user.email,
+        EventParticipant.status.in_(['approved', 'confirmed', 'checked_in'])
+    ).first()
+    
+    return {
+        "has_participation": participation is not None,
+        "participant_id": participation.id if participation else None,
+        "event_id": participation.event_id if participation else None,
+        "status": participation.status if participation else None
+    }
+
 @router.post("/{event_id}/request-attendance")
 def request_event_attendance(
     *,
