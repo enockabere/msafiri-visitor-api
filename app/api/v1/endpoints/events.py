@@ -497,8 +497,9 @@ def request_event_attendance(
     
     if existing:
         return {
-            "message": "Attendance request already exists",
-            "status": existing.status
+            "message": f"Attendance request already exists with status: {existing.status}",
+            "status": existing.status,
+            "participant_id": existing.id
         }
     
     # Create attendance request
