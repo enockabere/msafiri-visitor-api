@@ -31,7 +31,7 @@ class CRUDEvent(CRUDBase[Event, EventCreate, EventUpdate]):
         """Get all published events regardless of tenant for mobile app"""
         return (
             db.query(Event)
-            .filter(Event.status.ilike('published'), Event.is_active == True)
+            .filter(Event.status.ilike('published'))
             .order_by(Event.start_date.desc())
             .offset(skip)
             .limit(limit)
