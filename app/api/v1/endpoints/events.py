@@ -544,10 +544,10 @@ def confirm_event_attendance(
             detail="No participation record found"
         )
     
-    if participation.status != 'approved':
+    if participation.status not in ['approved', 'selected']:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only confirm attendance for approved participants"
+            detail="Can only confirm attendance for approved or selected participants"
         )
     
     # Update status to confirmed
