@@ -554,19 +554,6 @@ def confirm_event_attendance(
     participation.status = 'confirmed'
     db.commit()
     
-    # Create notification for user
-    notification = Notification(
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id or "system",
-        title="Attendance Confirmed",
-        message=f"Your attendance for {crud.event.get(db, id=event_id).title} has been confirmed.",
-        notification_type=NotificationType.EVENT_UPDATE,
-        priority=NotificationPriority.MEDIUM,
-        triggered_by="system"
-    )
-    db.add(notification)
-    db.commit()
-    
     return {
         "message": "Attendance confirmed successfully",
         "status": "confirmed"
