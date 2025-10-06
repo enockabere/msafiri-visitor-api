@@ -446,12 +446,20 @@ def get_my_attendance_status(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get current user's attendance status for a specific event."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from app.models.event_participant import EventParticipant
     
     participation = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
         EventParticipant.email == current_user.email
     ).first()
+    
+    logger.info(f"🎯 Get attendance status - Event: {event_id}, User: {current_user.email}")
+    logger.info(f"📊 Found participation: {participation is not None}")
+    if participation:
+        logger.info(f"📊 Participation status: '{participation.status}'")
     
     return {
         "status": participation.status if participation else None,
@@ -529,6 +537,9 @@ def confirm_event_attendance(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Confirm attendance for an approved event."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from app.models.event_participant import EventParticipant
     from app.models.notification import Notification, NotificationPriority, NotificationType
     
@@ -538,19 +549,27 @@ def confirm_event_attendance(
         EventParticipant.email == current_user.email
     ).first()
     
+    logger.info(f"🎯 Confirm attendance - Event: {event_id}, User: {current_user.email}")
+    
     if not participation:
+        logger.error(f"❌ No participation record found for user {current_user.email} in event {event_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No participation record found"
         )
     
+    logger.info(f"📊 Current participation status: '{participation.status}'")
+    logger.info(f"📊 Checking if status '{participation.status}' is in ['approved', 'selected']")
+    
     if participation.status not in ['approved', 'selected']:
+        logger.error(f"❌ Invalid status for confirmation: '{participation.status}' (expected 'approved' or 'selected')")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only confirm attendance for approved or selected participants"
+            detail=f"Can only confirm attendance for approved or selected participants. Current status: {participation.status}"
         )
     
     # Update status to confirmed
+    logger.info(f"✅ Updating status from '{participation.status}' to 'confirmed'")
     participation.status = 'confirmed'
     db.commit()
     
