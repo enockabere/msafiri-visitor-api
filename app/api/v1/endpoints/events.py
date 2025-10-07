@@ -194,18 +194,6 @@ def create_event(
         from app.services.notification_service import send_event_notifications
         send_event_notifications(db, event, "created", current_user.email)
         
-        # Create notification for event creation
-        from app.models.notification import Notification, NotificationPriority, NotificationType
-        notification = Notification(
-            user_id=current_user.id,
-            tenant_id=tenant_obj.id,
-            title="Event Created",
-            message=f"Event '{event.title}' has been created successfully.",
-            notification_type=NotificationType.EVENT_CREATED,
-            priority=NotificationPriority.MEDIUM,
-            triggered_by=current_user.email
-        )
-        db.add(notification)
         db.commit()
         
         logger.info(f"🎉 Event created successfully with ID: {event.id}")
@@ -626,18 +614,6 @@ def confirm_event_attendance(
     logger.info(f"✅ Updating status from '{participation.status}' to 'confirmed'")
     participation.status = 'confirmed'
     
-    # Create notification for attendance confirmation
-    from app.models.notification import Notification, NotificationPriority, NotificationType
-    notification = Notification(
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,
-        title="Attendance Confirmed",
-        message=f"Your attendance for the event has been confirmed successfully.",
-        notification_type=NotificationType.EVENT_CREATED,
-        priority=NotificationPriority.HIGH,
-        triggered_by=current_user.email
-    )
-    db.add(notification)
     db.commit()
     
     return {
