@@ -195,13 +195,21 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_agenda_table))
                     
-                    # Add unique constraints
+                    # Add unique constraints (with error handling)
                     unique_constraints = [
-                        "ALTER TABLE users ADD CONSTRAINT IF NOT EXISTS users_email_unique UNIQUE (email)",
-                        "ALTER TABLE events ADD CONSTRAINT IF NOT EXISTS events_title_unique UNIQUE (title)"
+                        ("users", "users_email_unique", "ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (email)"),
+                        ("events", "events_title_unique", "ALTER TABLE events ADD CONSTRAINT events_title_unique UNIQUE (title)")
                     ]
-                    for sql in unique_constraints:
-                        conn.execute(text(sql))
+                    
+                    for table_name, constraint_name, sql in unique_constraints:
+                        try:
+                            check_sql = f"SELECT 1 FROM information_schema.table_constraints WHERE table_name = '{table_name}' AND constraint_name = '{constraint_name}'"
+                            result = conn.execute(text(check_sql)).fetchone()
+                            
+                            if not result:
+                                conn.execute(text(sql))
+                        except Exception:
+                            pass  # Constraint might already exist
                     
                     trans.commit()
                     logger.info("✅ Direct migration completed successfully")

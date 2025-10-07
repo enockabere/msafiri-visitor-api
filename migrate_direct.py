@@ -84,13 +84,22 @@ def run_direct_migration():
                 
                 # Add unique constraints
                 unique_constraints = [
-                    "ALTER TABLE users ADD CONSTRAINT IF NOT EXISTS users_email_unique UNIQUE (email)",
-                    "ALTER TABLE events ADD CONSTRAINT IF NOT EXISTS events_title_unique UNIQUE (title)"
+                    ("users", "users_email_unique", "ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (email)"),
+                    ("events", "events_title_unique", "ALTER TABLE events ADD CONSTRAINT events_title_unique UNIQUE (title)")
                 ]
                 
-                for sql in unique_constraints:
-                    logger.info(f"Executing: {sql}")
-                    conn.execute(text(sql))
+                for table_name, constraint_name, sql in unique_constraints:
+                    try:
+                        check_sql = f"SELECT 1 FROM information_schema.table_constraints WHERE table_name = '{table_name}' AND constraint_name = '{constraint_name}'"
+                        result = conn.execute(text(check_sql)).fetchone()
+                        
+                        if not result:
+                            logger.info(f"Adding constraint: {constraint_name}")
+                            conn.execute(text(sql))
+                        else:
+                            logger.info(f"Constraint {constraint_name} already exists, skipping")
+                    except Exception as e:
+                        logger.warning(f"Failed to add constraint {constraint_name}: {str(e)}")
                 
                 # Commit transaction
                 trans.commit()
