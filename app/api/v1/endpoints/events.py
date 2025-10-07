@@ -183,12 +183,20 @@ def create_event(
         logger.info(f"✅ Creating event for tenant: {target_tenant} (ID: {tenant_obj.id})")
         
         # Create event
-        event = crud.event.create_with_tenant(
-            db, 
-            obj_in=event_in, 
-            tenant_id=tenant_obj.id,
-            created_by=current_user.email
-        )
+        try:
+            event = crud.event.create_with_tenant(
+                db, 
+                obj_in=event_in, 
+                tenant_id=tenant_obj.id,
+                created_by=current_user.email
+            )
+        except Exception as e:
+            if "duplicate key value violates unique constraint" in str(e).lower() and "title" in str(e).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="An event with this title already exists. Please choose a different title."
+                )
+            raise e
         
         # Send notifications to tenant admins
         from app.services.notification_service import send_event_notifications

@@ -6,7 +6,7 @@ from app.models.base import BaseModel
 class Event(BaseModel):
     __tablename__ = "events"
     
-    title = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False, unique=True)
     description = Column(Text)
     event_type = Column(String(100))
     status = Column(String(50), default='Draft')

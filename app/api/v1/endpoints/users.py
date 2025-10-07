@@ -44,12 +44,20 @@ def create_user(
             )
     
     # ENHANCED: Use method with notifications
-    user = crud.user.create_with_notifications(
-        db, 
-        obj_in=user_in, 
-        created_by=current_user.email
-    )
-    return user
+    try:
+        user = crud.user.create_with_notifications(
+            db, 
+            obj_in=user_in, 
+            created_by=current_user.email
+        )
+        return user
+    except Exception as e:
+        if "duplicate key value violates unique constraint" in str(e).lower() and "email" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A user with this email address already exists. Please use a different email."
+            )
+        raise e
 
 @router.get("/", response_model=List[schemas.User])
 def read_users(
