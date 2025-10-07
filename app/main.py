@@ -135,10 +135,51 @@ def test_cors():
         "environment": settings.ENVIRONMENT
     }
 
+# Auto-migration function
+def run_auto_migration():
+    """Run database migrations automatically on startup"""
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        logger.info("🔄 Running auto-migration...")
+        
+        # Get project root
+        project_root = Path(__file__).parent.parent
+        migrate_script = project_root / "migrate.py"
+        
+        if migrate_script.exists():
+            # Run the migration script
+            result = subprocess.run(
+                [sys.executable, str(migrate_script)],
+                capture_output=True,
+                text=True
+            )
+        else:
+            # Fallback to direct alembic command
+            result = subprocess.run(
+                ["alembic", "upgrade", "head"],
+                capture_output=True,
+                text=True,
+                cwd=str(project_root)
+            )
+        
+        if result.returncode == 0:
+            logger.info("✅ Auto-migration completed successfully")
+            if result.stdout:
+                logger.info(f"Migration output: {result.stdout}")
+        else:
+            logger.error(f"❌ Auto-migration failed: {result.stderr}")
+            
+    except Exception as e:
+        logger.error(f"❌ Auto-migration error: {str(e)}")
+        # Don't fail startup if migration fails
+
 # Database connection test on startup
 @app.on_event("startup")
 async def startup_event():
-    """Test database connection on startup"""
+    """Test database connection and run migrations on startup"""
     logger.info("🚀 Starting Msafiri Visitor System")
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
@@ -152,6 +193,10 @@ async def startup_event():
             result = conn.execute(text("SELECT version()"))
             version_info = result.fetchone()[0]
             logger.info(f"✅ Database connected: {version_info[:50]}...")
+        
+        # Run auto-migration in production
+        if settings.ENVIRONMENT == "production":
+            run_auto_migration()
         
         logger.info("🎉 Application startup completed!")
         
