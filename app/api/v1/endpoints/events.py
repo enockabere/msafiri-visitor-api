@@ -365,8 +365,16 @@ def delete_event(
         )
     
     # Check if user can delete this event (same tenant)
-    if event.tenant_id != current_user.tenant_id:
-        logger.error(f"❌ Tenant mismatch - Event: {event.tenant_id}, User: {current_user.tenant_id}")
+    # Convert user's tenant slug to tenant ID for comparison
+    user_tenant_obj = None
+    if current_user.tenant_id:
+        user_tenant_obj = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
+    
+    user_tenant_id = user_tenant_obj.id if user_tenant_obj else None
+    logger.info(f"🏢 Tenant comparison - Event tenant_id: {event.tenant_id}, User tenant_id: {user_tenant_id} (from slug: {current_user.tenant_id})")
+    
+    if event.tenant_id != user_tenant_id:
+        logger.error(f"❌ Tenant mismatch - Event: {event.tenant_id}, User: {user_tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot delete events from other tenants"
