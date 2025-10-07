@@ -68,20 +68,40 @@ def get_roles(
 ) -> Any:
     """Get all roles, optionally filtered by tenant."""
     try:
-        logger.info(f"Fetching roles for tenant: {tenant}")
+        logger.info(f"🎯 === ROLES GET REQUEST START ===")
+        logger.info(f"🏢 Tenant param: {tenant}")
+        
+        # Check if roles table exists
+        from sqlalchemy import text
+        result = db.execute(text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'roles')"))
+        table_exists = result.fetchone()[0]
+        logger.info(f"📊 Roles table exists: {table_exists}")
+        
+        if not table_exists:
+            logger.warning("⚠️ Roles table does not exist, creating empty response")
+            return []
         
         if tenant:
+            logger.info(f"✅ Fetching roles for tenant: {tenant}")
             roles = crud.role.get_by_tenant(db, tenant_id=tenant)
-            logger.info(f"Found {len(roles)} roles for tenant {tenant}")
+            logger.info(f"📊 Found {len(roles)} roles for tenant {tenant}")
         else:
+            logger.info(f"✅ Fetching all roles")
             roles = crud.role.get_multi(db)
-            logger.info(f"Found {len(roles)} total roles")
+            logger.info(f"📊 Found {len(roles)} total roles")
         
+        # Log each role for debugging
+        for i, role in enumerate(roles, 1):
+            logger.info(f"🔐 Role {i}: name='{role.name}', tenant_id='{role.tenant_id}', active={role.is_active}")
+        
+        logger.info(f"🎯 === ROLES GET REQUEST END ===")
         return roles
         
     except Exception as e:
-        logger.error(f"Error fetching roles: {str(e)}")
-        raise
+        logger.error(f"💥 ROLES GET ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        # Return empty list instead of raising error to prevent frontend crash
+        return []
 
 @router.put("/{role_id}", response_model=schemas.Role)
 def update_role(

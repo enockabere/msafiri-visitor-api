@@ -89,6 +89,9 @@ class User(BaseModel):
     profile_updated_at = Column(DateTime(timezone=True), nullable=True)
     profile_updated_by = Column(String(255), nullable=True)
     
+    # Push notification token
+    fcm_token = Column(String(500), nullable=True)
+    
     # Relationships - commented out to avoid conflicts
     # profile = relationship("UserProfile", back_populates="user", uselist=False)
     # user_tenants = relationship("UserTenant", back_populates="user")

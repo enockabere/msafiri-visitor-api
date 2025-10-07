@@ -152,7 +152,8 @@ def run_auto_migration():
                     user_columns = [
                         "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
                         "ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255)",
-                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS project VARCHAR(255)"
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS project VARCHAR(255)",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(500)"
                     ]
                     for sql in user_columns:
                         conn.execute(text(sql))
@@ -194,6 +195,27 @@ def run_auto_migration():
                     )
                     """
                     conn.execute(text(create_agenda_table))
+                    
+                    # Create roles table
+                    create_roles_table = """
+                    CREATE TABLE IF NOT EXISTS roles (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL,
+                        description TEXT,
+                        tenant_id VARCHAR NOT NULL,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_by VARCHAR(255),
+                        updated_by VARCHAR(255),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_roles_table))
+                    
+                    # Create index on tenant_id for roles
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id)
+                    """))
                     
                     # Add unique constraints (with error handling)
                     unique_constraints = [

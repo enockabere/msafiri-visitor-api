@@ -212,7 +212,7 @@ async def update_participant_status(
     participant.status = status_update.status
     # Notes field not available yet
     
-    # If status is selected, send invitation email
+    # If status is selected, send invitation email and push notification
     if status_update.status == "selected":
         print(f"🎉 SENDING SELECTION EMAIL to {participant.full_name} ({participant.email})")
         email_sent = await send_status_notification(participant, status_update.status, db)
@@ -220,6 +220,30 @@ async def update_participant_status(
             print(f"✅ SELECTION EMAIL SENT SUCCESSFULLY to {participant.email}")
         else:
             print(f"❌ FAILED TO SEND SELECTION EMAIL to {participant.email}")
+        
+        # Send push notification
+        try:
+            from app.services.firebase_service import firebase_service
+            event = db.query(Event).filter(Event.id == participant.event_id).first()
+            if event:
+                push_sent = firebase_service.send_to_user(
+                    db=db,
+                    user_email=participant.email,
+                    title="🎉 You've been selected!",
+                    body=f"Congratulations! You've been selected for {event.title}",
+                    data={
+                        "type": "event_selection",
+                        "event_id": str(event.id),
+                        "participant_id": str(participant.id)
+                    }
+                )
+                if push_sent:
+                    print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
+                else:
+                    print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
+        except Exception as e:
+            print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
+            
         # participant.invitation_sent = True
         # participant.invitation_sent_at = datetime.utcnow()
     elif status_update.status == "not_selected":
@@ -229,6 +253,29 @@ async def update_participant_status(
             print(f"✅ REJECTION EMAIL SENT SUCCESSFULLY to {participant.email}")
         else:
             print(f"❌ FAILED TO SEND REJECTION EMAIL to {participant.email}")
+        
+        # Send push notification for rejection
+        try:
+            from app.services.firebase_service import firebase_service
+            event = db.query(Event).filter(Event.id == participant.event_id).first()
+            if event:
+                push_sent = firebase_service.send_to_user(
+                    db=db,
+                    user_email=participant.email,
+                    title="Event Application Update",
+                    body=f"Thank you for your interest in {event.title}. Unfortunately, we were unable to select you at this time.",
+                    data={
+                        "type": "event_rejection",
+                        "event_id": str(event.id),
+                        "participant_id": str(participant.id)
+                    }
+                )
+                if push_sent:
+                    print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
+                else:
+                    print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
+        except Exception as e:
+            print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
     
     db.commit()
     
@@ -458,6 +505,29 @@ async def resend_invitation(
     else:
         print(f"❌ FAILED TO SEND INVITATION EMAIL to {participant.email}")
     
+    # Also resend push notification
+    try:
+        from app.services.firebase_service import firebase_service
+        event = db.query(Event).filter(Event.id == participant.event_id).first()
+        if event:
+            push_sent = firebase_service.send_to_user(
+                db=db,
+                user_email=participant.email,
+                title="🎉 You've been selected!",
+                body=f"Congratulations! You've been selected for {event.title}",
+                data={
+                    "type": "event_selection",
+                    "event_id": str(event.id),
+                    "participant_id": str(participant.id)
+                }
+            )
+            if push_sent:
+                print(f"✅ PUSH NOTIFICATION RESENT to {participant.email}")
+            else:
+                print(f"❌ FAILED TO RESEND PUSH NOTIFICATION to {participant.email}")
+    except Exception as e:
+        print(f"❌ ERROR RESENDING PUSH NOTIFICATION: {str(e)}")
+    
     # Update invitation tracking (temporarily disabled)
     # participant.invitation_sent = True
     # participant.invitation_sent_at = datetime.utcnow()
@@ -489,3 +559,25 @@ async def accept_invitation(
     db.commit()
     
     return {"message": "Invitation accepted successfully"}
+
+@router.post("/user/update-fcm-token")
+async def update_fcm_token(
+    token_data: dict,
+    db: Session = Depends(get_db)
+) -> Any:
+    """Update user's FCM token for push notifications"""
+    
+    user_email = token_data.get('email')
+    fcm_token = token_data.get('fcm_token')
+    
+    if not user_email or not fcm_token:
+        raise HTTPException(status_code=400, detail="Email and FCM token are required")
+    
+    user = db.query(User).filter(User.email == user_email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.fcm_token = fcm_token
+    db.commit()
+    
+    return {"message": "FCM token updated successfully"}
