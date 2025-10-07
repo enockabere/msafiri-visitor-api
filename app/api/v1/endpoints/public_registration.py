@@ -24,10 +24,9 @@ class PublicRegistrationRequest(BaseModel):
     countryOfWork: Optional[str] = ""
     projectOfWork: Optional[str] = ""
     personalEmail: str
-    msfEmail: str
+    msfEmail: Optional[str] = ""
     hrcoEmail: Optional[str] = ""
     careerManagerEmail: Optional[str] = ""
-    ldManagerEmail: Optional[str] = ""
     lineManagerEmail: Optional[str] = ""
     phoneNumber: str
 
