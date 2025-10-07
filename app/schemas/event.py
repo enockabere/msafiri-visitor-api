@@ -13,6 +13,7 @@ class EventBase(BaseModel):
     end_date: date
     location: Optional[str] = None
     address: Optional[str] = None
+    country: Optional[str] = None
     latitude: Optional[Decimal] = None
     longitude: Optional[Decimal] = None
     banner_image: Optional[str] = None
@@ -30,6 +31,7 @@ class EventUpdate(BaseModel):
     end_date: Optional[date] = None
     location: Optional[str] = None
     address: Optional[str] = None
+    country: Optional[str] = None
     latitude: Optional[Decimal] = None
     longitude: Optional[Decimal] = None
     banner_image: Optional[str] = None
