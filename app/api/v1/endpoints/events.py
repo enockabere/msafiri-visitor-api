@@ -319,16 +319,25 @@ def delete_event(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Delete event (only allowed for draft events)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🗑️ Delete event request - Event ID: {event_id}, User: {current_user.email}")
     
     event = crud.event.get(db, id=event_id)
     if not event:
+        logger.error(f"❌ Event not found: {event_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
     
+    logger.info(f"📊 Event details - Status: {event.status}, Tenant: {event.tenant_id}")
+    logger.info(f"👤 User details - Role: {current_user.role}, Tenant: {current_user.tenant_id}")
+    
     # Only allow deletion of draft events
     if event.status.lower() != 'draft':
+        logger.error(f"❌ Cannot delete non-draft event: {event.status}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only draft events can be deleted. Published events cannot be deleted."
@@ -340,10 +349,16 @@ def delete_event(
         UserRoleModel.is_active == True
     ).all()
     
+    logger.info(f"🔐 User roles from relationship: {[role.role.value for role in user_roles]}")
+    
     has_single_role_permission = can_create_events(current_user.role)
     has_relationship_role_permission = can_create_events_by_relationship_roles(user_roles)
     
+    logger.info(f"🔐 Single role permission: {has_single_role_permission}")
+    logger.info(f"🔐 Relationship role permission: {has_relationship_role_permission}")
+    
     if not has_single_role_permission and not has_relationship_role_permission:
+        logger.error(f"❌ User lacks admin permissions")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admin roles can delete events"
@@ -351,14 +366,17 @@ def delete_event(
     
     # Check if user can delete this event (same tenant)
     if event.tenant_id != current_user.tenant_id:
+        logger.error(f"❌ Tenant mismatch - Event: {event.tenant_id}, User: {current_user.tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot delete events from other tenants"
         )
     
     # Hard delete for draft events (since they haven't been published)
+    logger.info(f"✅ Deleting draft event: {event_id}")
     db.delete(event)
     db.commit()
+    logger.info(f"🎉 Event deleted successfully: {event_id}")
     return {"message": "Draft event deleted successfully"}
 
 @router.put("/{event_id}/status")
