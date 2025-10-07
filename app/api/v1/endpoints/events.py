@@ -549,8 +549,8 @@ def request_event_attendance(
         current_user.country = registration_data['country']
     if registration_data.get('position'):
         current_user.position = registration_data['position']
-    if registration_data.get('project'):
-        current_user.project = registration_data['project']
+    if registration_data.get('department'):
+        current_user.project = registration_data['department']  # Map department to project field
     if registration_data.get('gender'):
         current_user.gender = registration_data['gender']
     
@@ -560,11 +560,11 @@ def request_event_attendance(
         full_name=current_user.full_name,
         email=current_user.email,
         role='attendee',
-        status='requested',
+        status='registered',  # Changed from 'requested' to 'registered'
         invited_by=current_user.email,
         country=registration_data.get('country'),
         position=registration_data.get('position'),
-        project=registration_data.get('project'),
+        project=registration_data.get('department'),  # Store department in project field
         gender=registration_data.get('gender'),
         eta=registration_data.get('eta') if registration_data.get('requires_eta') else None,
         requires_eta=registration_data.get('requires_eta', False)
@@ -575,7 +575,7 @@ def request_event_attendance(
     
     return {
         "message": "Registration submitted successfully",
-        "status": "requested",
+        "status": "registered",
         "participant_id": participant.id
     }
 

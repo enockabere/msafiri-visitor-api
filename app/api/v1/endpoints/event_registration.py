@@ -162,7 +162,7 @@ async def get_participant_details(
             "id": participant.id,
             "email": participant.email,
             "full_name": participant.full_name,
-            "phone": user.phone if user and hasattr(user, 'phone') else None,
+            "phone": user.phone_number if user and hasattr(user, 'phone_number') else None,
             "role": participant.role,
             "status": participant.status,
             "registration_type": "self",
@@ -172,7 +172,16 @@ async def get_participant_details(
             "invitation_sent": participant.status == "selected" and participant.email and participant.email.strip(),
             "invitation_sent_at": participant.updated_at.isoformat() if participant.status == "selected" and participant.email and participant.email.strip() and participant.updated_at else None,
             "invitation_accepted": participant.status == "confirmed",
-            "invitation_accepted_at": participant.updated_at.isoformat() if participant.status == "confirmed" and participant.updated_at else None
+            "invitation_accepted_at": participant.updated_at.isoformat() if participant.status == "confirmed" and participant.updated_at else None,
+            # Registration details
+            "country": participant.country,
+            "position": participant.position,
+            "department": participant.project,  # project field stores department
+            "gender": participant.gender,
+            "eta": participant.eta,
+            "requires_eta": participant.requires_eta,
+            "passport_document": bool(participant.passport_document),
+            "ticket_document": bool(participant.ticket_document)
         }
     except HTTPException:
         raise
