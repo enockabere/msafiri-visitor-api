@@ -16,6 +16,7 @@ class Event(BaseModel):
     # Location & Logistics
     location = Column(String(255))
     address = Column(Text)
+    country = Column(String(100))
     latitude = Column(Numeric(10,8))
     longitude = Column(Numeric(11,8))
     

@@ -30,6 +30,18 @@ class EventParticipant(BaseModel):
     invited_by = Column(String(255), nullable=False)  # Keep original column name for now
     # notes = Column(Text, nullable=True)  # Admin notes
     
+    # Registration details
+    country = Column(String(100), nullable=True)
+    position = Column(String(255), nullable=True)
+    project = Column(String(255), nullable=True)
+    gender = Column(String(50), nullable=True)
+    eta = Column(String(255), nullable=True)  # Expected Time of Arrival
+    requires_eta = Column(Boolean, default=False)
+    
+    # Document upload tracking
+    passport_document = Column(String(500), nullable=True)
+    ticket_document = Column(String(500), nullable=True)
+    
     # Invitation tracking fields (will be added to DB later)
     # invitation_sent = Column(Boolean, default=False)
     # invitation_sent_at = Column(DateTime, nullable=True)

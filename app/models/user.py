@@ -66,6 +66,11 @@ class User(BaseModel):
     department = Column(String(255), nullable=True)
     job_title = Column(String(255), nullable=True)
     
+    # Event registration profile fields
+    country = Column(String(100), nullable=True)
+    position = Column(String(255), nullable=True)
+    project = Column(String(255), nullable=True)
+    
     # Auto-registration fields
     auto_registered = Column(Boolean, default=False)
     approved_by = Column(String(255), nullable=True)

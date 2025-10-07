@@ -318,13 +318,20 @@ def delete_event(
     event_id: int,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Soft delete event (set is_active to False)."""
+    """Delete event (only allowed for draft events)."""
     
     event = crud.event.get(db, id=event_id)
     if not event:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
+        )
+    
+    # Only allow deletion of draft events
+    if event.status.lower() != 'draft':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only draft events can be deleted. Published events cannot be deleted."
         )
     
     # Check permissions using both role systems
@@ -349,9 +356,10 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
-    # Soft delete
-    crud.event.update(db, db_obj=event, obj_in={"is_active": False})
-    return {"message": "Event deleted successfully"}
+    # Hard delete for draft events (since they haven't been published)
+    db.delete(event)
+    db.commit()
+    return {"message": "Draft event deleted successfully"}
 
 @router.put("/{event_id}/status")
 def update_event_status(
@@ -463,7 +471,10 @@ def get_my_attendance_status(
     
     return {
         "status": participation.status if participation else None,
-        "participant_id": participation.id if participation else None
+        "participant_id": participation.id if participation else None,
+        "requires_eta": participation.requires_eta if participation else False,
+        "has_passport": bool(participation.passport_document) if participation else False,
+        "has_ticket": bool(participation.ticket_document) if participation else False,
     }
 
 @router.post("/{event_id}/request-attendance")
@@ -471,9 +482,10 @@ def request_event_attendance(
     *,
     db: Session = Depends(get_db),
     event_id: int,
+    registration_data: dict,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Request to attend an event."""
+    """Request to attend an event with registration details."""
     from app.models.event_participant import EventParticipant
     
     event = crud.event.get(db, id=event_id)
@@ -510,21 +522,37 @@ def request_event_attendance(
             "participant_id": existing.id
         }
     
-    # Create attendance request
+    # Update user profile with registration data
+    if registration_data.get('country'):
+        current_user.country = registration_data['country']
+    if registration_data.get('position'):
+        current_user.position = registration_data['position']
+    if registration_data.get('project'):
+        current_user.project = registration_data['project']
+    if registration_data.get('gender'):
+        current_user.gender = registration_data['gender']
+    
+    # Create attendance request with additional data
     participant = EventParticipant(
         event_id=event_id,
         full_name=current_user.full_name,
         email=current_user.email,
         role='attendee',
         status='requested',
-        invited_by=current_user.email
+        invited_by=current_user.email,
+        country=registration_data.get('country'),
+        position=registration_data.get('position'),
+        project=registration_data.get('project'),
+        gender=registration_data.get('gender'),
+        eta=registration_data.get('eta') if registration_data.get('requires_eta') else None,
+        requires_eta=registration_data.get('requires_eta', False)
     )
     db.add(participant)
     db.commit()
     db.refresh(participant)
     
     return {
-        "message": "Attendance request submitted successfully",
+        "message": "Registration submitted successfully",
         "status": "requested",
         "participant_id": participant.id
     }
