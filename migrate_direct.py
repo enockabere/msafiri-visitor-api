@@ -63,6 +63,25 @@ def run_direct_migration():
                     logger.info(f"Executing: {sql}")
                     conn.execute(text(sql))
                 
+                # Create event_agenda table (if it doesn't exist)
+                create_agenda_table = """
+                CREATE TABLE IF NOT EXISTS event_agenda (
+                    id SERIAL PRIMARY KEY,
+                    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                    day_number INTEGER NOT NULL,
+                    event_date DATE NOT NULL,
+                    time VARCHAR(10) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    created_by VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+                
+                logger.info("Creating event_agenda table...")
+                conn.execute(text(create_agenda_table))
+                
                 # Commit transaction
                 trans.commit()
                 logger.info("✅ Direct migration completed successfully!")

@@ -143,12 +143,64 @@ def run_auto_migration():
         
         # Try direct SQL migration first (safer)
         try:
-            from migrate_direct import run_direct_migration
-            run_direct_migration()
-            logger.info("✅ Direct migration completed successfully")
-            return
-        except ImportError:
-            logger.info("Direct migration script not found, trying alembic...")
+            # Run direct SQL migration
+            engine = create_engine(settings.DATABASE_URL)
+            with engine.connect() as conn:
+                trans = conn.begin()
+                try:
+                    # Add columns to users table
+                    user_columns = [
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS position VARCHAR(255)",
+                        "ALTER TABLE users ADD COLUMN IF NOT EXISTS project VARCHAR(255)"
+                    ]
+                    for sql in user_columns:
+                        conn.execute(text(sql))
+                    
+                    # Add columns to event_participants table
+                    participant_columns = [
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS position VARCHAR(255)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS project VARCHAR(255)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS gender VARCHAR(50)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS eta VARCHAR(255)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS requires_eta BOOLEAN DEFAULT FALSE",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS passport_document VARCHAR(500)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS ticket_document VARCHAR(500)"
+                    ]
+                    for sql in participant_columns:
+                        conn.execute(text(sql))
+                    
+                    # Add column to events table
+                    event_columns = [
+                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS country VARCHAR(100)"
+                    ]
+                    for sql in event_columns:
+                        conn.execute(text(sql))
+                    
+                    # Create event_agenda table
+                    create_agenda_table = """
+                    CREATE TABLE IF NOT EXISTS event_agenda (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        day_number INTEGER NOT NULL,
+                        event_date DATE NOT NULL,
+                        time VARCHAR(10) NOT NULL,
+                        title VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        created_by VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_agenda_table))
+                    
+                    trans.commit()
+                    logger.info("✅ Direct migration completed successfully")
+                    return
+                except Exception as e:
+                    trans.rollback()
+                    raise e
         except Exception as e:
             logger.error(f"Direct migration failed: {str(e)}, trying alembic...")
         
