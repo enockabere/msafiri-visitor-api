@@ -1,7 +1,7 @@
 # File: app/api/v1/endpoints/event_registration.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Any
 from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
