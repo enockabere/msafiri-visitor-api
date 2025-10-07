@@ -139,38 +139,39 @@ def test_cors():
 def run_auto_migration():
     """Run database migrations automatically on startup"""
     try:
+        logger.info("🔄 Running auto-migration...")
+        
+        # Try direct SQL migration first (safer)
+        try:
+            from migrate_direct import run_direct_migration
+            run_direct_migration()
+            logger.info("✅ Direct migration completed successfully")
+            return
+        except ImportError:
+            logger.info("Direct migration script not found, trying alembic...")
+        except Exception as e:
+            logger.error(f"Direct migration failed: {str(e)}, trying alembic...")
+        
+        # Fallback to alembic
         import subprocess
         import sys
         from pathlib import Path
         
-        logger.info("🔄 Running auto-migration...")
-        
-        # Get project root
         project_root = Path(__file__).parent.parent
-        migrate_script = project_root / "migrate.py"
         
-        if migrate_script.exists():
-            # Run the migration script
-            result = subprocess.run(
-                [sys.executable, str(migrate_script)],
-                capture_output=True,
-                text=True
-            )
-        else:
-            # Fallback to direct alembic command
-            result = subprocess.run(
-                ["alembic", "upgrade", "head"],
-                capture_output=True,
-                text=True,
-                cwd=str(project_root)
-            )
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd=str(project_root)
+        )
         
         if result.returncode == 0:
-            logger.info("✅ Auto-migration completed successfully")
+            logger.info("✅ Alembic migration completed successfully")
             if result.stdout:
                 logger.info(f"Migration output: {result.stdout}")
         else:
-            logger.error(f"❌ Auto-migration failed: {result.stderr}")
+            logger.error(f"❌ Alembic migration failed: {result.stderr}")
             
     except Exception as e:
         logger.error(f"❌ Auto-migration error: {str(e)}")
