@@ -135,6 +135,55 @@ def test_cors():
         "environment": settings.ENVIRONMENT
     }
 
+def create_default_roles():
+    """Create default system roles for all tenants"""
+    try:
+        logger.info("🔧 Creating default system roles...")
+        
+        engine = create_engine(settings.DATABASE_URL)
+        with engine.connect() as conn:
+            # Get all tenants
+            tenants_result = conn.execute(text("SELECT slug FROM tenants"))
+            tenants = [row[0] for row in tenants_result.fetchall()]
+            
+            # Default roles to create
+            default_roles = [
+                {"name": "Admin", "description": "Full administrative access to tenant resources"},
+                {"name": "Event Manager", "description": "Can create and manage events"},
+                {"name": "User Manager", "description": "Can manage users and their roles"},
+                {"name": "Viewer", "description": "Read-only access to tenant resources"},
+                {"name": "Facilitator", "description": "Can facilitate events and manage participants"}
+            ]
+            
+            for tenant_id in tenants:
+                for role_data in default_roles:
+                    # Check if role already exists
+                    check_sql = "SELECT id FROM roles WHERE name = :name AND tenant_id = :tenant_id"
+                    existing = conn.execute(text(check_sql), {
+                        "name": role_data["name"],
+                        "tenant_id": tenant_id
+                    }).fetchone()
+                    
+                    if not existing:
+                        # Create the role
+                        insert_sql = """
+                        INSERT INTO roles (name, description, tenant_id, is_active, created_by, created_at)
+                        VALUES (:name, :description, :tenant_id, true, 'system', CURRENT_TIMESTAMP)
+                        """
+                        conn.execute(text(insert_sql), {
+                            "name": role_data["name"],
+                            "description": role_data["description"],
+                            "tenant_id": tenant_id
+                        })
+                        logger.info(f"✅ Created role '{role_data['name']}' for tenant '{tenant_id}'")
+            
+            conn.commit()
+            logger.info("✅ Default roles creation completed")
+            
+    except Exception as e:
+        logger.error(f"❌ Error creating default roles: {str(e)}")
+        # Don't fail startup if role creation fails
+
 # Auto-migration function
 def run_auto_migration():
     """Run database migrations automatically on startup"""
@@ -235,6 +284,9 @@ def run_auto_migration():
                     
                     trans.commit()
                     logger.info("✅ Direct migration completed successfully")
+                    
+                    # Create default roles after successful migration
+                    create_default_roles()
                     return
                 except Exception as e:
                     trans.rollback()
@@ -260,6 +312,8 @@ def run_auto_migration():
             logger.info("✅ Alembic migration completed successfully")
             if result.stdout:
                 logger.info(f"Migration output: {result.stdout}")
+            # Create default roles after successful alembic migration
+            create_default_roles()
         else:
             logger.error(f"❌ Alembic migration failed: {result.stderr}")
             

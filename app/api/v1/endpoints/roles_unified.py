@@ -25,6 +25,19 @@ class RemoveUserRequest(BaseModel):
 
 # ============= ROLE DEFINITIONS MANAGEMENT =============
 
+@router.get("/available-roles")
+def get_available_roles() -> Any:
+    """Get list of available system roles that can be created"""
+    return [
+        {"name": "Admin", "description": "Full administrative access to tenant resources"},
+        {"name": "Event Manager", "description": "Can create and manage events"},
+        {"name": "User Manager", "description": "Can manage users and their roles"},
+        {"name": "Viewer", "description": "Read-only access to tenant resources"},
+        {"name": "Facilitator", "description": "Can facilitate events and manage participants"},
+        {"name": "Content Manager", "description": "Can manage content and resources"},
+        {"name": "Reporter", "description": "Can generate and view reports"}
+    ]
+
 @router.post("/", response_model=schemas.Role)
 def create_role(
     *,
