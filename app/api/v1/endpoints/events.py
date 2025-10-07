@@ -201,7 +201,7 @@ def create_event(
             tenant_id=tenant_obj.id,
             title="Event Created",
             message=f"Event '{event.title}' has been created successfully.",
-            notification_type=NotificationType.EVENT_UPDATE,
+            notification_type=NotificationType.EVENT_CREATED,
             priority=NotificationPriority.MEDIUM,
             triggered_by=current_user.email
         )
@@ -633,7 +633,7 @@ def confirm_event_attendance(
         tenant_id=current_user.tenant_id,
         title="Attendance Confirmed",
         message=f"Your attendance for the event has been confirmed successfully.",
-        notification_type=NotificationType.EVENT_UPDATE,
+        notification_type=NotificationType.EVENT_CREATED,
         priority=NotificationPriority.HIGH,
         triggered_by=current_user.email
     )
