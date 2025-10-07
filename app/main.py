@@ -261,6 +261,67 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_roles_table))
                     
+                    # Create event_feedback table
+                    create_feedback_table = """
+                    CREATE TABLE IF NOT EXISTS event_feedback (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        participant_id INTEGER REFERENCES event_participants(id) ON DELETE SET NULL,
+                        participant_email VARCHAR(255) NOT NULL,
+                        participant_name VARCHAR(255) NOT NULL,
+                        overall_rating INTEGER CHECK (overall_rating >= 1 AND overall_rating <= 5),
+                        content_rating INTEGER CHECK (content_rating >= 1 AND content_rating <= 5),
+                        organization_rating INTEGER CHECK (organization_rating >= 1 AND organization_rating <= 5),
+                        venue_rating INTEGER CHECK (venue_rating >= 1 AND venue_rating <= 5),
+                        feedback_text TEXT,
+                        suggestions TEXT,
+                        would_recommend BOOLEAN,
+                        submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        ip_address VARCHAR(45),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_feedback_table))
+                    
+                    # Add registration form fields to events table
+                    registration_form_columns = [
+                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_form_title VARCHAR(500)",
+                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_form_description TEXT"
+                    ]
+                    for sql in registration_form_columns:
+                        conn.execute(text(sql))
+                    
+                    # Create public_registrations table for detailed form data
+                    create_public_registrations_table = """
+                    CREATE TABLE IF NOT EXISTS public_registrations (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        participant_id INTEGER REFERENCES event_participants(id) ON DELETE CASCADE,
+                        first_name VARCHAR(255) NOT NULL,
+                        last_name VARCHAR(255) NOT NULL,
+                        oc VARCHAR(50) NOT NULL,
+                        contract_status VARCHAR(100) NOT NULL,
+                        contract_type VARCHAR(50) NOT NULL,
+                        gender_identity VARCHAR(100) NOT NULL,
+                        sex VARCHAR(50) NOT NULL,
+                        pronouns VARCHAR(50) NOT NULL,
+                        current_position VARCHAR(255) NOT NULL,
+                        country_of_work VARCHAR(255),
+                        project_of_work VARCHAR(255),
+                        personal_email VARCHAR(255) NOT NULL,
+                        msf_email VARCHAR(255) NOT NULL,
+                        hrco_email VARCHAR(255),
+                        career_manager_email VARCHAR(255),
+                        ld_manager_email VARCHAR(255),
+                        line_manager_email VARCHAR(255),
+                        phone_number VARCHAR(50) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_public_registrations_table))
+                    
                     # Create index on tenant_id for roles
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id)
