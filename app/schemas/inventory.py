@@ -10,7 +10,7 @@ class InventoryBase(BaseModel):
     condition: str = 'good'
 
 class InventoryCreate(InventoryBase):
-    tenant_id: str
+    tenant_id: int
 
 class InventoryUpdate(BaseModel):
     name: Optional[str] = None
@@ -19,7 +19,7 @@ class InventoryUpdate(BaseModel):
 
 class Inventory(InventoryBase):
     id: int
-    tenant_id: str
+    tenant_id: int
     is_active: bool
     created_by: Optional[str] = None
     created_at: datetime

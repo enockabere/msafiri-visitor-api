@@ -16,14 +16,17 @@ def create_inventory_item(
 ) -> Any:
     """Create new inventory item"""
     
-    # Convert tenant slug to tenant ID if needed
+    # Handle tenant_id - could be int or string slug
     tenant_id = item_in.tenant_id
-    if isinstance(tenant_id, str) and not tenant_id.isdigit():
-        from app.models.tenant import Tenant
-        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        tenant_id = tenant.id
+    if isinstance(tenant_id, str):
+        if tenant_id.isdigit():
+            tenant_id = int(tenant_id)
+        else:
+            from app.models.tenant import Tenant
+            tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+            if not tenant:
+                raise HTTPException(status_code=404, detail="Tenant not found")
+            tenant_id = tenant.id
     
     item = Inventory(
         tenant_id=int(tenant_id),
