@@ -16,8 +16,17 @@ def create_inventory_item(
 ) -> Any:
     """Create new inventory item"""
     
+    # Convert tenant slug to tenant ID if needed
+    tenant_id = item_in.tenant_id
+    if isinstance(tenant_id, str) and not tenant_id.isdigit():
+        from app.models.tenant import Tenant
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
+    
     item = Inventory(
-        tenant_id=item_in.tenant_id,
+        tenant_id=int(tenant_id),
         name=item_in.name,
         category=item_in.category,
         quantity=item_in.quantity,
@@ -45,7 +54,14 @@ def get_inventory_items(
     query = db.query(Inventory).filter(Inventory.is_active == True)
     
     if tenant:
-        query = query.filter(Inventory.tenant_id == tenant)
+        # Convert tenant slug to tenant ID if needed
+        tenant_id = tenant
+        if not tenant.isdigit():
+            from app.models.tenant import Tenant
+            tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
+            if tenant_obj:
+                tenant_id = tenant_obj.id
+        query = query.filter(Inventory.tenant_id == int(tenant_id))
     
     if category:
         query = query.filter(Inventory.category == category)
