@@ -33,6 +33,7 @@ class Tenant(BaseModel):
     phone_number = Column(String(20), nullable=True)
     address = Column(Text, nullable=True)
     website = Column(String(255), nullable=True)
+    country = Column(String(100), nullable=True)
     
     # Branding
     logo_url = Column(String(500), nullable=True)

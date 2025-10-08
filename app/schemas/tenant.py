@@ -13,6 +13,7 @@ class TenantBase(BaseModel):
     phone_number: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
+    country: Optional[str] = None
     
 class TenantCreate(TenantBase):
     # Settings for new tenant
@@ -38,6 +39,7 @@ class TenantUpdate(BaseModel):
     phone_number: Optional[str] = None
     address: Optional[str] = None
     website: Optional[str] = None
+    country: Optional[str] = None
     allow_self_registration: Optional[bool] = None
     require_admin_approval: Optional[bool] = None
     max_users: Optional[str] = None

@@ -229,6 +229,13 @@ def run_auto_migration():
                     for sql in event_columns:
                         conn.execute(text(sql))
                     
+                    # Add columns to tenants table
+                    tenant_columns = [
+                        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country VARCHAR(100)"
+                    ]
+                    for sql in tenant_columns:
+                        conn.execute(text(sql))
+                    
                     # Create event_agenda table
                     create_agenda_table = """
                     CREATE TABLE IF NOT EXISTS event_agenda (
