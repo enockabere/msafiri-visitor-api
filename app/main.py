@@ -253,6 +253,25 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_inventory_table))
                     
+                    # Create event_allocations table
+                    create_event_allocations_table = """
+                    CREATE TABLE IF NOT EXISTS event_allocations (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        inventory_item_id INTEGER REFERENCES inventory(id) ON DELETE SET NULL,
+                        quantity_per_participant INTEGER DEFAULT 0,
+                        drink_vouchers_per_participant INTEGER DEFAULT 0,
+                        status VARCHAR(50) DEFAULT 'pending',
+                        notes TEXT,
+                        tenant_id VARCHAR NOT NULL,
+                        created_by VARCHAR(255),
+                        approved_by VARCHAR(255),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        approved_at TIMESTAMP WITH TIME ZONE
+                    )
+                    """
+                    conn.execute(text(create_event_allocations_table))
+                    
                     # Create event_agenda table
                     create_agenda_table = """
                     CREATE TABLE IF NOT EXISTS event_agenda (
@@ -353,6 +372,12 @@ def run_auto_migration():
                     """))
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_inventory_tenant_id ON inventory(tenant_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_event_allocations_event_id ON event_allocations(event_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_event_allocations_tenant_id ON event_allocations(tenant_id)
                     """))
                     
                     # Add unique constraints (with error handling)

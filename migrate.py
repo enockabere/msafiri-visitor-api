@@ -1,52 +1,79 @@
 #!/usr/bin/env python3
-"""
-Auto-migration script for Msafiri Visitor API
-Runs Alembic migrations automatically
-"""
+"""Manual migration script"""
 
 import os
 import sys
-import logging
-import subprocess
-from pathlib import Path
+from sqlalchemy import create_engine, text
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Add the app directory to Python path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from app.core.config import settings
 
 def run_migration():
-    """Run Alembic migration"""
+    """Run the migration manually"""
+    print("🔄 Running manual migration...")
+    
     try:
-        # Get the project root directory
-        project_root = Path(__file__).parent
-        
-        logger.info("🔄 Starting database migration...")
-        logger.info(f"📁 Project root: {project_root}")
-        
-        # Change to project directory
-        os.chdir(project_root)
-        
-        # Run alembic upgrade head
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            logger.info("✅ Migration completed successfully!")
-            if result.stdout:
-                logger.info(f"Output: {result.stdout}")
-        else:
-            logger.error(f"❌ Migration failed!")
-            logger.error(f"Error: {result.stderr}")
-            sys.exit(1)
-            
-    except FileNotFoundError:
-        logger.error("❌ Alembic not found. Please install alembic: pip install alembic")
-        sys.exit(1)
+        engine = create_engine(settings.DATABASE_URL)
+        with engine.connect() as conn:
+            trans = conn.begin()
+            try:
+                # Create inventory table
+                print("Creating inventory table...")
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS inventory (
+                        id SERIAL PRIMARY KEY,
+                        tenant_id VARCHAR NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        category VARCHAR(100),
+                        quantity INTEGER DEFAULT 0,
+                        condition VARCHAR(50) DEFAULT 'good',
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_by VARCHAR(255),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+                
+                # Create event_allocations table
+                print("Creating event_allocations table...")
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS event_allocations (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        inventory_item_id INTEGER REFERENCES inventory(id) ON DELETE SET NULL,
+                        quantity_per_participant INTEGER DEFAULT 0,
+                        drink_vouchers_per_participant INTEGER DEFAULT 0,
+                        status VARCHAR(50) DEFAULT 'pending',
+                        notes TEXT,
+                        tenant_id VARCHAR NOT NULL,
+                        created_by VARCHAR(255),
+                        approved_by VARCHAR(255),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        approved_at TIMESTAMP WITH TIME ZONE
+                    )
+                """))
+                
+                # Add country column to tenants
+                print("Adding country column to tenants...")
+                conn.execute(text("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country VARCHAR(100)"))
+                
+                # Create indexes
+                print("Creating indexes...")
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_inventory_tenant_id ON inventory(tenant_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_allocations_event_id ON event_allocations(event_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS idx_event_allocations_tenant_id ON event_allocations(tenant_id)"))
+                
+                trans.commit()
+                print("✅ Migration completed successfully!")
+                
+            except Exception as e:
+                trans.rollback()
+                raise e
+                
     except Exception as e:
-        logger.error(f"❌ Migration error: {str(e)}")
+        print(f"❌ Migration failed: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
