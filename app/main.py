@@ -221,9 +221,10 @@ def run_auto_migration():
                     for sql in participant_columns:
                         conn.execute(text(sql))
                     
-                    # Add column to events table
+                    # Add columns to events table
                     event_columns = [
-                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS country VARCHAR(100)"
+                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+                        "ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_deadline DATE"
                     ]
                     for sql in event_columns:
                         conn.execute(text(sql))

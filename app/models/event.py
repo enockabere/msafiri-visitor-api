@@ -28,6 +28,9 @@ class Event(BaseModel):
     duration_days = Column(Integer)
     perdiem_rate = Column(Numeric(10,2))
     
+    # Registration
+    registration_deadline = Column(Date)
+    
     # Metadata
     tenant_id = Column(Integer, nullable=False)
     created_by = Column(String(255), nullable=False)
