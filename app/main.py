@@ -240,7 +240,7 @@ def run_auto_migration():
                     create_inventory_table = """
                     CREATE TABLE IF NOT EXISTS inventory (
                         id SERIAL PRIMARY KEY,
-                        tenant_id VARCHAR NOT NULL,
+                        tenant_id INTEGER NOT NULL,
                         name VARCHAR(255) NOT NULL,
                         category VARCHAR(100),
                         quantity INTEGER DEFAULT 0,
@@ -253,6 +253,12 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_inventory_table))
                     
+                    # Fix tenant_id data type if table exists
+                    try:
+                        conn.execute(text("ALTER TABLE inventory ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::INTEGER"))
+                    except Exception:
+                        pass  # Column might already be correct type
+                    
                     # Create event_allocations table
                     create_event_allocations_table = """
                     CREATE TABLE IF NOT EXISTS event_allocations (
@@ -263,7 +269,7 @@ def run_auto_migration():
                         drink_vouchers_per_participant INTEGER DEFAULT 0,
                         status VARCHAR(50) DEFAULT 'pending',
                         notes TEXT,
-                        tenant_id VARCHAR NOT NULL,
+                        tenant_id INTEGER NOT NULL,
                         created_by VARCHAR(255),
                         approved_by VARCHAR(255),
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -271,6 +277,12 @@ def run_auto_migration():
                     )
                     """
                     conn.execute(text(create_event_allocations_table))
+                    
+                    # Fix tenant_id data type if table exists
+                    try:
+                        conn.execute(text("ALTER TABLE event_allocations ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::INTEGER"))
+                    except Exception:
+                        pass  # Column might already be correct type
                     
                     # Create event_agenda table
                     create_agenda_table = """

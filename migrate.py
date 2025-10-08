@@ -24,7 +24,7 @@ def run_migration():
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS inventory (
                         id SERIAL PRIMARY KEY,
-                        tenant_id VARCHAR NOT NULL,
+                        tenant_id INTEGER NOT NULL,
                         name VARCHAR(255) NOT NULL,
                         category VARCHAR(100),
                         quantity INTEGER DEFAULT 0,
@@ -47,13 +47,27 @@ def run_migration():
                         drink_vouchers_per_participant INTEGER DEFAULT 0,
                         status VARCHAR(50) DEFAULT 'pending',
                         notes TEXT,
-                        tenant_id VARCHAR NOT NULL,
+                        tenant_id INTEGER NOT NULL,
                         created_by VARCHAR(255),
                         approved_by VARCHAR(255),
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                         approved_at TIMESTAMP WITH TIME ZONE
                     )
                 """))
+                
+                # Fix existing tables if they have wrong data types
+                print("Fixing data types...")
+                try:
+                    conn.execute(text("ALTER TABLE inventory ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::INTEGER"))
+                    print("Fixed inventory.tenant_id data type")
+                except Exception as e:
+                    print(f"inventory.tenant_id already correct or error: {e}")
+                    
+                try:
+                    conn.execute(text("ALTER TABLE event_allocations ALTER COLUMN tenant_id TYPE INTEGER USING tenant_id::INTEGER"))
+                    print("Fixed event_allocations.tenant_id data type")
+                except Exception as e:
+                    print(f"event_allocations.tenant_id already correct or error: {e}")
                 
                 # Add country column to tenants
                 print("Adding country column to tenants...")
