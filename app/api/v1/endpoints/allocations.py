@@ -69,17 +69,39 @@ async def create_voucher_allocation(
     """Create voucher allocation"""
     
     try:
+        print(f"DEBUG VOUCHER: Request data: {request_data}")
+        print(f"DEBUG VOUCHER: tenant_id={tenant_id}, created_by={created_by}")
+        
         event_id = request_data.get("event_id")
         drink_vouchers_per_participant = request_data.get("drink_vouchers_per_participant", 0)
         notes = request_data.get("notes", "")
         
+        print(f"DEBUG VOUCHER: event_id={event_id}, vouchers={drink_vouchers_per_participant}")
+        
         if drink_vouchers_per_participant <= 0:
             raise HTTPException(status_code=400, detail="Vouchers per participant must be greater than 0")
+        
+        # Find any inventory item to use as dummy (or create without inventory_item_id constraint)
+        dummy_inventory = db.query(Inventory).filter(Inventory.tenant_id == tenant_id).first()
+        if not dummy_inventory:
+            # If no inventory items exist, create a dummy one
+            dummy_inventory = Inventory(
+                name="Voucher Placeholder",
+                category="voucher",
+                quantity=999,
+                condition="new",
+                tenant_id=tenant_id
+            )
+            db.add(dummy_inventory)
+            db.commit()
+            db.refresh(dummy_inventory)
+        
+        print(f"DEBUG VOUCHER: Using dummy inventory item ID: {dummy_inventory.id}")
         
         # Create voucher-only allocation
         db_allocation = EventAllocation(
             event_id=event_id,
-            inventory_item_id=1,  # Dummy item ID for voucher-only
+            inventory_item_id=dummy_inventory.id,
             quantity_per_participant=0,
             drink_vouchers_per_participant=drink_vouchers_per_participant,
             notes=f"VOUCHERS_ONLY|NOTES:{notes}",
@@ -88,14 +110,21 @@ async def create_voucher_allocation(
             created_by=created_by
         )
         
+        print(f"DEBUG VOUCHER: Creating allocation with data: {db_allocation.__dict__}")
+        
         db.add(db_allocation)
         db.commit()
         db.refresh(db_allocation)
+        
+        print(f"DEBUG VOUCHER: Successfully created allocation ID: {db_allocation.id}")
         
         return {"message": "Voucher allocation created successfully", "id": db_allocation.id}
         
     except Exception as e:
         db.rollback()
+        print(f"DEBUG VOUCHER ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to create voucher allocation: {str(e)}")
 
 @router.post("/", response_model=Allocation)
