@@ -236,6 +236,23 @@ def run_auto_migration():
                     for sql in tenant_columns:
                         conn.execute(text(sql))
                     
+                    # Create inventory table
+                    create_inventory_table = """
+                    CREATE TABLE IF NOT EXISTS inventory (
+                        id SERIAL PRIMARY KEY,
+                        tenant_id VARCHAR NOT NULL,
+                        name VARCHAR(255) NOT NULL,
+                        category VARCHAR(100),
+                        quantity INTEGER DEFAULT 0,
+                        condition VARCHAR(50) DEFAULT 'good',
+                        is_active BOOLEAN DEFAULT TRUE,
+                        created_by VARCHAR(255),
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_inventory_table))
+                    
                     # Create event_agenda table
                     create_agenda_table = """
                     CREATE TABLE IF NOT EXISTS event_agenda (
@@ -330,9 +347,12 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_public_registrations_table))
                     
-                    # Create index on tenant_id for roles
+                    # Create indexes
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_inventory_tenant_id ON inventory(tenant_id)
                     """))
                     
                     # Add unique constraints (with error handling)
