@@ -15,6 +15,89 @@ from datetime import datetime
 
 router = APIRouter()
 
+@router.post("/items")
+async def create_item_allocation(
+    request_data: dict,
+    tenant_id: int = Query(...),
+    created_by: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Create item allocation"""
+    
+    try:
+        event_id = request_data.get("event_id")
+        items = request_data.get("items", [])
+        notes = request_data.get("notes", "")
+        category = request_data.get("category", "")
+        requested_email = request_data.get("requested_email", "")
+        
+        if not items:
+            raise HTTPException(status_code=400, detail="Items are required")
+        
+        # Create allocation with items
+        items_json = [{"inventory_item_id": item["inventory_item_id"], "quantity_per_event": item["quantity_per_event"]} for item in items]
+        first_item = items[0]
+        
+        db_allocation = EventAllocation(
+            event_id=event_id,
+            inventory_item_id=first_item["inventory_item_id"],
+            quantity_per_participant=first_item["quantity_per_event"],
+            drink_vouchers_per_participant=0,
+            notes=f"ITEMS:{items_json}|NOTES:{notes}|EMAIL:{requested_email}|CATEGORY:{category}",
+            status="open",
+            tenant_id=tenant_id,
+            created_by=created_by
+        )
+        
+        db.add(db_allocation)
+        db.commit()
+        db.refresh(db_allocation)
+        
+        return {"message": "Item allocation created successfully", "id": db_allocation.id}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create item allocation: {str(e)}")
+
+@router.post("/vouchers")
+async def create_voucher_allocation(
+    request_data: dict,
+    tenant_id: int = Query(...),
+    created_by: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Create voucher allocation"""
+    
+    try:
+        event_id = request_data.get("event_id")
+        drink_vouchers_per_participant = request_data.get("drink_vouchers_per_participant", 0)
+        notes = request_data.get("notes", "")
+        
+        if drink_vouchers_per_participant <= 0:
+            raise HTTPException(status_code=400, detail="Vouchers per participant must be greater than 0")
+        
+        # Create voucher-only allocation
+        db_allocation = EventAllocation(
+            event_id=event_id,
+            inventory_item_id=1,  # Dummy item ID for voucher-only
+            quantity_per_participant=0,
+            drink_vouchers_per_participant=drink_vouchers_per_participant,
+            notes=f"VOUCHERS_ONLY|NOTES:{notes}",
+            status="open",
+            tenant_id=tenant_id,
+            created_by=created_by
+        )
+        
+        db.add(db_allocation)
+        db.commit()
+        db.refresh(db_allocation)
+        
+        return {"message": "Voucher allocation created successfully", "id": db_allocation.id}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create voucher allocation: {str(e)}")
+
 @router.post("/", response_model=Allocation)
 async def create_allocation(
     allocation: AllocationCreate,
@@ -103,6 +186,89 @@ async def get_event_allocations(
         print(f"DEBUG EVENT ALLOCATIONS: ID={alloc.id}, Status={alloc.status}, Event={alloc.event_id}, Tenant={alloc.tenant_id}")
     
     return [get_allocation_with_details(allocation, db) for allocation in allocations]
+
+@router.get("/items/event/{event_id}")
+async def get_event_item_allocations(
+    event_id: int,
+    tenant_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Get item allocations for an event"""
+    
+    allocations = db.query(EventAllocation).filter(
+        EventAllocation.event_id == event_id,
+        EventAllocation.tenant_id == tenant_id
+    ).all()
+    
+    # Filter for allocations with items (not voucher-only)
+    item_allocations = []
+    for allocation in allocations:
+        allocation_details = get_allocation_with_details(allocation, db)
+        if allocation_details.get("items"):
+            # Extract email and category from notes
+            notes = allocation.notes or ""
+            requested_email = "admin@msf.org"
+            category = "equipment"
+            
+            if "|EMAIL:" in notes:
+                email_part = notes.split("|EMAIL:")[1].split("|CATEGORY:")[0] if "|CATEGORY:" in notes else notes.split("|EMAIL:")[1].split("|NOTES:")[0] if "|NOTES:" in notes else notes.split("|EMAIL:")[1]
+                requested_email = email_part.strip()
+            
+            if "|CATEGORY:" in notes:
+                category_part = notes.split("|CATEGORY:")[1].split("|NOTES:")[0] if "|NOTES:" in notes else notes.split("|CATEGORY:")[1]
+                category = category_part.strip()
+            
+            # Convert to item allocation format
+            for item in allocation_details["items"]:
+                # Get actual category from inventory item
+                inventory_item = db.query(Inventory).filter(Inventory.id == item["inventory_item_id"]).first()
+                actual_category = inventory_item.category if inventory_item else category
+                
+                item_allocations.append({
+                    "id": allocation.id,
+                    "inventory_item_id": item["inventory_item_id"],
+                    "inventory_item_name": item["inventory_item_name"],
+                    "inventory_item_category": actual_category,
+                    "quantity_per_event": item["quantity_per_event"],
+                    "available_quantity": item["available_quantity"],
+                    "status": allocation.status,
+                    "notes": allocation_details["notes"],
+                    "created_by": allocation.created_by,
+                    "approved_by": allocation.approved_by,
+                    "created_at": allocation.created_at.isoformat() if allocation.created_at else None,
+                    "requested_email": requested_email
+                })
+    
+    return item_allocations
+
+@router.get("/vouchers/event/{event_id}")
+async def get_event_voucher_allocations(
+    event_id: int,
+    tenant_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Get voucher allocations for an event"""
+    
+    allocations = db.query(EventAllocation).filter(
+        EventAllocation.event_id == event_id,
+        EventAllocation.tenant_id == tenant_id,
+        EventAllocation.drink_vouchers_per_participant > 0
+    ).all()
+    
+    # Convert to voucher allocation format
+    voucher_allocations = []
+    for allocation in allocations:
+        voucher_allocations.append({
+            "id": allocation.id,
+            "drink_vouchers_per_participant": allocation.drink_vouchers_per_participant,
+            "status": allocation.status,
+            "notes": allocation.notes,
+            "created_by": allocation.created_by,
+            "approved_by": allocation.approved_by,
+            "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+        })
+    
+    return voucher_allocations
 
 @router.get("/participant/{participant_id}")
 async def get_participant_allocations(
@@ -555,6 +721,38 @@ async def update_allocation(
     db.commit()
     
     return get_allocation_with_details(allocation, db)
+
+@router.delete("/items/{allocation_id}")
+async def delete_item_allocation(
+    allocation_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete item allocation"""
+    
+    allocation = db.query(EventAllocation).filter(EventAllocation.id == allocation_id).first()
+    if not allocation:
+        raise HTTPException(status_code=404, detail="Item allocation not found")
+    
+    db.delete(allocation)
+    db.commit()
+    
+    return {"message": "Item allocation deleted successfully"}
+
+@router.delete("/vouchers/{allocation_id}")
+async def delete_voucher_allocation(
+    allocation_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete voucher allocation"""
+    
+    allocation = db.query(EventAllocation).filter(EventAllocation.id == allocation_id).first()
+    if not allocation:
+        raise HTTPException(status_code=404, detail="Voucher allocation not found")
+    
+    db.delete(allocation)
+    db.commit()
+    
+    return {"message": "Voucher allocation deleted successfully"}
 
 @router.delete("/{allocation_id}")
 async def delete_allocation(
