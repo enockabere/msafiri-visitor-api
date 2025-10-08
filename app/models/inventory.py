@@ -6,7 +6,7 @@ from app.models.base import BaseModel
 class Inventory(BaseModel):
     __tablename__ = "inventory"
 
-    tenant_id = Column(String, nullable=False, index=True)
+    tenant_id = Column(Integer, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     category = Column(String(100), nullable=False)  # 'stationary' or 'equipment'
     quantity = Column(Integer, default=0)
