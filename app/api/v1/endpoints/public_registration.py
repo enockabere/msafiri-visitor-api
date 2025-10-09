@@ -50,10 +50,6 @@ async def get_public_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Check if event is available for registration
-    if not event.status or event.status.lower() != 'published':
-        raise HTTPException(status_code=404, detail="Event not available for registration")
-    
     return {
         "id": event.id,
         "title": event.title,
@@ -85,11 +81,7 @@ async def public_register_for_event(
         raise HTTPException(status_code=404, detail="Event not found")
     
     logger.info(f"📊 Event found - Status: '{event.status}' (type: {type(event.status)})")
-    
-    # Check if event is published (case insensitive)
-    if not event.status or event.status.lower() != 'published':
-        logger.error(f"❌ Event {event_id} status is '{event.status}', not published")
-        raise HTTPException(status_code=404, detail="Event not available for registration")
+    logger.info(f"✅ Event registration allowed regardless of status")
     
     # Determine primary email (MSF email if exists, otherwise personal/tembo email)
     primary_email = registration.msfEmail if registration.msfEmail else registration.personalEmail
