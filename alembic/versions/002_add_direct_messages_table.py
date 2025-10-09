@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '002_add_direct_messages'
-down_revision = '001_base'
+down_revision = ('001_base', 'cda83ea69b6c')  # Merge both heads
 branch_labels = None
 depends_on = None
 
