@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '002_add_registration_form_fields'
-down_revision = '001_comprehensive_initial'
+down_revision = '001_add_direct_messages'
 branch_labels = None
 depends_on = None
 
