@@ -25,6 +25,7 @@ def generate_participant_qr(
     participant_id: int,
     db: Session = Depends(get_db)
 ):
+    try:
     # Get participant
     print(f"DEBUG QR: Looking for participant with ID {participant_id}")
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
@@ -191,11 +192,15 @@ def generate_participant_qr(
     
     print(f"DEBUG QR: Returning QR response with total_drinks={qr_data.total_drinks}")
     
-    return ParticipantQRResponse(
-        qr_token=qr_token,
-        qr_data_url=f"data:image/png;base64,{img_str}",
-        allocation_summary=qr_data
-    )
+        return ParticipantQRResponse(
+            qr_token=qr_token,
+            qr_data_url=f"data:image/png;base64,{img_str}",
+            allocation_summary=qr_data
+        )
+    except Exception as e:
+        print(f"ERROR in QR generation: {e}")
+        db.rollback()  # Rollback any failed transaction
+        raise HTTPException(status_code=500, detail=f"QR generation failed: {str(e)}")
 
 @router.get("/scan/{qr_token}", response_model=QRAllocationData)
 def scan_qr_code(qr_token: str, db: Session = Depends(get_db)):
