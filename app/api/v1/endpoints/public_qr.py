@@ -63,19 +63,25 @@ def get_participant_by_qr_token(qr_token: str, db: Session = Depends(get_db)):
     
     print(f"DEBUG: Found participant {participant.full_name} for event {event.title if event else 'Unknown'}")
     
+    # Parse QR data to get voucher information
+    qr_allocation_data = None
+    if qr_record.qr_data:
+        try:
+            qr_allocation_data = QRAllocationData.parse_raw(qr_record.qr_data)
+        except:
+            pass
+    
+    # Return data in the format expected by frontend
     return {
-        "participant": {
-            "id": participant.id,
-            "full_name": participant.full_name,
-            "email": participant.email,
-            "status": participant.status
-        },
-        "event": {
-            "id": event.id if event else None,
-            "title": event.title if event else "Unknown Event",
-            "location": event.location if event else "Unknown Location",
-            "start_date": event.start_date.isoformat() if event and event.start_date else None,
-            "end_date": event.end_date.isoformat() if event and event.end_date else None
-        },
-        "qr_data": QRAllocationData.parse_raw(qr_record.qr_data) if qr_record.qr_data else None
+        "participant_id": participant.id,
+        "participant_name": participant.full_name,
+        "participant_email": participant.email,
+        "event_id": event.id if event else 0,
+        "event_title": event.title if event else "Unknown Event",
+        "event_location": event.location if event else "Unknown Location",
+        "event_start_date": event.start_date.isoformat() if event and event.start_date else None,
+        "event_end_date": event.end_date.isoformat() if event and event.end_date else None,
+        "total_drinks": qr_allocation_data.total_drinks if qr_allocation_data else 0,
+        "remaining_drinks": qr_allocation_data.remaining_drinks if qr_allocation_data else 0,
+        "redeemed_drinks": qr_allocation_data.redeemed_drinks if qr_allocation_data else 0
     }
