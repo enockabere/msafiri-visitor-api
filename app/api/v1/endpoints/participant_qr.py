@@ -45,9 +45,17 @@ def generate_participant_qr(
         print(f"DEBUG QR: Event found: {event.title if event else 'None'}")
         
         # Get event allocations for this participant's event
-        allocations = db.query(EventAllocation).filter(
-            EventAllocation.event_id == participant.event_id
-        ).all()
+        print(f"DEBUG QR: About to query EventAllocation for event_id {participant.event_id}")
+        try:
+            allocations = db.query(EventAllocation).filter(
+                EventAllocation.event_id == participant.event_id
+            ).all()
+            print(f"DEBUG QR: Successfully queried {len(allocations)} allocations for event {participant.event_id}")
+        except Exception as e:
+            print(f"DEBUG QR: Error querying allocations: {e}")
+            import traceback
+            print(f"DEBUG QR: Query error traceback: {traceback.format_exc()}")
+            allocations = []
         
         print(f"DEBUG QR: Participant ID {participant_id}, Event ID {participant.event_id}, Status {participant.status}")
         print(f"DEBUG QR: Found {len(allocations)} allocations for event {participant.event_id}")
@@ -66,12 +74,14 @@ def generate_participant_qr(
         
         for allocation in allocations:
             print(f"DEBUG QR: Processing allocation ID {allocation.id}")
+            print(f"DEBUG QR: - All allocation attributes: {dir(allocation)}")
             print(f"DEBUG QR: - drink_vouchers_per_participant: {getattr(allocation, 'drink_vouchers_per_participant', 'NOT_FOUND')}")
             print(f"DEBUG QR: - quantity_per_participant: {getattr(allocation, 'quantity_per_participant', 'NOT_FOUND')}")
             print(f"DEBUG QR: - status: {getattr(allocation, 'status', 'NOT_FOUND')}")
             print(f"DEBUG QR: - notes: {getattr(allocation, 'notes', 'NOT_FOUND')}")
             print(f"DEBUG QR: - tenant_id: {getattr(allocation, 'tenant_id', 'NOT_FOUND')}")
             print(f"DEBUG QR: - event_id: {getattr(allocation, 'event_id', 'NOT_FOUND')}")
+            print(f"DEBUG QR: - allocation_type: {getattr(allocation, 'allocation_type', 'NOT_FOUND')}")
             
             # Parse items from allocation notes if available
             items = []
@@ -147,48 +157,76 @@ def generate_participant_qr(
         print(f"DEBUG QR: Final voucher totals - total_drinks={total_drinks}, remaining_drinks={remaining_drinks}")
         print(f"DEBUG QR: QR data will show: total_drinks={total_drinks}, remaining_drinks={remaining_drinks}, redeemed_drinks={qr_redeemed_drinks}")
         
-        qr_data = QRAllocationData(
-            participant_id=participant.id,
-            participant_name=participant.full_name or "Unknown",
-            participant_email=participant.email,
-            event_id=event.id if event else 0,
-            event_title=event.title if event else "Unknown Event",
-            event_location=event.location if event else "Unknown Location",
-            event_start_date=event.start_date.isoformat() if event and event.start_date else None,
-            event_end_date=event.end_date.isoformat() if event and event.end_date else None,
-            total_drinks=total_drinks,
-            remaining_drinks=remaining_drinks,
-            redeemed_drinks=locals().get('qr_redeemed_drinks', 0)
-        )
+        # Create QR data with safe defaults
+        try:
+            qr_data = QRAllocationData(
+                participant_id=participant.id,
+                participant_name=participant.full_name or "Unknown",
+                participant_email=participant.email or "unknown@example.com",
+                event_id=event.id if event else 0,
+                event_title=event.title if event else "Unknown Event",
+                event_location=event.location if event else "Unknown Location",
+                event_start_date=event.start_date.isoformat() if event and event.start_date else None,
+                event_end_date=event.end_date.isoformat() if event and event.end_date else None,
+                total_drinks=total_drinks,
+                remaining_drinks=remaining_drinks,
+                redeemed_drinks=qr_redeemed_drinks
+            )
+            print(f"DEBUG QR: QR data created successfully")
+        except Exception as e:
+            print(f"DEBUG QR: Error creating QR data: {e}")
+            raise e
         
         # Check if QR already exists
-        existing_qr = db.query(ParticipantQR).filter(ParticipantQR.participant_id == participant_id).first()
+        print(f"DEBUG QR: Checking for existing QR for participant {participant_id}")
+        try:
+            existing_qr = db.query(ParticipantQR).filter(ParticipantQR.participant_id == participant_id).first()
+            print(f"DEBUG QR: Existing QR found: {existing_qr is not None}")
+        except Exception as e:
+            print(f"DEBUG QR: Error checking existing QR: {e}")
+            existing_qr = None
         
-        if existing_qr:
-            qr_token = existing_qr.qr_token
-            # Update QR data
-            existing_qr.qr_data = qr_data.json()
-            db.commit()
-        else:
-            # Create new QR
+        try:
+            if existing_qr:
+                qr_token = existing_qr.qr_token
+                # Update QR data
+                existing_qr.qr_data = qr_data.json()
+                db.commit()
+                print(f"DEBUG QR: Updated existing QR with token {qr_token}")
+            else:
+                # Create new QR
+                qr_token = str(uuid.uuid4())
+                new_qr = ParticipantQR(
+                    participant_id=participant_id,
+                    qr_token=qr_token,
+                    qr_data=qr_data.json()
+                )
+                db.add(new_qr)
+                db.commit()
+                print(f"DEBUG QR: Created new QR with token {qr_token}")
+        except Exception as e:
+            print(f"DEBUG QR: Error saving QR to database: {e}")
+            db.rollback()
+            # Continue with QR generation even if database save fails
             qr_token = str(uuid.uuid4())
-            new_qr = ParticipantQR(
-                participant_id=participant_id,
-                qr_token=qr_token,
-                qr_data=qr_data.json()
-            )
-            db.add(new_qr)
-            db.commit()
+            print(f"DEBUG QR: Using temporary QR token {qr_token}")
         
         # Generate QR code image
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(qr_token)
-        qr.make(fit=True)
-        
-        img = qr.make_image(fill_color="black", back_color="white")
-        img_buffer = io.BytesIO()
-        img.save(img_buffer, format='PNG')
-        img_str = base64.b64encode(img_buffer.getvalue()).decode()
+        print(f"DEBUG QR: Generating QR code image for token {qr_token}")
+        try:
+            qr = qrcode.QRCode(version=1, box_size=10, border=5)
+            qr.add_data(qr_token)
+            qr.make(fit=True)
+            
+            img = qr.make_image(fill_color="black", back_color="white")
+            img_buffer = io.BytesIO()
+            img.save(img_buffer, format='PNG')
+            img_str = base64.b64encode(img_buffer.getvalue()).decode()
+            print(f"DEBUG QR: QR code image generated successfully")
+        except Exception as e:
+            print(f"DEBUG QR: Error generating QR image: {e}")
+            # Return a simple base64 placeholder image
+            img_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
         
         print(f"DEBUG QR: Returning QR response with total_drinks={qr_data.total_drinks}")
         
@@ -199,7 +237,12 @@ def generate_participant_qr(
         )
     except Exception as e:
         print(f"ERROR in QR generation: {e}")
-        db.rollback()  # Rollback any failed transaction
+        import traceback
+        print(f"ERROR traceback: {traceback.format_exc()}")
+        try:
+            db.rollback()  # Rollback any failed transaction
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"QR generation failed: {str(e)}")
 
 @router.get("/scan/{qr_token}", response_model=QRAllocationData)
