@@ -47,7 +47,7 @@ async def get_public_event(
     
     event = db.query(Event).filter(
         Event.id == event_id,
-        Event.status == "Published"
+        Event.status.ilike("published")
     ).first()
     
     if not event:
@@ -79,7 +79,7 @@ async def public_register_for_event(
     # Check if event exists and is published
     event = db.query(Event).filter(
         Event.id == event_id,
-        Event.status == "Published"
+        Event.status.ilike("published")
     ).first()
     
     if not event:
