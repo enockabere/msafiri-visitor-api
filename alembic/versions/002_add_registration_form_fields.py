@@ -1,16 +1,16 @@
 """Add registration form fields to public_registrations
 
-Revision ID: 003
-Revises: 002
-Create Date: 2024-10-09 11:55:00.000000
+Revision ID: 002_add_registration_form_fields
+Revises: 001_comprehensive_initial
+Create Date: 2024-10-09 15:30:00.000000
 
 """
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '003_add_registration_form_fields'
-down_revision = '002_add_direct_messages'
+revision = '002_add_registration_form_fields'
+down_revision = '001_comprehensive_initial'
 branch_labels = None
 depends_on = None
 
