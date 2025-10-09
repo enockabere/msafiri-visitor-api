@@ -235,12 +235,19 @@ def generate_participant_qr(
                     print(f"DEBUG QR: Continuing with temporary token {qr_token}")
                     # Continue with temporary token - it won't be scannable but QR will still generate
         
-        # Generate QR code image
+        # Generate QR code image with full URL
         print(f"DEBUG QR: Generating QR code image for token {qr_token}")
         try:
             from PIL import Image
+            # Create full URL for QR code using environment variable
+            import os
+            base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            qr_url = f"{base_url}/public/qr/{qr_token}"
+            print(f"DEBUG QR: QR code will contain URL: {qr_url}")
+            print(f"DEBUG QR: Using base URL from env: {base_url}")
+            
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
-            qr.add_data(qr_token)
+            qr.add_data(qr_url)
             qr.make(fit=True)
             
             img = qr.make_image(fill_color="black", back_color="white")
