@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Auto Migration Script - Bypass Broken Migrations
-Just ensures the server can start
+Auto Migration Script - Production Ready
+Uses fixed migration system
 """
 
 import subprocess
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 def run_command(command, description):
-    """Run a command and handle errors"""
+    """Run command with error handling"""
     print(f"🔄 {description}...")
     try:
         result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
@@ -20,57 +20,27 @@ def run_command(command, description):
         return False
 
 def main():
-    """Main function - bypass migrations and ensure server starts"""
-    print("🚀 MSafiri API - Bypassing Broken Migrations")
+    """Production migration workflow"""
+    print("🚀 MSafiri API Auto Migration")
     
     if not Path("alembic.ini").exists():
-        print("❌ alembic.ini not found. Please run from project root.")
+        print("❌ alembic.ini not found. Run from project root.")
         sys.exit(1)
     
-    # Create empty __init__.py in versions if missing
-    versions_init = Path("alembic/versions/__init__.py")
-    if not versions_init.exists():
-        versions_init.touch()
-        print("✅ Created versions/__init__.py")
-    
-    # Try to create a simple base migration
-    print("🔄 Creating minimal base migration...")
-    base_migration = Path("alembic/versions/001_base.py")
+    # Check if base migration exists
+    base_migration = Path("alembic/versions/001_base_migration.py")
     if not base_migration.exists():
-        base_content = '''"""base migration
-
-Revision ID: 001_base
-Revises: 
-Create Date: 2024-01-01 00:00:00.000000
-
-"""
-from alembic import op
-import sqlalchemy as sa
-
-revision = '001_base'
-down_revision = None
-branch_labels = None
-depends_on = None
-
-def upgrade():
-    pass
-
-def downgrade():
-    pass
-'''
-        base_migration.write_text(base_content)
-        print("✅ Created base migration")
+        print("⚠️ Base migration missing. Run fix_alembic.py first.")
+        sys.exit(1)
     
-    # Try to stamp the database
-    if run_command("alembic stamp 001_base", "Stamping database with base"):
-        print("🎉 Database stamped successfully!")
-        print("💡 Server should now start normally")
-        print("🚀 Run: uvicorn app.main:app --host 0.0.0.0 --port 8000")
+    # Run migrations
+    if run_command("alembic upgrade head", "Running database migrations"):
+        print("🎉 Migration completed successfully!")
+        print("🚀 Server ready to start")
         return
     
-    print("⚠️ Migration stamping failed, but server may still work")
-    print("💡 Try starting the server anyway:")
-    print("🚀 uvicorn app.main:app --host 0.0.0.0 --port 8000")
+    print("❌ Migration failed. Run fix_alembic.py to reset.")
+    sys.exit(1)
 
 if __name__ == "__main__":
     main()
