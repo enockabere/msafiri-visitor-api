@@ -114,6 +114,41 @@ def get_event_for_mobile(
             detail=f"Internal server error: {str(e)}"
         )
 
+@router.get("/{event_id}/public", response_model=schemas.Event)
+def get_event_public(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int
+) -> Any:
+    """Get specific event details for public registration (no auth required)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"🎯 === PUBLIC EVENT DETAILS REQUEST START ===")
+        logger.info(f"📝 Event ID: {event_id}")
+        
+        event = crud.event.get(db, id=event_id)
+        if not event:
+            logger.error(f"❌ Event not found: {event_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Event not found"
+            )
+        
+        logger.info(f"✅ Returning public event details: {event.title}")
+        return event
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"💥 PUBLIC EVENT DETAILS ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.post("/", response_model=schemas.Event)
 def create_event(
     *,
