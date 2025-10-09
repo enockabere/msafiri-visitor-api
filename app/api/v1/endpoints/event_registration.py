@@ -301,6 +301,12 @@ async def update_participant_status(
         else:
             print(f"❌ FAILED TO SEND SELECTION EMAIL to {participant.email}")
         
+        # Auto-allocate drink vouchers to selected participants
+        try:
+            await auto_allocate_vouchers_to_participant(participant, db)
+        except Exception as e:
+            print(f"❌ ERROR AUTO-ALLOCATING VOUCHERS: {str(e)}")
+        
         # Send push notification
         try:
             from app.services.firebase_service import firebase_service
@@ -459,6 +465,51 @@ async def send_facilitator_notification(participant, db):
         
     except Exception as e:
         print(f"Error sending facilitator notification email: {e}")
+        return False
+
+async def auto_allocate_vouchers_to_participant(participant, db):
+    """Automatically allocate drink vouchers to selected participants"""
+    try:
+        # Check if there are existing voucher allocations for this event
+        existing_voucher_allocations = db.query(EventAllocation).filter(
+            EventAllocation.event_id == participant.event_id,
+            EventAllocation.drink_vouchers_per_participant > 0
+        ).all()
+        
+        if existing_voucher_allocations:
+            print(f"✅ VOUCHERS ALREADY ALLOCATED for event {participant.event_id}")
+            return True
+        
+        # Get event details for tenant_id
+        event = db.query(Event).filter(Event.id == participant.event_id).first()
+        if not event:
+            print(f"❌ EVENT NOT FOUND for participant {participant.id}")
+            return False
+        
+        # Create automatic voucher allocation (2 vouchers per participant)
+        voucher_allocation = EventAllocation(
+            event_id=participant.event_id,
+            inventory_item_id=1,  # Dummy inventory item
+            quantity_per_participant=0,
+            drink_vouchers_per_participant=2,  # Default 2 vouchers per participant
+            notes="AUTO_ALLOCATED|NOTES:Automatically allocated to selected participants",
+            status="approved",  # Auto-approve
+            tenant_id=event.tenant_id,
+            created_by="system",
+            approved_by="system",
+            approved_at=datetime.utcnow()
+        )
+        
+        db.add(voucher_allocation)
+        db.commit()
+        db.refresh(voucher_allocation)
+        
+        print(f"✅ AUTO-ALLOCATED 2 DRINK VOUCHERS for event {participant.event_id} (allocation ID: {voucher_allocation.id})")
+        return True
+        
+    except Exception as e:
+        print(f"❌ ERROR AUTO-ALLOCATING VOUCHERS: {str(e)}")
+        db.rollback()
         return False
 
 async def send_status_notification(participant, status, db):

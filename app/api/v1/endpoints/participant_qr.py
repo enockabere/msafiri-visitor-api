@@ -78,12 +78,17 @@ def generate_participant_qr(
                 total_items += quantity
                 remaining_items += quantity
         
-        # Add drink vouchers (check for vouchers_per_participant field)
+        # Add drink vouchers (check for drink_vouchers_per_participant field)
         vouchers_per_participant = 0
-        if hasattr(allocation, 'vouchers_per_participant') and allocation.vouchers_per_participant > 0:
+        if hasattr(allocation, 'drink_vouchers_per_participant') and allocation.drink_vouchers_per_participant > 0:
+            vouchers_per_participant = allocation.drink_vouchers_per_participant
+            print(f"DEBUG: Found drink_vouchers_per_participant: {vouchers_per_participant}")
+        elif hasattr(allocation, 'vouchers_per_participant') and allocation.vouchers_per_participant > 0:
             vouchers_per_participant = allocation.vouchers_per_participant
-        elif allocation.allocation_type == 'drink_vouchers':
+            print(f"DEBUG: Found vouchers_per_participant: {vouchers_per_participant}")
+        elif getattr(allocation, 'allocation_type', None) == 'drink_vouchers':
             vouchers_per_participant = getattr(allocation, 'quantity_per_participant', 0)
+            print(f"DEBUG: Found allocation_type drink_vouchers: {vouchers_per_participant}")
             
         if vouchers_per_participant > 0:
             print(f"DEBUG: Found {vouchers_per_participant} vouchers for participant {participant_id}")
