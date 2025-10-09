@@ -136,45 +136,85 @@ async def get_event_registrations(
     result = db.execute(text(query), params)
     participants = result.fetchall()
     
-    return [
-        {
-            "id": p.id,
-            "email": p.email,
-            "full_name": p.full_name,
-            "role": p.role,
-            "status": p.status,
-            "registration_type": "self",
-            "registered_by": p.invited_by,
-            "notes": None,
-            "created_at": p.created_at,
-            "invitation_sent": p.status == "selected" and p.email and p.email.strip(),
-            "invitation_sent_at": p.updated_at if p.status == "selected" and p.email and p.email.strip() else None,
-            "invitation_accepted": p.status == "confirmed",
-            "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None,
-            # Registration form data
-            "oc": p.oc,
-            "position": p.current_position or p.position,
-            "country": p.country_of_work or p.country,
-            "contract_status": p.contract_status,
-            "contract_type": p.contract_type,
-            "gender_identity": p.gender_identity,
-            "sex": p.sex,
-            "pronouns": p.pronouns,
-            "project_of_work": p.project_of_work or p.project,
-            "personal_email": p.personal_email,
-            "msf_email": p.msf_email,
-            "hrco_email": p.hrco_email,
-            "career_manager_email": p.career_manager_email,
-            "line_manager_email": p.line_manager_email,
-            "phone_number": p.phone_number,
-            "dietary_requirements": p.dietary_requirements,
-            "accommodation_needs": p.accommodation_needs,
-            "certificate_name": p.certificate_name,
-            "code_of_conduct_confirm": p.code_of_conduct_confirm,
-            "travel_requirements_confirm": p.travel_requirements_confirm
-        }
-        for p in participants
-    ]
+    result = []
+    for p in participants:
+        # Data privacy: anonymize personal data for not_selected participants
+        if p.status == "not_selected":
+            result.append({
+                "id": p.id,
+                "email": "[REDACTED]",
+                "full_name": p.full_name,  # Keep name for audit purposes
+                "role": p.role,
+                "status": p.status,
+                "registration_type": "self",
+                "registered_by": "[REDACTED]",
+                "notes": None,
+                "created_at": p.created_at,
+                "invitation_sent": False,
+                "invitation_sent_at": None,
+                "invitation_accepted": False,
+                "invitation_accepted_at": None,
+                # Redacted registration form data
+                "oc": "[REDACTED]",
+                "position": "[REDACTED]",
+                "country": "[REDACTED]",
+                "contract_status": "[REDACTED]",
+                "contract_type": "[REDACTED]",
+                "gender_identity": "[REDACTED]",
+                "sex": "[REDACTED]",
+                "pronouns": "[REDACTED]",
+                "project_of_work": "[REDACTED]",
+                "personal_email": "[REDACTED]",
+                "msf_email": "[REDACTED]",
+                "hrco_email": "[REDACTED]",
+                "career_manager_email": "[REDACTED]",
+                "line_manager_email": "[REDACTED]",
+                "phone_number": "[REDACTED]",
+                "dietary_requirements": "[REDACTED]",
+                "accommodation_needs": "[REDACTED]",
+                "certificate_name": "[REDACTED]",
+                "code_of_conduct_confirm": "[REDACTED]",
+                "travel_requirements_confirm": "[REDACTED]"
+            })
+        else:
+            result.append({
+                "id": p.id,
+                "email": p.email,
+                "full_name": p.full_name,
+                "role": p.role,
+                "status": p.status,
+                "registration_type": "self",
+                "registered_by": p.invited_by,
+                "notes": None,
+                "created_at": p.created_at,
+                "invitation_sent": p.status == "selected" and p.email and p.email.strip(),
+                "invitation_sent_at": p.updated_at if p.status == "selected" and p.email and p.email.strip() else None,
+                "invitation_accepted": p.status == "confirmed",
+                "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None,
+                # Registration form data
+                "oc": p.oc,
+                "position": p.current_position or p.position,
+                "country": p.country_of_work or p.country,
+                "contract_status": p.contract_status,
+                "contract_type": p.contract_type,
+                "gender_identity": p.gender_identity,
+                "sex": p.sex,
+                "pronouns": p.pronouns,
+                "project_of_work": p.project_of_work or p.project,
+                "personal_email": p.personal_email,
+                "msf_email": p.msf_email,
+                "hrco_email": p.hrco_email,
+                "career_manager_email": p.career_manager_email,
+                "line_manager_email": p.line_manager_email,
+                "phone_number": p.phone_number,
+                "dietary_requirements": p.dietary_requirements,
+                "accommodation_needs": p.accommodation_needs,
+                "certificate_name": p.certificate_name,
+                "code_of_conduct_confirm": p.code_of_conduct_confirm,
+                "travel_requirements_confirm": p.travel_requirements_confirm
+            })
+    
+    return result
 
 @router.get("/participant/{participant_id}")
 async def get_participant_details(
@@ -316,8 +356,23 @@ async def update_participant_status(
                     print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
         except Exception as e:
             print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
+        
+        # Data privacy: Ensure not_selected participants are not created as system users
+        try:
+            user = db.query(User).filter(User.email == participant.email).first()
+            if user and user.role in ['VISITOR', 'GUEST'] and user.auto_registered:
+                print(f"🗑️ REMOVING AUTO-REGISTERED USER for not_selected participant: {participant.email}")
+                db.delete(user)
+                print(f"✅ AUTO-REGISTERED USER REMOVED: {participant.email}")
+        except Exception as e:
+            print(f"❌ ERROR REMOVING AUTO-REGISTERED USER: {str(e)}")
     
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"❌ ERROR COMMITTING STATUS UPDATE: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update participant status")
     
     return {"message": "Participant status updated successfully"}
 
