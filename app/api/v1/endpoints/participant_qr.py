@@ -78,24 +78,30 @@ def generate_participant_qr(
                 total_items += quantity
                 remaining_items += quantity
         
-        # Add drink vouchers (check participant-specific redemptions)
-        if hasattr(allocation, 'drink_vouchers_per_participant') and allocation.drink_vouchers_per_participant > 0:
+        # Add drink vouchers (check for vouchers_per_participant field)
+        vouchers_per_participant = 0
+        if hasattr(allocation, 'vouchers_per_participant') and allocation.vouchers_per_participant > 0:
+            vouchers_per_participant = allocation.vouchers_per_participant
+        elif allocation.allocation_type == 'drink_vouchers':
+            vouchers_per_participant = getattr(allocation, 'quantity_per_participant', 0)
+            
+        if vouchers_per_participant > 0:
+            print(f"DEBUG: Found {vouchers_per_participant} vouchers for participant {participant_id}")
             # Get participant-specific redemptions from database
-            from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+            try:
+                from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+                redemptions = db.query(ParticipantVoucherRedemption).filter(
+                    ParticipantVoucherRedemption.allocation_id == allocation.id,
+                    ParticipantVoucherRedemption.participant_id == participant_id
+                ).all()
+                net_redeemed = sum(r.quantity for r in redemptions)
+            except:
+                net_redeemed = 0
             
-            redemptions = db.query(ParticipantVoucherRedemption).filter(
-                ParticipantVoucherRedemption.allocation_id == allocation.id,
-                ParticipantVoucherRedemption.participant_id == participant_id
-            ).all()
-            
-            net_redeemed = sum(r.quantity for r in redemptions)
-            original_quantity = allocation.drink_vouchers_per_participant
-            remaining_quantity = original_quantity - net_redeemed
-            
-            total_drinks = original_quantity
-            remaining_drinks = remaining_quantity
-            qr_redeemed_drinks = max(0, net_redeemed)  # Don't show negative redeemed
-            break  # Only need one allocation for voucher count
+            total_drinks = vouchers_per_participant
+            remaining_drinks = vouchers_per_participant - net_redeemed
+            qr_redeemed_drinks = max(0, net_redeemed)
+            break
     
     qr_data = QRAllocationData(
         participant_id=participant.id,
