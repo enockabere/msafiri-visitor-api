@@ -25,6 +25,7 @@ def generate_participant_qr(
     participant_id: int,
     db: Session = Depends(get_db)
 ):
+    print("\n🔥🔥🔥 QR ENDPOINT HIT - NEW CODE IS RUNNING! 🔥🔥🔥")
     print(f"\n=== QR GENERATION START FOR PARTICIPANT {participant_id} ===")
     print(f"DEBUG QR: Function called at {datetime.now()}")
     try:
