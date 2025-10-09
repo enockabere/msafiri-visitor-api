@@ -186,9 +186,28 @@ def generate_participant_qr(
             print(f"DEBUG QR: Error checking existing QR: {e}")
             existing_qr = None
         
-        # Always use temporary token for now to avoid database issues
-        qr_token = str(uuid.uuid4())
-        print(f"DEBUG QR: Using temporary QR token {qr_token}")
+        # Use existing token or create new one
+        if existing_qr:
+            qr_token = existing_qr.qr_token
+            print(f"DEBUG QR: Using existing QR token {qr_token}")
+        else:
+            qr_token = str(uuid.uuid4())
+            print(f"DEBUG QR: Creating new QR token {qr_token}")
+            
+            # Store QR data in database
+            try:
+                new_qr = ParticipantQR(
+                    participant_id=participant_id,
+                    qr_token=qr_token,
+                    qr_data=qr_data.json()
+                )
+                db.add(new_qr)
+                db.commit()
+                print(f"DEBUG QR: Stored QR record in database")
+            except Exception as e:
+                print(f"DEBUG QR: Error storing QR record: {e}")
+                db.rollback()
+                # Continue with temporary token
         
         # Generate QR code image
         print(f"DEBUG QR: Generating QR code image for token {qr_token}")

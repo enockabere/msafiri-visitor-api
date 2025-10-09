@@ -240,6 +240,13 @@ api_router.include_router(
     tags=["public-registration"]
 )
 
+from app.api.v1.endpoints import public_qr
+api_router.include_router(
+    public_qr.router,
+    prefix="",
+    tags=["public-qr"]
+)
+
 from app.api.v1.endpoints import countries
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
