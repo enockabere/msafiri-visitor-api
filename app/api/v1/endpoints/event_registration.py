@@ -108,6 +108,8 @@ async def get_event_registrations(
     db: Session = Depends(get_db)
 ):
     """Get all registrations for an event with detailed registration data"""
+    print(f"\n🔥🔥🔥 EVENT REGISTRATIONS ENDPOINT HIT - EVENT ID: {event_id} 🔥🔥🔥")
+    print(f"📊 Status filter: {status_filter}")
     from sqlalchemy import text
     
     # Query participants with detailed registration data
@@ -135,6 +137,12 @@ async def get_event_registrations(
     
     result = db.execute(text(query), params)
     participants = result.fetchall()
+    
+    print(f"📊 Found {len(participants)} participants for event {event_id}")
+    for i, p in enumerate(participants[:3]):  # Print first 3 participants
+        print(f"👤 Participant {i+1}: ID={p.id}, Name={p.full_name}, Email={p.email}, Status={p.status}, Role={p.role}")
+    if len(participants) > 3:
+        print(f"👥 ... and {len(participants) - 3} more participants")
     
     result = []
     for p in participants:
