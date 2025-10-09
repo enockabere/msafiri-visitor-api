@@ -59,8 +59,8 @@ def main():
         if response.lower() != 'y':
             sys.exit(1)
     
-    # Pull latest changes
-    run_command("git pull origin main", "Pulling latest changes")
+    # Skip git pull - assume code is already up to date
+    print("⏭️ Skipping git pull (assuming code is up to date)")
     
     # Update to latest migrations
     success, _ = run_command("alembic upgrade head", "Updating to latest migrations")
