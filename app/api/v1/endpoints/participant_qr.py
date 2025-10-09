@@ -25,6 +25,8 @@ def generate_participant_qr(
     participant_id: int,
     db: Session = Depends(get_db)
 ):
+    print(f"\n=== QR GENERATION START FOR PARTICIPANT {participant_id} ===")
+    print(f"DEBUG QR: Function called at {datetime.now()}")
     try:
         # Get participant
         print(f"DEBUG QR: Looking for participant with ID {participant_id}")
@@ -241,12 +243,25 @@ def generate_participant_qr(
             from PIL import Image
             # Create full URL for QR code using environment variable
             import os
+            print(f"\n--- ENVIRONMENT VARIABLE DEBUGGING ---")
+            frontend_url_raw = os.getenv('FRONTEND_URL')
+            print(f"DEBUG QR: Raw FRONTEND_URL from os.getenv(): '{frontend_url_raw}'")
+            print(f"DEBUG QR: Type of FRONTEND_URL: {type(frontend_url_raw)}")
+            
             base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-            print(f"DEBUG QR: Environment FRONTEND_URL = '{os.getenv('FRONTEND_URL')}'")
-            print(f"DEBUG QR: Resolved base_url = '{base_url}'")
+            print(f"DEBUG QR: Resolved base_url with fallback: '{base_url}'")
+            
+            # Check all environment variables
+            frontend_vars = [(k, v) for k, v in os.environ.items() if 'FRONTEND' in k.upper()]
+            print(f"DEBUG QR: All FRONTEND environment variables: {frontend_vars}")
+            
+            # Check common URL environment variables
+            url_vars = [(k, v) for k, v in os.environ.items() if any(term in k.upper() for term in ['URL', 'HOST', 'DOMAIN'])]
+            print(f"DEBUG QR: All URL-related environment variables: {url_vars[:10]}...")  # Limit output
+            
             qr_url = f"{base_url}/public/qr/{qr_token}"
-            print(f"DEBUG QR: Final QR code URL: {qr_url}")
-            print(f"DEBUG QR: All environment variables containing 'FRONTEND': {[(k, v) for k, v in os.environ.items() if 'FRONTEND' in k]}")
+            print(f"DEBUG QR: Final constructed QR code URL: '{qr_url}'")
+            print(f"--- END ENVIRONMENT DEBUGGING ---\n")
             
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
             qr.add_data(qr_url)
@@ -265,6 +280,9 @@ def generate_participant_qr(
             img_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
         
         print(f"DEBUG QR: Returning QR response with total_drinks={qr_data.total_drinks}")
+        print(f"DEBUG QR: Response will contain token: {qr_token}")
+        print(f"DEBUG QR: Response image data length: {len(img_str)}")
+        print(f"=== QR GENERATION END FOR PARTICIPANT {participant_id} ===\n")
         
         return ParticipantQRResponse(
             qr_token=qr_token,
@@ -272,9 +290,10 @@ def generate_participant_qr(
             allocation_summary=qr_data
         )
     except Exception as e:
-        print(f"ERROR in QR generation: {e}")
+        print(f"\n!!! ERROR in QR generation for participant {participant_id}: {e}")
         import traceback
-        print(f"ERROR traceback: {traceback.format_exc()}")
+        print(f"!!! ERROR traceback: {traceback.format_exc()}")
+        print(f"=== QR GENERATION FAILED FOR PARTICIPANT {participant_id} ===\n")
         try:
             db.rollback()  # Rollback any failed transaction
         except:
