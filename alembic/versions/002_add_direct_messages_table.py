@@ -1,7 +1,7 @@
 """Add direct_messages table
 
 Revision ID: 002_add_direct_messages
-Revises: b5a42d5c4bd7
+Revises: 001_initial_setup
 Create Date: 2024-10-09 10:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '002_add_direct_messages'
-down_revision = 'b5a42d5c4bd7'
+down_revision = '001_initial_setup'
 branch_labels = None
 depends_on = None
 
