@@ -22,14 +22,26 @@ def read_tenants(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Retrieve tenants with user statistics."""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.HR_ADMIN]:
-        print(f"DEBUG: Tenants access denied - User role: {current_user.role}, Required: [SUPER_ADMIN, HR_ADMIN]")
+    # Allow access for various admin roles and tenant admins
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.HR_ADMIN, UserRole.MT_ADMIN, UserRole.EVENT_ADMIN]
+    
+    # Also check if user is a tenant admin (has tenant_id)
+    is_tenant_admin = hasattr(current_user, 'tenant_id') and current_user.tenant_id
+    
+    if current_user.role not in allowed_roles and not is_tenant_admin:
+        print(f"DEBUG: Tenants access denied - User role: {current_user.role}, Tenant ID: {getattr(current_user, 'tenant_id', None)}")
+        print(f"DEBUG: Allowed roles: {[role.value for role in allowed_roles]}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
     
-    tenants = crud.tenant.get_multi(db, skip=skip, limit=limit)
+    # If user is tenant admin, only return their tenant
+    if is_tenant_admin and current_user.role not in allowed_roles:
+        tenant = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
+        tenants = [tenant] if tenant else []
+    else:
+        tenants = crud.tenant.get_multi(db, skip=skip, limit=limit)
     
     # Add user statistics for each tenant
     enhanced_tenants = []
@@ -294,8 +306,49 @@ def read_tenant_by_slug(
     
     return schemas.TenantWithStats(**tenant_data)
 
-@router.get("/{tenant_id}", response_model=schemas.TenantWithStats)
-def read_tenant(
+@router.get("/{tenant_slug}", response_model=schemas.TenantWithStats)
+def read_tenant_by_slug_simple(
+    *,
+    db: Session = Depends(get_db),
+    tenant_slug: str,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Get tenant by slug with authentication and statistics."""
+    tenant = crud.tenant.get_by_slug(db, slug=tenant_slug)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    # Check if user has access to this tenant
+    if (current_user.role != UserRole.SUPER_ADMIN and 
+        current_user.tenant_id != tenant_slug):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You don't have permission to view this tenant"
+        )
+    
+    # Add statistics
+    total_users = len(crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000))
+    active_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.is_active])
+    pending_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.status.value == "pending_approval"])
+    
+    users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=5)
+    last_activity = max([u.last_login for u in users if u.last_login], default=None)
+    
+    tenant_data = {
+        **tenant.__dict__,
+        "total_users": total_users,
+        "active_users": active_users,
+        "pending_users": pending_users,
+        "last_user_activity": last_activity
+    }
+    
+    return schemas.TenantWithStats(**tenant_data)
+
+@router.get("/by-id/{tenant_id}", response_model=schemas.TenantWithStats)
+def read_tenant_by_id(
     *,
     db: Session = Depends(get_db),
     tenant_id: int,

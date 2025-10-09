@@ -129,9 +129,23 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 @app.get("/test-cors")
 def test_cors():
     """Test endpoint to verify CORS is working"""
+    logger.info("🧪 TEST CORS endpoint called")
+    print("🧪 TEST CORS endpoint called")
     return {
         "message": "CORS is working!",
         "timestamp": time.time(),
+        "environment": settings.ENVIRONMENT
+    }
+
+@app.get("/test-connection")
+def test_connection():
+    """Test endpoint to verify API connectivity"""
+    logger.info("🔗 TEST CONNECTION endpoint called")
+    print("🔗 TEST CONNECTION endpoint called")
+    return {
+        "message": "API connection is working!",
+        "timestamp": time.time(),
+        "host": "localhost:8000",
         "environment": settings.ENVIRONMENT
     }
 

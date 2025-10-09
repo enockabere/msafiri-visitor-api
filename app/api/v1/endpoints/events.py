@@ -1,6 +1,6 @@
 # File: app/api/v1/endpoints/events.py
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.api import deps
@@ -268,24 +268,78 @@ def get_event(
     *,
     db: Session = Depends(get_db),
     event_id: int,
-    current_user: schemas.User = Depends(deps.get_current_user)
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant: Optional[str] = Query(None)
 ) -> Any:
     """Get specific event."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🎯 === GET EVENT REQUEST START ===")
+    logger.info(f"📝 Event ID: {event_id}")
+    logger.info(f"👤 User: {current_user.email}")
+    logger.info(f"🏢 Tenant param: {tenant}")
+    logger.info(f"👤 User tenant_id: {current_user.tenant_id}")
+    logger.info(f"👤 User role: {current_user.role}")
     
     event = crud.event.get(db, id=event_id)
     if not event:
+        logger.error(f"❌ Event not found: {event_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
     
-    # Check if user can access this event (same tenant or super admin)
-    if current_user.role != UserRole.SUPER_ADMIN and event.tenant_id != current_user.tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cannot access events from other tenants"
-        )
+    logger.info(f"📊 Event found - Title: {event.title}, Tenant ID: {event.tenant_id}")
     
+    # If tenant parameter is provided, use it for access control
+    if tenant:
+        logger.info(f"🔍 Using tenant parameter for access control: {tenant}")
+        tenant_obj = crud.tenant.get_by_slug(db, slug=tenant)
+        if not tenant_obj:
+            logger.error(f"❌ Tenant not found: {tenant}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tenant {tenant} not found"
+            )
+        
+        logger.info(f"🏢 Tenant found - Name: {tenant_obj.name}, ID: {tenant_obj.id}")
+        
+        # Check if event belongs to the specified tenant
+        if event.tenant_id != tenant_obj.id:
+            logger.error(f"❌ Event {event_id} belongs to tenant {event.tenant_id}, not {tenant_obj.id}")
+            logger.error(f"❌ Event tenant_id type: {type(event.tenant_id)}, Tenant obj ID type: {type(tenant_obj.id)}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access events from other tenants"
+            )
+        
+        logger.info(f"✅ Access granted via tenant parameter: {tenant}")
+        logger.info(f"🎯 === GET EVENT REQUEST END (SUCCESS) ===")
+        return event
+    
+    # Check if user can access this event (same tenant or super admin)
+    logger.info(f"🔍 Using user-based access control")
+    if current_user.role != UserRole.SUPER_ADMIN:
+        # Convert user's tenant slug to tenant ID for comparison
+        user_tenant_obj = None
+        if current_user.tenant_id:
+            user_tenant_obj = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
+        
+        user_tenant_id = user_tenant_obj.id if user_tenant_obj else None
+        
+        logger.info(f"🔍 Tenant check - Event tenant: {event.tenant_id}, User tenant: {user_tenant_id} (from slug: {current_user.tenant_id})")
+        logger.info(f"🔍 Event tenant_id type: {type(event.tenant_id)}, User tenant_id type: {type(user_tenant_id)}")
+        
+        if event.tenant_id != user_tenant_id:
+            logger.error(f"❌ Tenant mismatch - Event: {event.tenant_id}, User: {user_tenant_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access events from other tenants"
+            )
+    
+    logger.info(f"✅ Access granted - Event: {event_id}")
+    logger.info(f"🎯 === GET EVENT REQUEST END (SUCCESS) ===")
     return event
 
 @router.put("/{event_id}", response_model=schemas.Event)

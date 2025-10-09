@@ -54,23 +54,40 @@ def get_inventory_items(
 ) -> Any:
     """Get inventory items"""
     
-    query = db.query(Inventory).filter(Inventory.is_active == True)
+    print(f"DEBUG INVENTORY: tenant={tenant}, category={category}")
     
-    if tenant:
-        # Convert tenant slug to tenant ID if needed
-        tenant_id = tenant
-        if not tenant.isdigit():
-            from app.models.tenant import Tenant
-            tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
-            if tenant_obj:
-                tenant_id = tenant_obj.id
-        query = query.filter(Inventory.tenant_id == int(tenant_id))
-    
-    if category:
-        query = query.filter(Inventory.category == category)
-    
-    items = query.offset(skip).limit(limit).all()
-    return items
+    try:
+        query = db.query(Inventory)
+        print(f"DEBUG INVENTORY: Base query created")
+        
+        if tenant:
+            print(f"DEBUG INVENTORY: Processing tenant: {tenant}")
+            # Convert tenant slug to tenant ID if needed
+            tenant_id = tenant
+            if not tenant.isdigit():
+                from app.models.tenant import Tenant
+                tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
+                print(f"DEBUG INVENTORY: Found tenant object: {tenant_obj}")
+                if tenant_obj:
+                    tenant_id = tenant_obj.id
+                    print(f"DEBUG INVENTORY: Using tenant_id: {tenant_id}")
+            query = query.filter(Inventory.tenant_id == str(tenant_id))
+        
+        if category:
+            print(f"DEBUG INVENTORY: Filtering by category: {category}")
+            query = query.filter(Inventory.category == category)
+        
+        items = query.offset(skip).limit(limit).all()
+        print(f"DEBUG INVENTORY: Found {len(items)} items")
+        for item in items:
+            print(f"DEBUG INVENTORY: Item - ID: {item.id}, Name: {item.name}, Category: {item.category}, Tenant: {item.tenant_id}")
+        
+        return items
+    except Exception as e:
+        print(f"DEBUG INVENTORY ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching inventory: {str(e)}")
 
 @router.put("/{item_id}", response_model=InventorySchema, operation_id="update_inventory_item")
 def update_inventory_item(

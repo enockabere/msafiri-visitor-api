@@ -29,6 +29,14 @@ class PublicRegistrationRequest(BaseModel):
     careerManagerEmail: Optional[str] = ""
     lineManagerEmail: Optional[str] = ""
     phoneNumber: str
+    travellingInternationally: Optional[str] = ""
+    accommodationType: Optional[str] = ""
+    dietaryRequirements: Optional[str] = ""
+    accommodationNeeds: Optional[str] = ""
+    dailyMeals: Optional[list] = []
+    certificateName: Optional[str] = ""
+    codeOfConductConfirm: Optional[str] = ""
+    travelRequirementsConfirm: Optional[str] = ""
 
 @router.get("/events/{event_id}/public")
 async def get_public_event(
@@ -78,21 +86,26 @@ async def public_register_for_event(
         logger.error(f"❌ Event {event_id} not found or not published")
         raise HTTPException(status_code=404, detail="Event not found or not available for registration")
     
-    # Check if user already registered
+    # Determine primary email (MSF email if exists, otherwise personal/tembo email)
+    primary_email = registration.msfEmail if registration.msfEmail else registration.personalEmail
+    
+    # Check if user already registered with any email
     existing = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == registration.personalEmail
+        EventParticipant.event_id == event_id
+    ).filter(
+        (EventParticipant.email == registration.personalEmail) |
+        (EventParticipant.email == registration.msfEmail if registration.msfEmail else False)
     ).first()
     
     if existing:
-        logger.error(f"❌ User {registration.personalEmail} already registered for event {event_id}")
+        logger.error(f"❌ User already registered for event {event_id} with email {existing.email}")
         raise HTTPException(status_code=400, detail="Already registered for this event")
     
     try:
-        # Create participant record
+        # Create participant record using primary email
         participant = EventParticipant(
             event_id=event_id,
-            email=registration.personalEmail,
+            email=primary_email,
             full_name=f"{registration.firstName} {registration.lastName}",
             role="attendee",
             status="registered",

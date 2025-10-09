@@ -240,6 +240,13 @@ api_router.include_router(
     tags=["public-registration"]
 )
 
+from app.api.v1.endpoints import countries
+api_router.include_router(
+    countries.router,
+    prefix="/countries",
+    tags=["countries"]
+)
+
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])
 async def api_root():

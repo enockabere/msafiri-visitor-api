@@ -82,7 +82,7 @@ async def create_voucher_allocation(
             raise HTTPException(status_code=400, detail="Vouchers per participant must be greater than 0")
         
         # Find any inventory item to use as dummy (or create without inventory_item_id constraint)
-        dummy_inventory = db.query(Inventory).filter(Inventory.tenant_id == tenant_id).first()
+        dummy_inventory = db.query(Inventory).filter(Inventory.tenant_id == str(tenant_id)).first()
         if not dummy_inventory:
             # If no inventory items exist, create a dummy one
             dummy_inventory = Inventory(
