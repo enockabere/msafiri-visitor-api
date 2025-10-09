@@ -126,13 +126,15 @@ async def public_register_for_event(
             contract_type, gender_identity, sex, pronouns, current_position, 
             country_of_work, project_of_work, personal_email, msf_email, 
             hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
-            phone_number, created_at
+            phone_number, dietary_requirements, accommodation_needs, certificate_name,
+            code_of_conduct_confirm, travel_requirements_confirm, created_at
         ) VALUES (
             :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
             :contract_type, :gender_identity, :sex, :pronouns, :current_position,
             :country_of_work, :project_of_work, :personal_email, :msf_email,
             :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
-            :phone_number, CURRENT_TIMESTAMP
+            :phone_number, :dietary_requirements, :accommodation_needs, :certificate_name,
+            :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
         )
         """
         
@@ -156,7 +158,12 @@ async def public_register_for_event(
             "career_manager_email": registration.careerManagerEmail,
             "ld_manager_email": registration.lineManagerEmail,
             "line_manager_email": registration.lineManagerEmail,
-            "phone_number": registration.phoneNumber
+            "phone_number": registration.phoneNumber,
+            "dietary_requirements": registration.dietaryRequirements,
+            "accommodation_needs": registration.accommodationNeeds,
+            "certificate_name": registration.certificateName,
+            "code_of_conduct_confirm": registration.codeOfConductConfirm,
+            "travel_requirements_confirm": registration.travelRequirementsConfirm
         })
         
         db.commit()
