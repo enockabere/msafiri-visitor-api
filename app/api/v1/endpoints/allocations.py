@@ -210,17 +210,19 @@ async def create_allocation(
 @router.get("/event/{event_id}", response_model=List[Allocation])
 async def get_event_allocations(
     event_id: int,
-    tenant_id: int = Query(...),
+    tenant_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
     """Get all allocations for an event"""
     
     print(f"DEBUG EVENT ALLOCATIONS: Looking for event_id={event_id}, tenant_id={tenant_id}")
     
-    allocations = db.query(EventAllocation).filter(
-        EventAllocation.event_id == event_id,
-        EventAllocation.tenant_id == tenant_id
-    ).all()
+    # Build query based on whether tenant_id is provided
+    query = db.query(EventAllocation).filter(EventAllocation.event_id == event_id)
+    if tenant_id is not None:
+        query = query.filter(EventAllocation.tenant_id == tenant_id)
+    
+    allocations = query.all()
     
     print(f"DEBUG EVENT ALLOCATIONS: Found {len(allocations)} allocations")
     for alloc in allocations:

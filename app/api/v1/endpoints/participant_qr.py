@@ -23,16 +23,25 @@ router = APIRouter()
 @router.get("/{participant_id}/qr", response_model=ParticipantQRResponse)
 def generate_participant_qr(
     participant_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     # Get participant
+    print(f"DEBUG QR: Looking for participant with ID {participant_id}")
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
     if not participant:
+        print(f"DEBUG QR: Participant {participant_id} not found in database")
+        # Check if participant exists at all
+        all_participants = db.query(EventParticipant).all()
+        print(f"DEBUG QR: Total participants in database: {len(all_participants)}")
+        for p in all_participants[:5]:  # Show first 5
+            print(f"DEBUG QR: - Participant ID {p.id}, Event {p.event_id}, Email {p.email}")
         raise HTTPException(status_code=404, detail="Participant not found")
+    
+    print(f"DEBUG QR: Found participant {participant.id} for event {participant.event_id}")
     
     # Get event
     event = db.query(Event).filter(Event.id == participant.event_id).first()
+    print(f"DEBUG QR: Event found: {event.title if event else 'None'}")
     
     # Get event allocations for this participant's event
     allocations = db.query(EventAllocation).filter(
@@ -41,6 +50,13 @@ def generate_participant_qr(
     
     print(f"DEBUG QR: Participant ID {participant_id}, Event ID {participant.event_id}, Status {participant.status}")
     print(f"DEBUG QR: Found {len(allocations)} allocations for event {participant.event_id}")
+    
+    if len(allocations) == 0:
+        # Check if there are any allocations at all
+        all_allocations = db.query(EventAllocation).all()
+        print(f"DEBUG QR: Total allocations in database: {len(all_allocations)}")
+        for a in all_allocations[:3]:  # Show first 3
+            print(f"DEBUG QR: - Allocation ID {a.id}, Event {a.event_id}, Vouchers {getattr(a, 'drink_vouchers_per_participant', 0)}")
     
     # Build allocation data
     allocation_items = []
@@ -53,6 +69,8 @@ def generate_participant_qr(
         print(f"DEBUG QR: - quantity_per_participant: {getattr(allocation, 'quantity_per_participant', 'NOT_FOUND')}")
         print(f"DEBUG QR: - status: {getattr(allocation, 'status', 'NOT_FOUND')}")
         print(f"DEBUG QR: - notes: {getattr(allocation, 'notes', 'NOT_FOUND')}")
+        print(f"DEBUG QR: - tenant_id: {getattr(allocation, 'tenant_id', 'NOT_FOUND')}")
+        print(f"DEBUG QR: - event_id: {getattr(allocation, 'event_id', 'NOT_FOUND')}")
         
         # Parse items from allocation notes if available
         items = []
@@ -103,6 +121,8 @@ def generate_participant_qr(
             print(f"DEBUG QR: Found allocation_type drink_vouchers: {vouchers_per_participant}")
         else:
             print(f"DEBUG QR: No vouchers found for allocation {allocation.id}")
+            print(f"DEBUG QR: - Allocation has drink_vouchers_per_participant = {getattr(allocation, 'drink_vouchers_per_participant', None)}")
+            print(f"DEBUG QR: - hasattr check: {hasattr(allocation, 'drink_vouchers_per_participant')}")
             
         if vouchers_per_participant > 0:
             print(f"DEBUG: Found {vouchers_per_participant} vouchers for participant {participant_id}")
@@ -124,6 +144,7 @@ def generate_participant_qr(
             break
     
     print(f"DEBUG QR: Final voucher totals - total_drinks={total_drinks}, remaining_drinks={remaining_drinks}")
+    print(f"DEBUG QR: QR data will show: total_drinks={total_drinks}, remaining_drinks={remaining_drinks}, redeemed_drinks={qr_redeemed_drinks}")
     
     qr_data = QRAllocationData(
         participant_id=participant.id,
