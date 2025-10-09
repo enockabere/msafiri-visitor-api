@@ -107,31 +107,64 @@ async def get_event_registrations(
     status_filter: str = Query(None, description="Filter by status: registered, selected, not_selected, waiting, canceled, attended"),
     db: Session = Depends(get_db)
 ):
-    """Get all registrations for an event"""
+    """Get all registrations for an event with detailed registration data"""
+    from sqlalchemy import text
     
-    query = db.query(EventParticipant).filter(EventParticipant.event_id == event_id)
+    # Query participants with detailed registration data
+    query = """
+    SELECT 
+        ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
+        ep.country, ep.position, ep.project, ep.gender,
+        pr.first_name, pr.last_name, pr.oc, pr.contract_status, pr.contract_type,
+        pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
+        pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
+        pr.hrco_email, pr.career_manager_email, pr.line_manager_email, pr.phone_number
+    FROM event_participants ep
+    LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+    WHERE ep.event_id = :event_id
+    """
     
-    # Apply status filter if provided
     if status_filter:
-        query = query.filter(EventParticipant.status == status_filter)
+        query += " AND ep.status = :status_filter"
     
-    participants = query.all()
+    params = {"event_id": event_id}
+    if status_filter:
+        params["status_filter"] = status_filter
+    
+    result = db.execute(text(query), params)
+    participants = result.fetchall()
     
     return [
         {
             "id": p.id,
             "email": p.email,
             "full_name": p.full_name,
-            "role": p.role,  # Include role field
+            "role": p.role,
             "status": p.status,
-            "registration_type": "self",  # Default for now
+            "registration_type": "self",
             "registered_by": p.invited_by,
-            "notes": None,  # Default for now
+            "notes": None,
             "created_at": p.created_at,
-            "invitation_sent": p.status == "selected" and p.email and p.email.strip(),  # Only if has email
+            "invitation_sent": p.status == "selected" and p.email and p.email.strip(),
             "invitation_sent_at": p.updated_at if p.status == "selected" and p.email and p.email.strip() else None,
             "invitation_accepted": p.status == "confirmed",
-            "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None
+            "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None,
+            # Registration form data
+            "oc": p.oc,
+            "position": p.current_position or p.position,
+            "country": p.country_of_work or p.country,
+            "contract_status": p.contract_status,
+            "contract_type": p.contract_type,
+            "gender_identity": p.gender_identity,
+            "sex": p.sex,
+            "pronouns": p.pronouns,
+            "project_of_work": p.project_of_work or p.project,
+            "personal_email": p.personal_email,
+            "msf_email": p.msf_email,
+            "hrco_email": p.hrco_email,
+            "career_manager_email": p.career_manager_email,
+            "line_manager_email": p.line_manager_email,
+            "phone_number": p.phone_number
         }
         for p in participants
     ]
@@ -559,6 +592,37 @@ async def accept_invitation(
     db.commit()
     
     return {"message": "Invitation accepted successfully"}
+
+@router.delete("/participant/{participant_id}")
+async def delete_participant(
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete a participant from an event"""
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    try:
+        # Delete related public registration data if exists
+        from sqlalchemy import text
+        db.execute(text("DELETE FROM public_registrations WHERE participant_id = :participant_id"), 
+                  {"participant_id": participant_id})
+        
+        # Delete the participant
+        db.delete(participant)
+        db.commit()
+        
+        return {"message": "Participant deleted successfully"}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting participant: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete participant")
 
 @router.post("/user/update-fcm-token")
 async def update_fcm_token(
