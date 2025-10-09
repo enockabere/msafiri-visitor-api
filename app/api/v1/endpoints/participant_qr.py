@@ -39,12 +39,21 @@ def generate_participant_qr(
         EventAllocation.event_id == participant.event_id
     ).all()
     
+    print(f"DEBUG QR: Participant ID {participant_id}, Event ID {participant.event_id}, Status {participant.status}")
+    print(f"DEBUG QR: Found {len(allocations)} allocations for event {participant.event_id}")
+    
     # Build allocation data
     allocation_items = []
     total_items = total_drinks = remaining_items = remaining_drinks = 0
     qr_redeemed_drinks = 0
     
     for allocation in allocations:
+        print(f"DEBUG QR: Processing allocation ID {allocation.id}")
+        print(f"DEBUG QR: - drink_vouchers_per_participant: {getattr(allocation, 'drink_vouchers_per_participant', 'NOT_FOUND')}")
+        print(f"DEBUG QR: - quantity_per_participant: {getattr(allocation, 'quantity_per_participant', 'NOT_FOUND')}")
+        print(f"DEBUG QR: - status: {getattr(allocation, 'status', 'NOT_FOUND')}")
+        print(f"DEBUG QR: - notes: {getattr(allocation, 'notes', 'NOT_FOUND')}")
+        
         # Parse items from allocation notes if available
         items = []
         if allocation.notes and allocation.notes.startswith("ITEMS:"):
@@ -52,13 +61,16 @@ def generate_participant_qr(
                 import json
                 items_str = allocation.notes.split("|NOTES:")[0].replace("ITEMS:", "")
                 items = json.loads(items_str.replace("'", '"'))
-            except:
+                print(f"DEBUG QR: - parsed items: {items}")
+            except Exception as e:
+                print(f"DEBUG QR: - error parsing items: {e}")
                 pass
         elif allocation.inventory_item_id and allocation.quantity_per_participant > 0:
             items = [{
                 "inventory_item_id": allocation.inventory_item_id,
                 "quantity_per_event": allocation.quantity_per_participant
             }]
+            print(f"DEBUG QR: - fallback items: {items}")
         
         # Add inventory items
         for item_data in items:
@@ -82,13 +94,15 @@ def generate_participant_qr(
         vouchers_per_participant = 0
         if hasattr(allocation, 'drink_vouchers_per_participant') and allocation.drink_vouchers_per_participant > 0:
             vouchers_per_participant = allocation.drink_vouchers_per_participant
-            print(f"DEBUG: Found drink_vouchers_per_participant: {vouchers_per_participant}")
+            print(f"DEBUG QR: Found drink_vouchers_per_participant: {vouchers_per_participant}")
         elif hasattr(allocation, 'vouchers_per_participant') and allocation.vouchers_per_participant > 0:
             vouchers_per_participant = allocation.vouchers_per_participant
-            print(f"DEBUG: Found vouchers_per_participant: {vouchers_per_participant}")
+            print(f"DEBUG QR: Found vouchers_per_participant: {vouchers_per_participant}")
         elif getattr(allocation, 'allocation_type', None) == 'drink_vouchers':
             vouchers_per_participant = getattr(allocation, 'quantity_per_participant', 0)
-            print(f"DEBUG: Found allocation_type drink_vouchers: {vouchers_per_participant}")
+            print(f"DEBUG QR: Found allocation_type drink_vouchers: {vouchers_per_participant}")
+        else:
+            print(f"DEBUG QR: No vouchers found for allocation {allocation.id}")
             
         if vouchers_per_participant > 0:
             print(f"DEBUG: Found {vouchers_per_participant} vouchers for participant {participant_id}")
@@ -106,7 +120,10 @@ def generate_participant_qr(
             total_drinks = vouchers_per_participant
             remaining_drinks = vouchers_per_participant - net_redeemed
             qr_redeemed_drinks = max(0, net_redeemed)
+            print(f"DEBUG QR: Set total_drinks={total_drinks}, remaining_drinks={remaining_drinks}, redeemed={qr_redeemed_drinks}")
             break
+    
+    print(f"DEBUG QR: Final voucher totals - total_drinks={total_drinks}, remaining_drinks={remaining_drinks}")
     
     qr_data = QRAllocationData(
         participant_id=participant.id,
@@ -150,6 +167,8 @@ def generate_participant_qr(
     img_buffer = io.BytesIO()
     img.save(img_buffer, format='PNG')
     img_str = base64.b64encode(img_buffer.getvalue()).decode()
+    
+    print(f"DEBUG QR: Returning QR response with total_drinks={qr_data.total_drinks}")
     
     return ParticipantQRResponse(
         qr_token=qr_token,

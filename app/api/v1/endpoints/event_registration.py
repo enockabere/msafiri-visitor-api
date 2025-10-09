@@ -303,9 +303,16 @@ async def update_participant_status(
         
         # Auto-allocate drink vouchers to selected participants
         try:
-            await auto_allocate_vouchers_to_participant(participant, db)
+            print(f"🍻 AUTO-ALLOCATING VOUCHERS for participant {participant.id} in event {participant.event_id}")
+            success = await auto_allocate_vouchers_to_participant(participant, db)
+            if success:
+                print(f"✅ AUTO-ALLOCATION SUCCESSFUL for participant {participant.id}")
+            else:
+                print(f"❌ AUTO-ALLOCATION FAILED for participant {participant.id}")
         except Exception as e:
             print(f"❌ ERROR AUTO-ALLOCATING VOUCHERS: {str(e)}")
+            import traceback
+            traceback.print_exc()
         
         # Send push notification
         try:
