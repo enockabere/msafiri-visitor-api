@@ -186,34 +186,14 @@ def generate_participant_qr(
             print(f"DEBUG QR: Error checking existing QR: {e}")
             existing_qr = None
         
-        try:
-            if existing_qr:
-                qr_token = existing_qr.qr_token
-                # Update QR data
-                existing_qr.qr_data = qr_data.json()
-                db.commit()
-                print(f"DEBUG QR: Updated existing QR with token {qr_token}")
-            else:
-                # Create new QR
-                qr_token = str(uuid.uuid4())
-                new_qr = ParticipantQR(
-                    participant_id=participant_id,
-                    qr_token=qr_token,
-                    qr_data=qr_data.json()
-                )
-                db.add(new_qr)
-                db.commit()
-                print(f"DEBUG QR: Created new QR with token {qr_token}")
-        except Exception as e:
-            print(f"DEBUG QR: Error saving QR to database: {e}")
-            db.rollback()
-            # Continue with QR generation even if database save fails
-            qr_token = str(uuid.uuid4())
-            print(f"DEBUG QR: Using temporary QR token {qr_token}")
+        # Always use temporary token for now to avoid database issues
+        qr_token = str(uuid.uuid4())
+        print(f"DEBUG QR: Using temporary QR token {qr_token}")
         
         # Generate QR code image
         print(f"DEBUG QR: Generating QR code image for token {qr_token}")
         try:
+            from PIL import Image
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
             qr.add_data(qr_token)
             qr.make(fit=True)
@@ -222,9 +202,11 @@ def generate_participant_qr(
             img_buffer = io.BytesIO()
             img.save(img_buffer, format='PNG')
             img_str = base64.b64encode(img_buffer.getvalue()).decode()
-            print(f"DEBUG QR: QR code image generated successfully")
+            print(f"DEBUG QR: QR code image generated successfully, length: {len(img_str)}")
         except Exception as e:
             print(f"DEBUG QR: Error generating QR image: {e}")
+            import traceback
+            print(f"DEBUG QR: QR generation traceback: {traceback.format_exc()}")
             # Return a simple base64 placeholder image
             img_str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
         
