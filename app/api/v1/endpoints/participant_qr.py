@@ -242,9 +242,11 @@ def generate_participant_qr(
             # Create full URL for QR code using environment variable
             import os
             base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            print(f"DEBUG QR: Environment FRONTEND_URL = '{os.getenv('FRONTEND_URL')}'")
+            print(f"DEBUG QR: Resolved base_url = '{base_url}'")
             qr_url = f"{base_url}/public/qr/{qr_token}"
-            print(f"DEBUG QR: QR code will contain URL: {qr_url}")
-            print(f"DEBUG QR: Using base URL from env: {base_url}")
+            print(f"DEBUG QR: Final QR code URL: {qr_url}")
+            print(f"DEBUG QR: All environment variables containing 'FRONTEND': {[(k, v) for k, v in os.environ.items() if 'FRONTEND' in k]}")
             
             qr = qrcode.QRCode(version=1, box_size=10, border=5)
             qr.add_data(qr_url)
