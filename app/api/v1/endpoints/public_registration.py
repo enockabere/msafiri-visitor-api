@@ -154,7 +154,7 @@ async def public_register_for_event(
             "msf_email": registration.msfEmail,
             "hrco_email": registration.hrcoEmail,
             "career_manager_email": registration.careerManagerEmail,
-            "ld_manager_email": registration.ldManagerEmail,
+            "ld_manager_email": registration.lineManagerEmail,
             "line_manager_email": registration.lineManagerEmail,
             "phone_number": registration.phoneNumber
         })
