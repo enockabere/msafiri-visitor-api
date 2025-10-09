@@ -241,11 +241,59 @@ api_router.include_router(
 )
 
 from app.api.v1.endpoints import countries
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from app.db.database import get_db
 api_router.include_router(
     countries.router,
     prefix="/countries",
     tags=["countries"]
 )
+
+# Add registration email endpoint
+@api_router.post("/notifications/send-registration-email")
+async def send_registration_email(
+    request_data: dict,
+    db: Session = Depends(get_db)
+):
+    """Send registration link via email"""
+    try:
+        from app.core.email_service import email_service
+        
+        to_email = request_data.get("to_email")
+        cc_emails = request_data.get("cc_emails", [])
+        subject = request_data.get("subject")
+        message = request_data.get("message")
+        
+        if not to_email or not subject or not message:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        # Send primary email
+        email_service.send_notification_email(
+            to_email=to_email,
+            user_name=to_email.split('@')[0],
+            title=subject,
+            message=message
+        )
+        
+        # Send CC emails
+        for cc_email in cc_emails:
+            if cc_email.strip():
+                email_service.send_notification_email(
+                    to_email=cc_email.strip(),
+                    user_name=cc_email.split('@')[0],
+                    title=subject,
+                    message=message
+                )
+        
+        return {
+            "message": "Registration email sent successfully",
+            "recipients": [to_email] + cc_emails
+        }
+        
+    except Exception as e:
+        print(f"Error sending registration email: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])

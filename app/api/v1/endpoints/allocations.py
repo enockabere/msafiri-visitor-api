@@ -53,6 +53,18 @@ async def create_item_allocation(
         db.commit()
         db.refresh(db_allocation)
         
+        # Get inventory item details for email
+        items_with_names = []
+        for item in items_json:
+            inventory_item = db.query(Inventory).filter(Inventory.id == item["inventory_item_id"]).first()
+            items_with_names.append({
+                "inventory_item_name": inventory_item.name if inventory_item else f"Item {item['inventory_item_id']}",
+                "quantity_per_event": item["quantity_per_event"]
+            })
+        
+        # Send email notification
+        await send_item_request_email(db_allocation, db, tenant_id, requested_email, category, items_with_names)
+        
         return {"message": "Item allocation created successfully", "id": db_allocation.id}
         
     except Exception as e:
@@ -989,6 +1001,57 @@ async def reassign_voucher(
         "total_redeemed": net_redeemed,
         "remaining_quantity": remaining
     }
+
+async def send_item_request_email(allocation: EventAllocation, db: Session, tenant_id: int, email: str, category: str, items: list):
+    """Send item request email to specified recipient"""
+    try:
+        # Get event details
+        event = db.query(Event).filter(Event.id == allocation.event_id).first()
+        if not event:
+            print("Event not found for email notification")
+            return
+        
+        # Format items list
+        items_list = "\n".join([f"• {item.get('inventory_item_name', 'Item')} - Quantity: {item['quantity_per_event']}" for item in items])
+        
+        # Format category name
+        category_display = {
+            "ict_equipment": "ICT Equipment/Items",
+            "equipment": "Equipment", 
+            "stationary": "Stationery"
+        }.get(category, category.title())
+        
+        subject = f"Item Request - {event.title} ({category_display})"
+        message = f"""
+        <h2>Item Request for Event: {event.title}</h2>
+        
+        <h3>Event Details:</h3>
+        <p><strong>Event:</strong> {event.title}</p>
+        <p><strong>Location:</strong> {event.location or 'TBD'}</p>
+        <p><strong>Start Date:</strong> {event.start_date}</p>
+        <p><strong>End Date:</strong> {event.end_date}</p>
+        
+        <h3>Requested Items ({category_display}):</h3>
+        <div style="margin: 10px 0;">
+        {items_list.replace(chr(10), '<br>')}
+        </div>
+        
+        <p>Please prepare these items for the event.</p>
+        <p>If you have any questions, please contact the event organizer.</p>
+        """
+        
+        # Send email using the email service
+        email_service.send_notification_email(
+            to_email=email,
+            user_name=email.split('@')[0],
+            title=subject,
+            message=message
+        )
+        
+        print(f"Item request email sent to {email} for event {event.title}")
+        
+    except Exception as e:
+        print(f"Error sending item request email: {e}")
 
 async def notify_hr_admin(allocation: EventAllocation, db: Session, tenant_id: int):
     """Send notification to HR Admin for allocation approval"""

@@ -1,12 +1,4 @@
-# Development scripts (archived)
-dev-scripts/
-
-venv/
-.env
-
-test.txt
-
-# Python cache files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -27,36 +19,44 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# PyInstaller
-*.manifest
-*.spec
+# Virtual Environment
+venv/
+env/
+ENV/
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# Environment Variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# Database
+*.db
+*.sqlite3
+backup_*.sql
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Uploads
+uploads/*
+!uploads/.gitkeep
+
+# Cache
+.cache/
+.pytest_cache/
+
+# Never ignore migration files
+!alembic/versions/*.py
