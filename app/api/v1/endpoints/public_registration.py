@@ -45,13 +45,14 @@ async def get_public_event(
 ):
     """Get public event details for registration form"""
     
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.status.ilike("published")
-    ).first()
+    event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="Event not found or not available for registration")
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if event is available for registration
+    if not event.status or event.status.lower() != 'published':
+        raise HTTPException(status_code=404, detail="Event not available for registration")
     
     return {
         "id": event.id,
@@ -76,15 +77,19 @@ async def public_register_for_event(
     logger.info(f"   Name: {registration.firstName} {registration.lastName}")
     logger.info(f"   Email: {registration.personalEmail}")
     
-    # Check if event exists and is published
-    event = db.query(Event).filter(
-        Event.id == event_id,
-        Event.status.ilike("published")
-    ).first()
+    # Check if event exists first
+    event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        logger.error(f"❌ Event {event_id} not found or not published")
-        raise HTTPException(status_code=404, detail="Event not found or not available for registration")
+        logger.error(f"❌ Event {event_id} not found")
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    logger.info(f"📊 Event found - Status: '{event.status}' (type: {type(event.status)})")
+    
+    # Check if event is published (case insensitive)
+    if not event.status or event.status.lower() != 'published':
+        logger.error(f"❌ Event {event_id} status is '{event.status}', not published")
+        raise HTTPException(status_code=404, detail="Event not available for registration")
     
     # Determine primary email (MSF email if exists, otherwise personal/tembo email)
     primary_email = registration.msfEmail if registration.msfEmail else registration.personalEmail
