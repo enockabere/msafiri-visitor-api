@@ -31,6 +31,9 @@ class Event(BaseModel):
     # Registration
     registration_deadline = Column(Date)
     
+    # Venue
+    vendor_accommodation_id = Column(Integer, ForeignKey("vendor_accommodations.id"), nullable=True)
+    
     # Metadata
     tenant_id = Column(Integer, nullable=False)
     created_by = Column(String(255), nullable=False)
@@ -38,3 +41,4 @@ class Event(BaseModel):
     # Relationships
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
     attachments = relationship("EventAttachment", back_populates="event", cascade="all, delete-orphan")
+    venue = relationship("VendorAccommodation", foreign_keys=[vendor_accommodation_id])

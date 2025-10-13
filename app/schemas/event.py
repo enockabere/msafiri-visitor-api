@@ -18,6 +18,7 @@ class EventBase(BaseModel):
     longitude: Optional[Decimal] = None
     banner_image: Optional[str] = None
     duration_days: Optional[int] = None
+    vendor_accommodation_id: Optional[int] = None
 
 class EventCreate(EventBase):
     pass
@@ -36,6 +37,7 @@ class EventUpdate(BaseModel):
     longitude: Optional[Decimal] = None
     banner_image: Optional[str] = None
     duration_days: Optional[int] = None
+    vendor_accommodation_id: Optional[int] = None
 
 class Event(EventBase):
     id: int
