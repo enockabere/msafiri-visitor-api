@@ -115,6 +115,8 @@ async def public_register_for_event(
         raise HTTPException(status_code=400, detail="Already registered for this event")
     
     try:
+        print(f"🔥 BASIC DEBUG: Starting registration process for {registration.firstName} {registration.lastName}")
+        
         # Create participant record using primary email
         participant = EventParticipant(
             event_id=event_id,
@@ -133,6 +135,8 @@ async def public_register_for_event(
         db.add(participant)
         db.commit()
         db.refresh(participant)
+        
+        print(f"🔥 BASIC DEBUG: Participant created with ID: {participant.id}")
         
         # Update participant with all registration details
         print(f"🔥 BASIC DEBUG: About to update participant {participant.id}")
@@ -248,6 +252,7 @@ async def public_register_for_event(
         else:
             print(f"🔥 BASIC DEBUG: VERIFICATION FAILED - No data found for participant {participant.id}")
         
+        print(f"🔥 BASIC DEBUG: Registration completed successfully")
         logger.info(f"✅ Public registration successful for {registration.firstName} {registration.lastName}")
         
         return {
