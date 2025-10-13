@@ -595,6 +595,23 @@ def run_auto_migration():
                         CREATE INDEX IF NOT EXISTS idx_user_brief_acknowledgments_brief_id ON user_brief_acknowledgments(brief_id)
                     """))
                     
+                    # Add new columns to accommodation tables
+                    guesthouse_columns = [
+                        "ALTER TABLE guesthouses ADD COLUMN IF NOT EXISTS latitude VARCHAR(20)",
+                        "ALTER TABLE guesthouses ADD COLUMN IF NOT EXISTS longitude VARCHAR(20)"
+                    ]
+                    for sql in guesthouse_columns:
+                        conn.execute(text(sql))
+                    
+                    vendor_accommodation_columns = [
+                        "ALTER TABLE vendor_accommodations ADD COLUMN IF NOT EXISTS latitude VARCHAR(20)",
+                        "ALTER TABLE vendor_accommodations ADD COLUMN IF NOT EXISTS longitude VARCHAR(20)",
+                        "ALTER TABLE vendor_accommodations ADD COLUMN IF NOT EXISTS single_rooms INTEGER DEFAULT 0",
+                        "ALTER TABLE vendor_accommodations ADD COLUMN IF NOT EXISTS double_rooms INTEGER DEFAULT 0"
+                    ]
+                    for sql in vendor_accommodation_columns:
+                        conn.execute(text(sql))
+                    
                     # Add unique constraints (with error handling)
                     unique_constraints = [
                         ("users", "users_email_unique", "ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (email)"),

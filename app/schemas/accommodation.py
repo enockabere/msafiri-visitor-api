@@ -23,10 +23,9 @@ class AllocationStatus(str, Enum):
 class GuestHouseBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     location: Optional[str] = Field(None, max_length=500)
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     description: Optional[str] = None
-    contact_person: Optional[str] = Field(None, max_length=200)
-    contact_phone: Optional[str] = Field(None, max_length=20)
-    contact_email: Optional[str] = Field(None, max_length=100)
     is_active: bool = True
 
 class GuestHouseCreate(GuestHouseBase):
@@ -35,10 +34,9 @@ class GuestHouseCreate(GuestHouseBase):
 class GuestHouseUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     location: Optional[str] = Field(None, max_length=500)
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     description: Optional[str] = None
-    contact_person: Optional[str] = Field(None, max_length=200)
-    contact_phone: Optional[str] = Field(None, max_length=20)
-    contact_email: Optional[str] = Field(None, max_length=100)
     is_active: Optional[bool] = None
 
 class GuestHouse(GuestHouseBase):
@@ -89,10 +87,10 @@ class VendorAccommodationBase(BaseModel):
     vendor_name: str = Field(..., min_length=1, max_length=200)
     accommodation_type: str = Field(..., min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=500)
-    contact_person: Optional[str] = Field(None, max_length=200)
-    contact_phone: Optional[str] = Field(None, max_length=20)
-    contact_email: Optional[str] = Field(None, max_length=100)
-    capacity: int = Field(..., ge=1)
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+    single_rooms: int = Field(default=0, ge=0)
+    double_rooms: int = Field(default=0, ge=0)
     description: Optional[str] = None
     is_active: bool = True
 
@@ -103,10 +101,10 @@ class VendorAccommodationUpdate(BaseModel):
     vendor_name: Optional[str] = Field(None, min_length=1, max_length=200)
     accommodation_type: Optional[str] = Field(None, min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=500)
-    contact_person: Optional[str] = Field(None, max_length=200)
-    contact_phone: Optional[str] = Field(None, max_length=20)
-    contact_email: Optional[str] = Field(None, max_length=100)
-    capacity: Optional[int] = Field(None, ge=1)
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
+    single_rooms: Optional[int] = Field(None, ge=0)
+    double_rooms: Optional[int] = Field(None, ge=0)
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
