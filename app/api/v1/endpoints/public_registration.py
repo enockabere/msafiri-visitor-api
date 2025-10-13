@@ -118,6 +118,25 @@ async def public_register_for_event(
         db.commit()
         db.refresh(participant)
         
+        # Update participant with dietary requirements and accommodation type
+        from sqlalchemy import text
+        update_participant_sql = """
+        UPDATE event_participants 
+        SET dietary_requirements = :dietary_requirements,
+            accommodation_type = :accommodation_type,
+            participant_name = :participant_name,
+            participant_email = :participant_email
+        WHERE id = :participant_id
+        """
+        
+        db.execute(text(update_participant_sql), {
+            "participant_id": participant.id,
+            "dietary_requirements": registration.dietaryRequirements if registration.dietaryRequirements else None,
+            "accommodation_type": registration.accommodationType if registration.accommodationType else None,
+            "participant_name": f"{registration.firstName} {registration.lastName}",
+            "participant_email": registration.personalEmail
+        })
+        
         # Store detailed registration data
         from sqlalchemy import text
         detailed_registration_sql = """

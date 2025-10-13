@@ -125,7 +125,7 @@ def get_dietary_requirements(
     db: Session = Depends(get_db),
     event_id: int
 ) -> Any:
-    """Get dietary requirements for selected participants"""
+    """Get dietary requirements for all selected participants"""
     
     result = db.execute(
         text("""
@@ -133,7 +133,6 @@ def get_dietary_requirements(
             FROM event_participants ep 
             WHERE ep.event_id = :event_id 
             AND ep.status = 'selected' 
-            AND (ep.dietary_requirements IS NOT NULL OR ep.allergies IS NOT NULL)
             ORDER BY ep.participant_name
         """),
         {"event_id": event_id}
@@ -143,8 +142,8 @@ def get_dietary_requirements(
         {
             "participant_name": row[0],
             "participant_email": row[1],
-            "dietary_requirements": row[2],
-            "allergies": row[3]
+            "dietary_requirements": row[2] if row[2] else None,
+            "allergies": row[3] if row[3] else None
         }
         for row in result
     ]

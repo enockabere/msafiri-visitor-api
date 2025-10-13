@@ -231,7 +231,10 @@ def run_auto_migration():
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS requires_eta BOOLEAN DEFAULT FALSE",
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS passport_document VARCHAR(500)",
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS ticket_document VARCHAR(500)",
-                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS participant_role VARCHAR(50) DEFAULT 'visitor'"
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS participant_role VARCHAR(50) DEFAULT 'visitor'",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS accommodation_type VARCHAR(100)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS participant_name VARCHAR(255)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS participant_email VARCHAR(255)"
                     ]
                     for sql in participant_columns:
                         conn.execute(text(sql))
