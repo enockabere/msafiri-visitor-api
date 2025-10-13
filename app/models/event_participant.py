@@ -43,6 +43,12 @@ class EventParticipant(BaseModel):
     passport_document = Column(String(500), nullable=True)
     ticket_document = Column(String(500), nullable=True)
     
+    # Registration form fields
+    dietary_requirements = Column(Text, nullable=True)
+    accommodation_type = Column(String(100), nullable=True)
+    participant_name = Column(String(255), nullable=True)
+    participant_email = Column(String(255), nullable=True)
+    
     # Invitation tracking fields (will be added to DB later)
     # invitation_sent = Column(Boolean, default=False)
     # invitation_sent_at = Column(DateTime, nullable=True)

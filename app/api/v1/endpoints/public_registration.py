@@ -135,50 +135,18 @@ async def public_register_for_event(
             country=registration.countryOfWork or None,
             position=registration.currentPosition,
             project=registration.projectOfWork or None,
-            gender=registration.genderIdentity.lower() if registration.genderIdentity in ['Man', 'Woman'] else 'other'
+            gender=registration.genderIdentity.lower() if registration.genderIdentity in ['Man', 'Woman'] else 'other',
+            # Store the missing fields directly in the participant record
+            dietary_requirements=registration.dietaryRequirements if registration.dietaryRequirements else None,
+            accommodation_type=registration.accommodationType if registration.accommodationType else None
         )
         
         db.add(participant)
         db.commit()
         db.refresh(participant)
         
-        print(f"🔥 BASIC DEBUG: Participant created with ID: {participant.id}")
-        
-        # Update participant with all registration details
-        print(f"🔥 BASIC DEBUG: About to update participant {participant.id}")
-        print(f"🔥 BASIC DEBUG: Dietary: '{registration.dietaryRequirements}'")
-        print(f"🔥 BASIC DEBUG: Accommodation: '{registration.accommodationType}'")
-        print(f"🔥 BASIC DEBUG: Travelling: '{registration.travellingInternationally}'")
-        
+        # Store detailed registration data in public_registrations table
         from sqlalchemy import text
-        update_participant_sql = """
-        UPDATE event_participants 
-        SET dietary_requirements = :dietary_requirements,
-            accommodation_type = :accommodation_type,
-            participant_name = :participant_name,
-            participant_email = :participant_email
-        WHERE id = :participant_id
-        """
-        
-        db.execute(text(update_participant_sql), {
-            "participant_id": participant.id,
-            "dietary_requirements": registration.dietaryRequirements if registration.dietaryRequirements else None,
-            "accommodation_type": registration.accommodationType if registration.accommodationType else None,
-            "participant_name": f"{registration.firstName} {registration.lastName}",
-            "participant_email": registration.personalEmail
-        })
-        
-        print(f"🔥 BASIC DEBUG: Participant updated successfully")
-        
-        # Store detailed registration data
-        print(f"🔥 BASIC DEBUG: About to store detailed registration data")
-        print(f"🔥 BASIC DEBUG: Participant ID: {participant.id}")
-        print(f"🔥 BASIC DEBUG: Event ID: {event_id}")
-        print(f"🔥 BASIC DEBUG: Travelling Internationally: '{registration.travellingInternationally}'")
-        print(f"🔥 BASIC DEBUG: Accommodation Type: '{registration.accommodationType}'")
-        print(f"🔥 BASIC DEBUG: Dietary Requirements: '{registration.dietaryRequirements}'")
-        print(f"🔥 BASIC DEBUG: Certificate Name: '{registration.certificateName}'")
-        
         detailed_registration_sql = """
         INSERT INTO public_registrations (
             event_id, participant_id, first_name, last_name, oc, contract_status, 
@@ -199,7 +167,7 @@ async def public_register_for_event(
         )
         """
         
-        registration_params = {
+        db.execute(text(detailed_registration_sql), {
             "event_id": event_id,
             "participant_id": participant.id,
             "first_name": registration.firstName,
@@ -228,37 +196,10 @@ async def public_register_for_event(
             "certificate_name": registration.certificateName,
             "code_of_conduct_confirm": registration.codeOfConductConfirm,
             "travel_requirements_confirm": registration.travelRequirementsConfirm
-        }
-        
-        print(f"🔥 BASIC DEBUG: Registration parameters:")
-        print(f"🔥 BASIC DEBUG: travelling_internationally = '{registration_params['travelling_internationally']}'")
-        print(f"🔥 BASIC DEBUG: accommodation_type = '{registration_params['accommodation_type']}'")
-        print(f"🔥 BASIC DEBUG: dietary_requirements = '{registration_params['dietary_requirements']}'")
-        print(f"🔥 BASIC DEBUG: certificate_name = '{registration_params['certificate_name']}'")
-        
-        db.execute(text(detailed_registration_sql), registration_params)
+        })
         
         db.commit()
         
-        # Verify the data was stored correctly
-        verification_sql = """
-        SELECT travelling_internationally, accommodation_type, dietary_requirements, certificate_name
-        FROM public_registrations 
-        WHERE participant_id = :participant_id
-        """
-        
-        verification_result = db.execute(text(verification_sql), {"participant_id": participant.id}).fetchone()
-        
-        if verification_result:
-            print(f"🔥 BASIC DEBUG: Data verification SUCCESS:")
-            print(f"🔥 BASIC DEBUG: Travelling Internationally = '{verification_result[0]}'")
-            print(f"🔥 BASIC DEBUG: Accommodation Type = '{verification_result[1]}'")
-            print(f"🔥 BASIC DEBUG: Dietary Requirements = '{verification_result[2]}'")
-            print(f"🔥 BASIC DEBUG: Certificate Name = '{verification_result[3]}'")
-        else:
-            print(f"🔥 BASIC DEBUG: VERIFICATION FAILED - No data found for participant {participant.id}")
-        
-        print(f"🔥 BASIC DEBUG: Registration completed successfully")
         logger.info(f"✅ Public registration successful for {registration.firstName} {registration.lastName}")
         
         return {
@@ -269,8 +210,5 @@ async def public_register_for_event(
         
     except Exception as e:
         logger.error(f"❌ Error in public registration: {str(e)}")
-        print(f"🔥 BASIC DEBUG: EXCEPTION OCCURRED: {str(e)}")
-        import traceback
-        traceback.print_exc()
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
