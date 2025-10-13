@@ -22,34 +22,19 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# FIXED CORS CONFIGURATION
-print("🔥🔥🔥 CORS CONFIGURATION LOADING - NEW CODE IS RUNNING! 🔥🔥🔥")
-allowed_origins = [
-    "http://localhost:3000",  # Next.js dev server
-    "http://localhost:3001",  # Alternative local port
-    "http://127.0.0.1:3000",  # Alternative localhost
-    "http://192.168.200.66:3000",  # Server IP Next.js
-    "http://192.168.200.66:8000",  # Server IP API
-    "http://192.168.200.66",  # Server IP without port
-]
-print(f"🔥 Initial hardcoded origins: {allowed_origins}")
+# CORS CONFIGURATION
+allowed_origins = []
 
-# In production, get allowed origins from environment
-if settings.ENVIRONMENT == "production":
-    print(f"🔍 DEBUG: Environment is production, checking ALLOWED_ORIGINS...")
-    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-    print(f"🔍 DEBUG: Raw ALLOWED_ORIGINS env var: '{allowed_origins_env}'")
-    
-    if allowed_origins_env:
-        frontend_urls = allowed_origins_env.split(",")
-        print(f"🔍 DEBUG: Split URLs: {frontend_urls}")
-        if frontend_urls and frontend_urls[0]:  # If environment variable exists
-            allowed_origins = [url.strip() for url in frontend_urls if url.strip()]
-            print(f"🔍 DEBUG: Final allowed_origins from env: {allowed_origins}")
-        else:
-            print(f"🔍 DEBUG: No valid URLs found, using hardcoded defaults")
+# Get allowed origins from environment variable
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [url.strip() for url in allowed_origins_env.split(",") if url.strip()]
+else:
+    # Fallback for development only
+    if settings.ENVIRONMENT == "development":
+        allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
     else:
-        print(f"🔍 DEBUG: ALLOWED_ORIGINS env var is empty, using hardcoded defaults")
+        logger.warning("⚠️ No ALLOWED_ORIGINS configured for production!")
 
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
@@ -479,11 +464,9 @@ def run_auto_migration():
 async def startup_event():
     """Test database connection and run migrations on startup"""
     logger.info("🚀 Starting Msafiri Visitor System")
-    print(f"🔥🔥🔥 STARTUP DEBUG - Environment: {settings.ENVIRONMENT} 🔥🔥🔥")
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
     logger.info(f"💾 Database URL: {settings.DATABASE_URL[:50]}...")
-    print(f"🔍 DEBUG: Final CORS origins being used: {allowed_origins}")
     logger.info(f"🔗 Allowed CORS origins: {allowed_origins}")
     
     try:
