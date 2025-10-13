@@ -117,7 +117,7 @@ async def get_event_registrations(
     query = """
     SELECT 
         ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
-        ep.country, ep.position, ep.project, ep.gender,
+        ep.country, ep.position, ep.project, ep.gender, ep.participant_role,
         pr.first_name, pr.last_name, pr.oc, pr.contract_status, pr.contract_type,
         pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
         pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
@@ -192,7 +192,7 @@ async def get_event_registrations(
                 "email": p.email,
                 "full_name": p.full_name,
                 "role": p.role,
-                "participant_role": getattr(p, 'participant_role', 'visitor'),
+                "participant_role": p.participant_role or 'visitor',
                 "status": p.status,
                 "registration_type": "self",
                 "registered_by": p.invited_by,

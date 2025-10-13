@@ -68,8 +68,8 @@ def get_participants(
     participants = query.offset(skip).limit(limit).all()
     return participants
 
-@router.put("/{participant_id}/role", response_model=schemas.event_participant.EventParticipant)
-def update_participant_role(
+@router.put("/{participant_id}/role")
+async def update_participant_role(
     *,
     db: Session = Depends(get_db),
     event_id: int,
@@ -92,12 +92,73 @@ def update_participant_role(
     if new_role not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
     
-    # Update participant_role (event-specific role)
-    participant.participant_role = new_role
-    db.commit()
-    db.refresh(participant)
+    old_role = getattr(participant, 'participant_role', 'visitor')
     
-    return participant
+    # Update participant_role using raw SQL if column exists
+    try:
+        from sqlalchemy import text
+        db.execute(
+            text("UPDATE event_participants SET participant_role = :role WHERE id = :id"),
+            {"role": new_role, "id": participant_id}
+        )
+        db.commit()
+        
+        # Send role change notification email
+        if old_role != new_role:
+            await send_role_change_notification(participant, old_role, new_role, db)
+        
+        return {"message": "Role updated successfully", "new_role": new_role}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating participant role: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update role")
+
+async def send_role_change_notification(participant, old_role, new_role, db):
+    """Send email notification when participant role changes"""
+    try:
+        if not participant.email or not participant.email.strip():
+            return False
+        
+        from app.models.event import Event
+        event = db.query(Event).filter(Event.id == participant.event_id).first()
+        if not event:
+            return False
+        
+        from app.core.email_service import email_service
+        
+        subject = f"Role Updated - {event.title}"
+        
+        role_descriptions = {
+            'visitor': 'Event Participant',
+            'facilitator': 'Event Facilitator', 
+            'organizer': 'Event Organizer'
+        }
+        
+        message = f"""
+        <p>Dear {participant.full_name},</p>
+        <p>Your role for <strong>{event.title}</strong> has been updated.</p>
+        
+        <div style="margin: 20px 0; padding: 20px; background-color: #f0f9ff; border-left: 4px solid #3b82f6;">
+            <h3>Role Change Details:</h3>
+            <p><strong>Event:</strong> {event.title}</p>
+            <p><strong>Previous Role:</strong> {role_descriptions.get(old_role, old_role.title())}</p>
+            <p><strong>New Role:</strong> {role_descriptions.get(new_role, new_role.title())}</p>
+        </div>
+        
+        <p>Please check the Msafiri mobile app for any updated responsibilities or information related to your new role.</p>
+        """
+        
+        return email_service.send_notification_email(
+            to_email=participant.email,
+            user_name=participant.full_name,
+            title=subject,
+            message=message
+        )
+        
+    except Exception as e:
+        print(f"Error sending role change notification: {e}")
+        return False
 
 @router.delete("/{participant_id}", operation_id="delete_event_participant")
 def delete_participant(
