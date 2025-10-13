@@ -332,6 +332,36 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_roles_table))
                     
+                    # Create event_attachments table
+                    create_attachments_table = """
+                    CREATE TABLE IF NOT EXISTS event_attachments (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        name VARCHAR(255) NOT NULL,
+                        url VARCHAR(500) NOT NULL,
+                        uploaded_by VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_attachments_table))
+                    
+                    # Create event_attachments table
+                    create_attachments_table = """
+                    CREATE TABLE IF NOT EXISTS event_attachments (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        name VARCHAR(255) NOT NULL,
+                        url VARCHAR(500) NOT NULL,
+                        uploaded_by VARCHAR(255) NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_attachments_table))
+                    
                     # Create event_feedback table
                     create_feedback_table = """
                     CREATE TABLE IF NOT EXISTS event_feedback (
