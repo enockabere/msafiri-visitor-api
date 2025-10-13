@@ -23,6 +23,7 @@ app = FastAPI(
 )
 
 # FIXED CORS CONFIGURATION
+print("🔥🔥🔥 CORS CONFIGURATION LOADING - NEW CODE IS RUNNING! 🔥🔥🔥")
 allowed_origins = [
     "http://localhost:3000",  # Next.js dev server
     "http://localhost:3001",  # Alternative local port
@@ -31,6 +32,7 @@ allowed_origins = [
     "http://192.168.200.66:8000",  # Server IP API
     "http://192.168.200.66",  # Server IP without port
 ]
+print(f"🔥 Initial hardcoded origins: {allowed_origins}")
 
 # In production, get allowed origins from environment
 if settings.ENVIRONMENT == "production":
@@ -477,6 +479,7 @@ def run_auto_migration():
 async def startup_event():
     """Test database connection and run migrations on startup"""
     logger.info("🚀 Starting Msafiri Visitor System")
+    print(f"🔥🔥🔥 STARTUP DEBUG - Environment: {settings.ENVIRONMENT} 🔥🔥🔥")
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
     logger.info(f"💾 Database URL: {settings.DATABASE_URL[:50]}...")
