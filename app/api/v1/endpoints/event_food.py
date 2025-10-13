@@ -129,21 +129,26 @@ def get_dietary_requirements(
     
     result = db.execute(
         text("""
-            SELECT ep.participant_name, ep.participant_email, ep.dietary_requirements, ep.allergies 
+            SELECT 
+                ep.full_name as participant_name, 
+                ep.email as participant_email, 
+                COALESCE(pr.dietary_requirements, ep.dietary_requirements) as dietary_requirements,
+                ep.allergies
             FROM event_participants ep 
+            LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
             WHERE ep.event_id = :event_id 
             AND ep.status = 'selected' 
-            ORDER BY ep.participant_name
+            ORDER BY ep.full_name
         """),
         {"event_id": event_id}
     ).fetchall()
     
     return [
         {
-            "participant_name": row[0],
-            "participant_email": row[1],
-            "dietary_requirements": row[2] if row[2] else None,
-            "allergies": row[3] if row[3] else None
+            "participant_name": row[0] or "Unknown",
+            "participant_email": row[1] or "Unknown",
+            "dietary_requirements": row[2] if row[2] and row[2].strip() else None,
+            "allergies": row[3] if row[3] and row[3].strip() else None
         }
         for row in result
     ]
