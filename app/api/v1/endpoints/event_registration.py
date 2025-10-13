@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from app.models.user import User
+from app.models.event_allocation import EventAllocation
 from pydantic import BaseModel
 import os
 from datetime import datetime
@@ -235,44 +236,69 @@ async def get_participant_details(
     """Get detailed information for a specific participant"""
     
     try:
-        participant = db.query(EventParticipant).filter(
-            EventParticipant.id == participant_id
-        ).first()
+        from sqlalchemy import text
         
-        if not participant:
+        # Get participant with registration details
+        result = db.execute(
+            text("""
+                SELECT 
+                    ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, 
+                    ep.created_at, ep.updated_at, ep.country, ep.position, ep.project, 
+                    ep.gender, ep.eta, ep.requires_eta, ep.passport_document, ep.ticket_document,
+                    ep.dietary_requirements, ep.accommodation_type, ep.participant_name, ep.participant_email,
+                    pr.travelling_internationally, pr.accommodation_needs, pr.daily_meals,
+                    pr.certificate_name, pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
+                    pr.phone_number
+                FROM event_participants ep
+                LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+                WHERE ep.id = :participant_id
+            """),
+            {"participant_id": participant_id}
+        ).fetchone()
+        
+        if not result:
             raise HTTPException(status_code=404, detail="Participant not found")
         
         # Get user details if available
         user = None
         try:
-            user = db.query(User).filter(User.email == participant.email).first()
+            user = db.query(User).filter(User.email == result.email).first()
         except Exception as e:
-            print(f"Error fetching user details for {participant.email}: {e}")
+            print(f"Error fetching user details for {result.email}: {e}")
         
         return {
-            "id": participant.id,
-            "email": participant.email,
-            "full_name": participant.full_name,
-            "phone": user.phone_number if user and hasattr(user, 'phone_number') else None,
-            "role": participant.role,
-            "status": participant.status,
+            "id": result.id,
+            "email": result.email,
+            "full_name": result.full_name,
+            "phone": result.phone_number or (user.phone_number if user and hasattr(user, 'phone_number') else None),
+            "role": result.role,
+            "status": result.status,
             "registration_type": "self",
-            "registered_by": participant.invited_by,
-            "created_at": participant.created_at.isoformat() if participant.created_at else None,
-            "updated_at": participant.updated_at.isoformat() if participant.updated_at else None,
-            "invitation_sent": participant.status == "selected" and participant.email and participant.email.strip(),
-            "invitation_sent_at": participant.updated_at.isoformat() if participant.status == "selected" and participant.email and participant.email.strip() and participant.updated_at else None,
-            "invitation_accepted": participant.status == "confirmed",
-            "invitation_accepted_at": participant.updated_at.isoformat() if participant.status == "confirmed" and participant.updated_at else None,
-            # Registration details
-            "country": participant.country,
-            "position": participant.position,
-            "department": participant.project,  # project field stores department
-            "gender": participant.gender,
-            "eta": participant.eta,
-            "requires_eta": participant.requires_eta,
-            "passport_document": bool(participant.passport_document),
-            "ticket_document": bool(participant.ticket_document)
+            "registered_by": result.invited_by,
+            "created_at": result.created_at.isoformat() if result.created_at else None,
+            "updated_at": result.updated_at.isoformat() if result.updated_at else None,
+            "invitation_sent": result.status == "selected" and result.email and result.email.strip(),
+            "invitation_sent_at": result.updated_at.isoformat() if result.status == "selected" and result.email and result.email.strip() and result.updated_at else None,
+            "invitation_accepted": result.status == "confirmed",
+            "invitation_accepted_at": result.updated_at.isoformat() if result.status == "confirmed" and result.updated_at else None,
+            # Registration details from event_participants
+            "country": result.country,
+            "position": result.position,
+            "department": result.project,  # project field stores department
+            "gender": result.gender,
+            "eta": result.eta,
+            "requires_eta": result.requires_eta,
+            "passport_document": bool(result.passport_document),
+            "ticket_document": bool(result.ticket_document),
+            "dietary_requirements": result.dietary_requirements,
+            "accommodation_type": result.accommodation_type,
+            # Registration details from public_registrations
+            "travelling_internationally": result.travelling_internationally,
+            "accommodation_needs": result.accommodation_needs,
+            "daily_meals": result.daily_meals,
+            "certificate_name": result.certificate_name,
+            "code_of_conduct_confirm": result.code_of_conduct_confirm,
+            "travel_requirements_confirm": result.travel_requirements_confirm
         }
     except HTTPException:
         raise

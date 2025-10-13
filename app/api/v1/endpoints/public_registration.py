@@ -134,7 +134,7 @@ async def public_register_for_event(
         db.commit()
         db.refresh(participant)
         
-        # Update participant with dietary requirements and accommodation type
+        # Update participant with all registration details
         from sqlalchemy import text
         update_participant_sql = """
         UPDATE event_participants 
@@ -154,21 +154,22 @@ async def public_register_for_event(
         })
         
         # Store detailed registration data
-        from sqlalchemy import text
         detailed_registration_sql = """
         INSERT INTO public_registrations (
             event_id, participant_id, first_name, last_name, oc, contract_status, 
             contract_type, gender_identity, sex, pronouns, current_position, 
             country_of_work, project_of_work, personal_email, msf_email, 
             hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
-            phone_number, dietary_requirements, accommodation_needs, certificate_name,
+            phone_number, travelling_internationally, accommodation_type, 
+            dietary_requirements, accommodation_needs, daily_meals, certificate_name,
             code_of_conduct_confirm, travel_requirements_confirm, created_at
         ) VALUES (
             :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
             :contract_type, :gender_identity, :sex, :pronouns, :current_position,
             :country_of_work, :project_of_work, :personal_email, :msf_email,
             :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
-            :phone_number, :dietary_requirements, :accommodation_needs, :certificate_name,
+            :phone_number, :travelling_internationally, :accommodation_type,
+            :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
             :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
         )
         """
@@ -194,8 +195,11 @@ async def public_register_for_event(
             "ld_manager_email": registration.lineManagerEmail,
             "line_manager_email": registration.lineManagerEmail,
             "phone_number": registration.phoneNumber,
+            "travelling_internationally": registration.travellingInternationally,
+            "accommodation_type": registration.accommodationType,
             "dietary_requirements": registration.dietaryRequirements,
             "accommodation_needs": registration.accommodationNeeds,
+            "daily_meals": ','.join(registration.dailyMeals) if registration.dailyMeals else None,
             "certificate_name": registration.certificateName,
             "code_of_conduct_confirm": registration.codeOfConductConfirm,
             "travel_requirements_confirm": registration.travelRequirementsConfirm

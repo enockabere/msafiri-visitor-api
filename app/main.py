@@ -440,6 +440,20 @@ def run_auto_migration():
                     for sql in dietary_columns:
                         conn.execute(text(sql))
                     
+                    # Add missing columns to public_registrations table
+                    public_reg_columns = [
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS travelling_internationally VARCHAR(10)",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS accommodation_type VARCHAR(100)",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS dietary_requirements TEXT",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS accommodation_needs TEXT",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS daily_meals TEXT",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS certificate_name VARCHAR(255)",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS code_of_conduct_confirm VARCHAR(10)",
+                        "ALTER TABLE public_registrations ADD COLUMN IF NOT EXISTS travel_requirements_confirm VARCHAR(10)"
+                    ]
+                    for sql in public_reg_columns:
+                        conn.execute(text(sql))
+                    
                     # Add feedback type columns to existing feedback table
                     feedback_columns = [
                         "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS agenda_item_id INTEGER REFERENCES event_agenda(id) ON DELETE SET NULL",
@@ -470,12 +484,20 @@ def run_auto_migration():
                         country_of_work VARCHAR(255),
                         project_of_work VARCHAR(255),
                         personal_email VARCHAR(255) NOT NULL,
-                        msf_email VARCHAR(255) NOT NULL,
+                        msf_email VARCHAR(255),
                         hrco_email VARCHAR(255),
                         career_manager_email VARCHAR(255),
                         ld_manager_email VARCHAR(255),
                         line_manager_email VARCHAR(255),
                         phone_number VARCHAR(50) NOT NULL,
+                        travelling_internationally VARCHAR(10),
+                        accommodation_type VARCHAR(100),
+                        dietary_requirements TEXT,
+                        accommodation_needs TEXT,
+                        daily_meals TEXT,
+                        certificate_name VARCHAR(255),
+                        code_of_conduct_confirm VARCHAR(10),
+                        travel_requirements_confirm VARCHAR(10),
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     )
