@@ -6,7 +6,6 @@ from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from app.models.user import User
-from app.models.event_allocation import EventAllocation
 from pydantic import BaseModel
 import os
 from datetime import datetime
@@ -514,13 +513,15 @@ async def send_facilitator_notification(participant, db):
 async def auto_allocate_vouchers_to_participant(participant, db):
     """Automatically allocate drink vouchers to selected participants"""
     try:
-        # Check if there are existing voucher allocations for this event
-        existing_voucher_allocations = db.query(EventAllocation).filter(
-            EventAllocation.event_id == participant.event_id,
-            EventAllocation.drink_vouchers_per_participant > 0
-        ).all()
+        from sqlalchemy import text
         
-        if existing_voucher_allocations:
+        # Check if there are existing voucher allocations for this event
+        existing_check = db.execute(
+            text("SELECT COUNT(*) FROM event_allocations WHERE event_id = :event_id AND drink_vouchers_per_participant > 0"),
+            {"event_id": participant.event_id}
+        ).scalar()
+        
+        if existing_check > 0:
             print(f"✅ VOUCHERS ALREADY ALLOCATED for event {participant.event_id}")
             return True
         
@@ -530,25 +531,27 @@ async def auto_allocate_vouchers_to_participant(participant, db):
             print(f"❌ EVENT NOT FOUND for participant {participant.id}")
             return False
         
-        # Create automatic voucher allocation (2 vouchers per participant)
-        voucher_allocation = EventAllocation(
-            event_id=participant.event_id,
-            inventory_item_id=None,  # No inventory item needed for vouchers
-            quantity_per_participant=0,
-            drink_vouchers_per_participant=2,  # Default 2 vouchers per participant
-            notes="AUTO_ALLOCATED|NOTES:Automatically allocated to selected participants",
-            status="approved",  # Auto-approve
-            tenant_id=event.tenant_id,
-            created_by="system",
-            approved_by="system",
-            approved_at=datetime.utcnow()
+        # Create automatic voucher allocation (2 vouchers per participant) using raw SQL
+        db.execute(
+            text("""
+                INSERT INTO event_allocations (
+                    event_id, inventory_item_id, quantity_per_participant, 
+                    drink_vouchers_per_participant, notes, status, tenant_id, 
+                    created_by, approved_by, approved_at, created_at
+                ) VALUES (
+                    :event_id, NULL, 0, 2, 
+                    'AUTO_ALLOCATED|NOTES:Automatically allocated to selected participants',
+                    'approved', :tenant_id, 'system', 'system', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+            """),
+            {
+                "event_id": participant.event_id,
+                "tenant_id": event.tenant_id
+            }
         )
         
-        db.add(voucher_allocation)
         db.commit()
-        db.refresh(voucher_allocation)
-        
-        print(f"✅ AUTO-ALLOCATED 2 DRINK VOUCHERS for event {participant.event_id} (allocation ID: {voucher_allocation.id})")
+        print(f"✅ AUTO-ALLOCATED 2 DRINK VOUCHERS for event {participant.event_id}")
         return True
         
     except Exception as e:
