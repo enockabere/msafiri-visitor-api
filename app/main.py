@@ -529,6 +529,9 @@ def run_auto_migration():
                         content_type VARCHAR(50) DEFAULT 'text',
                         content TEXT NOT NULL,
                         event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+                        status VARCHAR(50) DEFAULT 'draft',
+                        publish_start_date TIMESTAMP WITH TIME ZONE,
+                        publish_end_date TIMESTAMP WITH TIME ZONE,
                         is_active BOOLEAN DEFAULT TRUE,
                         tenant_id VARCHAR(50) NOT NULL,
                         created_by VARCHAR(255) NOT NULL,
@@ -537,6 +540,15 @@ def run_auto_migration():
                     )
                     """
                     conn.execute(text(create_security_briefs_table))
+                    
+                    # Add new columns to existing security_briefs table
+                    security_briefs_columns = [
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft'",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS publish_start_date TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS publish_end_date TIMESTAMP WITH TIME ZONE"
+                    ]
+                    for sql in security_briefs_columns:
+                        conn.execute(text(sql))
                     
                     # Create user_brief_acknowledgments table
                     create_user_brief_acknowledgments_table = """

@@ -13,6 +13,32 @@ from app.models.user import User
 
 router = APIRouter()
 
+@router.patch("/{brief_id}/status", response_model=dict)
+def update_brief_status(
+    brief_id: int,
+    status_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update security brief status"""
+    
+    db_brief = db.query(SecurityBrief).filter(SecurityBrief.id == brief_id).first()
+    if not db_brief:
+        raise HTTPException(status_code=404, detail="Security brief not found")
+    
+    new_status = status_data.get("status")
+    if new_status not in ["draft", "published", "archived"]:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    
+    db_brief.status = new_status
+    db.commit()
+    
+    return {
+        "id": db_brief.id,
+        "status": db_brief.status,
+        "message": f"Status updated to {new_status}"
+    }
+
 @router.post("/", response_model=dict)
 def create_security_brief(
     brief: SecurityBriefCreate,
@@ -38,6 +64,9 @@ def create_security_brief(
         content_type=content_type,
         content=brief.content or "",
         event_id=brief.event_id,
+        status=brief.status or "draft",
+        publish_start_date=brief.publish_start_date,
+        publish_end_date=brief.publish_end_date,
         tenant_id=current_user.tenant_id,
         created_by=current_user.email
     )
@@ -49,6 +78,9 @@ def create_security_brief(
         "id": db_brief.id,
         "title": db_brief.title,
         "content": db_brief.content,
+        "status": db_brief.status,
+        "publish_start_date": db_brief.publish_start_date,
+        "publish_end_date": db_brief.publish_end_date,
         "document_url": brief.document_url,
         "video_url": brief.video_url,
         "created_by": db_brief.created_by,
@@ -94,7 +126,9 @@ def get_security_briefs(
             "type": brief.brief_type.value,
             "content_type": brief.content_type.value,
             "content": brief.content,
-            "status": "published",
+            "status": brief.status or "draft",
+            "publish_start_date": brief.publish_start_date,
+            "publish_end_date": brief.publish_end_date,
             "created_by": brief.created_by,
             "created_at": brief.created_at.isoformat() if brief.created_at else None
         }
@@ -192,14 +226,25 @@ def update_security_brief(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update security brief - allow authenticated users"""
+    """Update security brief - only allow editing drafts"""
     
     db_brief = db.query(SecurityBrief).filter(SecurityBrief.id == brief_id).first()
     if not db_brief:
         raise HTTPException(status_code=404, detail="Security brief not found")
     
-    for field, value in brief_update.dict(exclude_unset=True).items():
-        setattr(db_brief, field, value)
+    # Only allow editing drafts
+    if db_brief.status != "draft":
+        raise HTTPException(status_code=403, detail="Can only edit draft briefings")
+    
+    # Map frontend fields
+    update_data = brief_update.dict(exclude_unset=True)
+    if "type" in update_data:
+        update_data["brief_type"] = BriefType.EVENT_SPECIFIC if update_data.get("event_id") else BriefType.GENERAL
+        del update_data["type"]
+    
+    for field, value in update_data.items():
+        if hasattr(db_brief, field):
+            setattr(db_brief, field, value)
     
     db.commit()
     db.refresh(db_brief)
@@ -208,8 +253,9 @@ def update_security_brief(
         "id": db_brief.id,
         "title": db_brief.title,
         "content": db_brief.content,
-        "document_url": db_brief.document_url,
-        "video_url": db_brief.video_url,
+        "status": db_brief.status,
+        "publish_start_date": db_brief.publish_start_date,
+        "publish_end_date": db_brief.publish_end_date,
         "created_by": db_brief.created_by,
         "created_at": db_brief.created_at.isoformat() if db_brief.created_at else None
     }
@@ -220,12 +266,16 @@ def delete_security_brief(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deactivate security brief - allow authenticated users"""
+    """Delete security brief - only allow deleting drafts"""
     
     db_brief = db.query(SecurityBrief).filter(SecurityBrief.id == brief_id).first()
     if not db_brief:
         raise HTTPException(status_code=404, detail="Security brief not found")
     
-    db_brief.is_active = False
+    # Only allow deleting drafts
+    if db_brief.status != "draft":
+        raise HTTPException(status_code=403, detail="Can only delete draft briefings")
+    
+    db.delete(db_brief)
     db.commit()
-    return {"message": "Security brief deactivated"}
+    return {"message": "Security brief deleted successfully"}

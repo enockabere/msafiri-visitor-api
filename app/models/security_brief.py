@@ -19,6 +19,9 @@ class SecurityBrief(BaseModel):
     content_type = Column(Enum(ContentType), nullable=False)
     content = Column(Text, nullable=False)  # Text content or video URL
     event_id = Column(Integer, ForeignKey("events.id"), nullable=True)  # Only for event-specific briefs
+    status = Column(String(50), default="draft")
+    publish_start_date = Column(String(255), nullable=True)
+    publish_end_date = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
     tenant_id = Column(String(50), nullable=False)
     created_by = Column(String(255), nullable=False)
