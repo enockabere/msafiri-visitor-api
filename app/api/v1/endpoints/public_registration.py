@@ -45,20 +45,36 @@ async def get_public_event(
 ):
     """Get public event details for registration form"""
     
-    event = db.query(Event).filter(Event.id == event_id).first()
+    from sqlalchemy import text
     
-    if not event:
+    # Get event with tenant information
+    result = db.execute(
+        text("""
+            SELECT e.id, e.title, e.description, e.start_date, e.end_date, e.location,
+                   e.registration_form_title, e.registration_form_description, e.registration_deadline,
+                   t.slug as tenant_slug, t.name as tenant_name
+            FROM events e
+            LEFT JOIN tenants t ON e.tenant_id = t.slug
+            WHERE e.id = :event_id
+        """),
+        {"event_id": event_id}
+    ).fetchone()
+    
+    if not result:
         raise HTTPException(status_code=404, detail="Event not found")
     
     return {
-        "id": event.id,
-        "title": event.title,
-        "description": event.description,
-        "start_date": event.start_date,
-        "end_date": event.end_date,
-        "location": event.location,
-        "registration_form_title": getattr(event, 'registration_form_title', None),
-        "registration_form_description": getattr(event, 'registration_form_description', None)
+        "id": result[0],
+        "title": result[1],
+        "description": result[2],
+        "start_date": result[3],
+        "end_date": result[4],
+        "location": result[5],
+        "registration_form_title": result[6],
+        "registration_form_description": result[7],
+        "registration_deadline": result[8],
+        "tenant_slug": result[9],
+        "tenant_name": result[10]
     }
 
 @router.post("/events/{event_id}/public-register")
