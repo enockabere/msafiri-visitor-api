@@ -504,6 +504,22 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_public_registrations_table))
                     
+                    # Create security_briefings table
+                    create_security_briefings_table = """
+                    CREATE TABLE IF NOT EXISTS security_briefings (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        title VARCHAR(255) NOT NULL,
+                        content TEXT,
+                        document_url VARCHAR(500),
+                        video_url VARCHAR(500),
+                        created_by VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_security_briefings_table))
+                    
                     # Create indexes
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id)
@@ -516,6 +532,9 @@ def run_auto_migration():
                     """))
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_event_allocations_tenant_id ON event_allocations(tenant_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_security_briefings_event_id ON security_briefings(event_id)
                     """))
                     
                     # Add unique constraints (with error handling)
