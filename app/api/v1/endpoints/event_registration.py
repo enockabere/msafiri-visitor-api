@@ -237,7 +237,7 @@ async def get_participant_details(
     try:
         from sqlalchemy import text
         
-        print(f"\n🔍 DEBUG: Getting participant details for ID: {participant_id}")
+        print(f"🔥 BASIC DEBUG: Getting participant details for ID: {participant_id}")
         
         # Get participant with registration details
         result = db.execute(
@@ -257,18 +257,18 @@ async def get_participant_details(
             {"participant_id": participant_id}
         ).fetchone()
         
-        print(f"🔍 DEBUG: Query result found: {result is not None}")
+        print(f"🔥 BASIC DEBUG: Query result found: {result is not None}")
         if result:
-            print(f"🔍 DEBUG: Participant data:")
-            print(f"   - ID: {result.id}")
-            print(f"   - Name: {result.full_name}")
-            print(f"   - Email: {result.email}")
-            print(f"   - EP Accommodation Type: {result.accommodation_type}")
-            print(f"   - PR Accommodation Type: {result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') else 'N/A'}")
-            print(f"   - Travelling Internationally: {result.travelling_internationally}")
-            print(f"   - Dietary Requirements (EP): {result.dietary_requirements}")
-            print(f"   - Certificate Name: {result.certificate_name}")
-            print(f"   - Phone Number: {result.phone_number}")
+            print(f"🔥 BASIC DEBUG: Participant data:")
+            print(f"🔥 BASIC DEBUG: ID = {result.id}")
+            print(f"🔥 BASIC DEBUG: Name = {result.full_name}")
+            print(f"🔥 BASIC DEBUG: Email = {result.email}")
+            print(f"🔥 BASIC DEBUG: EP Accommodation Type = {result.accommodation_type}")
+            print(f"🔥 BASIC DEBUG: PR Accommodation Type = {result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') else 'N/A'}")
+            print(f"🔥 BASIC DEBUG: Travelling Internationally = {result.travelling_internationally}")
+            print(f"🔥 BASIC DEBUG: Dietary Requirements (EP) = {result.dietary_requirements}")
+            print(f"🔥 BASIC DEBUG: Certificate Name = {result.certificate_name}")
+            print(f"🔥 BASIC DEBUG: Phone Number = {result.phone_number}")
         
         # Also check if public_registrations record exists separately
         pr_check = db.execute(
@@ -276,14 +276,14 @@ async def get_participant_details(
             {"participant_id": participant_id}
         ).fetchone()
         
-        print(f"🔍 DEBUG: Public registration record exists: {pr_check is not None}")
+        print(f"🔥 BASIC DEBUG: Public registration record exists: {pr_check is not None}")
         if pr_check:
-            print(f"🔍 DEBUG: Public registration data:")
-            print(f"   - First Name: {pr_check.first_name}")
-            print(f"   - Last Name: {pr_check.last_name}")
-            print(f"   - Travelling Internationally: {pr_check.travelling_internationally}")
-            print(f"   - Accommodation Type: {pr_check.accommodation_type}")
-            print(f"   - Dietary Requirements: {pr_check.dietary_requirements}")
+            print(f"🔥 BASIC DEBUG: Public registration data:")
+            print(f"🔥 BASIC DEBUG: First Name = {pr_check.first_name}")
+            print(f"🔥 BASIC DEBUG: Last Name = {pr_check.last_name}")
+            print(f"🔥 BASIC DEBUG: Travelling Internationally = {pr_check.travelling_internationally}")
+            print(f"🔥 BASIC DEBUG: Accommodation Type = {pr_check.accommodation_type}")
+            print(f"🔥 BASIC DEBUG: Dietary Requirements = {pr_check.dietary_requirements}")
         
         if not result:
             raise HTTPException(status_code=404, detail="Participant not found")
@@ -334,17 +334,19 @@ async def get_participant_details(
             "travel_requirements_confirm": result.travel_requirements_confirm
         }
         
-        print(f"🔍 DEBUG: Final response data:")
-        print(f"   - Accommodation Type: {response_data['accommodation_type']}")
-        print(f"   - Travelling Internationally: {response_data['travelling_internationally']}")
-        print(f"   - Dietary Requirements: {response_data['dietary_requirements']}")
-        print(f"   - Certificate Name: {response_data['certificate_name']}")
+        print(f"🔥 BASIC DEBUG: Final response data:")
+        print(f"🔥 BASIC DEBUG: Accommodation Type = {response_data['accommodation_type']}")
+        print(f"🔥 BASIC DEBUG: Travelling Internationally = {response_data['travelling_internationally']}")
+        print(f"🔥 BASIC DEBUG: Dietary Requirements = {response_data['dietary_requirements']}")
+        print(f"🔥 BASIC DEBUG: Certificate Name = {response_data['certificate_name']}")
         
         return response_data
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in get_participant_details: {e}")
+        print(f"🔥 BASIC DEBUG: EXCEPTION in get_participant_details: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.put("/participant/{participant_id}/status")

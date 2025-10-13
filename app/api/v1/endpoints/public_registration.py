@@ -135,6 +135,11 @@ async def public_register_for_event(
         db.refresh(participant)
         
         # Update participant with all registration details
+        print(f"🔥 BASIC DEBUG: About to update participant {participant.id}")
+        print(f"🔥 BASIC DEBUG: Dietary: '{registration.dietaryRequirements}'")
+        print(f"🔥 BASIC DEBUG: Accommodation: '{registration.accommodationType}'")
+        print(f"🔥 BASIC DEBUG: Travelling: '{registration.travellingInternationally}'")
+        
         from sqlalchemy import text
         update_participant_sql = """
         UPDATE event_participants 
@@ -153,12 +158,16 @@ async def public_register_for_event(
             "participant_email": registration.personalEmail
         })
         
+        print(f"🔥 BASIC DEBUG: Participant updated successfully")
+        
         # Store detailed registration data
-        print(f"\n🔥 DEBUG: Storing detailed registration data for participant {participant.id}")
-        print(f"   - Travelling Internationally: '{registration.travellingInternationally}'")
-        print(f"   - Accommodation Type: '{registration.accommodationType}'")
-        print(f"   - Dietary Requirements: '{registration.dietaryRequirements}'")
-        print(f"   - Certificate Name: '{registration.certificateName}'")
+        print(f"🔥 BASIC DEBUG: About to store detailed registration data")
+        print(f"🔥 BASIC DEBUG: Participant ID: {participant.id}")
+        print(f"🔥 BASIC DEBUG: Event ID: {event_id}")
+        print(f"🔥 BASIC DEBUG: Travelling Internationally: '{registration.travellingInternationally}'")
+        print(f"🔥 BASIC DEBUG: Accommodation Type: '{registration.accommodationType}'")
+        print(f"🔥 BASIC DEBUG: Dietary Requirements: '{registration.dietaryRequirements}'")
+        print(f"🔥 BASIC DEBUG: Certificate Name: '{registration.certificateName}'")
         
         detailed_registration_sql = """
         INSERT INTO public_registrations (
@@ -211,11 +220,11 @@ async def public_register_for_event(
             "travel_requirements_confirm": registration.travelRequirementsConfirm
         }
         
-        print(f"🔥 DEBUG: Registration parameters being inserted:")
-        print(f"   - travelling_internationally: '{registration_params['travelling_internationally']}'")
-        print(f"   - accommodation_type: '{registration_params['accommodation_type']}'")
-        print(f"   - dietary_requirements: '{registration_params['dietary_requirements']}'")
-        print(f"   - certificate_name: '{registration_params['certificate_name']}'")
+        print(f"🔥 BASIC DEBUG: Registration parameters:")
+        print(f"🔥 BASIC DEBUG: travelling_internationally = '{registration_params['travelling_internationally']}'")
+        print(f"🔥 BASIC DEBUG: accommodation_type = '{registration_params['accommodation_type']}'")
+        print(f"🔥 BASIC DEBUG: dietary_requirements = '{registration_params['dietary_requirements']}'")
+        print(f"🔥 BASIC DEBUG: certificate_name = '{registration_params['certificate_name']}'")
         
         db.execute(text(detailed_registration_sql), registration_params)
         
@@ -231,13 +240,13 @@ async def public_register_for_event(
         verification_result = db.execute(text(verification_sql), {"participant_id": participant.id}).fetchone()
         
         if verification_result:
-            print(f"✅ DEBUG: Data verification after insert:")
-            print(f"   - Travelling Internationally: '{verification_result[0]}'")
-            print(f"   - Accommodation Type: '{verification_result[1]}'")
-            print(f"   - Dietary Requirements: '{verification_result[2]}'")
-            print(f"   - Certificate Name: '{verification_result[3]}'")
+            print(f"🔥 BASIC DEBUG: Data verification SUCCESS:")
+            print(f"🔥 BASIC DEBUG: Travelling Internationally = '{verification_result[0]}'")
+            print(f"🔥 BASIC DEBUG: Accommodation Type = '{verification_result[1]}'")
+            print(f"🔥 BASIC DEBUG: Dietary Requirements = '{verification_result[2]}'")
+            print(f"🔥 BASIC DEBUG: Certificate Name = '{verification_result[3]}'")
         else:
-            print(f"❌ DEBUG: No data found after insert for participant {participant.id}")
+            print(f"🔥 BASIC DEBUG: VERIFICATION FAILED - No data found for participant {participant.id}")
         
         logger.info(f"✅ Public registration successful for {registration.firstName} {registration.lastName}")
         
@@ -249,7 +258,7 @@ async def public_register_for_event(
         
     except Exception as e:
         logger.error(f"❌ Error in public registration: {str(e)}")
-        print(f"❌ DEBUG: Full error details: {str(e)}")
+        print(f"🔥 BASIC DEBUG: EXCEPTION OCCURRED: {str(e)}")
         import traceback
         traceback.print_exc()
         db.rollback()
