@@ -296,8 +296,11 @@ async def get_participant_details(
             print(f"Error fetching user details for {result.email}: {e}")
         
         # Use public_registrations data if available, otherwise fall back to event_participants
-        accommodation_type = (result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') and result.pr_accommodation_type 
-                            else result.accommodation_type)
+        accommodation_type = None
+        if hasattr(result, 'pr_accommodation_type') and result.pr_accommodation_type and result.pr_accommodation_type.strip():
+            accommodation_type = result.pr_accommodation_type
+        elif result.accommodation_type and result.accommodation_type.strip():
+            accommodation_type = result.accommodation_type
         
         response_data = {
             "id": result.id,
@@ -326,12 +329,12 @@ async def get_participant_details(
             "dietary_requirements": result.dietary_requirements,
             "accommodation_type": accommodation_type,
             # Registration details from public_registrations
-            "travelling_internationally": result.travelling_internationally,
-            "accommodation_needs": result.accommodation_needs,
-            "daily_meals": result.daily_meals,
-            "certificate_name": result.certificate_name,
-            "code_of_conduct_confirm": result.code_of_conduct_confirm,
-            "travel_requirements_confirm": result.travel_requirements_confirm
+            "travelling_internationally": result.travelling_internationally if result.travelling_internationally and result.travelling_internationally.strip() else None,
+            "accommodation_needs": result.accommodation_needs if result.accommodation_needs and result.accommodation_needs.strip() else None,
+            "daily_meals": result.daily_meals if result.daily_meals and result.daily_meals.strip() else None,
+            "certificate_name": result.certificate_name if result.certificate_name and result.certificate_name.strip() else None,
+            "code_of_conduct_confirm": result.code_of_conduct_confirm if result.code_of_conduct_confirm and result.code_of_conduct_confirm.strip() else None,
+            "travel_requirements_confirm": result.travel_requirements_confirm if result.travel_requirements_confirm and result.travel_requirements_confirm.strip() else None
         }
         
         print(f"🔥 BASIC DEBUG: Final response data:")

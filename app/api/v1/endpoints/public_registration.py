@@ -38,6 +38,12 @@ class PublicRegistrationRequest(BaseModel):
     codeOfConductConfirm: Optional[str] = ""
     travelRequirementsConfirm: Optional[str] = ""
 
+@router.get("/test-debug")
+async def test_debug():
+    """Test endpoint to verify debug changes are deployed"""
+    print("🔥 BASIC DEBUG: Test endpoint called - changes are deployed!")
+    return {"message": "Debug test successful", "timestamp": "2024-10-13"}
+
 @router.get("/events/{event_id}/public")
 async def get_public_event(
     event_id: int,
