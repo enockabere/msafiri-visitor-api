@@ -46,8 +46,8 @@ def create_agenda_item(
     event_date = start_dt.date()
     time_str = start_dt.strftime('%H:%M')
     db.execute(
-        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number, day_number, event_date, time) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number, :day_number, :event_date, :time)"),
-        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number, "day_number": item_in.day_number, "event_date": event_date, "time": time_str}
+        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number, day_number, event_date, time, created_by) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number, :day_number, :event_date, :time, :created_by)"),
+        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number, "day_number": item_in.day_number, "event_date": event_date, "time": time_str, "created_by": "admin"}
     )
     db.commit()
     
