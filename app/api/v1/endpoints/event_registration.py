@@ -507,7 +507,7 @@ async def auto_allocate_vouchers_to_participant(participant, db):
         # Create automatic voucher allocation (2 vouchers per participant)
         voucher_allocation = EventAllocation(
             event_id=participant.event_id,
-            inventory_item_id=1,  # Dummy inventory item
+            inventory_item_id=None,  # No inventory item needed for vouchers
             quantity_per_participant=0,
             drink_vouchers_per_participant=2,  # Default 2 vouchers per participant
             notes="AUTO_ALLOCATED|NOTES:Automatically allocated to selected participants",

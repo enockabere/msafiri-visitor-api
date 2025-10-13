@@ -57,8 +57,8 @@ def get_inventory_items(
     print(f"DEBUG INVENTORY: tenant={tenant}, category={category}")
     
     try:
-        query = db.query(Inventory)
-        print(f"DEBUG INVENTORY: Base query created")
+        query = db.query(Inventory).filter(Inventory.is_active == True)
+        print(f"DEBUG INVENTORY: Base query created with is_active filter")
         
         if tenant:
             print(f"DEBUG INVENTORY: Processing tenant: {tenant}")
