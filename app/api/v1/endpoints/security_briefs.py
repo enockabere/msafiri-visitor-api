@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List
 from app.db.database import get_db
-from app.models.security_brief import SecurityBrief, UserBriefAcknowledgment, BriefType
+from app.models.security_brief import SecurityBrief, UserBriefAcknowledgment, BriefType, ContentType
 from app.schemas.security_brief import (
     SecurityBriefCreate, SecurityBriefUpdate, SecurityBrief as SecurityBriefSchema,
     BriefAcknowledgment, UserBriefStatus
