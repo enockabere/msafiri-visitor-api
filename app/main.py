@@ -309,12 +309,26 @@ def run_auto_migration():
                         time VARCHAR(10) NOT NULL,
                         title VARCHAR(255) NOT NULL,
                         description TEXT,
+                        start_datetime TIMESTAMP WITH TIME ZONE,
+                        end_datetime TIMESTAMP WITH TIME ZONE,
+                        speaker VARCHAR(255),
+                        session_number VARCHAR(50),
                         created_by VARCHAR(255) NOT NULL,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     )
                     """
-                    conn.execute(text(create_agenda_table))
+
+                    
+                    # Add new columns to existing event_agenda table
+                    agenda_columns = [
+                        "ALTER TABLE event_agenda ADD COLUMN IF NOT EXISTS start_datetime TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE event_agenda ADD COLUMN IF NOT EXISTS end_datetime TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE event_agenda ADD COLUMN IF NOT EXISTS speaker VARCHAR(255)",
+                        "ALTER TABLE event_agenda ADD COLUMN IF NOT EXISTS session_number VARCHAR(50)"
+                    ]
+                    for sql in agenda_columns:
+                        conn.execute(text(sql))
                     
                     # Create roles table
                     create_roles_table = """
