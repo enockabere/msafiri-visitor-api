@@ -43,9 +43,10 @@ def create_agenda_item(
     end_dt = datetime.fromisoformat(item_in.end_datetime.replace('Z', '+00:00'))
     
     # Create agenda item using the new table structure
+    event_date = start_dt.date()
     db.execute(
-        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number, day_number) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number, :day_number)"),
-        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number, "day_number": item_in.day_number}
+        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number, day_number, event_date) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number, :day_number, :event_date)"),
+        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number, "day_number": item_in.day_number, "event_date": event_date}
     )
     db.commit()
     
