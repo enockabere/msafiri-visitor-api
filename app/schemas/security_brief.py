@@ -13,20 +13,30 @@ class ContentType(str, Enum):
 
 class SecurityBriefBase(BaseModel):
     title: str
-    brief_type: BriefType
-    content_type: ContentType
-    content: str
+    type: Optional[str] = "general"  # Maps to brief_type
+    content_type: Optional[str] = "text"  # Maps to content_type enum
+    content: Optional[str] = None
+    document_url: Optional[str] = None
+    video_url: Optional[str] = None
     event_id: Optional[int] = None
+    status: Optional[str] = "published"
+    publish_start_date: Optional[str] = None
+    publish_end_date: Optional[str] = None
 
 class SecurityBriefCreate(SecurityBriefBase):
     pass
 
 class SecurityBriefUpdate(BaseModel):
     title: Optional[str] = None
-    brief_type: Optional[BriefType] = None
-    content_type: Optional[ContentType] = None
+    type: Optional[str] = None
+    content_type: Optional[str] = None
     content: Optional[str] = None
+    document_url: Optional[str] = None
+    video_url: Optional[str] = None
     event_id: Optional[int] = None
+    status: Optional[str] = None
+    publish_start_date: Optional[str] = None
+    publish_end_date: Optional[str] = None
     is_active: Optional[bool] = None
 
 class SecurityBrief(SecurityBriefBase):

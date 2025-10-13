@@ -520,6 +520,36 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_security_briefings_table))
                     
+                    # Create security_briefs table (general security briefings)
+                    create_security_briefs_table = """
+                    CREATE TABLE IF NOT EXISTS security_briefs (
+                        id SERIAL PRIMARY KEY,
+                        title VARCHAR(255) NOT NULL,
+                        brief_type VARCHAR(50) DEFAULT 'general',
+                        content_type VARCHAR(50) DEFAULT 'text',
+                        content TEXT NOT NULL,
+                        event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        tenant_id VARCHAR(50) NOT NULL,
+                        created_by VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_security_briefs_table))
+                    
+                    # Create user_brief_acknowledgments table
+                    create_user_brief_acknowledgments_table = """
+                    CREATE TABLE IF NOT EXISTS user_brief_acknowledgments (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                        brief_id INTEGER REFERENCES security_briefs(id) ON DELETE CASCADE,
+                        acknowledged_at VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_user_brief_acknowledgments_table))
+                    
                     # Create indexes
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_roles_tenant_id ON roles(tenant_id)
@@ -535,6 +565,18 @@ def run_auto_migration():
                     """))
                     conn.execute(text("""
                         CREATE INDEX IF NOT EXISTS idx_security_briefings_event_id ON security_briefings(event_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_security_briefs_tenant_id ON security_briefs(tenant_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_security_briefs_event_id ON security_briefs(event_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_user_brief_acknowledgments_user_id ON user_brief_acknowledgments(user_id)
+                    """))
+                    conn.execute(text("""
+                        CREATE INDEX IF NOT EXISTS idx_user_brief_acknowledgments_brief_id ON user_brief_acknowledgments(brief_id)
                     """))
                     
                     # Add unique constraints (with error handling)

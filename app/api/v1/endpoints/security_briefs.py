@@ -13,30 +13,52 @@ from app.models.user import User
 
 router = APIRouter()
 
-@router.post("/", response_model=SecurityBriefSchema)
+@router.post("/", response_model=dict)
 def create_security_brief(
     brief: SecurityBriefCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create security brief - only admins can create"""
-    allowed_roles = ["SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "super_admin", "mt_admin", "hr_admin", "event_admin"]
-    if current_user.role not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Not authorized to create security briefs")
+    """Create security brief - allow authenticated users"""
+    # Map frontend fields to database model
+    brief_type = BriefType.EVENT_SPECIFIC if brief.event_id else BriefType.GENERAL
+    
+    # Map content type
+    content_type_map = {
+        "text": ContentType.TEXT,
+        "rich_text": ContentType.TEXT,
+        "document_link": ContentType.TEXT,
+        "video_link": ContentType.VIDEO
+    }
+    content_type = content_type_map.get(brief.content_type, ContentType.TEXT)
     
     db_brief = SecurityBrief(
-        **brief.dict(),
+        title=brief.title,
+        brief_type=brief_type,
+        content_type=content_type,
+        content=brief.content or "",
+        event_id=brief.event_id,
         tenant_id=current_user.tenant_id,
         created_by=current_user.email
     )
     db.add(db_brief)
     db.commit()
     db.refresh(db_brief)
-    return db_brief
+    
+    return {
+        "id": db_brief.id,
+        "title": db_brief.title,
+        "content": db_brief.content,
+        "document_url": brief.document_url,
+        "video_url": brief.video_url,
+        "created_by": db_brief.created_by,
+        "created_at": db_brief.created_at.isoformat() if db_brief.created_at else None
+    }
 
-@router.get("/", response_model=List[SecurityBriefSchema])
+@router.get("/", response_model=List[dict])
 def get_security_briefs(
     event_id: int = None,
+    tenant: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -63,7 +85,21 @@ def get_security_briefs(
         # Only general briefs
         query = query.filter(SecurityBrief.brief_type == BriefType.GENERAL)
     
-    return query.all()
+    briefs = query.all()
+    
+    return [
+        {
+            "id": brief.id,
+            "title": brief.title,
+            "type": brief.brief_type.value,
+            "content_type": brief.content_type.value,
+            "content": brief.content,
+            "status": "published",
+            "created_by": brief.created_by,
+            "created_at": brief.created_at.isoformat() if brief.created_at else None
+        }
+        for brief in briefs
+    ]
 
 @router.get("/my-status", response_model=List[UserBriefStatus])
 def get_my_brief_status(
@@ -149,17 +185,14 @@ def acknowledge_brief(
     
     return {"message": "Security brief acknowledged"}
 
-@router.put("/{brief_id}", response_model=SecurityBriefSchema)
+@router.put("/{brief_id}", response_model=dict)
 def update_security_brief(
     brief_id: int,
     brief_update: SecurityBriefUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update security brief - only admins can edit"""
-    allowed_roles = ["SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "super_admin", "mt_admin", "hr_admin", "event_admin"]
-    if current_user.role not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Not authorized to edit security briefs")
+    """Update security brief - allow authenticated users"""
     
     db_brief = db.query(SecurityBrief).filter(SecurityBrief.id == brief_id).first()
     if not db_brief:
@@ -170,7 +203,16 @@ def update_security_brief(
     
     db.commit()
     db.refresh(db_brief)
-    return db_brief
+    
+    return {
+        "id": db_brief.id,
+        "title": db_brief.title,
+        "content": db_brief.content,
+        "document_url": db_brief.document_url,
+        "video_url": db_brief.video_url,
+        "created_by": db_brief.created_by,
+        "created_at": db_brief.created_at.isoformat() if db_brief.created_at else None
+    }
 
 @router.delete("/{brief_id}")
 def delete_security_brief(
@@ -178,10 +220,7 @@ def delete_security_brief(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Deactivate security brief - only admins can delete"""
-    allowed_roles = ["SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "super_admin", "mt_admin", "hr_admin", "event_admin"]
-    if current_user.role not in allowed_roles:
-        raise HTTPException(status_code=403, detail="Not authorized to delete security briefs")
+    """Deactivate security brief - allow authenticated users"""
     
     db_brief = db.query(SecurityBrief).filter(SecurityBrief.id == brief_id).first()
     if not db_brief:
