@@ -237,6 +237,8 @@ async def get_participant_details(
     try:
         from sqlalchemy import text
         
+        print(f"\n🔍 DEBUG: Getting participant details for ID: {participant_id}")
+        
         # Get participant with registration details
         result = db.execute(
             text("""
@@ -247,13 +249,41 @@ async def get_participant_details(
                     ep.dietary_requirements, ep.accommodation_type, ep.participant_name, ep.participant_email,
                     pr.travelling_internationally, pr.accommodation_needs, pr.daily_meals,
                     pr.certificate_name, pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
-                    pr.phone_number
+                    pr.phone_number, pr.accommodation_type as pr_accommodation_type
                 FROM event_participants ep
                 LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
                 WHERE ep.id = :participant_id
             """),
             {"participant_id": participant_id}
         ).fetchone()
+        
+        print(f"🔍 DEBUG: Query result found: {result is not None}")
+        if result:
+            print(f"🔍 DEBUG: Participant data:")
+            print(f"   - ID: {result.id}")
+            print(f"   - Name: {result.full_name}")
+            print(f"   - Email: {result.email}")
+            print(f"   - EP Accommodation Type: {result.accommodation_type}")
+            print(f"   - PR Accommodation Type: {result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') else 'N/A'}")
+            print(f"   - Travelling Internationally: {result.travelling_internationally}")
+            print(f"   - Dietary Requirements (EP): {result.dietary_requirements}")
+            print(f"   - Certificate Name: {result.certificate_name}")
+            print(f"   - Phone Number: {result.phone_number}")
+        
+        # Also check if public_registrations record exists separately
+        pr_check = db.execute(
+            text("SELECT * FROM public_registrations WHERE participant_id = :participant_id"),
+            {"participant_id": participant_id}
+        ).fetchone()
+        
+        print(f"🔍 DEBUG: Public registration record exists: {pr_check is not None}")
+        if pr_check:
+            print(f"🔍 DEBUG: Public registration data:")
+            print(f"   - First Name: {pr_check.first_name}")
+            print(f"   - Last Name: {pr_check.last_name}")
+            print(f"   - Travelling Internationally: {pr_check.travelling_internationally}")
+            print(f"   - Accommodation Type: {pr_check.accommodation_type}")
+            print(f"   - Dietary Requirements: {pr_check.dietary_requirements}")
         
         if not result:
             raise HTTPException(status_code=404, detail="Participant not found")
@@ -265,7 +295,11 @@ async def get_participant_details(
         except Exception as e:
             print(f"Error fetching user details for {result.email}: {e}")
         
-        return {
+        # Use public_registrations data if available, otherwise fall back to event_participants
+        accommodation_type = (result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') and result.pr_accommodation_type 
+                            else result.accommodation_type)
+        
+        response_data = {
             "id": result.id,
             "email": result.email,
             "full_name": result.full_name,
@@ -290,7 +324,7 @@ async def get_participant_details(
             "passport_document": bool(result.passport_document),
             "ticket_document": bool(result.ticket_document),
             "dietary_requirements": result.dietary_requirements,
-            "accommodation_type": result.accommodation_type,
+            "accommodation_type": accommodation_type,
             # Registration details from public_registrations
             "travelling_internationally": result.travelling_internationally,
             "accommodation_needs": result.accommodation_needs,
@@ -299,6 +333,14 @@ async def get_participant_details(
             "code_of_conduct_confirm": result.code_of_conduct_confirm,
             "travel_requirements_confirm": result.travel_requirements_confirm
         }
+        
+        print(f"🔍 DEBUG: Final response data:")
+        print(f"   - Accommodation Type: {response_data['accommodation_type']}")
+        print(f"   - Travelling Internationally: {response_data['travelling_internationally']}")
+        print(f"   - Dietary Requirements: {response_data['dietary_requirements']}")
+        print(f"   - Certificate Name: {response_data['certificate_name']}")
+        
+        return response_data
     except HTTPException:
         raise
     except Exception as e:

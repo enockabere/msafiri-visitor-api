@@ -154,6 +154,12 @@ async def public_register_for_event(
         })
         
         # Store detailed registration data
+        print(f"\n🔥 DEBUG: Storing detailed registration data for participant {participant.id}")
+        print(f"   - Travelling Internationally: '{registration.travellingInternationally}'")
+        print(f"   - Accommodation Type: '{registration.accommodationType}'")
+        print(f"   - Dietary Requirements: '{registration.dietaryRequirements}'")
+        print(f"   - Certificate Name: '{registration.certificateName}'")
+        
         detailed_registration_sql = """
         INSERT INTO public_registrations (
             event_id, participant_id, first_name, last_name, oc, contract_status, 
@@ -174,7 +180,7 @@ async def public_register_for_event(
         )
         """
         
-        db.execute(text(detailed_registration_sql), {
+        registration_params = {
             "event_id": event_id,
             "participant_id": participant.id,
             "first_name": registration.firstName,
@@ -203,9 +209,35 @@ async def public_register_for_event(
             "certificate_name": registration.certificateName,
             "code_of_conduct_confirm": registration.codeOfConductConfirm,
             "travel_requirements_confirm": registration.travelRequirementsConfirm
-        })
+        }
+        
+        print(f"🔥 DEBUG: Registration parameters being inserted:")
+        print(f"   - travelling_internationally: '{registration_params['travelling_internationally']}'")
+        print(f"   - accommodation_type: '{registration_params['accommodation_type']}'")
+        print(f"   - dietary_requirements: '{registration_params['dietary_requirements']}'")
+        print(f"   - certificate_name: '{registration_params['certificate_name']}'")
+        
+        db.execute(text(detailed_registration_sql), registration_params)
         
         db.commit()
+        
+        # Verify the data was stored correctly
+        verification_sql = """
+        SELECT travelling_internationally, accommodation_type, dietary_requirements, certificate_name
+        FROM public_registrations 
+        WHERE participant_id = :participant_id
+        """
+        
+        verification_result = db.execute(text(verification_sql), {"participant_id": participant.id}).fetchone()
+        
+        if verification_result:
+            print(f"✅ DEBUG: Data verification after insert:")
+            print(f"   - Travelling Internationally: '{verification_result[0]}'")
+            print(f"   - Accommodation Type: '{verification_result[1]}'")
+            print(f"   - Dietary Requirements: '{verification_result[2]}'")
+            print(f"   - Certificate Name: '{verification_result[3]}'")
+        else:
+            print(f"❌ DEBUG: No data found after insert for participant {participant.id}")
         
         logger.info(f"✅ Public registration successful for {registration.firstName} {registration.lastName}")
         
@@ -217,5 +249,8 @@ async def public_register_for_event(
         
     except Exception as e:
         logger.error(f"❌ Error in public registration: {str(e)}")
+        print(f"❌ DEBUG: Full error details: {str(e)}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
