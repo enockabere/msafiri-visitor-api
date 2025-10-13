@@ -1,6 +1,7 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app import crud
 from app.db.database import get_db
 from app.models.event_agenda import EventAgenda
@@ -43,8 +44,8 @@ def create_agenda_item(
     
     # Create agenda item using the new table structure
     db.execute(
-        "INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (event_id, item_in.title, item_in.description, start_dt, end_dt, item_in.speaker, item_in.session_number)
+        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number)"),
+        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number}
     )
     db.commit()
     
@@ -65,8 +66,8 @@ def get_agenda_items(
     
     # Use raw SQL to get from the new table structure
     result = db.execute(
-        "SELECT id, title, description, start_datetime, end_datetime, speaker, session_number, created_at FROM event_agenda WHERE event_id = %s ORDER BY start_datetime",
-        (event_id,)
+        text("SELECT id, title, description, start_datetime, end_datetime, speaker, session_number, created_at FROM event_agenda WHERE event_id = :event_id ORDER BY start_datetime"),
+        {"event_id": event_id}
     ).fetchall()
     
     return [
@@ -94,8 +95,8 @@ def delete_agenda_item(
     """Delete agenda item"""
     
     result = db.execute(
-        "DELETE FROM event_agenda WHERE id = %s AND event_id = %s",
-        (item_id, event_id)
+        text("DELETE FROM event_agenda WHERE id = :item_id AND event_id = :event_id"),
+        {"item_id": item_id, "event_id": event_id}
     )
     
     if result.rowcount == 0:
