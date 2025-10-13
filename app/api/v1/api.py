@@ -247,6 +247,20 @@ api_router.include_router(
     tags=["public-qr"]
 )
 
+from app.api.v1.endpoints import event_food
+api_router.include_router(
+    event_food.router,
+    prefix="/events/{event_id}/food",
+    tags=["event-food"]
+)
+
+from app.api.v1.endpoints import enhanced_feedback
+api_router.include_router(
+    enhanced_feedback.router,
+    prefix="/events/{event_id}/feedback",
+    tags=["enhanced-feedback"]
+)
+
 from app.api.v1.endpoints import countries
 from fastapi import HTTPException
 from sqlalchemy.orm import Session

@@ -376,18 +376,24 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_attachments_table))
                     
-                    # Create event_feedback table
+                    # Create event_feedback table (enhanced)
                     create_feedback_table = """
                     CREATE TABLE IF NOT EXISTS event_feedback (
                         id SERIAL PRIMARY KEY,
                         event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        agenda_item_id INTEGER REFERENCES event_agenda(id) ON DELETE SET NULL,
                         participant_id INTEGER REFERENCES event_participants(id) ON DELETE SET NULL,
                         participant_email VARCHAR(255) NOT NULL,
                         participant_name VARCHAR(255) NOT NULL,
+                        feedback_type VARCHAR(50) DEFAULT 'event',
                         overall_rating INTEGER CHECK (overall_rating >= 1 AND overall_rating <= 5),
                         content_rating INTEGER CHECK (content_rating >= 1 AND content_rating <= 5),
                         organization_rating INTEGER CHECK (organization_rating >= 1 AND organization_rating <= 5),
                         venue_rating INTEGER CHECK (venue_rating >= 1 AND venue_rating <= 5),
+                        accommodation_rating INTEGER CHECK (accommodation_rating >= 1 AND accommodation_rating <= 5),
+                        transport_rating INTEGER CHECK (transport_rating >= 1 AND transport_rating <= 5),
+                        food_rating INTEGER CHECK (food_rating >= 1 AND food_rating <= 5),
+                        session_rating INTEGER CHECK (session_rating >= 1 AND session_rating <= 5),
                         feedback_text TEXT,
                         suggestions TEXT,
                         would_recommend BOOLEAN,
@@ -405,6 +411,42 @@ def run_auto_migration():
                         "ALTER TABLE events ADD COLUMN IF NOT EXISTS registration_form_description TEXT"
                     ]
                     for sql in registration_form_columns:
+                        conn.execute(text(sql))
+                    
+                    # Create event_food_menu table
+                    create_food_menu_table = """
+                    CREATE TABLE IF NOT EXISTS event_food_menu (
+                        id SERIAL PRIMARY KEY,
+                        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+                        day_number INTEGER NOT NULL,
+                        meal_type VARCHAR(50) NOT NULL,
+                        menu_items TEXT NOT NULL,
+                        dietary_notes TEXT,
+                        created_by VARCHAR(255) NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_food_menu_table))
+                    
+                    # Add dietary requirements to event_participants
+                    dietary_columns = [
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS dietary_requirements TEXT",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS allergies TEXT"
+                    ]
+                    for sql in dietary_columns:
+                        conn.execute(text(sql))
+                    
+                    # Add feedback type columns to existing feedback table
+                    feedback_columns = [
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS agenda_item_id INTEGER REFERENCES event_agenda(id) ON DELETE SET NULL",
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS feedback_type VARCHAR(50) DEFAULT 'event'",
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS accommodation_rating INTEGER CHECK (accommodation_rating >= 1 AND accommodation_rating <= 5)",
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS transport_rating INTEGER CHECK (transport_rating >= 1 AND transport_rating <= 5)",
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS food_rating INTEGER CHECK (food_rating >= 1 AND food_rating <= 5)",
+                        "ALTER TABLE event_feedback ADD COLUMN IF NOT EXISTS session_rating INTEGER CHECK (session_rating >= 1 AND session_rating <= 5)"
+                    ]
+                    for sql in feedback_columns:
                         conn.execute(text(sql))
                     
                     # Create public_registrations table for detailed form data
