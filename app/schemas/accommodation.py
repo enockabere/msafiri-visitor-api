@@ -91,6 +91,7 @@ class VendorAccommodationBase(BaseModel):
     longitude: Optional[str] = None
     single_rooms: int = Field(default=0, ge=0)
     double_rooms: int = Field(default=0, ge=0)
+    capacity: int = Field(default=0, ge=0)
     description: Optional[str] = None
     is_active: bool = True
 
@@ -105,6 +106,7 @@ class VendorAccommodationUpdate(BaseModel):
     longitude: Optional[str] = None
     single_rooms: Optional[int] = Field(None, ge=0)
     double_rooms: Optional[int] = Field(None, ge=0)
+    capacity: Optional[int] = Field(None, ge=0)
     description: Optional[str] = None
     is_active: Optional[bool] = None
 

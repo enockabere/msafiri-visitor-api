@@ -72,6 +72,13 @@ class CRUDVendorAccommodation(CRUDBase[VendorAccommodation, VendorAccommodationC
     def create_with_tenant(self, db: Session, *, obj_in: VendorAccommodationCreate, tenant_id: int) -> VendorAccommodation:
         obj_data = obj_in.dict()
         obj_data["tenant_id"] = tenant_id
+        
+        # Calculate capacity from room counts if not provided
+        if "capacity" not in obj_data or obj_data["capacity"] == 0:
+            single_rooms = obj_data.get("single_rooms", 0)
+            double_rooms = obj_data.get("double_rooms", 0)
+            obj_data["capacity"] = single_rooms + (double_rooms * 2)
+        
         db_obj = self.model(**obj_data)
         db.add(db_obj)
         db.commit()
