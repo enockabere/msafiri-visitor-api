@@ -10,11 +10,13 @@ from datetime import date
 router = APIRouter()
 
 class AgendaItemCreate(BaseModel):
-    day_number: int
-    event_date: str
-    time: str
     title: str
     description: str = None
+    start_datetime: str
+    end_datetime: str
+    day_number: int = None
+    speaker: str = None
+    session_number: str = None
 
 class AgendaDocumentUpdate(BaseModel):
     document_url: str = None
@@ -33,30 +35,24 @@ def create_agenda_item(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Create agenda item
-    agenda_item = EventAgenda(
-        event_id=event_id,
-        day_number=item_in.day_number,
-        event_date=date.fromisoformat(item_in.event_date),
-        time=item_in.time,
-        title=item_in.title,
-        description=item_in.description,
-        created_by='admin'
-    )
+    from datetime import datetime
     
-    db.add(agenda_item)
+    # Parse datetime strings
+    start_dt = datetime.fromisoformat(item_in.start_datetime.replace('Z', '+00:00'))
+    end_dt = datetime.fromisoformat(item_in.end_datetime.replace('Z', '+00:00'))
+    
+    # Create agenda item using the new table structure
+    db.execute(
+        "INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+        (event_id, item_in.title, item_in.description, start_dt, end_dt, item_in.speaker, item_in.session_number)
+    )
     db.commit()
-    db.refresh(agenda_item)
     
     return {
-        "id": agenda_item.id,
-        "day_number": agenda_item.day_number,
-        "event_date": agenda_item.event_date.isoformat(),
-        "time": agenda_item.time,
-        "title": agenda_item.title,
-        "description": agenda_item.description,
-        "created_by": agenda_item.created_by,
-        "created_at": agenda_item.created_at.isoformat()
+        "message": "Agenda item created successfully",
+        "title": item_in.title,
+        "start_datetime": item_in.start_datetime,
+        "end_datetime": item_in.end_datetime
     }
 
 @router.get("/", response_model=List[dict])
@@ -65,27 +61,30 @@ def get_agenda_items(
     db: Session = Depends(get_db),
     event_id: int
 ) -> Any:
-    """Get agenda items grouped by day"""
+    """Get agenda items"""
     
-    items = db.query(EventAgenda).filter(
-        EventAgenda.event_id == event_id
-    ).order_by(EventAgenda.day_number, EventAgenda.time).all()
+    # Use raw SQL to get from the new table structure
+    result = db.execute(
+        "SELECT id, title, description, start_datetime, end_datetime, speaker, session_number, created_at FROM event_agenda WHERE event_id = %s ORDER BY start_datetime",
+        (event_id,)
+    ).fetchall()
     
     return [
         {
-            "id": item.id,
-            "day_number": item.day_number,
-            "event_date": item.event_date.isoformat(),
-            "time": item.time,
-            "title": item.title,
-            "description": item.description,
-            "created_by": item.created_by,
-            "created_at": item.created_at.isoformat()
+            "id": row[0],
+            "title": row[1],
+            "description": row[2],
+            "start_datetime": row[3].isoformat() if row[3] else None,
+            "end_datetime": row[4].isoformat() if row[4] else None,
+            "presenter": row[5],
+            "session_number": row[6],
+            "created_at": row[7].isoformat() if row[7] else None,
+            "created_by": "admin"
         }
-        for item in items
+        for row in result
     ]
 
-@router.delete("/{item_id}/")
+@router.delete("/{item_id}")
 def delete_agenda_item(
     *,
     db: Session = Depends(get_db),
@@ -94,17 +93,15 @@ def delete_agenda_item(
 ) -> Any:
     """Delete agenda item"""
     
-    item = db.query(EventAgenda).filter(
-        EventAgenda.id == item_id,
-        EventAgenda.event_id == event_id
-    ).first()
+    result = db.execute(
+        "DELETE FROM event_agenda WHERE id = %s AND event_id = %s",
+        (item_id, event_id)
+    )
     
-    if not item:
+    if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Agenda item not found")
     
-    db.delete(item)
     db.commit()
-    
     return {"message": "Agenda item deleted successfully"}
 
 @router.put("/document", response_model=dict)
