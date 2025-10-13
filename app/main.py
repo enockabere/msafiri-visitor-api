@@ -34,9 +34,20 @@ allowed_origins = [
 
 # In production, get allowed origins from environment
 if settings.ENVIRONMENT == "production":
-    frontend_urls = os.getenv("ALLOWED_ORIGINS", "").split(",")
-    if frontend_urls and frontend_urls[0]:  # If environment variable exists
-        allowed_origins = [url.strip() for url in frontend_urls if url.strip()]
+    print(f"🔍 DEBUG: Environment is production, checking ALLOWED_ORIGINS...")
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+    print(f"🔍 DEBUG: Raw ALLOWED_ORIGINS env var: '{allowed_origins_env}'")
+    
+    if allowed_origins_env:
+        frontend_urls = allowed_origins_env.split(",")
+        print(f"🔍 DEBUG: Split URLs: {frontend_urls}")
+        if frontend_urls and frontend_urls[0]:  # If environment variable exists
+            allowed_origins = [url.strip() for url in frontend_urls if url.strip()]
+            print(f"🔍 DEBUG: Final allowed_origins from env: {allowed_origins}")
+        else:
+            print(f"🔍 DEBUG: No valid URLs found, using hardcoded defaults")
+    else:
+        print(f"🔍 DEBUG: ALLOWED_ORIGINS env var is empty, using hardcoded defaults")
 
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
@@ -469,6 +480,7 @@ async def startup_event():
     logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
     logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
     logger.info(f"💾 Database URL: {settings.DATABASE_URL[:50]}...")
+    print(f"🔍 DEBUG: Final CORS origins being used: {allowed_origins}")
     logger.info(f"🔗 Allowed CORS origins: {allowed_origins}")
     
     try:
