@@ -545,7 +545,11 @@ def run_auto_migration():
                     security_briefs_columns = [
                         "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'draft'",
                         "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS publish_start_date TIMESTAMP WITH TIME ZONE",
-                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS publish_end_date TIMESTAMP WITH TIME ZONE"
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS publish_end_date TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS location VARCHAR(255)",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,8)",
+                        "ALTER TABLE security_briefs ADD COLUMN IF NOT EXISTS longitude DECIMAL(11,8)"
                     ]
                     for sql in security_briefs_columns:
                         conn.execute(text(sql))

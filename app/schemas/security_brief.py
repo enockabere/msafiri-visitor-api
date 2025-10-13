@@ -22,6 +22,10 @@ class SecurityBriefBase(BaseModel):
     status: Optional[str] = "published"
     publish_start_date: Optional[str] = None
     publish_end_date: Optional[str] = None
+    category: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
 
 class SecurityBriefCreate(SecurityBriefBase):
     pass
@@ -37,6 +41,10 @@ class SecurityBriefUpdate(BaseModel):
     status: Optional[str] = None
     publish_start_date: Optional[str] = None
     publish_end_date: Optional[str] = None
+    category: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     is_active: Optional[bool] = None
 
 class SecurityBrief(SecurityBriefBase):

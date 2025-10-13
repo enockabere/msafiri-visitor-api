@@ -67,6 +67,10 @@ def create_security_brief(
         status=brief.status or "draft",
         publish_start_date=brief.publish_start_date,
         publish_end_date=brief.publish_end_date,
+        category=brief.category,
+        location=brief.location,
+        latitude=brief.latitude,
+        longitude=brief.longitude,
         tenant_id=current_user.tenant_id,
         created_by=current_user.email
     )
@@ -79,6 +83,10 @@ def create_security_brief(
         "title": db_brief.title,
         "content": db_brief.content,
         "status": db_brief.status,
+        "category": db_brief.category,
+        "location": db_brief.location,
+        "latitude": db_brief.latitude,
+        "longitude": db_brief.longitude,
         "publish_start_date": db_brief.publish_start_date,
         "publish_end_date": db_brief.publish_end_date,
         "document_url": brief.document_url,
@@ -91,10 +99,30 @@ def create_security_brief(
 def get_security_briefs(
     event_id: int = None,
     tenant: str = None,
+    status: str = None,
+    category: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get security briefs - general ones and event-specific if event_id provided"""
+    """Get security briefs with filters and auto-archive expired ones"""
+    
+    # Auto-archive expired briefings
+    from datetime import datetime
+    now = datetime.now()
+    expired_briefs = db.query(SecurityBrief).filter(
+        and_(
+            SecurityBrief.status == "published",
+            SecurityBrief.publish_end_date.isnot(None),
+            SecurityBrief.publish_end_date < now.isoformat()
+        )
+    ).all()
+    
+    for brief in expired_briefs:
+        brief.status = "archived"
+    
+    if expired_briefs:
+        db.commit()
+    
     query = db.query(SecurityBrief).filter(
         and_(
             SecurityBrief.tenant_id == current_user.tenant_id,
@@ -103,7 +131,6 @@ def get_security_briefs(
     )
     
     if event_id:
-        # Get general briefs + event-specific briefs for this event
         query = query.filter(
             or_(
                 SecurityBrief.brief_type == BriefType.GENERAL,
@@ -114,8 +141,14 @@ def get_security_briefs(
             )
         )
     else:
-        # Only general briefs
         query = query.filter(SecurityBrief.brief_type == BriefType.GENERAL)
+    
+    # Apply filters
+    if status:
+        query = query.filter(SecurityBrief.status == status)
+    
+    if category:
+        query = query.filter(SecurityBrief.category == category)
     
     briefs = query.all()
     
@@ -127,6 +160,10 @@ def get_security_briefs(
             "content_type": brief.content_type.value,
             "content": brief.content,
             "status": brief.status or "draft",
+            "category": brief.category,
+            "location": brief.location,
+            "latitude": brief.latitude,
+            "longitude": brief.longitude,
             "publish_start_date": brief.publish_start_date,
             "publish_end_date": brief.publish_end_date,
             "created_by": brief.created_by,
