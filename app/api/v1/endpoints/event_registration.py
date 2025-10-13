@@ -123,7 +123,8 @@ async def get_event_registrations(
         pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
         pr.hrco_email, pr.career_manager_email, pr.line_manager_email, pr.phone_number,
         pr.dietary_requirements, pr.accommodation_needs, pr.certificate_name,
-        pr.code_of_conduct_confirm, pr.travel_requirements_confirm
+        pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
+        pr.travelling_internationally, pr.accommodation_type, pr.daily_meals
     FROM event_participants ep
     LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
     WHERE ep.event_id = :event_id
@@ -184,7 +185,10 @@ async def get_event_registrations(
                 "accommodation_needs": "[REDACTED]",
                 "certificate_name": "[REDACTED]",
                 "code_of_conduct_confirm": "[REDACTED]",
-                "travel_requirements_confirm": "[REDACTED]"
+                "travel_requirements_confirm": "[REDACTED]",
+                "travelling_internationally": "[REDACTED]",
+                "accommodation_type": "[REDACTED]",
+                "daily_meals": "[REDACTED]"
             })
         else:
             result.append({
@@ -222,7 +226,10 @@ async def get_event_registrations(
                 "accommodation_needs": p.accommodation_needs,
                 "certificate_name": p.certificate_name,
                 "code_of_conduct_confirm": p.code_of_conduct_confirm,
-                "travel_requirements_confirm": p.travel_requirements_confirm
+                "travel_requirements_confirm": p.travel_requirements_confirm,
+                "travelling_internationally": p.travelling_internationally,
+                "accommodation_type": p.accommodation_type,
+                "daily_meals": p.daily_meals
             })
     
     return result
