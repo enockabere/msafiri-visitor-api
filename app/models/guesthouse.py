@@ -11,10 +11,9 @@ class GuestHouse(Base):
     name = Column(String(200), nullable=False)
     address = Column(Text, nullable=True)  # Legacy field
     location = Column(String(500), nullable=True)
+    latitude = Column(String(20), nullable=True)
+    longitude = Column(String(20), nullable=True)
     description = Column(Text, nullable=True)
-    contact_person = Column(String(200), nullable=True)
-    contact_phone = Column(String(20), nullable=True)
-    contact_email = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
     total_rooms = Column(Integer, default=0)
     occupied_rooms = Column(Integer, default=0)
