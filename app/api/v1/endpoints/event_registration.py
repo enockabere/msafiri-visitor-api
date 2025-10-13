@@ -73,12 +73,13 @@ async def register_for_event(
     print(f"✅ Creating participant for {registration.full_name} as {registration.role}")
     
     try:
-        # Create registration with default status as 'registered'
+        # Create registration with default status as 'registered' and participant_role as 'visitor'
         participant = EventParticipant(
             event_id=registration.event_id,
             email=registration.user_email,
             full_name=registration.full_name,
             role=registration.role,
+            participant_role="visitor",  # Default role for all participants
             status="registered",  # Default status when visitor registers
             invited_by=registration.user_email
         )
@@ -153,6 +154,7 @@ async def get_event_registrations(
                 "email": "[REDACTED]",
                 "full_name": p.full_name,  # Keep name for audit purposes
                 "role": p.role,
+                "participant_role": "[REDACTED]",
                 "status": p.status,
                 "registration_type": "self",
                 "registered_by": "[REDACTED]",
@@ -190,6 +192,7 @@ async def get_event_registrations(
                 "email": p.email,
                 "full_name": p.full_name,
                 "role": p.role,
+                "participant_role": getattr(p, 'participant_role', 'visitor'),
                 "status": p.status,
                 "registration_type": "self",
                 "registered_by": p.invited_by,

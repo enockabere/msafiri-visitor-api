@@ -164,7 +164,9 @@ def create_default_roles():
                 {"name": "Event Manager", "description": "Can create and manage events"},
                 {"name": "User Manager", "description": "Can manage users and their roles"},
                 {"name": "Viewer", "description": "Read-only access to tenant resources"},
-                {"name": "Facilitator", "description": "Can facilitate events and manage participants"}
+                {"name": "Facilitator", "description": "Can facilitate events and manage participants"},
+                {"name": "Organizer", "description": "Can organize and coordinate events"},
+                {"name": "Visitor", "description": "Default role for event participants"}
             ]
             
             for tenant_id in tenants:
@@ -228,7 +230,8 @@ def run_auto_migration():
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS eta VARCHAR(255)",
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS requires_eta BOOLEAN DEFAULT FALSE",
                         "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS passport_document VARCHAR(500)",
-                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS ticket_document VARCHAR(500)"
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS ticket_document VARCHAR(500)",
+                        "ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS participant_role VARCHAR(50) DEFAULT 'visitor'"
                     ]
                     for sql in participant_columns:
                         conn.execute(text(sql))

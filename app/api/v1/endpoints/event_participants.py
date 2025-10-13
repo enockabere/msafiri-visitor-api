@@ -68,6 +68,37 @@ def get_participants(
     participants = query.offset(skip).limit(limit).all()
     return participants
 
+@router.put("/{participant_id}/role", response_model=schemas.event_participant.EventParticipant)
+def update_participant_role(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    participant_id: int,
+    role_data: dict
+) -> Any:
+    """Update participant role"""
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    # Validate role
+    valid_roles = ['visitor', 'facilitator', 'organizer']
+    new_role = role_data.get('role', '').lower()
+    if new_role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    
+    # Update participant_role (event-specific role)
+    participant.participant_role = new_role
+    db.commit()
+    db.refresh(participant)
+    
+    return participant
+
 @router.delete("/{participant_id}", operation_id="delete_event_participant")
 def delete_participant(
     *,

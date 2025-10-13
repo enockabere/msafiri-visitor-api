@@ -25,6 +25,7 @@ class EventParticipant(BaseModel):
     email = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     role = Column(String(50), default='attendee')
+    participant_role = Column(String(50), default='visitor')  # Event-specific role: visitor, facilitator, organizer
     status = Column(String(50), default='registered')  # Default to registered
     # registration_type = Column(String(50), default='self')  # 'self' or 'admin'
     invited_by = Column(String(255), nullable=False)  # Keep original column name for now
