@@ -35,67 +35,9 @@ def get_event_agenda(
             detail="Access denied - not a participant of this event"
         )
     
-    # Mock agenda data for now
-    from datetime import datetime, timedelta
-    today = datetime.now().date()
-    
-    agenda_items = [
-        {
-            "id": 1,
-            "title": "Welcome & Registration",
-            "description": "Check-in and welcome coffee",
-            "start_time": "09:00",
-            "end_time": "09:30",
-            "start_datetime": f"{today}T09:00:00",
-            "end_datetime": f"{today}T09:30:00",
-            "event_id": event_id,
-            "presenter": "Event Team"
-        },
-        {
-            "id": 2,
-            "title": "Opening Session",
-            "description": "Introduction and overview of the event",
-            "start_time": "09:30",
-            "end_time": "10:30",
-            "start_datetime": f"{today}T09:30:00",
-            "end_datetime": f"{today}T10:30:00",
-            "event_id": event_id,
-            "presenter": "Dr. John Smith"
-        },
-        {
-            "id": 3,
-            "title": "Coffee Break",
-            "description": "Networking and refreshments",
-            "start_time": "10:30",
-            "end_time": "11:00",
-            "start_datetime": f"{today}T10:30:00",
-            "end_datetime": f"{today}T11:00:00",
-            "event_id": event_id,
-            "presenter": ""
-        },
-        {
-            "id": 4,
-            "title": "Technical Session",
-            "description": "Deep dive into technical topics",
-            "start_time": "11:00",
-            "end_time": "12:30",
-            "start_datetime": f"{today}T11:00:00",
-            "end_datetime": f"{today}T12:30:00",
-            "event_id": event_id,
-            "presenter": "Jane Doe"
-        },
-        {
-            "id": 5,
-            "title": "Lunch Break",
-            "description": "Networking lunch",
-            "start_time": "12:30",
-            "end_time": "13:30",
-            "start_datetime": f"{today}T12:30:00",
-            "end_datetime": f"{today}T13:30:00",
-            "event_id": event_id,
-            "presenter": ""
-        }
-    ]
+    # TODO: Implement real agenda data from database
+    # For now, return empty array until agenda table is created
+    agenda_items = []
     
     logger.info(f"📊 Found {len(agenda_items)} agenda items")
     return agenda_items
@@ -280,13 +222,12 @@ def submit_agenda_feedback(
             detail="Access denied - not a participant of this event"
         )
     
-    # Check if agenda item exists
-    valid_agenda_ids = [1, 2, 3, 4, 5]  # Match the mock agenda items
-    if agenda_id not in valid_agenda_ids:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Agenda item {agenda_id} not found"
-        )
+    # TODO: Check if agenda item exists in database
+    # For now, return 404 since no agenda items exist
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=f"Agenda item {agenda_id} not found - agenda system not yet implemented"
+    )
     
     # Check if user is not a facilitator (facilitators shouldn't give feedback)
     role = participation.role
