@@ -57,15 +57,35 @@ def get_participants(
     limit: int = 50
 ) -> Any:
     """Get event participants with optional role filtering and pagination"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🎯 Get participants - Event: {event_id}, Role filter: {role}")
     
     query = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id
     )
     
     if role:
-        query = query.filter(EventParticipant.role == role)
+        # Check both role and participant_role columns
+        from sqlalchemy import or_, text
+        try:
+            # Try to filter by both role and participant_role columns
+            query = query.filter(
+                or_(
+                    EventParticipant.role == role,
+                    text(f"participant_role = '{role}'")
+                )
+            )
+            logger.info(f"✅ Applied role filter for both 'role' and 'participant_role' columns")
+        except Exception as e:
+            # Fallback to just role column if participant_role doesn't exist
+            logger.warning(f"⚠️ participant_role column might not exist, using only role column: {e}")
+            query = query.filter(EventParticipant.role == role)
     
     participants = query.offset(skip).limit(limit).all()
+    logger.info(f"📊 Found {len(participants)} participants")
+    
     return participants
 
 @router.put("/{participant_id}/role")
