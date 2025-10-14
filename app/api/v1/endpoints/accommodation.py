@@ -339,6 +339,39 @@ def create_vendor_allocation(
     )
     return allocation
 
+@router.delete("/vendor-accommodations/{vendor_id}")
+def delete_vendor_accommodation(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Delete vendor accommodation"""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    vendor = crud.vendor_accommodation.get(db, id=vendor_id)
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor accommodation not found"
+        )
+    
+    # Verify vendor belongs to the tenant
+    if vendor.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this vendor accommodation"
+        )
+    
+    crud.vendor_accommodation.remove(db, id=vendor_id)
+    return {"message": "Vendor accommodation deleted successfully"}
+
 # Dashboard endpoints
 @router.get("/dashboard/overview")
 def get_accommodation_overview(

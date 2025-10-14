@@ -615,23 +615,59 @@ def get_my_attendance_status(
     logger = logging.getLogger(__name__)
     
     from app.models.event_participant import EventParticipant
+    from sqlalchemy import text
     
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email
-    ).first()
+    # Get participation with registration data
+    result = db.execute(
+        text("""
+            SELECT 
+                ep.id, ep.status, ep.requires_eta, ep.passport_document, ep.ticket_document,
+                pr.travelling_internationally
+            FROM event_participants ep
+            LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+            WHERE ep.event_id = :event_id AND ep.email = :email
+        """),
+        {"event_id": event_id, "email": current_user.email}
+    ).fetchone()
     
     logger.info(f"🎯 Get attendance status - Event: {event_id}, User: {current_user.email}")
-    logger.info(f"📊 Found participation: {participation is not None}")
-    if participation:
-        logger.info(f"📊 Participation status: '{participation.status}'")
+    logger.info(f"📊 Found participation: {result is not None}")
+    
+    if not result:
+        return {
+            "status": None,
+            "participant_id": None,
+            "requires_eta": False,
+            "has_passport": False,
+            "has_ticket": False,
+        }
+    
+    logger.info(f"📊 Participation status: '{result.status}'")
+    logger.info(f"📊 Travelling internationally: '{result.travelling_internationally}'")
+    
+    # Check if user is traveling internationally
+    requires_eta = result.requires_eta or False
+    if result.travelling_internationally == 'yes':
+        requires_eta = True
+        logger.info(f"📊 User is travelling internationally - ETA required")
+        
+        # Update the participant record if not already set
+        if not result.requires_eta:
+            logger.info(f"📊 Updating participant record to set requires_eta=True")
+            db.execute(
+                text("UPDATE event_participants SET requires_eta = true WHERE id = :participant_id"),
+                {"participant_id": result.id}
+            )
+            db.commit()
+    
+    logger.info(f"📊 Final requires_eta value: {requires_eta}")
     
     return {
-        "status": participation.status if participation else None,
-        "participant_id": participation.id if participation else None,
-        "requires_eta": participation.requires_eta if participation else False,
-        "has_passport": bool(participation.passport_document) if participation else False,
-        "has_ticket": bool(participation.ticket_document) if participation else False,
+        "status": result.status,
+        "participant_id": result.id,
+        "requires_eta": requires_eta,
+        "has_passport": bool(result.passport_document),
+        "has_ticket": bool(result.ticket_document),
     }
 
 @router.post("/{event_id}/request-attendance")
