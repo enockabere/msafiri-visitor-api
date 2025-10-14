@@ -123,6 +123,7 @@ def create_agenda_item(
     
     logger.info(f"➕ Create agenda item - Event: {event_id}, User: {current_user.email}")
     logger.info(f"👤 User role: {current_user.role}")
+    logger.info(f"📝 Received agenda data: {agenda_data}")
     
     # Check if user is admin (can manage any event)
     from app.models.user import UserRole
@@ -160,17 +161,35 @@ def create_agenda_item(
     from app.models.event_agenda import EventAgenda
     from datetime import datetime
     
-    # Parse the agenda data
+    # Parse the agenda data - handle both portal and mobile formats
     title = agenda_data.get('title', '')
     description = agenda_data.get('description', '')
-    time = agenda_data.get('time', '')
-    event_date = agenda_data.get('event_date')
     day_number = agenda_data.get('day_number', 1)
     
-    if not title or not time:
+    # Handle time from different sources
+    time = agenda_data.get('time', '')
+    if not time and 'start_datetime' in agenda_data:
+        # Extract time from start_datetime (portal format)
+        try:
+            start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
+            time = start_dt.strftime('%H:%M')
+        except:
+            time = '09:00'
+    
+    # Handle event_date from different sources
+    event_date = agenda_data.get('event_date')
+    if not event_date and 'start_datetime' in agenda_data:
+        # Extract date from start_datetime (portal format)
+        try:
+            start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
+            event_date = start_dt.date()
+        except:
+            event_date = None
+    
+    if not title:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Title and time are required"
+            detail="Title is required"
         )
     
     # Parse event_date if provided as string
@@ -182,6 +201,10 @@ def create_agenda_item(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid date format. Use YYYY-MM-DD"
             )
+    
+    # Default time if not provided
+    if not time:
+        time = '09:00'
     
     # Create agenda item
     agenda_item = EventAgenda(
