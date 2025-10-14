@@ -71,6 +71,52 @@ def check_my_event_participation(
         "status": participation.status if participation else None
     }
 
+@router.get("/my-events", response_model=List[schemas.Event])
+def get_my_selected_events(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    skip: int = 0,
+    limit: int = 100
+) -> Any:
+    """Get events that the current user is selected for (mobile endpoint)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"🎯 === MY EVENTS REQUEST START ===")
+        logger.info(f"👤 User: {current_user.email}")
+        logger.info(f"📊 Skip: {skip}, Limit: {limit}")
+        
+        from app.models.event_participant import EventParticipant
+        from app.models.event import Event
+        
+        # Get events where user is selected/approved/confirmed
+        selected_statuses = ['selected', 'approved', 'confirmed', 'checked_in']
+        
+        # Query to get events through participation
+        events_query = db.query(Event).join(
+            EventParticipant, Event.id == EventParticipant.event_id
+        ).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.status.in_(selected_statuses)
+        ).distinct()
+        
+        events = events_query.offset(skip).limit(limit).all()
+        
+        logger.info(f"📊 Found {len(events)} events for user {current_user.email}")
+        logger.info(f"🎯 === MY EVENTS REQUEST END ===")
+        
+        return events
+        
+    except Exception as e:
+        logger.error(f"💥 MY EVENTS ERROR: {str(e)}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.get("/mobile/{event_id}", response_model=schemas.Event)
 def get_event_for_mobile(
     *,
