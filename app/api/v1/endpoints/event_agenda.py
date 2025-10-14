@@ -284,13 +284,23 @@ def update_agenda_item(
             detail="Agenda item not found"
         )
     
-    # Update fields if provided
+    # Update fields if provided - handle both portal and mobile formats
     if 'title' in agenda_data:
         agenda_item.title = agenda_data['title']
     if 'description' in agenda_data:
         agenda_item.description = agenda_data['description']
+    
+    # Handle time from different sources
     if 'time' in agenda_data:
         agenda_item.time = agenda_data['time']
+    elif 'start_datetime' in agenda_data:
+        try:
+            start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
+            agenda_item.time = start_dt.strftime('%H:%M')
+        except:
+            pass
+    
+    # Handle event_date from different sources
     if 'event_date' in agenda_data:
         event_date = agenda_data['event_date']
         if isinstance(event_date, str):
@@ -303,6 +313,13 @@ def update_agenda_item(
                 )
         else:
             agenda_item.event_date = event_date
+    elif 'start_datetime' in agenda_data:
+        try:
+            start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
+            agenda_item.event_date = start_dt.date()
+        except:
+            pass
+    
     if 'day_number' in agenda_data:
         agenda_item.day_number = agenda_data['day_number']
     
