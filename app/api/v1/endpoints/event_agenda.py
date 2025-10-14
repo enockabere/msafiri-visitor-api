@@ -36,6 +36,9 @@ def get_event_agenda(
         )
     
     # Mock agenda data for now
+    from datetime import datetime, timedelta
+    today = datetime.now().date()
+    
     agenda_items = [
         {
             "id": 1,
@@ -43,7 +46,10 @@ def get_event_agenda(
             "description": "Check-in and welcome coffee",
             "start_time": "09:00",
             "end_time": "09:30",
-            "event_id": event_id
+            "start_datetime": f"{today}T09:00:00",
+            "end_datetime": f"{today}T09:30:00",
+            "event_id": event_id,
+            "presenter": "Event Team"
         },
         {
             "id": 2,
@@ -51,7 +57,10 @@ def get_event_agenda(
             "description": "Introduction and overview of the event",
             "start_time": "09:30",
             "end_time": "10:30",
-            "event_id": event_id
+            "start_datetime": f"{today}T09:30:00",
+            "end_datetime": f"{today}T10:30:00",
+            "event_id": event_id,
+            "presenter": "Dr. John Smith"
         },
         {
             "id": 3,
@@ -59,7 +68,32 @@ def get_event_agenda(
             "description": "Networking and refreshments",
             "start_time": "10:30",
             "end_time": "11:00",
-            "event_id": event_id
+            "start_datetime": f"{today}T10:30:00",
+            "end_datetime": f"{today}T11:00:00",
+            "event_id": event_id,
+            "presenter": ""
+        },
+        {
+            "id": 4,
+            "title": "Technical Session",
+            "description": "Deep dive into technical topics",
+            "start_time": "11:00",
+            "end_time": "12:30",
+            "start_datetime": f"{today}T11:00:00",
+            "end_datetime": f"{today}T12:30:00",
+            "event_id": event_id,
+            "presenter": "Jane Doe"
+        },
+        {
+            "id": 5,
+            "title": "Lunch Break",
+            "description": "Networking lunch",
+            "start_time": "12:30",
+            "end_time": "13:30",
+            "start_datetime": f"{today}T12:30:00",
+            "end_datetime": f"{today}T13:30:00",
+            "event_id": event_id,
+            "presenter": ""
         }
     ]
     
@@ -244,6 +278,25 @@ def submit_agenda_feedback(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied - not a participant of this event"
+        )
+    
+    # Check if agenda item exists
+    valid_agenda_ids = [1, 2, 3, 4, 5]  # Match the mock agenda items
+    if agenda_id not in valid_agenda_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agenda item {agenda_id} not found"
+        )
+    
+    # Check if user is not a facilitator (facilitators shouldn't give feedback)
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
+    
+    if role == 'facilitator':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Facilitators cannot submit feedback"
         )
     
     # Mock feedback submission - in real implementation, save to database
