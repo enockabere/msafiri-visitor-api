@@ -153,7 +153,7 @@ api_router.include_router(
 from app.api.v1.endpoints import event_agenda
 api_router.include_router(
     event_agenda.router,
-    prefix="/events/{event_id}/agenda",
+    prefix="/events",
     tags=["event-agenda"]
 )
 

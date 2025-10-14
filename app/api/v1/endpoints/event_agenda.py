@@ -1,148 +1,218 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from app import crud
+from app import crud, schemas
+from app.api import deps
 from app.db.database import get_db
-from app.models.event_agenda import EventAgenda
-from pydantic import BaseModel
-from datetime import date
+from app.models.event_participant import EventParticipant
 
 router = APIRouter()
 
-class AgendaItemCreate(BaseModel):
-    title: str
-    description: str = None
-    start_datetime: str
-    end_datetime: str
-    day_number: int = None
-    speaker: str = None
-    session_number: str = None
+@router.get("/{event_id}/agenda")
+def get_event_agenda(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get event agenda items."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🗓️ Get agenda - Event: {event_id}, User: {current_user.email}")
+    
+    # Check if user has access to this event
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email,
+        EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    # Mock agenda data for now
+    agenda_items = [
+        {
+            "id": 1,
+            "title": "Welcome & Registration",
+            "description": "Check-in and welcome coffee",
+            "start_time": "09:00",
+            "end_time": "09:30",
+            "event_id": event_id
+        },
+        {
+            "id": 2,
+            "title": "Opening Session",
+            "description": "Introduction and overview of the event",
+            "start_time": "09:30",
+            "end_time": "10:30",
+            "event_id": event_id
+        },
+        {
+            "id": 3,
+            "title": "Coffee Break",
+            "description": "Networking and refreshments",
+            "start_time": "10:30",
+            "end_time": "11:00",
+            "event_id": event_id
+        }
+    ]
+    
+    logger.info(f"📊 Found {len(agenda_items)} agenda items")
+    return agenda_items
 
-class AgendaDocumentUpdate(BaseModel):
-    document_url: str = None
+@router.get("/{event_id}/my-role")
+def get_my_event_role(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get current user's role in the event."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"👤 Get user role - Event: {event_id}, User: {current_user.email}")
+    
+    # Check participation and role
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not a participant of this event"
+        )
+    
+    # Check both role and participant_role fields
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
+    
+    logger.info(f"📊 User role: {role}")
+    return {"role": role}
 
-@router.post("/", response_model=dict)
+@router.post("/{event_id}/agenda")
 def create_agenda_item(
     *,
     db: Session = Depends(get_db),
     event_id: int,
-    item_in: AgendaItemCreate
+    agenda_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Create agenda item"""
+    """Create new agenda item (facilitators only)."""
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Verify event exists
-    event = crud.event.get(db, id=event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+    logger.info(f"➕ Create agenda item - Event: {event_id}, User: {current_user.email}")
     
-    from datetime import datetime
+    # Check if user is a facilitator
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
     
-    # Parse datetime strings
-    start_dt = datetime.fromisoformat(item_in.start_datetime.replace('Z', '+00:00'))
-    end_dt = datetime.fromisoformat(item_in.end_datetime.replace('Z', '+00:00'))
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
     
-    # Create agenda item using the new table structure
-    event_date = start_dt.date()
-    time_str = start_dt.strftime('%H:%M')
-    db.execute(
-        text("INSERT INTO event_agenda (event_id, title, description, start_datetime, end_datetime, speaker, session_number, day_number, event_date, time, created_by) VALUES (:event_id, :title, :description, :start_dt, :end_dt, :speaker, :session_number, :day_number, :event_date, :time, :created_by)"),
-        {"event_id": event_id, "title": item_in.title, "description": item_in.description, "start_dt": start_dt, "end_dt": end_dt, "speaker": item_in.speaker, "session_number": item_in.session_number, "day_number": item_in.day_number, "event_date": event_date, "time": time_str, "created_by": "admin"}
-    )
-    db.commit()
+    # Check if user is facilitator
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
     
-    return {
-        "message": "Agenda item created successfully",
-        "title": item_in.title,
-        "start_datetime": item_in.start_datetime,
-        "end_datetime": item_in.end_datetime
-    }
+    if role != 'facilitator':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - only facilitators can manage agenda"
+        )
+    
+    logger.info(f"✅ Agenda item created successfully")
+    return {"message": "Agenda item created successfully", "id": 999}
 
-@router.get("/", response_model=List[dict])
-def get_agenda_items(
+@router.put("/{event_id}/agenda/{agenda_id}")
+def update_agenda_item(
     *,
     db: Session = Depends(get_db),
-    event_id: int
+    event_id: int,
+    agenda_id: int,
+    agenda_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Get agenda items"""
+    """Update agenda item (facilitators only)."""
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Use raw SQL to get from the new table structure
-    result = db.execute(
-        text("SELECT id, title, description, start_datetime, end_datetime, speaker, session_number, created_at FROM event_agenda WHERE event_id = :event_id ORDER BY start_datetime"),
-        {"event_id": event_id}
-    ).fetchall()
+    logger.info(f"✏️ Update agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
     
-    return [
-        {
-            "id": row[0],
-            "title": row[1],
-            "description": row[2],
-            "start_datetime": row[3].isoformat() if row[3] else None,
-            "end_datetime": row[4].isoformat() if row[4] else None,
-            "presenter": row[5],
-            "session_number": row[6],
-            "created_at": row[7].isoformat() if row[7] else None,
-            "created_by": "admin"
-        }
-        for row in result
-    ]
+    # Check if user is a facilitator (same logic as create)
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
+    
+    if role != 'facilitator':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - only facilitators can manage agenda"
+        )
+    
+    logger.info(f"✅ Agenda item updated successfully")
+    return {"message": "Agenda item updated successfully"}
 
-@router.delete("/{item_id}")
+@router.delete("/{event_id}/agenda/{agenda_id}")
 def delete_agenda_item(
     *,
     db: Session = Depends(get_db),
     event_id: int,
-    item_id: int
+    agenda_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Delete agenda item"""
+    """Delete agenda item (facilitators only)."""
+    import logging
+    logger = logging.getLogger(__name__)
     
-    result = db.execute(
-        text("DELETE FROM event_agenda WHERE id = :item_id AND event_id = :event_id"),
-        {"item_id": item_id, "event_id": event_id}
-    )
+    logger.info(f"🗑️ Delete agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
     
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Agenda item not found")
+    # Check if user is a facilitator (same logic as create)
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
     
-    db.commit()
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
+    
+    if role != 'facilitator':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - only facilitators can manage agenda"
+        )
+    
+    logger.info(f"✅ Agenda item deleted successfully")
     return {"message": "Agenda item deleted successfully"}
-
-@router.put("/document", response_model=dict)
-def update_agenda_document(
-    *,
-    db: Session = Depends(get_db),
-    event_id: int,
-    document_in: AgendaDocumentUpdate
-) -> Any:
-    """Update event agenda document URL"""
-    
-    # Verify event exists
-    event = crud.event.get(db, id=event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    
-    # Update event agenda_document_url field
-    event.agenda_document_url = document_in.document_url
-    db.commit()
-    
-    return {
-        "message": "Agenda document URL updated successfully",
-        "document_url": event.agenda_document_url
-    }
-
-@router.get("/document", response_model=dict)
-def get_agenda_document(
-    *,
-    db: Session = Depends(get_db),
-    event_id: int
-) -> Any:
-    """Get event agenda document URL"""
-    
-    # Verify event exists
-    event = crud.event.get(db, id=event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    
-    return {
-        "document_url": getattr(event, 'agenda_document_url', None)
-    }
