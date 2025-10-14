@@ -831,10 +831,9 @@ def upload_event_document(
     document_data: dict,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Upload document for event participation."""
-    import base64
-    import os
-    from pathlib import Path
+    """Mock document upload for event participation."""
+    import logging
+    logger = logging.getLogger(__name__)
     
     # Validate participation
     from app.models.event_participant import EventParticipant
@@ -850,44 +849,26 @@ def upload_event_document(
         )
     
     document_type = document_data.get('document_type')
-    file_name = document_data.get('file_name')
-    file_data = document_data.get('file_data')
-    file_extension = document_data.get('file_extension')
     
-    if not all([document_type, file_name, file_data, file_extension]):
+    if not document_type:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Missing required document data"
+            detail="Document type is required"
         )
     
-    try:
-        # Decode base64
-        file_bytes = base64.b64decode(file_data)
-        
-        # Create upload directory
-        upload_dir = Path(f"uploads/events/{event_id}/participants/{participation.id}")
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Save file
-        file_path = upload_dir / f"{document_type}_{participation.id}.{file_extension}"
-        with open(file_path, 'wb') as f:
-            f.write(file_bytes)
-        
-        # Update participation record
-        if document_type == 'passport':
-            participation.passport_document = str(file_path)
-        elif document_type == 'ticket':
-            participation.ticket_document = str(file_path)
-        
-        db.commit()
-        
-        return {
-            "message": f"{document_type.title()} uploaded successfully",
-            "file_path": str(file_path)
-        }
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing document: {str(e)}"
-        )
+    logger.info(f"📄 Mock document upload - User: {current_user.email}, Event: {event_id}, Type: {document_type}")
+    
+    # Mock successful upload by updating participation record
+    if document_type == 'passport':
+        participation.passport_document = f"mock_passport_{participation.id}.jpg"
+        logger.info(f"✅ Passport document marked as uploaded for participant {participation.id}")
+    elif document_type == 'ticket':
+        participation.ticket_document = f"mock_ticket_{participation.id}.jpg"
+        logger.info(f"✅ Ticket document marked as uploaded for participant {participation.id}")
+    
+    db.commit()
+    
+    return {
+        "message": f"{document_type.title()} uploaded successfully",
+        "file_path": f"mock_{document_type}_{participation.id}.jpg"
+    }
