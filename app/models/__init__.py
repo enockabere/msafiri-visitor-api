@@ -14,6 +14,8 @@ from .useful_contact import UsefulContact
 from .transport_booking import TransportBooking, TransportStatusUpdate, TransportVendor, BookingType, BookingStatus, VendorType
 from .emergency_contact import EmergencyContact
 from .user_consent import UserConsent
+from .event_agenda import EventAgenda
+from .agenda_feedback import AgendaFeedback, FeedbackResponse
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole", 
@@ -22,5 +24,6 @@ __all__ = [
     "Event", "EventParticipant", "EventAttachment", "SecurityBrief", "UserBriefAcknowledgment",
     "BriefType", "ContentType", "GuestHouse", "Room", "VendorAccommodation", "AccommodationAllocation",
     "UsefulContact", "TransportBooking", "TransportStatusUpdate", "TransportVendor", 
-    "BookingType", "BookingStatus", "VendorType", "EmergencyContact", "UserConsent"
+    "BookingType", "BookingStatus", "VendorType", "EmergencyContact", "UserConsent",
+    "EventAgenda", "AgendaFeedback", "FeedbackResponse"
 ]
