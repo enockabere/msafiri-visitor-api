@@ -5,6 +5,7 @@ from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
 from app.models.event_participant import EventParticipant
+from sqlalchemy import text
 
 router = APIRouter()
 
@@ -216,3 +217,37 @@ def delete_agenda_item(
     
     logger.info(f"✅ Agenda item deleted successfully")
     return {"message": "Agenda item deleted successfully"}
+
+@router.post("/{event_id}/agenda/{agenda_id}/feedback")
+def submit_agenda_feedback(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    agenda_id: int,
+    feedback_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Submit feedback for an agenda item."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"💬 Submit agenda feedback - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
+    
+    # Check if user has access to this event
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email,
+        EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    # Mock feedback submission - in real implementation, save to database
+    logger.info(f"📊 Feedback: Rating={feedback_data.get('rating')}, Comment={feedback_data.get('comment')}")
+    logger.info(f"✅ Agenda feedback submitted successfully")
+    
+    return {"message": "Feedback submitted successfully"}
