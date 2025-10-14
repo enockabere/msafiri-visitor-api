@@ -51,19 +51,20 @@ def get_event_agenda(
         EventAgenda.event_id == event_id
     ).order_by(EventAgenda.event_date, EventAgenda.time).all()
     
-    # Convert to dict format
+    # Convert to dict format expected by portal
     agenda_list = []
     for item in agenda_items:
         agenda_list.append({
             "id": item.id,
-            "title": item.title,
-            "description": item.description,
-            "start_time": item.time,
-            "end_time": None,  # Not stored in current model
+            "title": item.title or "",
+            "description": item.description or "",
+            "time": item.time or "",  # Portal expects 'time' field
+            "start_time": item.time or "",
+            "end_time": "",  # Not stored in current model
             "event_date": item.event_date.isoformat() if item.event_date else None,
-            "day_number": item.day_number,
+            "day_number": item.day_number or 1,
             "event_id": item.event_id,
-            "created_by": item.created_by
+            "created_by": item.created_by or ""
         })
     
     logger.info(f"📊 Found {len(agenda_list)} agenda items")
