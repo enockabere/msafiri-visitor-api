@@ -67,7 +67,7 @@ def get_event_agenda(
             "start_datetime": start_datetime,
             "end_datetime": end_datetime,
             "location": "",  # Not stored in current model
-            "presenter": "",  # Not stored in current model
+            "presenter": item.created_by or "",  # Use created_by as presenter for speaker display
             "session_number": f"Session {item.id}",  # Generate session number
             "created_by": item.created_by or "",
             "created_at": start_datetime  # Use start_datetime as created_at
