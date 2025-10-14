@@ -83,34 +83,44 @@ def create_agenda_item(
     agenda_data: dict,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Create new agenda item (facilitators only)."""
+    """Create new agenda item (facilitators and admins)."""
     import logging
     logger = logging.getLogger(__name__)
     
     logger.info(f"➕ Create agenda item - Event: {event_id}, User: {current_user.email}")
+    logger.info(f"👤 User role: {current_user.role}")
     
-    # Check if user is a facilitator
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email
-    ).first()
+    # Check if user is admin (can manage any event)
+    from app.models.user import UserRole
+    admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
     
-    if not participation:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - not a participant of this event"
-        )
-    
-    # Check if user is facilitator
-    role = participation.role
-    if hasattr(participation, 'participant_role') and participation.participant_role:
-        role = participation.participant_role
-    
-    if role != 'facilitator':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - only facilitators can manage agenda"
-        )
+    if current_user.role in admin_roles:
+        logger.info(f"✅ Admin user can create agenda items")
+    else:
+        # Check if user is a facilitator for this specific event
+        participation = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email
+        ).first()
+        
+        if not participation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not a participant of this event"
+            )
+        
+        # Check if user is facilitator
+        role = participation.role
+        if hasattr(participation, 'participant_role') and participation.participant_role:
+            role = participation.participant_role
+        
+        logger.info(f"👤 Participant role: {role}")
+        
+        if role != 'facilitator':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - only facilitators and admins can manage agenda"
+            )
     
     logger.info(f"✅ Agenda item created successfully")
     return {"message": "Agenda item created successfully", "id": 999}
@@ -124,33 +134,40 @@ def update_agenda_item(
     agenda_data: dict,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Update agenda item (facilitators only)."""
+    """Update agenda item (facilitators and admins)."""
     import logging
     logger = logging.getLogger(__name__)
     
     logger.info(f"✏️ Update agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
     
-    # Check if user is a facilitator (same logic as create)
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email
-    ).first()
+    # Check if user is admin (can manage any event)
+    from app.models.user import UserRole
+    admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
     
-    if not participation:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - not a participant of this event"
-        )
-    
-    role = participation.role
-    if hasattr(participation, 'participant_role') and participation.participant_role:
-        role = participation.participant_role
-    
-    if role != 'facilitator':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - only facilitators can manage agenda"
-        )
+    if current_user.role in admin_roles:
+        logger.info(f"✅ Admin user can update agenda items")
+    else:
+        # Check if user is a facilitator for this specific event
+        participation = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email
+        ).first()
+        
+        if not participation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not a participant of this event"
+            )
+        
+        role = participation.role
+        if hasattr(participation, 'participant_role') and participation.participant_role:
+            role = participation.participant_role
+        
+        if role != 'facilitator':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - only facilitators and admins can manage agenda"
+            )
     
     logger.info(f"✅ Agenda item updated successfully")
     return {"message": "Agenda item updated successfully"}
@@ -163,33 +180,40 @@ def delete_agenda_item(
     agenda_id: int,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Delete agenda item (facilitators only)."""
+    """Delete agenda item (facilitators and admins)."""
     import logging
     logger = logging.getLogger(__name__)
     
     logger.info(f"🗑️ Delete agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
     
-    # Check if user is a facilitator (same logic as create)
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email
-    ).first()
+    # Check if user is admin (can manage any event)
+    from app.models.user import UserRole
+    admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
     
-    if not participation:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - not a participant of this event"
-        )
-    
-    role = participation.role
-    if hasattr(participation, 'participant_role') and participation.participant_role:
-        role = participation.participant_role
-    
-    if role != 'facilitator':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - only facilitators can manage agenda"
-        )
+    if current_user.role in admin_roles:
+        logger.info(f"✅ Admin user can delete agenda items")
+    else:
+        # Check if user is a facilitator for this specific event
+        participation = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email
+        ).first()
+        
+        if not participation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not a participant of this event"
+            )
+        
+        role = participation.role
+        if hasattr(participation, 'participant_role') and participation.participant_role:
+            role = participation.participant_role
+        
+        if role != 'facilitator':
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - only facilitators and admins can manage agenda"
+            )
     
     logger.info(f"✅ Agenda item deleted successfully")
     return {"message": "Agenda item deleted successfully"}
