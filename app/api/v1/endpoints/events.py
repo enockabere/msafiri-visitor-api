@@ -634,6 +634,7 @@ def get_my_attendance_status(
     logger.info(f"📊 Found participation: {result is not None}")
     
     if not result:
+        logger.info(f"❌ No participation record found for user {current_user.email} in event {event_id}")
         return {
             "status": None,
             "participant_id": None,
@@ -642,12 +643,29 @@ def get_my_attendance_status(
             "has_ticket": False,
         }
     
+    logger.info(f"📊 Raw result data: {dict(result._mapping) if hasattr(result, '_mapping') else 'No mapping available'}")
+    logger.info(f"📊 Participation ID: {result.id}")
     logger.info(f"📊 Participation status: '{result.status}'")
-    logger.info(f"📊 Travelling internationally: '{result.travelling_internationally}'")
+    logger.info(f"📊 Current requires_eta: {result.requires_eta}")
+    logger.info(f"📊 Travelling internationally raw value: '{result.travelling_internationally}'")
+    logger.info(f"📊 Travelling internationally type: {type(result.travelling_internationally)}")
+    logger.info(f"📊 Is travelling_internationally 'yes'? {result.travelling_internationally == 'yes'}")
+    logger.info(f"📊 Is travelling_internationally 'Yes'? {result.travelling_internationally == 'Yes'}")
+    logger.info(f"📊 Is travelling_internationally True? {result.travelling_internationally == True}")
     
     # Check if user is traveling internationally
     requires_eta = result.requires_eta or False
-    if result.travelling_internationally == 'yes':
+    logger.info(f"📊 Initial requires_eta from DB: {requires_eta}")
+    
+    # Check various possible values for travelling_internationally
+    is_international = False
+    if result.travelling_internationally:
+        travel_value = str(result.travelling_internationally).lower().strip()
+        logger.info(f"📊 Normalized travel value: '{travel_value}'")
+        is_international = travel_value in ['yes', 'true', '1', 'y']
+        logger.info(f"📊 Is international travel: {is_international}")
+    
+    if is_international:
         requires_eta = True
         logger.info(f"📊 User is travelling internationally - ETA required")
         
@@ -659,16 +677,21 @@ def get_my_attendance_status(
                 {"participant_id": result.id}
             )
             db.commit()
+    else:
+        logger.info(f"📊 User is NOT travelling internationally - no ETA required")
     
     logger.info(f"📊 Final requires_eta value: {requires_eta}")
     
-    return {
+    response_data = {
         "status": result.status,
         "participant_id": result.id,
         "requires_eta": requires_eta,
         "has_passport": bool(result.passport_document),
         "has_ticket": bool(result.ticket_document),
     }
+    
+    logger.info(f"📊 Final response data: {response_data}")
+    return response_data
 
 @router.post("/{event_id}/request-attendance")
 def request_event_attendance(
