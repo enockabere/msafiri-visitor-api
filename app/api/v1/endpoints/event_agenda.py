@@ -206,6 +206,14 @@ def create_agenda_item(
     if not time:
         time = '09:00'
     
+    # Handle speaker field from portal
+    speaker = agenda_data.get('speaker', '')
+    if speaker:
+        # Store speaker name in created_by field since we don't have a separate presenter field
+        created_by = speaker
+    else:
+        created_by = current_user.email
+    
     # Create agenda item
     agenda_item = EventAgenda(
         event_id=event_id,
@@ -214,7 +222,7 @@ def create_agenda_item(
         time=time,
         event_date=event_date,
         day_number=day_number,
-        created_by=current_user.email
+        created_by=created_by
     )
     
     db.add(agenda_item)
@@ -322,6 +330,12 @@ def update_agenda_item(
     
     if 'day_number' in agenda_data:
         agenda_item.day_number = agenda_data['day_number']
+    
+    # Handle speaker field from portal
+    if 'speaker' in agenda_data:
+        # Store speaker in created_by field since we don't have a separate presenter field in the model
+        if agenda_data['speaker']:
+            agenda_item.created_by = agenda_data['speaker']
     
     db.commit()
     
