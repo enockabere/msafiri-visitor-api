@@ -165,6 +165,13 @@ api_router.include_router(
     tags=["feedback"]
 )
 
+from app.api.v1.endpoints import participant_role
+api_router.include_router(
+    participant_role.router,
+    prefix="/events",
+    tags=["participant-role"]
+)
+
 from app.api.v1.endpoints import inventory
 api_router.include_router(
     inventory.router,
