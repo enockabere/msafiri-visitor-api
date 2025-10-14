@@ -428,8 +428,33 @@ def submit_agenda_feedback(
             detail="Facilitators cannot submit feedback"
         )
     
-    # Mock feedback submission - in real implementation, save to database
-    logger.info(f"📊 Feedback: Rating={feedback_data.get('rating')}, Comment={feedback_data.get('comment')}")
-    logger.info(f"✅ Agenda feedback submitted successfully")
+    # Save feedback to database
+    from app.models.agenda_feedback import AgendaFeedback
     
-    return {"message": "Feedback submitted successfully"}
+    # Check if user already submitted feedback for this agenda
+    existing_feedback = db.query(AgendaFeedback).filter(
+        AgendaFeedback.agenda_id == agenda_id,
+        AgendaFeedback.user_email == current_user.email
+    ).first()
+    
+    if existing_feedback:
+        # Update existing feedback
+        existing_feedback.rating = feedback_data.get('rating', 5.0)
+        existing_feedback.comment = feedback_data.get('comment', '')
+        db.commit()
+        feedback_id = existing_feedback.id
+    else:
+        # Create new feedback
+        feedback = AgendaFeedback(
+            agenda_id=agenda_id,
+            user_email=current_user.email,
+            rating=feedback_data.get('rating', 5.0),
+            comment=feedback_data.get('comment', '')
+        )
+        db.add(feedback)
+        db.commit()
+        db.refresh(feedback)
+        feedback_id = feedback.id
+    
+    logger.info(f"✅ Agenda feedback submitted successfully with ID: {feedback_id}")
+    return {"message": "Feedback submitted successfully", "feedback_id": feedback_id}
