@@ -20,18 +20,23 @@ def get_agenda_feedback(
     import logging
     logger = logging.getLogger(__name__)
     
-    # Check if user has access to this event
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email,
-        EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
-    ).first()
+    # Check if user is admin (can view any event feedback)
+    from app.models.user import UserRole
+    admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
     
-    if not participation:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - not a participant of this event"
-        )
+    if current_user.role not in admin_roles:
+        # Check if user has access to this event as participant
+        participation = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email,
+            EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
+        ).first()
+        
+        if not participation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not a participant of this event"
+            )
     
     from app.models.agenda_feedback import AgendaFeedback, FeedbackResponse
     
