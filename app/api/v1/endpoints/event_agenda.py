@@ -21,19 +21,28 @@ def get_event_agenda(
     logger = logging.getLogger(__name__)
     
     logger.info(f"🗓️ Get agenda - Event: {event_id}, User: {current_user.email}")
+    logger.info(f"👤 User role: {current_user.role}")
     
-    # Check if user has access to this event
-    participation = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.email == current_user.email,
-        EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
-    ).first()
+    # Check if user is admin (can view any event agenda)
+    from app.models.user import UserRole
+    admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
     
-    if not participation:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied - not a participant of this event"
-        )
+    if current_user.role not in admin_roles:
+        # Check if user has access to this event as participant
+        participation = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email,
+            EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
+        ).first()
+        
+        if not participation:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not a participant of this event"
+            )
+        logger.info(f"✅ Participant access granted")
+    else:
+        logger.info(f"✅ Admin access granted")
     
     # TODO: Implement real agenda data from database
     # For now, return empty array until agenda table is created
