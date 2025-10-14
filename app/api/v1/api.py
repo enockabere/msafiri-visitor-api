@@ -157,6 +157,14 @@ api_router.include_router(
     tags=["event-agenda"]
 )
 
+# Add feedback endpoints separately to ensure they're accessible
+from app.api.v1.endpoints import feedback
+api_router.include_router(
+    feedback.router,
+    prefix="/events",
+    tags=["feedback"]
+)
+
 from app.api.v1.endpoints import inventory
 api_router.include_router(
     inventory.router,
