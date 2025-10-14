@@ -54,17 +54,23 @@ def get_event_agenda(
     # Convert to dict format expected by portal
     agenda_list = []
     for item in agenda_items:
+        # Create datetime strings for portal compatibility
+        event_date_str = item.event_date.isoformat() if item.event_date else "2024-01-01"
+        time_str = item.time or "09:00"
+        start_datetime = f"{event_date_str}T{time_str}:00"
+        end_datetime = f"{event_date_str}T{time_str}:00"  # Same as start for now
+        
         agenda_list.append({
             "id": item.id,
             "title": item.title or "",
             "description": item.description or "",
-            "time": item.time or "",  # Portal expects 'time' field
-            "start_time": item.time or "",
-            "end_time": "",  # Not stored in current model
-            "event_date": item.event_date.isoformat() if item.event_date else None,
-            "day_number": item.day_number or 1,
-            "event_id": item.event_id,
-            "created_by": item.created_by or ""
+            "start_datetime": start_datetime,
+            "end_datetime": end_datetime,
+            "location": "",  # Not stored in current model
+            "presenter": "",  # Not stored in current model
+            "session_number": f"Session {item.id}",  # Generate session number
+            "created_by": item.created_by or "",
+            "created_at": start_datetime  # Use start_datetime as created_at
         })
     
     logger.info(f"📊 Found {len(agenda_list)} agenda items")
