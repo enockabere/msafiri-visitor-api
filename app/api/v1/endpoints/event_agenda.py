@@ -125,6 +125,23 @@ def create_agenda_item(
     logger.info(f"👤 User role: {current_user.role}")
     logger.info(f"📝 Received agenda data: {agenda_data}")
     
+    # Check if event has ended
+    from app.models.event import Event
+    from datetime import date
+    
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    if event.end_date and event.end_date < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot add agenda items to ended events"
+        )
+    
     # Check if user is admin (can manage any event)
     from app.models.user import UserRole
     admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
@@ -263,6 +280,23 @@ def update_agenda_item(
     
     logger.info(f"✏️ Update agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
     
+    # Check if event has ended
+    from app.models.event import Event
+    from datetime import date
+    
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    if event.end_date and event.end_date < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot modify agenda items for ended events"
+        )
+    
     # Check if user is admin (can manage any event)
     from app.models.user import UserRole
     admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
@@ -371,6 +405,23 @@ def delete_agenda_item(
     logger = logging.getLogger(__name__)
     
     logger.info(f"🗑️ Delete agenda item - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
+    
+    # Check if event has ended
+    from app.models.event import Event
+    from datetime import date
+    
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    if event.end_date and event.end_date < date.today():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot delete agenda items from ended events"
+        )
     
     # Check if user is admin (can manage any event)
     from app.models.user import UserRole
