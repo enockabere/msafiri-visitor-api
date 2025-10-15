@@ -171,7 +171,13 @@ def create_room_allocation(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Allocate visitor to room with gender validation"""
+    print(f"🏠 DEBUG: Room allocation request received")
+    print(f"🏠 DEBUG: User: {current_user.email}, Tenant: {tenant_context}")
+    print(f"🏠 DEBUG: Allocation data: {allocation_in}")
+    print(f"🏠 DEBUG: User role: {current_user.role}")
+    
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        print(f"🏠 DEBUG: Permission denied for role: {current_user.role}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
