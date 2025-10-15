@@ -21,6 +21,8 @@ class EventParticipant(EventParticipantBase):
     event_id: int
     status: str
     invited_by: str
+    participant_role: Optional[str] = None
+    participant_name: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
