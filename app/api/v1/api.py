@@ -172,6 +172,13 @@ api_router.include_router(
     tags=["participant-role"]
 )
 
+from app.api.v1.endpoints import event_statistics
+api_router.include_router(
+    event_statistics.router,
+    prefix="/events",
+    tags=["event-statistics"]
+)
+
 from app.api.v1.endpoints import inventory
 api_router.include_router(
     inventory.router,
