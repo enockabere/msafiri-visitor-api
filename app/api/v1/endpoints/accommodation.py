@@ -25,6 +25,12 @@ def test_accommodation_endpoint():
     print("🏠 DEBUG: Accommodation test endpoint called")
     return {"message": "Accommodation router is working", "timestamp": "2024-10-15"}
 
+@router.post("/test-room-allocations")
+def test_room_allocation_endpoint():
+    """Test endpoint to verify room allocation route is accessible"""
+    print("🏠 DEBUG: Test room allocation endpoint called")
+    return {"message": "Room allocation route is accessible", "timestamp": "2024-10-15"}
+
 # GuestHouse endpoints
 @router.get("/guesthouses", response_model=List[schemas.GuestHouse])
 def get_guesthouses(
@@ -176,10 +182,14 @@ def create_room_allocation(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Allocate visitor to room with gender validation"""
-    print(f"🏠 DEBUG: Room allocation request received")
+    print(f"🏠 DEBUG: ===== ROOM ALLOCATION ENDPOINT REACHED =====")
+    print(f"🏠 DEBUG: Request method: POST")
+    print(f"🏠 DEBUG: Request path: /room-allocations")
     print(f"🏠 DEBUG: User: {current_user.email}, Tenant: {tenant_context}")
     print(f"🏠 DEBUG: Allocation data: {allocation_data}")
     print(f"🏠 DEBUG: User role: {current_user.role}")
+    
+    try:
     
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
         print(f"🏠 DEBUG: Permission denied for role: {current_user.role}")
@@ -282,10 +292,19 @@ def create_room_allocation(
     from app.schemas.accommodation import AccommodationAllocationCreate
     allocation_schema = AccommodationAllocationCreate(**allocation_data)
     
-    allocation = crud.accommodation_allocation.create_with_tenant(
-        db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
-    )
-    return allocation
+        allocation = crud.accommodation_allocation.create_with_tenant(
+            db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
+        )
+        print(f"🏠 DEBUG: ===== ALLOCATION CREATED SUCCESSFULLY: {allocation.id} =====")
+        return allocation
+    except Exception as e:
+        print(f"🏠 DEBUG: Error creating allocation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating allocation: {str(e)}"
+        )
 
 # Vendor Accommodation endpoints
 @router.get("/vendor-accommodations", response_model=List[schemas.VendorAccommodation])
