@@ -137,6 +137,7 @@ class AccommodationAllocationCreate(AccommodationAllocationBase):
     room_id: Optional[int] = None
     vendor_accommodation_id: Optional[int] = None
     event_id: Optional[int] = None
+    room_type: Optional[str] = None  # single, double - for vendor accommodations
 
 class AccommodationAllocationUpdate(BaseModel):
     guest_name: Optional[str] = Field(None, min_length=1, max_length=200)
@@ -156,6 +157,7 @@ class AccommodationAllocation(AccommodationAllocationBase):
     room_id: Optional[int] = None
     vendor_accommodation_id: Optional[int] = None
     status: AllocationStatus = AllocationStatus.BOOKED
+    room_type: Optional[str] = None  # single, double - for vendor accommodations
     created_at: datetime
     updated_at: Optional[datetime] = None
     created_by: Optional[int] = None

@@ -576,6 +576,7 @@ def create_vendor_allocation(
                 allocation_data_copy = allocation_data.copy()
                 allocation_data_copy["participant_id"] = participant_id
                 allocation_data_copy["accommodation_type"] = "vendor"
+                allocation_data_copy["room_type"] = room_type  # Store the room type
                 
                 from app.schemas.accommodation import AccommodationAllocationCreate
                 allocation_schema = AccommodationAllocationCreate(**allocation_data_copy)
@@ -708,6 +709,7 @@ def get_allocations(
                 "number_of_guests": allocation.number_of_guests,
                 "accommodation_type": allocation.accommodation_type,
                 "status": allocation.status,
+                "room_type": allocation.room_type,  # Include room type
                 "room": None,
                 "vendor_accommodation": None,
                 "event": None,
@@ -849,6 +851,7 @@ def get_detailed_allocations(
                 "number_of_guests": allocation.number_of_guests or 1,
                 "accommodation_type": allocation.accommodation_type or "unknown",
                 "status": allocation.status or "booked",
+                "room_type": allocation.room_type,  # Include room type
                 "room": None,
                 "vendor_accommodation": None,
                 "event": None,
