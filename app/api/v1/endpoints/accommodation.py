@@ -553,18 +553,34 @@ def get_allocations(
                 else:
                     print(f"DEBUG: Event not found for event_id: {allocation.event_id}")
             
-            # Get participant data with gender
+            # Get participant data with gender from registration
             if allocation.participant_id:
                 print(f"DEBUG: Fetching participant data for participant_id: {allocation.participant_id}")
                 participant = db.query(EventParticipant).filter(
                     EventParticipant.id == allocation.participant_id
                 ).first()
                 if participant:
-                    user = db.query(User).filter(User.email == participant.email).first()
+                    # Get gender from public_registrations table
+                    from sqlalchemy import text
+                    gender_result = db.execute(text(
+                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                    ), {"participant_id": allocation.participant_id}).fetchone()
+                    
+                    gender = None
+                    if gender_result and gender_result[0]:
+                        # Convert registration format to standard format
+                        reg_gender = gender_result[0].lower()
+                        if reg_gender in ['man', 'male']:
+                            gender = 'male'
+                        elif reg_gender in ['woman', 'female']:
+                            gender = 'female'
+                        else:
+                            gender = 'other'
+                    
                     allocation_data["participant"] = {
                         "name": participant.full_name,
                         "role": participant.role,
-                        "gender": user.gender if user else None
+                        "gender": gender
                     }
                     print(f"DEBUG: Participant data added: {allocation_data['participant']}")
                 else:
@@ -672,11 +688,27 @@ def get_detailed_allocations(
                     EventParticipant.id == allocation.participant_id
                 ).first()
                 if participant:
-                    user = db.query(User).filter(User.email == participant.email).first()
+                    # Get gender from public_registrations table
+                    from sqlalchemy import text
+                    gender_result = db.execute(text(
+                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                    ), {"participant_id": allocation.participant_id}).fetchone()
+                    
+                    gender = None
+                    if gender_result and gender_result[0]:
+                        # Convert registration format to standard format
+                        reg_gender = gender_result[0].lower()
+                        if reg_gender in ['man', 'male']:
+                            gender = 'male'
+                        elif reg_gender in ['woman', 'female']:
+                            gender = 'female'
+                        else:
+                            gender = 'other'
+                    
                     allocation_data["participant"] = {
-                        "name": participant.name,
+                        "name": participant.full_name,
                         "role": participant.role,
-                        "gender": user.gender if user else None
+                        "gender": gender
                     }
             
             result.append(allocation_data)
