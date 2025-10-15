@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app import crud, schemas
@@ -47,7 +47,7 @@ def create_participant(
     
     return participant
 
-@router.get("/", response_model=List[schemas.event_participant.EventParticipant], operation_id="get_event_participants")
+@router.get("/", operation_id="get_event_participants")
 def get_participants(
     *,
     db: Session = Depends(get_db),
@@ -86,7 +86,61 @@ def get_participants(
     participants = query.offset(skip).limit(limit).all()
     logger.info(f"📊 Found {len(participants)} participants")
     
-    return participants
+    # Enrich participants with registration data
+    from app.models.public_registration import PublicRegistration
+    enriched_participants = []
+    
+    logger.info(f"🔍 Enriching {len(participants)} participants with registration data")
+    
+    for participant in participants:
+        logger.info(f"👤 Processing participant: {participant.full_name} ({participant.email})")
+        
+        # Get registration data
+        registration = db.query(PublicRegistration).filter(
+            PublicRegistration.event_id == event_id,
+            PublicRegistration.email == participant.email
+        ).first()
+        
+        if registration:
+            logger.info(f"✅ Found registration for {participant.email}: gender={registration.gender}, accommodation_needs={registration.accommodation_needs}")
+        else:
+            logger.warning(f"❌ No registration found for {participant.email} in event {event_id}")
+            # Try to find any registration for this email
+            any_registration = db.query(PublicRegistration).filter(
+                PublicRegistration.email == participant.email
+            ).first()
+            if any_registration:
+                logger.info(f"📋 Found registration for {participant.email} in different event {any_registration.event_id}")
+        
+        # Create participant dict with additional fields
+        participant_dict = {
+            "id": participant.id,
+            "event_id": participant.event_id,
+            "full_name": participant.full_name,
+            "email": participant.email,
+            "role": participant.role,
+            "status": participant.status,
+            "gender": registration.gender if registration else None,
+            "accommodation_needs": registration.accommodation_needs if registration else None
+        }
+        
+        # Add participant_role if it exists
+        try:
+            from sqlalchemy import text
+            result = db.execute(
+                text("SELECT participant_role FROM event_participants WHERE id = :id"),
+                {"id": participant.id}
+            ).first()
+            if result and result[0]:
+                participant_dict["participant_role"] = result[0]
+        except:
+            pass
+        
+        logger.info(f"📦 Final participant data: {participant_dict}")
+        enriched_participants.append(participant_dict)
+    
+    logger.info(f"🎯 Returning {len(enriched_participants)} enriched participants")
+    return enriched_participants
 
 @router.put("/{participant_id}/role")
 async def update_participant_role(
@@ -179,6 +233,45 @@ async def send_role_change_notification(participant, old_role, new_role, db):
     except Exception as e:
         print(f"Error sending role change notification: {e}")
         return False
+
+@router.get("/{participant_id}/details", operation_id="get_participant_details")
+def get_participant_details(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    participant_id: int
+) -> Any:
+    """Get detailed participant information including registration data"""
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    # Get registration data if available
+    from app.models.public_registration import PublicRegistration
+    registration = db.query(PublicRegistration).filter(
+        PublicRegistration.event_id == event_id,
+        PublicRegistration.email == participant.email
+    ).first()
+    
+    result = {
+        "id": participant.id,
+        "name": participant.full_name,
+        "email": participant.email,
+        "role": participant.role,
+        "gender": None,
+        "accommodation_needs": None
+    }
+    
+    if registration:
+        result["gender"] = registration.gender
+        result["accommodation_needs"] = registration.accommodation_needs
+    
+    return result
 
 @router.delete("/{participant_id}", operation_id="delete_event_participant")
 def delete_participant(
