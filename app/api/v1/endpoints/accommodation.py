@@ -168,18 +168,17 @@ def create_room(
     return room
 
 # Room Allocation endpoints
-@router.post("/room-allocations", response_model=schemas.AccommodationAllocation)
+@router.post("/room-allocations")
 def create_room_allocation(
-    *,
+    allocation_data: dict,
     db: Session = Depends(get_db),
-    allocation_in: schemas.AccommodationAllocationCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Allocate visitor to room with gender validation"""
     print(f"🏠 DEBUG: Room allocation request received")
     print(f"🏠 DEBUG: User: {current_user.email}, Tenant: {tenant_context}")
-    print(f"🏠 DEBUG: Allocation data: {allocation_in}")
+    print(f"🏠 DEBUG: Allocation data: {allocation_data}")
     print(f"🏠 DEBUG: User role: {current_user.role}")
     
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
@@ -190,15 +189,15 @@ def create_room_allocation(
         )
     
     # Validate allocation type and room_id
-    if allocation_in.accommodation_type == "guesthouse" and not allocation_in.room_id:
+    if allocation_data.get("accommodation_type") == "guesthouse" and not allocation_data.get("room_id"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Room ID is required for guesthouse allocation"
         )
     
     # Check room and validate gender rules for guesthouse
-    if allocation_in.room_id:
-        room = crud.room.get(db, id=allocation_in.room_id)
+    if allocation_data.get("room_id"):
+        room = crud.room.get(db, id=allocation_data["room_id"])
         if not room:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -206,11 +205,11 @@ def create_room_allocation(
             )
         
         # Get participant to check gender
-        if allocation_in.participant_id:
+        if allocation_data.get("participant_id"):
             from app.models.event_participant import EventParticipant
             from app.models.user import User
             
-            participant = db.query(EventParticipant).filter(EventParticipant.id == allocation_in.participant_id).first()
+            participant = db.query(EventParticipant).filter(EventParticipant.id == allocation_data["participant_id"]).first()
             if not participant:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -279,8 +278,12 @@ def create_room_allocation(
     
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
+    # Convert dict to schema object for CRUD operation
+    from app.schemas.accommodation import AccommodationAllocationCreate
+    allocation_schema = AccommodationAllocationCreate(**allocation_data)
+    
     allocation = crud.accommodation_allocation.create_with_tenant(
-        db, obj_in=allocation_in, tenant_id=tenant_id, user_id=current_user.id
+        db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
     )
     return allocation
 
