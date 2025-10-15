@@ -87,7 +87,7 @@ def get_participants(
     logger.info(f"📊 Found {len(participants)} participants")
     
     # Enrich participants with registration data
-    from app.models.public_registration import PublicRegistration
+    from sqlalchemy import text
     enriched_participants = []
     
     logger.info(f"🔍 Enriching {len(participants)} participants with registration data")
@@ -95,22 +95,36 @@ def get_participants(
     for participant in participants:
         logger.info(f"👤 Processing participant: {participant.full_name} ({participant.email})")
         
-        # Get registration data
-        registration = db.query(PublicRegistration).filter(
-            PublicRegistration.event_id == event_id,
-            PublicRegistration.email == participant.email
+        # Get registration data from public_registrations table
+        registration_result = db.execute(
+            text("""
+                SELECT gender_identity, accommodation_needs 
+                FROM public_registrations 
+                WHERE event_id = :event_id AND (personal_email = :email OR msf_email = :email)
+                LIMIT 1
+            """),
+            {"event_id": event_id, "email": participant.email}
         ).first()
         
-        if registration:
-            logger.info(f"✅ Found registration for {participant.email}: gender={registration.gender}, accommodation_needs={registration.accommodation_needs}")
+        gender = None
+        accommodation_needs = None
+        
+        if registration_result:
+            gender_identity = registration_result[0]
+            accommodation_needs = registration_result[1]
+            
+            # Convert gender_identity to standard format
+            if gender_identity:
+                if gender_identity.lower() in ['man', 'male']:
+                    gender = 'male'
+                elif gender_identity.lower() in ['woman', 'female']:
+                    gender = 'female'
+                else:
+                    gender = 'other'
+            
+            logger.info(f"✅ Found registration for {participant.email}: gender_identity={gender_identity}, gender={gender}, accommodation_needs={accommodation_needs}")
         else:
             logger.warning(f"❌ No registration found for {participant.email} in event {event_id}")
-            # Try to find any registration for this email
-            any_registration = db.query(PublicRegistration).filter(
-                PublicRegistration.email == participant.email
-            ).first()
-            if any_registration:
-                logger.info(f"📋 Found registration for {participant.email} in different event {any_registration.event_id}")
         
         # Create participant dict with additional fields
         participant_dict = {
@@ -120,13 +134,12 @@ def get_participants(
             "email": participant.email,
             "role": participant.role,
             "status": participant.status,
-            "gender": registration.gender if registration else None,
-            "accommodation_needs": registration.accommodation_needs if registration else None
+            "gender": gender,
+            "accommodation_needs": accommodation_needs
         }
         
         # Add participant_role if it exists
         try:
-            from sqlalchemy import text
             result = db.execute(
                 text("SELECT participant_role FROM event_participants WHERE id = :id"),
                 {"id": participant.id}
@@ -251,25 +264,42 @@ def get_participant_details(
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    # Get registration data if available
-    from app.models.public_registration import PublicRegistration
-    registration = db.query(PublicRegistration).filter(
-        PublicRegistration.event_id == event_id,
-        PublicRegistration.email == participant.email
+    # Get registration data from public_registrations table
+    from sqlalchemy import text
+    registration_result = db.execute(
+        text("""
+            SELECT gender_identity, accommodation_needs 
+            FROM public_registrations 
+            WHERE event_id = :event_id AND (personal_email = :email OR msf_email = :email)
+            LIMIT 1
+        """),
+        {"event_id": event_id, "email": participant.email}
     ).first()
+    
+    gender = None
+    accommodation_needs = None
+    
+    if registration_result:
+        gender_identity = registration_result[0]
+        accommodation_needs = registration_result[1]
+        
+        # Convert gender_identity to standard format
+        if gender_identity:
+            if gender_identity.lower() in ['man', 'male']:
+                gender = 'male'
+            elif gender_identity.lower() in ['woman', 'female']:
+                gender = 'female'
+            else:
+                gender = 'other'
     
     result = {
         "id": participant.id,
         "name": participant.full_name,
         "email": participant.email,
         "role": participant.role,
-        "gender": None,
-        "accommodation_needs": None
+        "gender": gender,
+        "accommodation_needs": accommodation_needs
     }
-    
-    if registration:
-        result["gender"] = registration.gender
-        result["accommodation_needs"] = registration.accommodation_needs
     
     return result
 
