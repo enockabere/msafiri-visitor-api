@@ -456,34 +456,149 @@ def create_vendor_accommodation(
     )
     return vendor
 
-@router.post("/vendor-allocations", response_model=schemas.AccommodationAllocation)
+@router.post("/vendor-allocations")
 def create_vendor_allocation(
-    *,
+    allocation_data: dict,
     db: Session = Depends(get_db),
-    allocation_in: schemas.AccommodationAllocationCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
-    """Allocate visitor to vendor accommodation"""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+    """Allocate visitor to vendor accommodation with room type validation"""
+    try:
+        if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions"
+            )
+        
+        # Check for existing vendor bookings
+        if allocation_data.get("participant_id"):
+            from app.models.guesthouse import AccommodationAllocation
+            existing_booking = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.participant_id == allocation_data["participant_id"],
+                AccommodationAllocation.accommodation_type == "vendor",
+                AccommodationAllocation.status.in_(["booked", "checked_in"])
+            ).first()
+            
+            if existing_booking:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Participant already has a vendor hotel booking."
+                )
+        
+        # Validate vendor accommodation and room type
+        vendor_id = allocation_data.get("vendor_accommodation_id")
+        room_type = allocation_data.get("room_type")  # "single" or "double"
+        
+        if not vendor_id or not room_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Vendor accommodation ID and room type are required"
+            )
+        
+        vendor = crud.vendor_accommodation.get(db, id=vendor_id)
+        if not vendor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Vendor accommodation not found"
+            )
+        
+        # Check room availability based on type
+        if room_type == "single":
+            if vendor.single_rooms <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No single rooms available at this vendor accommodation"
+                )
+            # Update single room count
+            vendor.single_rooms -= 1
+            
+        elif room_type == "double":
+            if vendor.double_rooms <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No double rooms available at this vendor accommodation"
+                )
+            
+            # For double rooms, validate gender compatibility if booking multiple participants
+            participant_ids = allocation_data.get("participant_ids", [allocation_data.get("participant_id")])
+            if len(participant_ids) > 2:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Double rooms can accommodate maximum 2 participants"
+                )
+            
+            if len(participant_ids) == 2:
+                # Check gender compatibility for double room sharing
+                from sqlalchemy import text
+                genders = []
+                for pid in participant_ids:
+                    gender_result = db.execute(text(
+                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                    ), {"participant_id": pid}).fetchone()
+                    
+                    if gender_result and gender_result[0]:
+                        reg_gender = gender_result[0].lower()
+                        if reg_gender not in ['man', 'male', 'woman', 'female']:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Users with non-binary gender cannot share double rooms. Please book single rooms."
+                            )
+                        genders.append(reg_gender)
+                
+                # Check if both participants have same gender
+                if len(genders) == 2:
+                    gender1_male = genders[0] in ['man', 'male']
+                    gender2_male = genders[1] in ['man', 'male']
+                    if gender1_male != gender2_male:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Cannot assign different genders to the same double room"
+                        )
+            
+            # Update double room count
+            vendor.double_rooms -= 1
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Room type must be 'single' or 'double'"
+            )
+        
+        tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+        
+        # Create allocation(s)
+        participant_ids = allocation_data.get("participant_ids", [allocation_data.get("participant_id")])
+        allocations = []
+        
+        for participant_id in participant_ids:
+            if participant_id:
+                allocation_data_copy = allocation_data.copy()
+                allocation_data_copy["participant_id"] = participant_id
+                allocation_data_copy["accommodation_type"] = "vendor"
+                
+                from app.schemas.accommodation import AccommodationAllocationCreate
+                allocation_schema = AccommodationAllocationCreate(**allocation_data_copy)
+                
+                allocation = crud.accommodation_allocation.create_with_tenant(
+                    db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
+                )
+                allocations.append(allocation)
+        
+        # Commit vendor room count changes
+        db.commit()
+        
+        return allocations[0] if len(allocations) == 1 else allocations
+        
+    except Exception as e:
+        db.rollback()
+        print(f"🏨 DEBUG: Error creating vendor allocation: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating vendor allocation: {str(e)}"
         )
-    
-    # Validate allocation type and vendor_accommodation_id
-    if allocation_in.accommodation_type == "vendor" and not allocation_in.vendor_accommodation_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vendor accommodation ID is required for vendor allocation"
-        )
-    
-    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    
-    allocation = crud.accommodation_allocation.create_with_tenant(
-        db, obj_in=allocation_in, tenant_id=tenant_id, user_id=current_user.id
-    )
-    return allocation
 
 @router.delete("/vendor-accommodations/{vendor_id}")
 def delete_vendor_accommodation(
