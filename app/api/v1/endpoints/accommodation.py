@@ -589,7 +589,30 @@ def create_vendor_allocation(
         # Commit vendor room count changes
         db.commit()
         
-        return allocations[0] if len(allocations) == 1 else allocations
+        # Return serialized response
+        if len(allocations) == 1:
+            allocation = allocations[0]
+            return {
+                "id": allocation.id,
+                "guest_name": allocation.guest_name,
+                "accommodation_type": allocation.accommodation_type,
+                "vendor_accommodation_id": allocation.vendor_accommodation_id,
+                "room_type": allocation.room_type,
+                "status": allocation.status,
+                "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
+                "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None
+            }
+        else:
+            return [{
+                "id": allocation.id,
+                "guest_name": allocation.guest_name,
+                "accommodation_type": allocation.accommodation_type,
+                "vendor_accommodation_id": allocation.vendor_accommodation_id,
+                "room_type": allocation.room_type,
+                "status": allocation.status,
+                "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
+                "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None
+            } for allocation in allocations]
         
     except Exception as e:
         db.rollback()
