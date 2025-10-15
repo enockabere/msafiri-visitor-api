@@ -19,6 +19,12 @@ def get_tenant_id_from_context(db, tenant_context, current_user):
 
 router = APIRouter()
 
+@router.get("/test")
+def test_accommodation_endpoint():
+    """Test endpoint to verify accommodation router is working"""
+    print("🏠 DEBUG: Accommodation test endpoint called")
+    return {"message": "Accommodation router is working", "timestamp": "2024-10-15"}
+
 # GuestHouse endpoints
 @router.get("/guesthouses", response_model=List[schemas.GuestHouse])
 def get_guesthouses(
