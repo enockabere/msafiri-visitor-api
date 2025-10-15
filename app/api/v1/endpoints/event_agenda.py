@@ -168,7 +168,10 @@ def create_agenda_item(
     
     # Handle time from different sources
     time = agenda_data.get('time', '')
-    if not time and 'start_datetime' in agenda_data:
+    start_time = agenda_data.get('start_time', '')
+    if start_time:
+        time = start_time
+    elif not time and 'start_datetime' in agenda_data:
         # Extract time from start_datetime (portal format)
         try:
             start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
@@ -185,6 +188,15 @@ def create_agenda_item(
             event_date = start_dt.date()
         except:
             event_date = None
+    
+    # If no event_date, calculate from day_number and event start date
+    if not event_date and day_number:
+        from app.models.event import Event
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event and event.start_date:
+            from datetime import timedelta
+            event_date = event.start_date + timedelta(days=day_number - 1)
+            logger.info(f"📅 Calculated event_date: {event_date} from day_number: {day_number}")
     
     if not title:
         raise HTTPException(
@@ -206,11 +218,15 @@ def create_agenda_item(
     if not time:
         time = '09:00'
     
-    # Handle speaker field from portal
+    # Handle speaker/presenter field from both portal and mobile
     speaker = agenda_data.get('speaker', '')
+    presenter = agenda_data.get('presenter', '')
     if speaker:
         # Store speaker name in created_by field since we don't have a separate presenter field
         created_by = speaker
+    elif presenter:
+        # Store presenter name from mobile app
+        created_by = presenter
     else:
         created_by = current_user.email
     
