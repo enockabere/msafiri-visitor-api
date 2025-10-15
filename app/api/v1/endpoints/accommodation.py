@@ -168,7 +168,7 @@ def create_room(
     return room
 
 # Room Allocation endpoints
-@router.post("/room-allocations")
+@router.post("/room-allocations", response_model=schemas.AccommodationAllocation)
 def create_room_allocation(
     allocation_data: dict,
     db: Session = Depends(get_db),
