@@ -25,11 +25,69 @@ def test_accommodation_endpoint():
     print("🏠 DEBUG: Accommodation test endpoint called")
     return {"message": "Accommodation router is working", "timestamp": "2024-10-15"}
 
-@router.post("/test-room-allocations")
-def test_room_allocation_endpoint():
-    """Test endpoint to verify room allocation route is accessible"""
-    print("🏠 DEBUG: Test room allocation endpoint called")
-    return {"message": "Room allocation route is accessible", "timestamp": "2024-10-15"}
+@router.get("/available-participants")
+def get_available_participants(
+    event_id: int,
+    accommodation_type: str,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Get participants available for booking based on accommodation type"""
+    from app.models.event_participant import EventParticipant
+    from app.models.guesthouse import AccommodationAllocation
+    from sqlalchemy import text
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    # Get all confirmed participants for the event
+    participants = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.status == "confirmed"
+    ).all()
+    
+    # Get participants who already have bookings for this accommodation type
+    booked_participant_ids = db.query(AccommodationAllocation.participant_id).filter(
+        AccommodationAllocation.accommodation_type == accommodation_type,
+        AccommodationAllocation.status.in_(["booked", "checked_in"]),
+        AccommodationAllocation.tenant_id == tenant_id
+    ).subquery()
+    
+    # Filter out already booked participants
+    available_participants = []
+    for participant in participants:
+        # Check if participant is already booked for this accommodation type
+        is_booked = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participant.id,
+            AccommodationAllocation.accommodation_type == accommodation_type,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        ).first()
+        
+        if not is_booked:
+            # Get gender from registration
+            gender_result = db.execute(text(
+                "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+            ), {"participant_id": participant.id}).fetchone()
+            
+            gender = None
+            if gender_result and gender_result[0]:
+                reg_gender = gender_result[0].lower()
+                if reg_gender in ['man', 'male']:
+                    gender = 'male'
+                elif reg_gender in ['woman', 'female']:
+                    gender = 'female'
+                else:
+                    gender = 'other'
+            
+            available_participants.append({
+                "id": participant.id,
+                "name": participant.full_name,
+                "email": participant.email,
+                "role": participant.role,
+                "gender": gender
+            })
+    
+    return available_participants
 
 # GuestHouse endpoints
 @router.get("/guesthouses", response_model=List[schemas.GuestHouse])
@@ -196,6 +254,42 @@ def create_room_allocation(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
             )
+        
+        # Check for existing bookings to prevent double booking
+        if allocation_data.get("participant_id"):
+            from app.models.guesthouse import AccommodationAllocation
+            existing_booking = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.participant_id == allocation_data["participant_id"],
+                AccommodationAllocation.accommodation_type == allocation_data.get("accommodation_type"),
+                AccommodationAllocation.status.in_(["booked", "checked_in"])
+            ).first()
+            
+            if existing_booking:
+                accom_type = "guesthouse" if allocation_data.get("accommodation_type") == "guesthouse" else "vendor hotel"
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Participant already has a {accom_type} booking. Cannot book the same accommodation type twice."
+                )
+        
+        # Validate gender compatibility for room sharing
+        if allocation_data.get("room_id") and allocation_data.get("participant_id"):
+            room = crud.room.get(db, id=allocation_data["room_id"])
+            if room and room.capacity > 1:
+                # Get participant's gender from registration
+                from sqlalchemy import text
+                gender_result = db.execute(text(
+                    "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                ), {"participant_id": allocation_data["participant_id"]}).fetchone()
+                
+                if gender_result and gender_result[0]:
+                    reg_gender = gender_result[0].lower()
+                    # If gender is not male or female, check if room is empty
+                    if reg_gender not in ['man', 'male', 'woman', 'female']:
+                        if room.current_occupants > 0:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Users with non-binary gender cannot share rooms. Please select an empty room or use vendor accommodation."
+                            )
         
         tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
         
