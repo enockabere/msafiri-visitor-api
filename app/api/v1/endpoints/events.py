@@ -818,6 +818,27 @@ def confirm_event_attendance(
     
     db.commit()
     
+    # Trigger automatic accommodation booking
+    try:
+        from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        
+        # Get tenant context for auto booking
+        tenant_context = current_user.tenant_id or "default"
+        
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id}")
+        booking_result = _auto_book_participant_internal(
+            event_id=event_id,
+            participant_id=participation.id,
+            db=db,
+            current_user=current_user,
+            tenant_context=tenant_context
+        )
+        logger.info(f"🏨 Auto booking result: {booking_result}")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Auto booking failed but attendance confirmed: {str(e)}")
+        # Don't fail the confirmation if booking fails
+    
     return {
         "message": "Attendance confirmed successfully",
         "status": "confirmed"

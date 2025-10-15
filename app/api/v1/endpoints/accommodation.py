@@ -510,54 +510,7 @@ def create_vendor_allocation(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="No single rooms available at this vendor accommodation"
                 )
-            # Update single room count
-            vendor.single_rooms -= 1
-            
-        elif room_type == "double":
-            if vendor.double_rooms <= 0:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No double rooms available at this vendor accommodation"
-                )
-            
-            # For double rooms, validate gender compatibility if booking multiple participants
-            participant_ids = allocation_data.get("participant_ids", [allocation_data.get("participant_id")])
-            if len(participant_ids) > 2:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Double rooms can accommodate maximum 2 participants"
-                )
-            
-            if len(participant_ids) == 2:
-                # Check gender compatibility for double room sharing
-                from sqlalchemy import text
-                genders = []
-                for pid in participant_ids:
-                    gender_result = db.execute(text(
-                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
-                    ), {"participant_id": pid}).fetchone()
-                    
-                    if gender_result and gender_result[0]:
-                        reg_gender = gender_result[0].lower()
-                        if reg_gender not in ['man', 'male', 'woman', 'female']:
-                            raise HTTPException(
-                                status_code=status.HTTP_400_BAD_REQUEST,
-                                detail="Users with non-binary gender cannot share double rooms. Please book single rooms."
-                            )
-                        genders.append(reg_gender)
-                
-                # Check if both participants have same gender
-                if len(genders) == 2:
-                    gender1_male = genders[0] in ['man', 'male']
-                    gender2_male = genders[1] in ['man', 'male']
-                    if gender1_male != gender2_male:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Cannot assign different genders to the same double room"
-                        )
-            
-            # Update double room count
-            vendor.double_rooms -= 1
+            # Room count will be updated in the allocation loop below
         
         else:
             raise HTTPException(
@@ -567,16 +520,34 @@ def create_vendor_allocation(
         
         tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
         
-        # Create allocation(s)
+        # Create allocation(s) - handle room allocation logic
         participant_ids = allocation_data.get("participant_ids", [allocation_data.get("participant_id")])
         allocations = []
+        
+        if room_type == "double":
+            # For double rooms, allocate 2 people per room
+            rooms_needed = (len(participant_ids) + 1) // 2  # Ceiling division
+            if vendor.double_rooms < rooms_needed:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Not enough double rooms available. Need {rooms_needed}, have {vendor.double_rooms}"
+                )
+            vendor.double_rooms -= rooms_needed
+        else:
+            # For single rooms, allocate 1 person per room
+            if vendor.single_rooms < len(participant_ids):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Not enough single rooms available. Need {len(participant_ids)}, have {vendor.single_rooms}"
+                )
+            vendor.single_rooms -= len(participant_ids)
         
         for participant_id in participant_ids:
             if participant_id:
                 allocation_data_copy = allocation_data.copy()
                 allocation_data_copy["participant_id"] = participant_id
                 allocation_data_copy["accommodation_type"] = "vendor"
-                allocation_data_copy["room_type"] = room_type  # Store the room type
+                allocation_data_copy["room_type"] = room_type
                 
                 from app.schemas.accommodation import AccommodationAllocationCreate
                 allocation_schema = AccommodationAllocationCreate(**allocation_data_copy)

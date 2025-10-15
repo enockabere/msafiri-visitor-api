@@ -1,6 +1,6 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking
 from app.api.v1.endpoints import event_participants as event_participants_router
 from app.api.v1.endpoints import event_attachments
 
@@ -267,6 +267,12 @@ api_router.include_router(
     public_qr.router,
     prefix="",
     tags=["public-qr"]
+)
+
+api_router.include_router(
+    auto_booking.router,
+    prefix="/auto-booking",
+    tags=["auto-booking"]
 )
 
 from app.api.v1.endpoints import event_food
