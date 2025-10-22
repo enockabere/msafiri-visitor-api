@@ -629,6 +629,94 @@ def delete_vendor_accommodation(
     crud.vendor_accommodation.remove(db, id=vendor_id)
     return {"message": "Vendor accommodation deleted successfully"}
 
+@router.post("/vendor-event-setup", response_model=schemas.VendorEventAccommodation)
+def create_vendor_event_setup(
+    *,
+    db: Session = Depends(get_db),
+    setup_data: schemas.VendorEventAccommodationCreate,
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Setup event-specific accommodation capacity for vendor hotel"""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    # Verify vendor accommodation exists and belongs to tenant
+    vendor = crud.vendor_accommodation.get(db, id=setup_data.vendor_accommodation_id)
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor accommodation not found"
+        )
+    
+    if vendor.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to setup this vendor accommodation"
+        )
+    
+    # Check if setup already exists for this vendor and event
+    from app.models.guesthouse import VendorEventAccommodation
+    existing_setup = db.query(VendorEventAccommodation).filter(
+        VendorEventAccommodation.vendor_accommodation_id == setup_data.vendor_accommodation_id,
+        VendorEventAccommodation.event_id == setup_data.event_id,
+        VendorEventAccommodation.event_name == setup_data.event_name,
+        VendorEventAccommodation.tenant_id == tenant_id
+    ).first()
+    
+    if existing_setup:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event accommodation setup already exists for this vendor and event"
+        )
+    
+    # Calculate total capacity
+    total_capacity = setup_data.single_rooms + (setup_data.double_rooms * 2)
+    
+    # Create vendor event accommodation setup
+    vendor_event_setup = VendorEventAccommodation(
+        tenant_id=tenant_id,
+        vendor_accommodation_id=setup_data.vendor_accommodation_id,
+        event_id=setup_data.event_id,
+        event_name=setup_data.event_name,
+        single_rooms=setup_data.single_rooms,
+        double_rooms=setup_data.double_rooms,
+        total_capacity=total_capacity,
+        current_occupants=0,
+        is_active=setup_data.is_active,
+        created_by=current_user.email
+    )
+    
+    db.add(vendor_event_setup)
+    db.commit()
+    db.refresh(vendor_event_setup)
+    
+    return vendor_event_setup
+
+@router.get("/vendor-event-setups/{vendor_id}", response_model=List[schemas.VendorEventAccommodation])
+def get_vendor_event_setups(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Get all event setups for a vendor accommodation"""
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    from app.models.guesthouse import VendorEventAccommodation
+    setups = db.query(VendorEventAccommodation).filter(
+        VendorEventAccommodation.vendor_accommodation_id == vendor_id,
+        VendorEventAccommodation.tenant_id == tenant_id,
+        VendorEventAccommodation.is_active == True
+    ).all()
+    
+    return setups
+
 # Dashboard endpoints
 @router.get("/dashboard/overview")
 def get_accommodation_overview(

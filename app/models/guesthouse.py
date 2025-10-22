@@ -99,3 +99,24 @@ class AccommodationAllocation(Base):
     vendor_accommodation = relationship("VendorAccommodation", back_populates="allocations")
     participant = relationship("EventParticipant", foreign_keys=[participant_id])
     event = relationship("Event", foreign_keys=[event_id])
+
+class VendorEventAccommodation(Base):
+    __tablename__ = "vendor_event_accommodations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, nullable=False, index=True)
+    vendor_accommodation_id = Column(Integer, ForeignKey("vendor_accommodations.id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=True)  # Nullable for custom events
+    event_name = Column(String(200), nullable=True)  # For custom event names
+    single_rooms = Column(Integer, default=0)
+    double_rooms = Column(Integer, default=0)
+    total_capacity = Column(Integer, nullable=False)  # Calculated: single_rooms + (double_rooms * 2)
+    current_occupants = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_by = Column(String(200), nullable=True)
+
+    # Relationships
+    vendor_accommodation = relationship("VendorAccommodation")
+    event = relationship("Event", foreign_keys=[event_id])

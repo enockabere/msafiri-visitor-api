@@ -165,3 +165,34 @@ class AccommodationAllocation(AccommodationAllocationBase):
 
     class Config:
         from_attributes = True
+
+# Vendor Event Accommodation schemas
+class VendorEventAccommodationBase(BaseModel):
+    vendor_accommodation_id: int
+    event_id: Optional[int] = None
+    event_name: Optional[str] = Field(None, max_length=200)
+    single_rooms: int = Field(default=0, ge=0)
+    double_rooms: int = Field(default=0, ge=0)
+    is_active: bool = True
+
+class VendorEventAccommodationCreate(VendorEventAccommodationBase):
+    pass
+
+class VendorEventAccommodationUpdate(BaseModel):
+    event_id: Optional[int] = None
+    event_name: Optional[str] = Field(None, max_length=200)
+    single_rooms: Optional[int] = Field(None, ge=0)
+    double_rooms: Optional[int] = Field(None, ge=0)
+    is_active: Optional[bool] = None
+
+class VendorEventAccommodation(VendorEventAccommodationBase):
+    id: int
+    tenant_id: int
+    total_capacity: int
+    current_occupants: int = 0
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True
