@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy import text
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -120,6 +121,42 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
     
     return {"total_recommendations": len(all_recs), "data": "Check server logs"}
 
+@router.get("/debug/match-emails/{participant_id}")
+async def debug_email_match(
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Check email matching for participant"""
+    
+    print(f"=== DEBUG: Email matching for participant {participant_id} ===")
+    
+    # Get participant email from event_participants
+    participant_info = db.execute(
+        text("SELECT email, full_name FROM event_participants WHERE id = :id"),
+        {"id": participant_id}
+    ).fetchone()
+    
+    if participant_info:
+        email = participant_info[0]
+        name = participant_info[1]
+        print(f"DEBUG: Participant {participant_id}: {name} ({email})")
+        
+        # Check if recommendation exists for this email
+        rec_check = db.execute(
+            text("SELECT id, recommendation_text, submitted_at FROM line_manager_recommendations WHERE participant_email = :email AND event_id = 41"),
+            {"email": email}
+        ).fetchone()
+        
+        if rec_check:
+            print(f"DEBUG: Found recommendation: ID {rec_check[0]}, submitted {rec_check[2]}")
+            return {"participant": f"{name} ({email})", "recommendation_found": True, "rec_id": rec_check[0]}
+        else:
+            print(f"DEBUG: No recommendation found for {email}")
+            return {"participant": f"{name} ({email})", "recommendation_found": False}
+    else:
+        print(f"DEBUG: Participant {participant_id} not found")
+        return {"error": f"Participant {participant_id} not found"}
+
 @router.get("/debug/registrations")
 async def debug_registrations(db: Session = Depends(get_db)):
     """DEBUG: Show all public registrations"""
@@ -146,6 +183,50 @@ async def debug_registrations(db: Session = Depends(get_db)):
         print(f"  Created: {reg[5]}")
     
     return {"total_registrations": len(registrations), "data": "Check server logs"}
+
+@router.get("/debug/create-test-for-email/{participant_id}")
+async def create_test_for_participant_email(
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Create test recommendation for participant email"""
+    
+    print(f"=== DEBUG: Creating test recommendation for participant {participant_id} ===")
+    
+    # Get participant info
+    participant_info = db.execute(
+        text("SELECT email, full_name FROM event_participants WHERE id = :id"),
+        {"id": participant_id}
+    ).fetchone()
+    
+    if not participant_info:
+        return {"error": f"Participant {participant_id} not found"}
+    
+    email = participant_info[0]
+    name = participant_info[1]
+    print(f"DEBUG: Creating recommendation for {name} ({email})")
+    
+    # Insert test recommendation
+    db.execute(
+        text("""
+            INSERT INTO line_manager_recommendations 
+            (registration_id, participant_name, participant_email, line_manager_email, 
+             recommendation_text, submitted_at, created_at, recommendation_token, event_id)
+            VALUES (1, :name, :email, 'test-manager@msf.org',
+                    'This is a test recommendation created for debugging. The participant shows excellent potential.', 
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :token, 41)
+        """),
+        {
+            "name": name,
+            "email": email,
+            "token": f"test-{participant_id}-{int(time.time())}"
+        }
+    )
+    
+    db.commit()
+    print(f"DEBUG: Test recommendation created for {name} ({email})")
+    
+    return {"message": f"Test recommendation created for {name} ({email})"}
 
 @router.get("/debug/create-test/{registration_id}")
 async def create_test_recommendation(
