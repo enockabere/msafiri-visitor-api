@@ -35,8 +35,51 @@ class PublicRegistrationRequest(BaseModel):
     accommodationNeeds: Optional[str] = ""
     dailyMeals: Optional[list] = []
     certificateName: Optional[str] = ""
+    badgeName: Optional[str] = ""
+    motivationLetter: Optional[str] = ""
     codeOfConductConfirm: Optional[str] = ""
     travelRequirementsConfirm: Optional[str] = ""
+
+@router.post("/check-email-registration")
+async def check_email_registration(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """Check if email is already registered for an event"""
+    
+    event_id = request.get("event_id")
+    personal_email = request.get("personal_email", "").strip().lower()
+    msf_email = request.get("msf_email", "").strip().lower()
+    
+    if not event_id or (not personal_email and not msf_email):
+        raise HTTPException(status_code=400, detail="Event ID and at least one email required")
+    
+    # Check if any of the emails are already registered
+    from sqlalchemy import text, or_
+    
+    existing = db.execute(
+        text("""
+            SELECT pr.personal_email, pr.msf_email, pr.first_name, pr.last_name
+            FROM public_registrations pr
+            WHERE pr.event_id = :event_id 
+            AND (LOWER(pr.personal_email) = :personal_email OR LOWER(pr.msf_email) = :msf_email)
+            LIMIT 1
+        """),
+        {
+            "event_id": event_id,
+            "personal_email": personal_email,
+            "msf_email": msf_email
+        }
+    ).fetchone()
+    
+    if existing:
+        return {
+            "already_registered": True,
+            "message": f"Email already registered for this event by {existing[2]} {existing[3]}",
+            "registered_email": existing[0] if existing[0].lower() in [personal_email, msf_email] else existing[1]
+        }
+    
+    return {"already_registered": False}
 
 @router.get("/test-debug")
 async def test_debug():
@@ -155,7 +198,7 @@ async def public_register_for_event(
             hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
             phone_number, travelling_internationally, accommodation_type, 
             dietary_requirements, accommodation_needs, daily_meals, certificate_name,
-            code_of_conduct_confirm, travel_requirements_confirm, created_at
+            badge_name, motivation_letter, code_of_conduct_confirm, travel_requirements_confirm, created_at
         ) VALUES (
             :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
             :contract_type, :gender_identity, :sex, :pronouns, :current_position,
@@ -163,7 +206,7 @@ async def public_register_for_event(
             :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
             :phone_number, :travelling_internationally, :accommodation_type,
             :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
-            :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
+            :badge_name, :motivation_letter, :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
         )
         """
         
@@ -194,9 +237,17 @@ async def public_register_for_event(
             "accommodation_needs": registration.accommodationNeeds,
             "daily_meals": ','.join(registration.dailyMeals) if registration.dailyMeals else None,
             "certificate_name": registration.certificateName,
+            "badge_name": registration.badgeName,
+            "motivation_letter": registration.motivationLetter,
             "code_of_conduct_confirm": registration.codeOfConductConfirm,
             "travel_requirements_confirm": registration.travelRequirementsConfirm
         })
+        
+        # Send line manager recommendation email if line manager email provided
+        if registration.lineManagerEmail and registration.lineManagerEmail.strip():
+            await send_line_manager_recommendation_email(
+                db, event_id, participant.id, registration, event
+            )
         
         db.commit()
         
@@ -212,3 +263,118 @@ async def public_register_for_event(
         logger.error(f"❌ Error in public registration: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
+
+async def send_line_manager_recommendation_email(
+    db: Session, event_id: int, participant_id: int, registration: PublicRegistrationRequest, event: Event
+):
+    """Send recommendation request email to line manager"""
+    
+    import uuid
+    from sqlalchemy import text
+    
+    try:
+        # Generate unique token for recommendation
+        recommendation_token = str(uuid.uuid4())
+        
+        # Get registration ID
+        registration_result = db.execute(
+            text("SELECT id FROM public_registrations WHERE participant_id = :participant_id"),
+            {"participant_id": participant_id}
+        ).fetchone()
+        
+        if not registration_result:
+            logger.error("Could not find registration record")
+            return
+        
+        registration_id = registration_result[0]
+        
+        # Insert recommendation record
+        db.execute(
+            text("""
+                INSERT INTO line_manager_recommendations (
+                    registration_id, event_id, participant_name, participant_email,
+                    line_manager_email, operation_center, event_title, event_dates,
+                    event_location, recommendation_token
+                ) VALUES (
+                    :registration_id, :event_id, :participant_name, :participant_email,
+                    :line_manager_email, :operation_center, :event_title, :event_dates,
+                    :event_location, :recommendation_token
+                )
+            """),
+            {
+                "registration_id": registration_id,
+                "event_id": event_id,
+                "participant_name": f"{registration.firstName} {registration.lastName}",
+                "participant_email": registration.personalEmail,
+                "line_manager_email": registration.lineManagerEmail,
+                "operation_center": registration.oc,
+                "event_title": event.title,
+                "event_dates": f"{event.start_date} to {event.end_date}",
+                "event_location": event.location,
+                "recommendation_token": recommendation_token
+            }
+        )
+        
+        db.commit()
+        
+        # Send email to line manager
+        from app.core.email_service import email_service
+        
+        base_url = "http://41.90.97.253:8001"  # Use production URL
+        recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
+        
+        subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
+        
+        message = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc2626;">Line Manager Recommendation Request</h2>
+            
+            <p>Dear Line Manager,</p>
+            
+            <p><strong>{registration.firstName} {registration.lastName}</strong> has registered for the following event and listed you as their line manager:</p>
+            
+            <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #374151;">Event Details</h3>
+                <p><strong>Event:</strong> {event.title}</p>
+                <p><strong>Dates:</strong> {event.start_date} to {event.end_date}</p>
+                <p><strong>Location:</strong> {event.location}</p>
+                <p><strong>Operation Center:</strong> {registration.oc}</p>
+            </div>
+            
+            <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #92400e;">Participant Information</h3>
+                <p><strong>Name:</strong> {registration.firstName} {registration.lastName}</p>
+                <p><strong>Email:</strong> {registration.personalEmail}</p>
+                <p><strong>Position:</strong> {registration.currentPosition}</p>
+                <p><strong>Country of Work:</strong> {registration.countryOfWork or 'Not specified'}</p>
+            </div>
+            
+            <p>Please click the link below to provide your recommendation:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{recommendation_url}" 
+                   style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                   Provide Recommendation
+                </a>
+            </div>
+            
+            <p style="color: #6b7280; font-size: 14px;">
+                This link is unique to this request and will expire after the event registration deadline.
+                If you have any questions, please contact the event organizers.
+            </p>
+        </div>
+        """
+        
+        email_service.send_notification_email(
+            to_email=registration.lineManagerEmail,
+            user_name="Line Manager",
+            title=subject,
+            message=message
+        )
+        
+        logger.info(f"✅ Recommendation email sent to {registration.lineManagerEmail}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error sending recommendation email: {e}")
+        # Don't fail the registration if email fails
+        pass

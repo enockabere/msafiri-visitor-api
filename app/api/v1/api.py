@@ -261,6 +261,13 @@ api_router.include_router(
     tags=["participant-role-update"]
 )
 
+from app.api.v1.endpoints import line_manager_recommendation
+api_router.include_router(
+    line_manager_recommendation.router,
+    prefix="",
+    tags=["line-manager-recommendation"]
+)
+
 from app.api.v1.endpoints import event_food
 api_router.include_router(
     event_food.router,
