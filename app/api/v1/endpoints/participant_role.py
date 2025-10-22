@@ -8,7 +8,7 @@ from app.models.event_participant import EventParticipant
 
 router = APIRouter()
 
-@router.get("/{event_id}/my-role")
+@router.get("/{event_id}/my-role", operation_id="get_my_event_role_unique")
 def get_my_event_role(
     *,
     db: Session = Depends(get_db),

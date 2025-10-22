@@ -1,8 +1,6 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
 from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking
-from app.api.v1.endpoints import event_participants as event_participants_router
-from app.api.v1.endpoints import event_attachments
 
 # Create main API router
 api_router = APIRouter()
@@ -87,7 +85,7 @@ api_router.include_router(
 )
 
 api_router.include_router(
-    event_participants_router.router,
+    event_participants.router,
     prefix="/events/{event_id}/participants",
     tags=["event-participants"]
 )
@@ -104,8 +102,6 @@ api_router.include_router(
     tags=["super-admin"]
 )
 
-
-
 api_router.include_router(
     event_feedback.router,
     prefix="/events",
@@ -116,18 +112,6 @@ api_router.include_router(
     event_status.router,
     prefix="/events",
     tags=["event-status"]
-)
-
-api_router.include_router(
-    event_participants.router,
-    prefix="/events/{event_id}/participants",
-    tags=["event-participants"]
-)
-
-api_router.include_router(
-    event_attachments.router,
-    prefix="/events/{event_id}/attachments",
-    tags=["event-attachments"]
 )
 
 from app.api.v1.endpoints import tenant_management

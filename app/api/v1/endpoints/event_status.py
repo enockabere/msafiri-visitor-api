@@ -13,7 +13,7 @@ router = APIRouter()
 class EventStatusUpdate(BaseModel):
     status: str
 
-@router.put("/{event_id}/status")
+@router.put("/{event_id}/status", operation_id="update_event_status_unique")
 def update_event_status(
     event_id: int,
     status_data: EventStatusUpdate,
@@ -73,7 +73,7 @@ def update_event_status(
     
     return {"message": f"Event status updated to {status_data.status}", "event": event}
 
-@router.get("/{event_id}/status/suggestions")
+@router.get("/{event_id}/status/suggestions", operation_id="get_status_suggestions_unique")
 def get_status_suggestions(
     event_id: int,
     db: Session = Depends(get_db)

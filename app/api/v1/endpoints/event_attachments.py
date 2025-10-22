@@ -14,7 +14,7 @@ class AttachmentCreate(BaseModel):
     url: str
     description: str = None
 
-@router.post("/", response_model=dict, operation_id="create_event_attachment")
+@router.post("/", response_model=dict, operation_id="create_event_attachment_unique")
 def create_attachment(
     *,
     db: Session = Depends(get_db),
@@ -50,7 +50,7 @@ def create_attachment(
         "created_at": attachment.created_at.isoformat()
     }
 
-@router.get("/", response_model=List[dict], operation_id="get_event_attachments")
+@router.get("/", response_model=List[dict], operation_id="get_event_attachments_unique")
 def get_attachments(
     *,
     db: Session = Depends(get_db),
@@ -76,7 +76,7 @@ def get_attachments(
 
 
 
-@router.delete("/{attachment_id}/", operation_id="delete_event_attachment")
+@router.delete("/{attachment_id}/", operation_id="delete_event_attachment_unique")
 def delete_attachment(
     *,
     db: Session = Depends(get_db),

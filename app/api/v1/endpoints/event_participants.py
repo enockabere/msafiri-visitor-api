@@ -9,7 +9,7 @@ from app.schemas.event_participant import EventParticipantCreate, EventParticipa
 
 router = APIRouter()
 
-@router.post("/", response_model=schemas.event_participant.EventParticipant, operation_id="create_event_participant")
+@router.post("/", response_model=schemas.event_participant.EventParticipant, operation_id="create_event_participant_unique")
 def create_participant(
     *,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ def create_participant(
     
     return participant
 
-@router.get("/", operation_id="get_event_participants")
+@router.get("/", operation_id="get_event_participants_unique")
 def get_participants(
     *,
     db: Session = Depends(get_db),
@@ -155,7 +155,7 @@ def get_participants(
     logger.info(f"🎯 Returning {len(enriched_participants)} enriched participants")
     return enriched_participants
 
-@router.put("/{participant_id}/role")
+@router.put("/{participant_id}/role", operation_id="update_participant_role_unique")
 async def update_participant_role(
     *,
     db: Session = Depends(get_db),
@@ -339,7 +339,7 @@ async def send_role_change_notification(participant, old_role, new_role, db):
         print(f"Error sending role change notification: {e}")
         return False
 
-@router.get("/{participant_id}/details", operation_id="get_participant_details")
+@router.get("/{participant_id}/details", operation_id="get_participant_details_unique")
 def get_participant_details(
     *,
     db: Session = Depends(get_db),
@@ -395,7 +395,7 @@ def get_participant_details(
     
     return result
 
-@router.delete("/{participant_id}", operation_id="delete_event_participant")
+@router.delete("/{participant_id}", operation_id="delete_event_participant_unique")
 def delete_participant(
     *,
     db: Session = Depends(get_db),
