@@ -86,3 +86,32 @@ async def submit_recommendation(
     logger.info(f"✅ Recommendation submitted for token {token}")
     
     return {"message": "Recommendation submitted successfully"}
+
+@router.get("/participant/{participant_id}")
+async def get_recommendation_by_participant(
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get line manager recommendation by participant ID"""
+    
+    result = db.execute(
+        text("""
+            SELECT id, line_manager_email, recommendation_text, submitted_at, created_at
+            FROM line_manager_recommendations 
+            WHERE registration_id = :participant_id
+            ORDER BY created_at DESC
+            LIMIT 1
+        """),
+        {"participant_id": participant_id}
+    ).fetchone()
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="No recommendation found for this participant")
+    
+    return {
+        "id": result[0],
+        "line_manager_email": result[1],
+        "recommendation_text": result[2],
+        "submitted_at": result[3],
+        "created_at": result[4]
+    }
