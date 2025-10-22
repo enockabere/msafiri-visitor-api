@@ -120,6 +120,33 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
     
     return {"total_recommendations": len(all_recs), "data": "Check server logs"}
 
+@router.post("/debug/create-test/{participant_id}")
+async def create_test_recommendation(
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Create test recommendation for participant"""
+    
+    print(f"=== DEBUG: Creating test recommendation for participant {participant_id} ===")
+    
+    # Insert test recommendation
+    db.execute(
+        text("""
+            INSERT INTO line_manager_recommendations 
+            (registration_id, participant_name, participant_email, line_manager_email, 
+             recommendation_text, submitted_at, created_at, recommendation_token, event_id)
+            VALUES (:registration_id, 'Test Participant', 'test@example.com', 'manager@test.com',
+                    'This is a test recommendation for debugging purposes.', 
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'test-token-123', 41)
+        """),
+        {"registration_id": participant_id}
+    )
+    
+    db.commit()
+    print(f"DEBUG: Test recommendation created for participant {participant_id}")
+    
+    return {"message": f"Test recommendation created for participant {participant_id}"}
+
 @router.get("/participant/{participant_id}")
 async def get_recommendation_by_participant(
     participant_id: int,
