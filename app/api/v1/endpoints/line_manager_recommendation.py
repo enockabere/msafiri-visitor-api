@@ -120,14 +120,53 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
     
     return {"total_recommendations": len(all_recs), "data": "Check server logs"}
 
-@router.get("/debug/create-test/{participant_id}")
+@router.get("/debug/registrations")
+async def debug_registrations(db: Session = Depends(get_db)):
+    """DEBUG: Show all public registrations"""
+    
+    print("=== DEBUG: ALL PUBLIC REGISTRATIONS ===")
+    
+    registrations = db.execute(
+        text("""
+            SELECT id, event_id, first_name, last_name, personal_email, created_at
+            FROM public_registrations 
+            WHERE event_id = 41
+            ORDER BY created_at DESC
+        """)
+    ).fetchall()
+    
+    print(f"DEBUG: Total registrations for event 41: {len(registrations)}")
+    
+    for i, reg in enumerate(registrations, 1):
+        print(f"\nDEBUG: Registration #{i}:")
+        print(f"  ID: {reg[0]}")
+        print(f"  Event ID: {reg[1]}")
+        print(f"  Name: {reg[2]} {reg[3]}")
+        print(f"  Email: {reg[4]}")
+        print(f"  Created: {reg[5]}")
+    
+    return {"total_registrations": len(registrations), "data": "Check server logs"}
+
+@router.get("/debug/create-test/{registration_id}")
 async def create_test_recommendation(
-    participant_id: int,
+    registration_id: int,
     db: Session = Depends(get_db)
 ):
-    """DEBUG: Create test recommendation for participant"""
+    """DEBUG: Create test recommendation for registration"""
     
-    print(f"=== DEBUG: Creating test recommendation for participant {participant_id} ===")
+    print(f"=== DEBUG: Creating test recommendation for registration {registration_id} ===")
+    
+    # Check if registration exists
+    reg_check = db.execute(
+        text("SELECT id, personal_email, first_name, last_name FROM public_registrations WHERE id = :id"),
+        {"id": registration_id}
+    ).fetchone()
+    
+    if not reg_check:
+        print(f"DEBUG: Registration {registration_id} not found")
+        return {"error": f"Registration {registration_id} not found"}
+    
+    print(f"DEBUG: Found registration: {reg_check[2]} {reg_check[3]} ({reg_check[1]})")
     
     # Insert test recommendation
     db.execute(
@@ -135,17 +174,21 @@ async def create_test_recommendation(
             INSERT INTO line_manager_recommendations 
             (registration_id, participant_name, participant_email, line_manager_email, 
              recommendation_text, submitted_at, created_at, recommendation_token, event_id)
-            VALUES (:registration_id, 'Test Participant', 'test@example.com', 'manager@test.com',
+            VALUES (:registration_id, :name, :email, 'manager@test.com',
                     'This is a test recommendation for debugging purposes.', 
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'test-token-123', 41)
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'test-token-456', 41)
         """),
-        {"registration_id": participant_id}
+        {
+            "registration_id": registration_id,
+            "name": f"{reg_check[2]} {reg_check[3]}",
+            "email": reg_check[1]
+        }
     )
     
     db.commit()
-    print(f"DEBUG: Test recommendation created for participant {participant_id}")
+    print(f"DEBUG: Test recommendation created for registration {registration_id}")
     
-    return {"message": f"Test recommendation created for participant {participant_id}"}
+    return {"message": f"Test recommendation created for registration {registration_id}"}
 
 @router.get("/participant/{participant_id}")
 async def get_recommendation_by_participant(
@@ -166,49 +209,35 @@ async def get_recommendation_by_participant(
     for rec in all_recs:
         print(f"DEBUG: Rec ID {rec[0]}, Registration ID: {rec[1]}, Event ID: {rec[2]}, Email: {rec[3]}, Manager: {rec[4]}, Submitted: {rec[5]}")
     
-    # Try to find by registration_id and event_id first
+    # Get participant email from event_participants table
+    participant_info = db.execute(
+        text("SELECT email FROM event_participants WHERE id = :participant_id"),
+        {"participant_id": participant_id}
+    ).fetchone()
+    
+    if not participant_info:
+        print(f"DEBUG: Participant {participant_id} not found in event_participants")
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    participant_email = participant_info[0]
+    print(f"DEBUG: Found participant email: {participant_email}")
+    
+    # Try to find recommendation by participant email and event_id
     result = db.execute(
         text("""
             SELECT id, line_manager_email, recommendation_text, submitted_at, created_at
             FROM line_manager_recommendations 
-            WHERE registration_id = :participant_id AND event_id = :event_id
+            WHERE participant_email = :email AND event_id = :event_id
             ORDER BY created_at DESC
             LIMIT 1
         """),
-        {"participant_id": participant_id, "event_id": event_id}
+        {"email": participant_email, "event_id": event_id}
     ).fetchone()
     
-    print(f"DEBUG: Query result for participant {participant_id}, event {event_id}: {result}")
-    
-    # If not found, try by participant email match
-    if not result:
-        print(f"DEBUG: No direct match, trying email match...")
-        
-        # Get participant email from public_registrations
-        participant_email = db.execute(
-            text("SELECT personal_email FROM public_registrations WHERE id = :participant_id"),
-            {"participant_id": participant_id}
-        ).fetchone()
-        
-        if participant_email:
-            email = participant_email[0]
-            print(f"DEBUG: Found participant email: {email}")
-            
-            result = db.execute(
-                text("""
-                    SELECT id, line_manager_email, recommendation_text, submitted_at, created_at
-                    FROM line_manager_recommendations 
-                    WHERE participant_email = :email AND event_id = :event_id
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """),
-                {"email": email, "event_id": event_id}
-            ).fetchone()
-            
-            print(f"DEBUG: Email match result: {result}")
+    print(f"DEBUG: Email match result for {participant_email}: {result}")
     
     if not result:
-        print(f"DEBUG: No recommendation found for participant {participant_id} in event {event_id}")
+        print(f"DEBUG: No recommendation found for participant {participant_id} ({participant_email}) in event {event_id}")
         raise HTTPException(status_code=404, detail="No recommendation found for this participant")
     
     print(f"DEBUG: Returning recommendation data: {result}")
