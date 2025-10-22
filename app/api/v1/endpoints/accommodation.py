@@ -596,6 +596,39 @@ def create_vendor_allocation(
             detail=f"Error creating vendor allocation: {str(e)}"
         )
 
+@router.put("/vendor-accommodations/{vendor_id}", response_model=schemas.VendorAccommodation)
+def update_vendor_accommodation(
+    vendor_id: int,
+    vendor_in: schemas.VendorAccommodationUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Update vendor accommodation"""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    vendor = crud.vendor_accommodation.get(db, id=vendor_id)
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor accommodation not found"
+        )
+    
+    if vendor.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this vendor accommodation"
+        )
+    
+    vendor = crud.vendor_accommodation.update(db, db_obj=vendor, obj_in=vendor_in)
+    return vendor
+
 @router.delete("/vendor-accommodations/{vendor_id}")
 def delete_vendor_accommodation(
     vendor_id: int,
