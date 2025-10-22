@@ -58,6 +58,7 @@ from .accommodation import (
     Room, RoomCreate, RoomUpdate,
     VendorAccommodation, VendorAccommodationCreate, VendorAccommodationUpdate,
     AccommodationAllocation, AccommodationAllocationCreate, AccommodationAllocationUpdate,
+    VendorEventAccommodation, VendorEventAccommodationCreate, VendorEventAccommodationUpdate,
     AccommodationType, RoomType, AllocationStatus
 )
 from .emergency_contact import (
@@ -142,6 +143,7 @@ __all__ = [
     "Room", "RoomCreate", "RoomUpdate",
     "VendorAccommodation", "VendorAccommodationCreate", "VendorAccommodationUpdate",
     "AccommodationAllocation", "AccommodationAllocationCreate", "AccommodationAllocationUpdate",
+    "VendorEventAccommodation", "VendorEventAccommodationCreate", "VendorEventAccommodationUpdate",
     "AccommodationType", "RoomType", "AllocationStatus",
     
     # Emergency contact schemas
