@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'remove_vendor_rooms_columns'
-down_revision = '53d5f6cdf36b'
+down_revision = 'vendor_event_accommodations'
 branch_labels = None
 depends_on = None
 
