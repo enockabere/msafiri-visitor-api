@@ -52,75 +52,35 @@ app.add_middleware(
     max_age=3600,  # Cache preflight requests for 1 hour
 )
 
-# Request logging middleware (AFTER CORS)
+# Request logging middleware (AFTER CORS) - MINIMAL LOGGING
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable) -> Response:
-    """Log all requests with timing and CORS details"""
+    """Log requests with minimal output"""
     start_time = time.time()
     
-    # Log request details with headers
-    origin = request.headers.get("origin", "No Origin")
-    user_agent = request.headers.get("user-agent", "No User-Agent")[:100]
-    
-    logger.info(f"🌐 {request.method} {request.url.path}")
-    logger.info(f"   📍 Origin: {origin}")
-    logger.info(f"   💻 Client: {request.client.host}")
-    logger.info(f"   🤖 User-Agent: {user_agent}")
-    
-    # Log query parameters if any
-    if request.query_params:
-        logger.info(f"   🔍 Query: {dict(request.query_params)}")
+    # Only log line manager recommendation endpoints
+    if "line-manager-recommendation" in request.url.path:
+        logger.info(f"🌐 {request.method} {request.url.path}")
     
     try:
-        # Process request
         response = await call_next(request)
-        
-        # Calculate processing time
         process_time = time.time() - start_time
-        
-        # Log response details
-        logger.info(
-            f"✅ {request.method} {request.url.path} - "
-            f"Status: {response.status_code} - "
-            f"Time: {process_time:.4f}s"
-        )
-        
-        # Add processing time to response headers
         response.headers["X-Process-Time"] = str(process_time)
         
-        # Log CORS headers in response
-        cors_headers = {
-            k: v for k, v in response.headers.items() 
-            if k.lower().startswith('access-control')
-        }
-        if cors_headers:
-            logger.info(f"   🔗 CORS Headers: {cors_headers}")
+        # Only log line manager recommendation endpoints
+        if "line-manager-recommendation" in request.url.path:
+            logger.info(f"✅ {request.method} {request.url.path} - Status: {response.status_code}")
         
         return response
         
     except Exception as e:
-        # Log errors with full details
         process_time = time.time() - start_time
-        logger.error(
-            f"❌ {request.method} {request.url.path} - "
-            f"Error: {str(e)} - "
-            f"Time: {process_time:.4f}s"
-        )
-        logger.exception("Full error traceback:")
+        logger.error(f"❌ {request.method} {request.url.path} - Error: {str(e)}")
         
-        # Return proper error response with CORS headers
         return JSONResponse(
             status_code=500,
-            content={
-                "error": "Internal server error",
-                "message": str(e),
-                "path": request.url.path,
-                "method": request.method
-            },
-            headers={
-                "Access-Control-Allow-Origin": origin if origin in allowed_origins else "*",
-                "Access-Control-Allow-Credentials": "true"
-            }
+            content={"error": "Internal server error", "message": str(e)},
+            headers={"Access-Control-Allow-Origin": "*"}
         )
 
 # Test CORS endpoint (for debugging)
