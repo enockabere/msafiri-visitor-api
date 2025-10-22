@@ -89,8 +89,6 @@ class VendorAccommodationBase(BaseModel):
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
-    single_rooms: int = Field(default=0, ge=0)
-    double_rooms: int = Field(default=0, ge=0)
     capacity: int = Field(default=0, ge=0)
     description: Optional[str] = None
     is_active: bool = True
@@ -99,13 +97,11 @@ class VendorAccommodationCreate(VendorAccommodationBase):
     pass
 
 class VendorAccommodationUpdate(BaseModel):
-    vendor_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    vendor_name: Optional[str] = Field(None, min_length=1, max_length=100)
     accommodation_type: Optional[str] = Field(None, min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
-    single_rooms: Optional[int] = Field(None, ge=0)
-    double_rooms: Optional[int] = Field(None, ge=0)
     capacity: Optional[int] = Field(None, ge=0)
     description: Optional[str] = None
     is_active: Optional[bool] = None

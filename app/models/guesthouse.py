@@ -58,8 +58,6 @@ class VendorAccommodation(Base):
     contact_person = Column(String(200), nullable=True)
     contact_phone = Column(String(20), nullable=True)
     contact_email = Column(String(100), nullable=True)
-    single_rooms = Column(Integer, default=0)
-    double_rooms = Column(Integer, default=0)
     capacity = Column(Integer, nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
