@@ -123,6 +123,7 @@ async def get_event_registrations(
         pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
         pr.hrco_email, pr.career_manager_email, pr.line_manager_email, pr.phone_number,
         pr.dietary_requirements, pr.accommodation_needs, pr.certificate_name,
+        pr.badge_name, pr.motivation_letter,
         pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
         pr.travelling_internationally, pr.accommodation_type, pr.daily_meals
     FROM event_participants ep
@@ -184,6 +185,8 @@ async def get_event_registrations(
                 "dietary_requirements": "[REDACTED]",
                 "accommodation_needs": "[REDACTED]",
                 "certificate_name": "[REDACTED]",
+                "badge_name": "[REDACTED]",
+                "motivation_letter": "[REDACTED]",
                 "code_of_conduct_confirm": "[REDACTED]",
                 "travel_requirements_confirm": "[REDACTED]",
                 "travelling_internationally": "[REDACTED]",
@@ -225,6 +228,8 @@ async def get_event_registrations(
                 "dietary_requirements": p.dietary_requirements,
                 "accommodation_needs": p.accommodation_needs,
                 "certificate_name": p.certificate_name,
+                "badge_name": p.badge_name,
+                "motivation_letter": p.motivation_letter,
                 "code_of_conduct_confirm": p.code_of_conduct_confirm,
                 "travel_requirements_confirm": p.travel_requirements_confirm,
                 "travelling_internationally": p.travelling_internationally,
