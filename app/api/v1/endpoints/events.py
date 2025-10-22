@@ -558,8 +558,12 @@ def update_event_status(
             detail="Status is required"
         )
     
-    crud.event.update(db, db_obj=event, obj_in={"status": new_status})
+    event.status = new_status
+    db.commit()
+    db.refresh(event)
     return {"message": f"Event status updated to {new_status}", "status": new_status}
+
+# Role update endpoint moved to participant_role_update.py to avoid router conflicts
 
 @router.get("/{event_id}/status/suggestions")
 def get_status_suggestions(
@@ -842,6 +846,77 @@ def confirm_event_attendance(
     return {
         "message": "Attendance confirmed successfully",
         "status": "confirmed"
+    }
+
+@router.post("/{event_id}/admin-confirm-participant/{participant_id}")
+def admin_confirm_participant(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    participant_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Admin endpoint to confirm any participant"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Check admin permissions
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin roles can confirm participants"
+        )
+    
+    from app.models.event_participant import EventParticipant
+    
+    # Find the participation record
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    logger.info(f"🎯 Admin confirm - Event: {event_id}, Participant: {participant_id}")
+    
+    if not participation:
+        logger.error(f"❌ No participation record found for participant {participant_id} in event {event_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participation record not found"
+        )
+    
+    logger.info(f"📊 Current participation status: '{participation.status}'")
+    
+    # Update status to confirmed
+    logger.info(f"✅ Admin updating status from '{participation.status}' to 'confirmed'")
+    participation.status = 'confirmed'
+    
+    db.commit()
+    
+    # Trigger automatic accommodation booking
+    try:
+        from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        
+        # Get tenant context for auto booking
+        tenant_context = current_user.tenant_id or "default"
+        
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id}")
+        booking_result = _auto_book_participant_internal(
+            event_id=event_id,
+            participant_id=participation.id,
+            db=db,
+            current_user=current_user,
+            tenant_context=tenant_context
+        )
+        logger.info(f"🏨 Auto booking result: {booking_result}")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Auto booking failed but participant confirmed: {str(e)}")
+        # Don't fail the confirmation if booking fails
+    
+    return {
+        "message": f"Participant {participation.full_name} confirmed successfully",
+        "status": "confirmed",
+        "participant_id": participation.id
     }
 
 @router.post("/{event_id}/upload-document")

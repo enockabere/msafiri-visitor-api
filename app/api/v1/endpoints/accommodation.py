@@ -1,12 +1,13 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.models.tenant import Tenant
+from sqlalchemy import text
 
 def get_tenant_id_from_context(db, tenant_context, current_user):
     """Helper function to get tenant ID from context"""
@@ -736,11 +737,48 @@ def get_allocations(
                     VendorAccommodation.id == allocation.vendor_accommodation_id
                 ).first()
                 if vendor:
+                    # Get roommate info for double rooms
+                    roommate_name = None
+                    if allocation.room_type == "double":
+                        try:
+                            # Get current participant's gender
+                            current_gender = None
+                            if allocation.participant_id:
+                                gender_result = db.execute(text(
+                                    "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                                ), {"participant_id": allocation.participant_id}).fetchone()
+                                if gender_result and gender_result[0]:
+                                    current_gender = gender_result[0]
+                            
+                            # Find roommate with same gender, excluding self
+                            if current_gender:
+                                roommate_query = text("""
+                                    SELECT aa.guest_name 
+                                    FROM accommodation_allocations aa
+                                    JOIN public_registrations pr ON aa.participant_id = pr.participant_id
+                                    WHERE aa.vendor_accommodation_id = :vendor_id 
+                                    AND aa.room_type = 'double'
+                                    AND aa.id != :current_allocation_id
+                                    AND aa.status IN ('booked', 'checked_in')
+                                    AND pr.gender_identity = :gender
+                                    LIMIT 1
+                                """)
+                                roommate_result = db.execute(roommate_query, {
+                                    "vendor_id": allocation.vendor_accommodation_id,
+                                    "current_allocation_id": allocation.id,
+                                    "gender": current_gender
+                                }).fetchone()
+                                if roommate_result:
+                                    roommate_name = roommate_result.guest_name
+                        except Exception as e:
+                            roommate_name = None
+                    
                     allocation_data["vendor_accommodation"] = {
                         "id": vendor.id,
                         "vendor_name": vendor.vendor_name,
                         "capacity": vendor.capacity,
-                        "current_occupants": vendor.current_occupants
+                        "current_occupants": vendor.current_occupants,
+                        "roommate_name": roommate_name
                     }
                     print(f"DEBUG: Vendor data added: {allocation_data['vendor_accommodation']}")
                 else:
@@ -784,7 +822,7 @@ def get_allocations(
                     
                     allocation_data["participant"] = {
                         "name": participant.full_name,
-                        "role": participant.role,
+                        "role": participant.participant_role or participant.role,
                         "gender": gender
                     }
                     print(f"DEBUG: Participant data added: {allocation_data['participant']}")
@@ -913,7 +951,7 @@ def get_detailed_allocations(
                     
                     allocation_data["participant"] = {
                         "name": participant.full_name,
-                        "role": participant.role,
+                        "role": participant.participant_role or participant.role,
                         "gender": gender
                     }
             

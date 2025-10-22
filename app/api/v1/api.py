@@ -165,12 +165,7 @@ api_router.include_router(
     tags=["feedback"]
 )
 
-from app.api.v1.endpoints import participant_role
-api_router.include_router(
-    participant_role.router,
-    prefix="/events",
-    tags=["participant-role"]
-)
+
 
 from app.api.v1.endpoints import event_statistics
 api_router.include_router(
@@ -273,6 +268,13 @@ api_router.include_router(
     auto_booking.router,
     prefix="/auto-booking",
     tags=["auto-booking"]
+)
+
+from app.api.v1.endpoints import participant_role_update
+api_router.include_router(
+    participant_role_update.router,
+    prefix="/events",
+    tags=["participant-role-update"]
 )
 
 from app.api.v1.endpoints import event_food
