@@ -264,7 +264,7 @@ api_router.include_router(
 from app.api.v1.endpoints import line_manager_recommendation
 api_router.include_router(
     line_manager_recommendation.router,
-    prefix="",
+    prefix="/line-manager-recommendation",
     tags=["line-manager-recommendation"]
 )
 
