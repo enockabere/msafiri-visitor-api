@@ -94,6 +94,17 @@ async def get_recommendation_by_participant(
 ):
     """Get line manager recommendation by participant ID"""
     
+    print(f"=== DEBUG: Fetching recommendation for participant ID: {participant_id} ===")
+    
+    # First check if any recommendations exist at all
+    all_recs = db.execute(
+        text("SELECT id, registration_id, line_manager_email, submitted_at FROM line_manager_recommendations ORDER BY created_at DESC")
+    ).fetchall()
+    
+    print(f"DEBUG: Total recommendations in database: {len(all_recs)}")
+    for rec in all_recs:
+        print(f"DEBUG: Rec ID {rec[0]}, Registration ID: {rec[1]}, Manager: {rec[2]}, Submitted: {rec[3]}")
+    
     result = db.execute(
         text("""
             SELECT id, line_manager_email, recommendation_text, submitted_at, created_at
@@ -105,9 +116,13 @@ async def get_recommendation_by_participant(
         {"participant_id": participant_id}
     ).fetchone()
     
+    print(f"DEBUG: Query result for participant {participant_id}: {result}")
+    
     if not result:
+        print(f"DEBUG: No recommendation found for participant {participant_id}")
         raise HTTPException(status_code=404, detail="No recommendation found for this participant")
     
+    print(f"DEBUG: Returning recommendation data: {result}")
     return {
         "id": result[0],
         "line_manager_email": result[1],
