@@ -87,6 +87,39 @@ async def submit_recommendation(
     
     return {"message": "Recommendation submitted successfully"}
 
+@router.get("/debug/all")
+async def debug_all_recommendations(db: Session = Depends(get_db)):
+    """DEBUG: Print all recommendations in database"""
+    
+    print("=== DEBUG: ALL RECOMMENDATIONS IN DATABASE ===")
+    
+    all_recs = db.execute(
+        text("""
+            SELECT id, registration_id, participant_name, participant_email, 
+                   line_manager_email, recommendation_text, submitted_at, created_at,
+                   recommendation_token, event_id
+            FROM line_manager_recommendations 
+            ORDER BY created_at DESC
+        """)
+    ).fetchall()
+    
+    print(f"DEBUG: Total recommendations: {len(all_recs)}")
+    
+    for i, rec in enumerate(all_recs, 1):
+        print(f"\nDEBUG: Recommendation #{i}:")
+        print(f"  ID: {rec[0]}")
+        print(f"  Registration ID: {rec[1]}")
+        print(f"  Participant Name: {rec[2]}")
+        print(f"  Participant Email: {rec[3]}")
+        print(f"  Line Manager Email: {rec[4]}")
+        print(f"  Recommendation Text: {rec[5][:100] if rec[5] else 'None'}...")
+        print(f"  Submitted At: {rec[6]}")
+        print(f"  Created At: {rec[7]}")
+        print(f"  Token: {rec[8][:10] if rec[8] else 'None'}...")
+        print(f"  Event ID: {rec[9]}")
+    
+    return {"total_recommendations": len(all_recs), "data": "Check server logs"}
+
 @router.get("/participant/{participant_id}")
 async def get_recommendation_by_participant(
     participant_id: int,
