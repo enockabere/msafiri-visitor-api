@@ -19,6 +19,7 @@ class EventBase(BaseModel):
     banner_image: Optional[str] = None
     duration_days: Optional[int] = None
     vendor_accommodation_id: Optional[int] = None
+    accommodation_setup_id: Optional[int] = None
 
 class EventCreate(EventBase):
     pass
@@ -38,6 +39,7 @@ class EventUpdate(BaseModel):
     banner_image: Optional[str] = None
     duration_days: Optional[int] = None
     vendor_accommodation_id: Optional[int] = None
+    accommodation_setup_id: Optional[int] = None
 
 class Event(EventBase):
     id: int

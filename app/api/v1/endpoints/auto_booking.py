@@ -157,13 +157,12 @@ def _auto_book_participant_internal(
     
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
-    # Get event and check for vendor event accommodation setup
+    # Get event with accommodation setup
     event_query = text("""
-        SELECT e.id, e.title, e.start_date, e.end_date,
-               vea.id as vendor_event_id, vea.vendor_accommodation_id,
-               vea.single_rooms, vea.double_rooms
+        SELECT e.id, e.title, e.start_date, e.end_date, e.vendor_accommodation_id,
+               e.accommodation_setup_id, vea.single_rooms, vea.double_rooms
         FROM events e 
-        LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
+        LEFT JOIN vendor_event_accommodations vea ON e.accommodation_setup_id = vea.id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
@@ -185,8 +184,8 @@ def _auto_book_participant_internal(
             detail="Event not found"
         )
     
-    if not event.vendor_event_id:
-        logger.info(f"DEBUG: No vendor_event_id found for event {event_id}")
+    if not event.accommodation_setup_id:
+        logger.info(f"DEBUG: No accommodation_setup_id found for event {event_id}")
         # Check if there are any vendor event accommodations for this event
         check_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
         all_setups = db.execute(check_query, {"event_id": event_id}).fetchall()
@@ -263,9 +262,9 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
     # Check single room availability in vendor event accommodation
     vendor_query = text("""
         SELECT single_rooms FROM vendor_event_accommodations 
-        WHERE id = :vendor_event_id AND single_rooms > 0
+        WHERE id = :accommodation_setup_id AND single_rooms > 0
     """)
-    vendor = db.execute(vendor_query, {"vendor_event_id": event.vendor_event_id}).fetchone()
+    vendor = db.execute(vendor_query, {"accommodation_setup_id": event.accommodation_setup_id}).fetchone()
     
     if not vendor:
         raise HTTPException(
@@ -295,8 +294,8 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
     db.execute(text("""
         UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms - 1 
-        WHERE id = :vendor_event_id
-    """), {"vendor_event_id": event.vendor_event_id})
+        WHERE id = :accommodation_setup_id
+    """), {"accommodation_setup_id": event.accommodation_setup_id})
     
     db.commit()
     return {"message": "Single room booked successfully", "allocation_id": allocation.id}
@@ -380,8 +379,8 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
     db.execute(text("""
         UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms + 1, double_rooms = double_rooms - 1
-        WHERE id = :vendor_event_id
-    """), {"vendor_event_id": event.vendor_event_id})
+        WHERE id = :accommodation_setup_id
+    """), {"accommodation_setup_id": event.accommodation_setup_id})
     
     print(f"DEBUG: Updated room counts: +1 single, -1 double")
     
@@ -402,9 +401,9 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     # Check single room availability
     vendor_query = text("""
         SELECT single_rooms FROM vendor_event_accommodations 
-        WHERE id = :vendor_event_id AND single_rooms > 0
+        WHERE id = :accommodation_setup_id AND single_rooms > 0
     """)
-    vendor = db.execute(vendor_query, {"vendor_event_id": event.vendor_event_id}).fetchone()
+    vendor = db.execute(vendor_query, {"accommodation_setup_id": event.accommodation_setup_id}).fetchone()
     
     if not vendor:
         raise HTTPException(
@@ -434,8 +433,8 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     db.execute(text("""
         UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms - 1 
-        WHERE id = :vendor_event_id
-    """), {"vendor_event_id": event.vendor_event_id})
+        WHERE id = :accommodation_setup_id
+    """), {"accommodation_setup_id": event.accommodation_setup_id})
     
     db.commit()
     return {
