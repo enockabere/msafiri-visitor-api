@@ -5,6 +5,9 @@ from app.db.database import get_db
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -57,10 +60,41 @@ async def confirm_attendance(
     if participant.status != "selected":
         raise HTTPException(status_code=400, detail="Only selected participants can confirm attendance")
     
-    # Update status to confirmed and mark invitation as accepted
+    # Update status to confirmed
     participant.status = "confirmed"
-    # participant.invitation_accepted = True
-    # participant.invitation_accepted_at = datetime.utcnow()
     db.commit()
     
-    return {"message": "Attendance confirmed successfully"}
+    # Trigger auto-booking for confirmed participant
+    try:
+        from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        from app.models.user import User
+        
+        # Create a mock user for auto-booking (system user)
+        class MockUser:
+            def __init__(self):
+                self.id = 1
+                self.tenant_id = None
+                self.email = "system@msf.org"
+        
+        mock_user = MockUser()
+        tenant_context = "system"
+        
+        booking_result = _auto_book_participant_internal(
+            event_id=participant.event_id,
+            participant_id=participant.id,
+            db=db,
+            current_user=mock_user,
+            tenant_context=tenant_context
+        )
+        
+        return {
+            "message": "Attendance confirmed successfully",
+            "auto_booking": booking_result
+        }
+        
+    except Exception as e:
+        print(f"Auto-booking failed for participant {participant_id}: {str(e)}")
+        return {
+            "message": "Attendance confirmed successfully",
+            "auto_booking_error": str(e)
+        }
