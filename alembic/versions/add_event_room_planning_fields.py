@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_event_room_planning'
-down_revision = None
+down_revision = 'd65a944eccd6'
 branch_labels = None
 depends_on = None
 
