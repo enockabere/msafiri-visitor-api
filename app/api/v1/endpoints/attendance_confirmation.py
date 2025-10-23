@@ -139,20 +139,20 @@ async def decline_attendance(
         for allocation in existing_allocations:
             logger.info(f"Cancelling allocation {allocation.id} for declined participant")
             
-            # Restore room counts
-            if allocation.vendor_accommodation_id:
+            # Restore room counts in vendor_event_accommodations
+            if allocation.vendor_accommodation_id and allocation.event_id:
                 if allocation.room_type == 'single':
                     db.execute(text("""
-                        UPDATE vendor_accommodations 
+                        UPDATE vendor_event_accommodations 
                         SET single_rooms = single_rooms + 1 
-                        WHERE id = :vendor_id
-                    """), {"vendor_id": allocation.vendor_accommodation_id})
+                        WHERE event_id = :event_id
+                    """), {"event_id": allocation.event_id})
                 elif allocation.room_type == 'double':
                     db.execute(text("""
-                        UPDATE vendor_accommodations 
+                        UPDATE vendor_event_accommodations 
                         SET double_rooms = double_rooms + 1 
-                        WHERE id = :vendor_id
-                    """), {"vendor_id": allocation.vendor_accommodation_id})
+                        WHERE event_id = :event_id
+                    """), {"event_id": allocation.event_id})
             
             allocation.status = "cancelled"
             allocation.cancelled_reason = "Participant declined attendance"
