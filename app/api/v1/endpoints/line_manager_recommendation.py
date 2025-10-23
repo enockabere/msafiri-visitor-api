@@ -13,7 +13,12 @@ router = APIRouter()
 class RecommendationSubmission(BaseModel):
     recommendation_text: str
 
-@router.get("/line-manager-recommendation/{token}")
+@router.get("/test")
+async def test_endpoint():
+    """Test endpoint to verify router is working"""
+    return {"message": "Line manager recommendation router is working", "timestamp": time.time()}
+
+@router.get("/{token}")
 async def get_recommendation_details(
     token: str,
     db: Session = Depends(get_db)
@@ -49,7 +54,7 @@ async def get_recommendation_details(
         "already_submitted": result[8] is not None
     }
 
-@router.post("/line-manager-recommendation/{token}")
+@router.post("/{token}")
 async def submit_recommendation(
     token: str,
     submission: RecommendationSubmission,
