@@ -767,13 +767,22 @@ def get_vendor_event_setups(
         # Calculate current occupants from actual allocations for this vendor and event
         current_occupants = 0
         if setup.event_id:
+            print(f"🏨 DEBUG: Calculating occupants for setup {setup.id}, event {setup.event_id}, vendor {setup.vendor_accommodation_id}")
+            
             # Count allocations for this specific vendor accommodation and event
-            current_occupants = db.query(AccommodationAllocation).filter(
+            allocations = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
                 AccommodationAllocation.accommodation_type == "vendor",
                 AccommodationAllocation.status.in_(["booked", "checked_in"]),
                 AccommodationAllocation.tenant_id == tenant_id
-            ).count()
+            ).all()
+            
+            print(f"🏨 DEBUG: Found {len(allocations)} vendor allocations for event {setup.event_id}")
+            for alloc in allocations:
+                print(f"🏨 DEBUG: Allocation {alloc.id}: guest={alloc.guest_name}, vendor_id={alloc.vendor_accommodation_id}, status={alloc.status}")
+            
+            current_occupants = len(allocations)
+            print(f"🏨 DEBUG: Final current_occupants: {current_occupants}")
             
             # Update the setup's current_occupants in the database
             setup.current_occupants = current_occupants
