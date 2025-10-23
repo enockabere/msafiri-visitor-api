@@ -769,7 +769,7 @@ def get_vendor_event_setups(
         if setup.event_id:
             current_occupants = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
-                AccommodationAllocation.vendor_accommodation_id == vendor_id,
+                AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
                 AccommodationAllocation.status.in_(["booked", "checked_in"]),
                 AccommodationAllocation.tenant_id == tenant_id
             ).count()
