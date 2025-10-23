@@ -157,18 +157,27 @@ def _auto_book_participant_internal(
     
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
-    # Get event and linked vendor accommodation
+    # Get event and check for vendor event accommodation setup
     event_query = text("""
-        SELECT e.id, e.title, e.vendor_accommodation_id, e.start_date, e.end_date
+        SELECT e.id, e.title, e.start_date, e.end_date,
+               vea.id as vendor_event_id, vea.vendor_accommodation_id,
+               vea.single_rooms, vea.double_rooms
         FROM events e 
+        LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
     
-    if not event or not event.vendor_accommodation_id:
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    if not event.vendor_event_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event not found or no vendor accommodation linked"
+            detail="No vendor accommodation setup found for this event"
         )
     
     # Get participant details
@@ -234,12 +243,12 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
     
-    # Check single room availability
+    # Check single room availability in vendor event accommodation
     vendor_query = text("""
-        SELECT single_rooms FROM vendor_accommodations 
-        WHERE id = :vendor_id AND single_rooms > 0
+        SELECT single_rooms FROM vendor_event_accommodations 
+        WHERE id = :vendor_event_id AND single_rooms > 0
     """)
-    vendor = db.execute(vendor_query, {"vendor_id": event.vendor_accommodation_id}).fetchone()
+    vendor = db.execute(vendor_query, {"vendor_event_id": event.vendor_event_id}).fetchone()
     
     if not vendor:
         raise HTTPException(
@@ -265,12 +274,12 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
     
-    # Update room count
+    # Update room count in vendor event accommodation
     db.execute(text("""
-        UPDATE vendor_accommodations 
+        UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms - 1 
-        WHERE id = :vendor_id
-    """), {"vendor_id": event.vendor_accommodation_id})
+        WHERE id = :vendor_event_id
+    """), {"vendor_event_id": event.vendor_event_id})
     
     db.commit()
     return {"message": "Single room booked successfully", "allocation_id": allocation.id}
@@ -288,7 +297,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
         FROM accommodation_allocations aa
         JOIN event_participants ep ON aa.participant_id = ep.id
         JOIN public_registrations pr ON ep.id = pr.participant_id
-        WHERE aa.vendor_accommodation_id = :vendor_id 
+        WHERE aa.event_id = :event_id
         AND aa.room_type = 'single' 
         AND aa.status = 'booked'
         AND ep.role = 'visitor'
@@ -301,7 +310,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     print(f"DEBUG: Searching for gender values: {gender_values}")
     
     unmatched = db.execute(unmatched_query, {
-        "vendor_id": event.vendor_accommodation_id,
+        "event_id": event.id,
         "gender_values": tuple(gender_values)
     }).fetchone()
     
@@ -352,10 +361,10 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
     
     # Update room counts (return 1 single, take 1 double)
     db.execute(text("""
-        UPDATE vendor_accommodations 
+        UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms + 1, double_rooms = double_rooms - 1
-        WHERE id = :vendor_id
-    """), {"vendor_id": event.vendor_accommodation_id})
+        WHERE id = :vendor_event_id
+    """), {"vendor_event_id": event.vendor_event_id})
     
     print(f"DEBUG: Updated room counts: +1 single, -1 double")
     
@@ -375,10 +384,10 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     
     # Check single room availability
     vendor_query = text("""
-        SELECT single_rooms FROM vendor_accommodations 
-        WHERE id = :vendor_id AND single_rooms > 0
+        SELECT single_rooms FROM vendor_event_accommodations 
+        WHERE id = :vendor_event_id AND single_rooms > 0
     """)
-    vendor = db.execute(vendor_query, {"vendor_id": event.vendor_accommodation_id}).fetchone()
+    vendor = db.execute(vendor_query, {"vendor_event_id": event.vendor_event_id}).fetchone()
     
     if not vendor:
         raise HTTPException(
@@ -406,10 +415,10 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     
     # Update room count
     db.execute(text("""
-        UPDATE vendor_accommodations 
+        UPDATE vendor_event_accommodations 
         SET single_rooms = single_rooms - 1 
-        WHERE id = :vendor_id
-    """), {"vendor_id": event.vendor_accommodation_id})
+        WHERE id = :vendor_event_id
+    """), {"vendor_event_id": event.vendor_event_id})
     
     db.commit()
     return {
