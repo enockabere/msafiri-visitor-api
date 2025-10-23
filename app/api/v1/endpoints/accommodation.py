@@ -764,15 +764,20 @@ def get_vendor_event_setups(
     # Build response with event details and calculate actual occupants
     result = []
     for setup in setups:
-        # Calculate current occupants from actual allocations
+        # Calculate current occupants from actual allocations for this vendor and event
         current_occupants = 0
         if setup.event_id:
+            # Count allocations for this specific vendor accommodation and event
             current_occupants = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
-                AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
+                AccommodationAllocation.accommodation_type == "vendor",
                 AccommodationAllocation.status.in_(["booked", "checked_in"]),
                 AccommodationAllocation.tenant_id == tenant_id
             ).count()
+            
+            # Update the setup's current_occupants in the database
+            setup.current_occupants = current_occupants
+            db.commit()
         
         setup_data = {
             "id": setup.id,
