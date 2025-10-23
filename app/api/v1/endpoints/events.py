@@ -91,10 +91,10 @@ def get_my_selected_events(
         from app.models.event_participant import EventParticipant
         from app.models.event import Event
         
-        # Get events where user is selected/approved/confirmed
+        # Get events where user is selected/approved/confirmed (exclude declined)
         selected_statuses = ['selected', 'approved', 'confirmed', 'checked_in']
         
-        # Query to get events through participation
+        # Query to get events through participation (excluding declined)
         events_query = db.query(Event).join(
             EventParticipant, Event.id == EventParticipant.event_id
         ).filter(
@@ -104,7 +104,7 @@ def get_my_selected_events(
         
         events = events_query.offset(skip).limit(limit).all()
         
-        logger.info(f"📊 Found {len(events)} events for user {current_user.email}")
+        logger.info(f"📊 Found {len(events)} events for user {current_user.email} (declined events excluded)")
         logger.info(f"🎯 === MY EVENTS REQUEST END ===")
         
         return events
@@ -968,3 +968,73 @@ def upload_event_document(
         "message": f"{document_type.title()} uploaded successfully",
         "file_path": f"mock_{document_type}_{participation.id}.jpg"
     }
+
+@router.get("/test/participant-statuses")
+def test_get_participant_statuses(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Test endpoint to see all participant statuses for current user"""
+    from app.models.event_participant import EventParticipant
+    from app.models.event import Event
+    
+    # Get all participations for current user
+    participations = db.query(EventParticipant).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        EventParticipant.email == current_user.email
+    ).all()
+    
+    result = []
+    for p in participations:
+        result.append({
+            "event_id": p.event_id,
+            "event_title": p.event.title if p.event else "Unknown",
+            "participant_id": p.id,
+            "status": p.status,
+            "decline_reason": getattr(p, 'decline_reason', None),
+            "declined_at": getattr(p, 'declined_at', None)
+        })
+    
+    return {
+        "user_email": current_user.email,
+        "total_participations": len(result),
+        "participations": result
+    }
+
+@router.post("/test/simulate-selection/{event_id}")
+def test_simulate_selection(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Test endpoint to simulate being selected for an event"""
+    from app.models.event_participant import EventParticipant
+    
+    # Check if participation exists
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if participation:
+        # Update existing to selected
+        participation.status = "selected"
+        db.commit()
+        return {"message": f"Updated existing participation to selected", "participant_id": participation.id}
+    else:
+        # Create new participation as selected
+        new_participation = EventParticipant(
+            event_id=event_id,
+            full_name=current_user.full_name,
+            email=current_user.email,
+            role='visitor',
+            status='selected',
+            invited_by='test_admin'
+        )
+        db.add(new_participation)
+        db.commit()
+        db.refresh(new_participation)
+        return {"message": f"Created new participation as selected", "participant_id": new_participation.id}

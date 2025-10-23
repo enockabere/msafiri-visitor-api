@@ -55,6 +55,10 @@ class EventParticipant(BaseModel):
     # invitation_accepted = Column(Boolean, default=False)
     # invitation_accepted_at = Column(DateTime, nullable=True)
     
+    # Decline tracking fields
+    decline_reason = Column(Text, nullable=True)
+    declined_at = Column(DateTime, nullable=True)
+    
     # Relationships
     event = relationship("Event", back_populates="participants")
     # user = relationship("User", foreign_keys=[user_id])
