@@ -752,7 +752,7 @@ def get_vendor_event_setups(
     """Get all event setups for a vendor accommodation with event details"""
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
-    from app.models.guesthouse import VendorEventAccommodation
+    from app.models.guesthouse import VendorEventAccommodation, AccommodationAllocation
     from app.models.event import Event
     
     setups = db.query(VendorEventAccommodation).filter(
@@ -761,9 +761,19 @@ def get_vendor_event_setups(
         VendorEventAccommodation.is_active == True
     ).all()
     
-    # Build response with event details
+    # Build response with event details and calculate actual occupants
     result = []
     for setup in setups:
+        # Calculate current occupants from actual allocations
+        current_occupants = 0
+        if setup.event_id:
+            current_occupants = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.event_id == setup.event_id,
+                AccommodationAllocation.vendor_accommodation_id == vendor_id,
+                AccommodationAllocation.status.in_(["booked", "checked_in"]),
+                AccommodationAllocation.tenant_id == tenant_id
+            ).count()
+        
         setup_data = {
             "id": setup.id,
             "event_id": setup.event_id,
@@ -771,7 +781,7 @@ def get_vendor_event_setups(
             "single_rooms": setup.single_rooms,
             "double_rooms": setup.double_rooms,
             "total_capacity": setup.total_capacity,
-            "current_occupants": setup.current_occupants,
+            "current_occupants": current_occupants,
             "event": None
         }
         

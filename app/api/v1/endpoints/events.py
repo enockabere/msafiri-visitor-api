@@ -1122,8 +1122,7 @@ def decline_event_attendance(
                         WHERE event_id = :event_id
                     """), {"event_id": allocation.event_id})
             
-            allocation.status = "cancelled"
-            allocation.cancelled_reason = "Participant declined attendance"
+            db.delete(allocation)
     
     except Exception as e:
         logger.error(f"Error cancelling accommodations: {str(e)}")
