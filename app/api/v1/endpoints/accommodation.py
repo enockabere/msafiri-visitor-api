@@ -777,19 +777,25 @@ def get_vendor_event_setups(
         if setup.event_id:
             print(f"🏨 DEBUG: Counting allocations for setup {setup.id}, event {setup.event_id}, vendor {setup.vendor_accommodation_id}")
             # Count allocations for this specific vendor accommodation and event
-            current_occupants = db.query(AccommodationAllocation).filter(
+            allocations_query = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
                 AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
                 AccommodationAllocation.accommodation_type == "vendor",
                 AccommodationAllocation.status.in_(["booked", "checked_in"]),
                 AccommodationAllocation.tenant_id == tenant_id
-            ).count()
+            )
+            allocations_list = allocations_query.all()
+            current_occupants = len(allocations_list)
             print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id}")
+            for alloc in allocations_list:
+                print(f"🏨 DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
             
             # Update the setup's current_occupants in the database
             setup.current_occupants = current_occupants
             db.commit()
             print(f"🏨 DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
+        else:
+            print(f"🏨 DEBUG: Setup {setup.id} already has event_id {setup.event_id}, using existing count")
         else:
             print(f"🏨 DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
             print(f"🏨 DEBUG: Setup {setup.id} event_name: {setup.event_name}")
@@ -800,14 +806,18 @@ def get_vendor_event_setups(
                 if event:
                     print(f"🏨 DEBUG: Found event {event.id} for setup {setup.id} by name '{setup.event_name}'")
                     # Count allocations using the found event_id
-                    current_occupants = db.query(AccommodationAllocation).filter(
+                    allocations_query = db.query(AccommodationAllocation).filter(
                         AccommodationAllocation.event_id == event.id,
                         AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
                         AccommodationAllocation.accommodation_type == "vendor",
                         AccommodationAllocation.status.in_(["booked", "checked_in"]),
                         AccommodationAllocation.tenant_id == tenant_id
-                    ).count()
+                    )
+                    allocations_list = allocations_query.all()
+                    current_occupants = len(allocations_list)
                     print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id} by event name")
+                    for alloc in allocations_list:
+                        print(f"🏨 DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
                     
                     # Update the setup with the correct event_id and occupants
                     setup.event_id = event.id
@@ -817,14 +827,51 @@ def get_vendor_event_setups(
                 else:
                     print(f"🏨 DEBUG: No event found with name '{setup.event_name}' for setup {setup.id}")
         
+        # Calculate room usage instead of person occupancy
+        single_rooms_used = 0
+        double_rooms_used = 0
+        
+        if setup.event_id:
+            # Count single room allocations
+            single_rooms_used = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.event_id == setup.event_id,
+                AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
+                AccommodationAllocation.accommodation_type == "vendor",
+                AccommodationAllocation.room_type == "single",
+                AccommodationAllocation.status.in_(["booked", "checked_in"]),
+                AccommodationAllocation.tenant_id == tenant_id
+            ).count()
+            
+            # Count double room allocations (2 people per room)
+            double_allocations = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.event_id == setup.event_id,
+                AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
+                AccommodationAllocation.accommodation_type == "vendor",
+                AccommodationAllocation.room_type == "double",
+                AccommodationAllocation.status.in_(["booked", "checked_in"]),
+                AccommodationAllocation.tenant_id == tenant_id
+            ).count()
+            double_rooms_used = (double_allocations + 1) // 2  # Round up for partial room usage
+            
+            print(f"🏨 DEBUG: Setup {setup.id} room usage: {single_rooms_used}S used, {double_rooms_used}D used")
+        
+        # Calculate remaining capacity
+        remaining_single = setup.single_rooms - single_rooms_used
+        remaining_double = setup.double_rooms - double_rooms_used
+        remaining_capacity = remaining_single + (remaining_double * 2)
+        
         setup_data = {
             "id": setup.id,
             "event_id": setup.event_id,
             "event_name": setup.event_name,
-            "single_rooms": setup.single_rooms,
-            "double_rooms": setup.double_rooms,
-            "total_capacity": setup.total_capacity,
+            "single_rooms": remaining_single,
+            "double_rooms": remaining_double,
+            "total_capacity": remaining_capacity,
             "current_occupants": current_occupants,
+            "rooms_used": {
+                "single_rooms_used": single_rooms_used,
+                "double_rooms_used": double_rooms_used
+            },
             "event": None
         }
         
