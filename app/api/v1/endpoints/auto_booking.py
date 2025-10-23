@@ -168,22 +168,29 @@ def _auto_book_participant_internal(
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
     
-    print(f"DEBUG: Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
-    print(f"DEBUG: Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"DEBUG: Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
+    logger.info(f"DEBUG: Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
+    
+    # Show all vendor accommodation setups for debugging
+    all_setups_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
+    all_setups = db.execute(all_setups_query, {"event_id": event_id}).fetchall()
+    logger.info(f"DEBUG: All vendor accommodation setups for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
     
     if not event:
-        print(f"DEBUG: No event found for event_id {event_id} and tenant_id {tenant_id}")
+        logger.info(f"DEBUG: No event found for event_id {event_id} and tenant_id {tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
     
     if not event.vendor_event_id:
-        print(f"DEBUG: No vendor_event_id found for event {event_id}")
+        logger.info(f"DEBUG: No vendor_event_id found for event {event_id}")
         # Check if there are any vendor event accommodations for this event
         check_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
         all_setups = db.execute(check_query, {"event_id": event_id}).fetchall()
-        print(f"DEBUG: All vendor event accommodations for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
+        logger.info(f"DEBUG: All vendor event accommodations for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
         
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -299,7 +306,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
     
-    print(f"DEBUG: Looking for match for {participant.full_name} (gender: {gender})")
+    logger.info(f"DEBUG: Looking for match for {participant.full_name} (gender: {gender})")
     
     # Look for unmatched visitor of same gender in single rooms (exclude facilitators/organizers)
     unmatched_query = text("""
@@ -317,7 +324,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     """)
     
     gender_values = (['man', 'male'] if gender == 'male' else ['woman', 'female'])
-    print(f"DEBUG: Searching for gender values: {gender_values}")
+    logger.info(f"DEBUG: Searching for gender values: {gender_values}")
     
     unmatched = db.execute(unmatched_query, {
         "event_id": event.id,
@@ -325,11 +332,11 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     }).fetchone()
     
     if unmatched:
-        print(f"DEBUG: Found visitor match: {unmatched.full_name} (allocation_id: {unmatched.id})")
+        logger.info(f"DEBUG: Found visitor match: {unmatched.full_name} (allocation_id: {unmatched.id})")
         # Merge with existing single room allocation to create double room
         return _merge_to_double_room(db, event, participant, unmatched, tenant_id, user_id)
     else:
-        print(f"DEBUG: No visitor match found for {participant.full_name}, booking single room")
+        logger.info(f"DEBUG: No visitor match found for {participant.full_name}, booking single room")
         # No match found, book single room temporarily
         return _book_single_room_temp(db, event, participant, tenant_id, user_id)
 
