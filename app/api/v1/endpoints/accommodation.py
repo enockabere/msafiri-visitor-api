@@ -759,18 +759,23 @@ def get_vendor_event_setups(
     from app.models.guesthouse import VendorEventAccommodation, AccommodationAllocation
     from app.models.event import Event
     
+    print(f"🏨 DEBUG: Querying setups for vendor {vendor_id}, tenant {tenant_id}")
     setups = db.query(VendorEventAccommodation).filter(
         VendorEventAccommodation.vendor_accommodation_id == vendor_id,
         VendorEventAccommodation.tenant_id == tenant_id,
         VendorEventAccommodation.is_active == True
     ).all()
+    print(f"🏨 DEBUG: Found {len(setups)} setups for vendor {vendor_id}")
     
     # Build response with event details and calculate actual occupants
     result = []
+    print(f"🏨 DEBUG: Processing {len(setups)} setups...")
     for setup in setups:
+        print(f"🏨 DEBUG: Processing setup {setup.id} for event {setup.event_id}")
         # Calculate current occupants from actual allocations for this vendor and event
         current_occupants = 0
         if setup.event_id:
+            print(f"🏨 DEBUG: Counting allocations for setup {setup.id}, event {setup.event_id}, vendor {setup.vendor_accommodation_id}")
             # Count allocations for this specific vendor accommodation and event
             current_occupants = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
@@ -779,10 +784,14 @@ def get_vendor_event_setups(
                 AccommodationAllocation.status.in_(["booked", "checked_in"]),
                 AccommodationAllocation.tenant_id == tenant_id
             ).count()
+            print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id}")
             
             # Update the setup's current_occupants in the database
             setup.current_occupants = current_occupants
             db.commit()
+            print(f"🏨 DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
+        else:
+            print(f"🏨 DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
         
         setup_data = {
             "id": setup.id,
@@ -806,7 +815,9 @@ def get_vendor_event_setups(
                 }
         
         result.append(setup_data)
+        print(f"🏨 DEBUG: Added setup {setup.id} to result with {current_occupants} occupants")
     
+    print(f"🏨 DEBUG: Returning {len(result)} setups for vendor {vendor_id}")
     return result
 
 # Dashboard endpoints
