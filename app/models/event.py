@@ -33,7 +33,11 @@ class Event(BaseModel):
     
     # Venue
     vendor_accommodation_id = Column(Integer, ForeignKey("vendor_accommodations.id"), nullable=True)
-    accommodation_setup_id = Column(Integer, ForeignKey("vendor_event_accommodations.id"), nullable=True)
+    
+    # Accommodation Planning
+    expected_participants = Column(Integer)
+    single_rooms = Column(Integer)
+    double_rooms = Column(Integer)
     
     # Metadata
     tenant_id = Column(Integer, nullable=False)
