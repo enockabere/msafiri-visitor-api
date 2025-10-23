@@ -427,12 +427,14 @@ def get_vendor_accommodations(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all vendor accommodations for tenant"""
-    print(f"DEBUG: get_vendor_accommodations - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"🏨 DEBUG: ===== GET VENDOR ACCOMMODATIONS ENDPOINT CALLED =====")
+    print(f"🏨 DEBUG: get_vendor_accommodations - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    print(f"DEBUG: Resolved tenant_id: {tenant_id}")
+    print(f"🏨 DEBUG: Resolved tenant_id: {tenant_id}")
     
     vendors = crud.vendor_accommodation.get_by_tenant(db, tenant_id=tenant_id)
-    print(f"DEBUG: Found {len(vendors)} vendor accommodations for tenant {tenant_id}")
+    print(f"🏨 DEBUG: Found {len(vendors)} vendor accommodations for tenant {tenant_id}")
+    print(f"🏨 DEBUG: ===== VENDOR ACCOMMODATIONS ENDPOINT COMPLETE =====")
     return vendors
 
 @router.post("/vendor-accommodations", response_model=schemas.VendorAccommodation)
@@ -750,6 +752,8 @@ def get_vendor_event_setups(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all event setups for a vendor accommodation with event details"""
+    print(f"🏨 DEBUG: ===== GET VENDOR EVENT SETUPS ENDPOINT CALLED =====")
+    print(f"🏨 DEBUG: Vendor ID: {vendor_id}, Tenant: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
     from app.models.guesthouse import VendorEventAccommodation, AccommodationAllocation
@@ -845,7 +849,10 @@ def get_allocations(
 ) -> Any:
     """Get all allocations for tenant with complete related data"""
     try:
-        print(f"DEBUG: Starting get_allocations for tenant_context: {tenant_context}")
+        print(f"🏨 DEBUG: ===== GET ALLOCATIONS ENDPOINT CALLED =====")
+        print(f"🏨 DEBUG: Starting get_allocations for tenant_context: {tenant_context}")
+        print(f"🏨 DEBUG: Event ID filter: {event_id}")
+        print(f"🏨 DEBUG: User: {current_user.email}")
         
         from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
         from app.models.event import Event
@@ -853,7 +860,7 @@ def get_allocations(
         from app.models.user import User
         
         tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-        print(f"DEBUG: Resolved tenant_id: {tenant_id}")
+        print(f"🏨 DEBUG: Resolved tenant_id: {tenant_id}")
         
         query = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.tenant_id == tenant_id
@@ -864,7 +871,8 @@ def get_allocations(
             print(f"DEBUG: Filtering by event_id: {event_id}")
         
         allocations = query.all()
-        print(f"DEBUG: Found {len(allocations)} allocations")
+        print(f"🏨 DEBUG: Found {len(allocations)} allocations")
+        print(f"🏨 DEBUG: ===== ALLOCATIONS ENDPOINT COMPLETE =====")
         
         result = []
         for allocation in allocations:
@@ -1008,11 +1016,11 @@ def get_allocations(
             result.append(allocation_data)
             print(f"DEBUG: Completed processing allocation {allocation.id}")
         
-        print(f"DEBUG: Returning {len(result)} processed allocations")
+        print(f"🏨 DEBUG: Returning {len(result)} processed allocations")
         return result
         
     except Exception as e:
-        print(f"DEBUG: Error in get_allocations: {str(e)}")
+        print(f"🏨 DEBUG: Error in get_allocations: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
