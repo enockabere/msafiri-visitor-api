@@ -42,6 +42,14 @@ class BroadcastRequest(BaseModel):
     send_email: bool = False
     action_url: Optional[str] = None
 
+class RegistrationEmailRequest(BaseModel):
+    to_email: str
+    cc_emails: Optional[List[str]] = []
+    subject: str
+    message: str
+    registration_url: str
+    event_id: str
+
 @router.get("/", response_model=List[schemas.Notification])
 def get_my_notifications(
     db: Session = Depends(get_db),
@@ -492,6 +500,100 @@ def register_fcm_token(
     return {"message": "FCM token registered successfully"}
 
 
+
+@router.post("/send-registration-email")
+def send_registration_email(
+    *,
+    email_data: RegistrationEmailRequest,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Send registration email with clickable link"""
+    try:
+        from app.core.email_service import email_service
+        
+        # Create HTML content with clickable link
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>{email_data.subject}</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .logo {{ color: #dc2626; font-size: 24px; font-weight: bold; }}
+                .message {{ color: #4b5563; line-height: 1.6; margin: 20px 0; }}
+                .button {{ display: inline-block; background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">🌍 MSF Event Registration</div>
+                </div>
+                
+                <div class="message">
+                    {email_data.message}
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="{email_data.registration_url}" class="button">Register Now</a>
+                </div>
+                
+                <div class="message">
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p><a href="{email_data.registration_url}" style="color: #dc2626;">{email_data.registration_url}</a></p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated message from MSF Event Registration System</p>
+                    <p>Médecins Sans Frontières (MSF)</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Create plain text version
+        text_content = f"""
+        {email_data.message}
+        
+        Registration Link: {email_data.registration_url}
+        
+        ---
+        This is an automated message from MSF Event Registration System
+        Médecins Sans Frontières (MSF)
+        """
+        
+        # Prepare recipient list
+        recipients = [email_data.to_email]
+        if email_data.cc_emails:
+            recipients.extend(email_data.cc_emails)
+        
+        # Send email
+        success = email_service.send_email(
+            to_emails=recipients,
+            subject=email_data.subject,
+            html_content=html_content,
+            text_content=text_content
+        )
+        
+        if success:
+            return {"message": "Registration email sent successfully"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send email"
+            )
+            
+    except Exception as e:
+        print(f"Error sending registration email: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to send registration email: {str(e)}"
+        )
 
 @router.post("/send-to-super-admins")
 def send_notification_to_super_admins(
