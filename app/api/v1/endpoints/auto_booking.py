@@ -168,13 +168,23 @@ def _auto_book_participant_internal(
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
     
+    print(f"DEBUG: Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
+    print(f"DEBUG: Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
+    
     if not event:
+        print(f"DEBUG: No event found for event_id {event_id} and tenant_id {tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
     
     if not event.vendor_event_id:
+        print(f"DEBUG: No vendor_event_id found for event {event_id}")
+        # Check if there are any vendor event accommodations for this event
+        check_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
+        all_setups = db.execute(check_query, {"event_id": event_id}).fetchall()
+        print(f"DEBUG: All vendor event accommodations for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No vendor accommodation setup found for this event"
