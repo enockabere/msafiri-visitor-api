@@ -320,9 +320,10 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
         WHERE aa.event_id = :event_id
         AND aa.room_type = 'single' 
         AND aa.status = 'booked'
-        AND ep.role = 'visitor'
+        AND ep.role NOT IN ('facilitator', 'organizer')
         AND LOWER(pr.gender_identity) IN :gender_values
-        ORDER BY aa.created_at DESC
+        AND aa.participant_id != :current_participant_id
+        ORDER BY aa.created_at ASC
         LIMIT 1
     """)
     
@@ -331,7 +332,8 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     
     unmatched = db.execute(unmatched_query, {
         "event_id": event.id,
-        "gender_values": tuple(gender_values)
+        "gender_values": tuple(gender_values),
+        "current_participant_id": participant.id
     }).fetchone()
     
     if unmatched:

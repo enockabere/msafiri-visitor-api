@@ -811,17 +811,17 @@ def confirm_event_attendance(
         event_tenant_id = event.tenant_id
         logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
         
-        # Cancel all existing bookings for this event first
+        # Delete all existing bookings for this event first to prevent duplicates
         from app.models.guesthouse import AccommodationAllocation
         from sqlalchemy import text
         
-        logger.info(f"🏨 Cancelling existing bookings for event {event_id} to re-optimize")
+        logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize")
         existing_bookings = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.event_id == event_id,
             AccommodationAllocation.status.in_(["booked", "checked_in"])
         ).all()
         
-        # Restore room counts and cancel bookings
+        # Restore room counts and delete bookings
         for booking in existing_bookings:
             if booking.room_type == 'single':
                 db.execute(text("""
@@ -836,8 +836,7 @@ def confirm_event_attendance(
                     WHERE id = :accommodation_setup_id
                 """), {"accommodation_setup_id": event.accommodation_setup_id})
             
-            booking.status = "cancelled"
-            booking.cancelled_reason = "Re-optimizing room assignments"
+            db.delete(booking)
         
         db.commit()
         
@@ -916,17 +915,17 @@ def admin_confirm_participant(
         event_tenant_id = event.tenant_id
         logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
         
-        # Cancel all existing bookings for this event first
+        # Delete all existing bookings for this event first to prevent duplicates
         from app.models.guesthouse import AccommodationAllocation
         from sqlalchemy import text
         
-        logger.info(f"🏨 Cancelling existing bookings for event {event_id} to re-optimize")
+        logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize")
         existing_bookings = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.event_id == event_id,
             AccommodationAllocation.status.in_(["booked", "checked_in"])
         ).all()
         
-        # Restore room counts and cancel bookings
+        # Restore room counts and delete bookings
         for booking in existing_bookings:
             if booking.room_type == 'single':
                 db.execute(text("""
@@ -941,8 +940,7 @@ def admin_confirm_participant(
                     WHERE id = :accommodation_setup_id
                 """), {"accommodation_setup_id": event.accommodation_setup_id})
             
-            booking.status = "cancelled"
-            booking.cancelled_reason = "Re-optimizing room assignments"
+            db.delete(booking)
         
         db.commit()
         
@@ -1143,14 +1141,14 @@ def decline_event_attendance(
             event_tenant_id = event.tenant_id
             logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking after decline")
             
-            # Cancel all existing bookings for this event first
-            logger.info(f"🏨 Cancelling existing bookings for event {event_id} to re-optimize after decline")
+            # Delete all existing bookings for this event first to prevent duplicates
+            logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize after decline")
             remaining_bookings = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == event_id,
                 AccommodationAllocation.status.in_(["booked", "checked_in"])
             ).all()
             
-            # Restore room counts and cancel bookings
+            # Restore room counts and delete bookings
             for booking in remaining_bookings:
                 if booking.room_type == 'single':
                     db.execute(text("""
@@ -1165,8 +1163,7 @@ def decline_event_attendance(
                         WHERE id = :accommodation_setup_id
                     """), {"accommodation_setup_id": event.accommodation_setup_id})
                 
-                booking.status = "cancelled"
-                booking.cancelled_reason = "Re-optimizing after participant decline"
+                db.delete(booking)
             
             db.commit()
             
