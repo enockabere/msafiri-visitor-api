@@ -792,6 +792,30 @@ def get_vendor_event_setups(
             print(f"🏨 DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
         else:
             print(f"🏨 DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
+            print(f"🏨 DEBUG: Setup {setup.id} event_name: {setup.event_name}")
+            # Try to find allocations by event name if no event_id
+            if setup.event_name:
+                # Find event by name
+                event = db.query(Event).filter(Event.title == setup.event_name).first()
+                if event:
+                    print(f"🏨 DEBUG: Found event {event.id} for setup {setup.id} by name '{setup.event_name}'")
+                    # Count allocations using the found event_id
+                    current_occupants = db.query(AccommodationAllocation).filter(
+                        AccommodationAllocation.event_id == event.id,
+                        AccommodationAllocation.vendor_accommodation_id == setup.vendor_accommodation_id,
+                        AccommodationAllocation.accommodation_type == "vendor",
+                        AccommodationAllocation.status.in_(["booked", "checked_in"]),
+                        AccommodationAllocation.tenant_id == tenant_id
+                    ).count()
+                    print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id} by event name")
+                    
+                    # Update the setup with the correct event_id and occupants
+                    setup.event_id = event.id
+                    setup.current_occupants = current_occupants
+                    db.commit()
+                    print(f"🏨 DEBUG: Updated setup {setup.id} with event_id {event.id} and {current_occupants} occupants")
+                else:
+                    print(f"🏨 DEBUG: No event found with name '{setup.event_name}' for setup {setup.id}")
         
         setup_data = {
             "id": setup.id,
