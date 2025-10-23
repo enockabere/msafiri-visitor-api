@@ -118,6 +118,7 @@ async def get_event_registrations(
     SELECT 
         ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
         ep.country, ep.position, ep.project, ep.gender, ep.participant_role,
+        ep.decline_reason, ep.declined_at,
         pr.first_name, pr.last_name, pr.oc, pr.contract_status, pr.contract_type,
         pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
         pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
@@ -191,7 +192,9 @@ async def get_event_registrations(
                 "travel_requirements_confirm": "[REDACTED]",
                 "travelling_internationally": "[REDACTED]",
                 "accommodation_type": "[REDACTED]",
-                "daily_meals": "[REDACTED]"
+                "daily_meals": "[REDACTED]",
+                "decline_reason": "[REDACTED]",
+                "declined_at": "[REDACTED]"
             })
         else:
             result.append({
@@ -234,7 +237,9 @@ async def get_event_registrations(
                 "travel_requirements_confirm": p.travel_requirements_confirm,
                 "travelling_internationally": p.travelling_internationally,
                 "accommodation_type": p.accommodation_type,
-                "daily_meals": p.daily_meals
+                "daily_meals": p.daily_meals,
+                "decline_reason": p.decline_reason,
+                "declined_at": p.declined_at.isoformat() if p.declined_at else None
             })
     
     return result
@@ -259,6 +264,7 @@ async def get_participant_details(
                     ep.created_at, ep.updated_at, ep.country, ep.position, ep.project, 
                     ep.gender, ep.eta, ep.requires_eta, ep.passport_document, ep.ticket_document,
                     ep.dietary_requirements, ep.accommodation_type, ep.participant_name, ep.participant_email,
+                    ep.decline_reason, ep.declined_at,
                     pr.travelling_internationally, pr.accommodation_needs, pr.daily_meals,
                     pr.certificate_name, pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
                     pr.phone_number, pr.accommodation_type as pr_accommodation_type
@@ -346,7 +352,9 @@ async def get_participant_details(
             "daily_meals": result.daily_meals if result.daily_meals and result.daily_meals.strip() else None,
             "certificate_name": result.certificate_name if result.certificate_name and result.certificate_name.strip() else None,
             "code_of_conduct_confirm": result.code_of_conduct_confirm if result.code_of_conduct_confirm and result.code_of_conduct_confirm.strip() else None,
-            "travel_requirements_confirm": result.travel_requirements_confirm if result.travel_requirements_confirm and result.travel_requirements_confirm.strip() else None
+            "travel_requirements_confirm": result.travel_requirements_confirm if result.travel_requirements_confirm and result.travel_requirements_confirm.strip() else None,
+            "decline_reason": result.decline_reason,
+            "declined_at": result.declined_at.isoformat() if result.declined_at else None
         }
         
         print(f"🔥 BASIC DEBUG: Final response data:")
