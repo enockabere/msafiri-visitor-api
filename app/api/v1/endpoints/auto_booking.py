@@ -45,18 +45,20 @@ def auto_book_all_participants(
     
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
-    # Get event and vendor accommodation
+    # Get event with accommodation setup
     event_query = text("""
-        SELECT e.id, e.title, e.vendor_accommodation_id, e.start_date, e.end_date
+        SELECT e.id, e.title, e.vendor_accommodation_id, e.accommodation_setup_id, e.start_date, e.end_date,
+               vea.single_rooms, vea.double_rooms
         FROM events e 
+        LEFT JOIN vendor_event_accommodations vea ON e.accommodation_setup_id = vea.id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
     
-    if not event or not event.vendor_accommodation_id:
+    if not event or not event.accommodation_setup_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event not found or no vendor accommodation linked"
+            detail="Event not found or no accommodation setup linked"
         )
     
     # Get all confirmed participants with gender info
