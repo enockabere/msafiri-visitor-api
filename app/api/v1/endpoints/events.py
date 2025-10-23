@@ -825,17 +825,29 @@ def confirm_event_attendance(
     # Trigger automatic accommodation booking
     try:
         from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        from app import crud
         
-        # Get tenant context for auto booking
+        # Get tenant ID for auto booking
         tenant_context = current_user.tenant_id or "default"
         
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id}")
+        # Convert tenant slug to tenant ID
+        if tenant_context and not tenant_context.isdigit():
+            tenant_obj = crud.tenant.get_by_slug(db, slug=tenant_context)
+            tenant_id = tenant_obj.id if tenant_obj else None
+        else:
+            tenant_id = int(tenant_context) if tenant_context and tenant_context.isdigit() else None
+        
+        if not tenant_id:
+            logger.warning(f"⚠️ Could not determine tenant ID from context: {tenant_context}")
+            raise Exception("Could not determine tenant ID")
+        
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with tenant_id {tenant_id}")
         booking_result = _auto_book_participant_internal(
             event_id=event_id,
             participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=tenant_context
+            tenant_context=str(tenant_id)  # Pass as string but it's actually a digit
         )
         logger.info(f"🏨 Auto booking result: {booking_result}")
         
@@ -895,17 +907,29 @@ def admin_confirm_participant(
     # Trigger automatic accommodation booking
     try:
         from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        from app import crud
         
-        # Get tenant context for auto booking
+        # Get tenant ID for auto booking
         tenant_context = current_user.tenant_id or "default"
         
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id}")
+        # Convert tenant slug to tenant ID
+        if tenant_context and not tenant_context.isdigit():
+            tenant_obj = crud.tenant.get_by_slug(db, slug=tenant_context)
+            tenant_id = tenant_obj.id if tenant_obj else None
+        else:
+            tenant_id = int(tenant_context) if tenant_context and tenant_context.isdigit() else None
+        
+        if not tenant_id:
+            logger.warning(f"⚠️ Could not determine tenant ID from context: {tenant_context}")
+            raise Exception("Could not determine tenant ID")
+        
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with tenant_id {tenant_id}")
         booking_result = _auto_book_participant_internal(
             event_id=event_id,
             participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=tenant_context
+            tenant_context=str(tenant_id)  # Pass as string but it's actually a digit
         )
         logger.info(f"🏨 Auto booking result: {booking_result}")
         
