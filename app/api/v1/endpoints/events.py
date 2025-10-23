@@ -1003,6 +1003,94 @@ def test_get_participant_statuses(
         "participations": result
     }
 
+@router.post("/{event_id}/decline-attendance")
+def decline_event_attendance(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    request_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Decline attendance for an event with reason."""
+    import logging
+    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    
+    from app.models.event_participant import EventParticipant
+    from app.models.guesthouse import AccommodationAllocation
+    from sqlalchemy import text
+    
+    # Find the user's participation record
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    logger.info(f"🎯 Decline attendance - Event: {event_id}, User: {current_user.email}")
+    
+    if not participation:
+        logger.error(f"❌ No participation record found for user {current_user.email} in event {event_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No participation record found"
+        )
+    
+    if participation.status not in ["selected", "approved", "confirmed"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only selected, approved, or confirmed participants can decline attendance"
+        )
+    
+    decline_reason = request_data.get("reason", "").strip()
+    if not decline_reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Decline reason is required"
+        )
+    
+    # Update status to declined with reason and timestamp
+    participation.status = "declined"
+    participation.decline_reason = decline_reason
+    participation.declined_at = datetime.utcnow()
+    
+    # Cancel any existing accommodation bookings
+    try:
+        existing_allocations = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participation.id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        ).all()
+        
+        for allocation in existing_allocations:
+            logger.info(f"Cancelling allocation {allocation.id} for declined participant")
+            
+            # Restore room counts in vendor_event_accommodations
+            if allocation.vendor_accommodation_id and allocation.event_id:
+                if allocation.room_type == 'single':
+                    db.execute(text("""
+                        UPDATE vendor_event_accommodations 
+                        SET single_rooms = single_rooms + 1 
+                        WHERE event_id = :event_id
+                    """), {"event_id": allocation.event_id})
+                elif allocation.room_type == 'double':
+                    db.execute(text("""
+                        UPDATE vendor_event_accommodations 
+                        SET double_rooms = double_rooms + 1 
+                        WHERE event_id = :event_id
+                    """), {"event_id": allocation.event_id})
+            
+            allocation.status = "cancelled"
+            allocation.cancelled_reason = "Participant declined attendance"
+    
+    except Exception as e:
+        logger.error(f"Error cancelling accommodations: {str(e)}")
+    
+    db.commit()
+    
+    return {
+        "message": "Attendance declined successfully",
+        "status": "declined"
+    }
+
 @router.post("/test/simulate-selection/{event_id}")
 def test_simulate_selection(
     *,
