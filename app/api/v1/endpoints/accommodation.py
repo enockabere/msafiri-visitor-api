@@ -312,112 +312,6 @@ def create_room_allocation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating allocation: {str(e)}"
         )
-        if allocation_data.get("accommodation_type") == "guesthouse" and not allocation_data.get("room_id"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Room ID is required for guesthouse allocation"
-            )
-        
-        # Check room and validate gender rules for guesthouse
-        if allocation_data.get("room_id"):
-            room = crud.room.get(db, id=allocation_data["room_id"])
-            if not room:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Room not found"
-                )
-            
-            # Get participant to check gender
-            if allocation_data.get("participant_id"):
-                from app.models.event_participant import EventParticipant
-                from app.models.user import User
-                
-                participant = db.query(EventParticipant).filter(EventParticipant.id == allocation_data["participant_id"]).first()
-                if not participant:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Participant not found"
-                    )
-                
-                # Get participant's user to check gender
-                user = db.query(User).filter(User.email == participant.email).first()
-                if not user:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="User not found for participant"
-                    )
-                
-                # Check if user has gender set
-                if not user.gender:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Cannot book accommodation for users without gender information. Please update your profile."
-                    )
-                
-                # Check gender compatibility for shared rooms
-                if room.capacity > 1 and room.current_occupants > 0:
-                    # Get existing allocations for this room
-                    from app.models.guesthouse import AccommodationAllocation
-                    existing_allocations = db.query(AccommodationAllocation).filter(
-                        AccommodationAllocation.room_id == room.id,
-                        AccommodationAllocation.status.in_(["booked", "checked_in"])
-                    ).all()
-                    
-                    if existing_allocations:
-                        # Check gender of existing occupants
-                        for existing_allocation in existing_allocations:
-                            if existing_allocation.participant_id:
-                                existing_participant = db.query(EventParticipant).filter(
-                                    EventParticipant.id == existing_allocation.participant_id
-                                ).first()
-                                if existing_participant:
-                                    existing_user = db.query(User).filter(
-                                        User.email == existing_participant.email
-                                    ).first()
-                                    if existing_user and existing_user.gender:
-                                        # Gender compatibility rules
-                                        if user.gender == "other":
-                                            raise HTTPException(
-                                                status_code=status.HTTP_400_BAD_REQUEST,
-                                                detail="Users with 'Other' gender cannot share rooms. Please use vendor hotels or single occupancy rooms."
-                                            )
-                                        if existing_user.gender == "other":
-                                            raise HTTPException(
-                                                status_code=status.HTTP_400_BAD_REQUEST,
-                                                detail="Cannot share room with user who has 'Other' gender."
-                                            )
-                                        if user.gender != existing_user.gender:
-                                            raise HTTPException(
-                                                status_code=status.HTTP_400_BAD_REQUEST,
-                                                detail=f"Gender mismatch: Cannot assign {user.gender} to room with {existing_user.gender} occupant(s)."
-                                            )
-                
-                # For "other" gender users in multi-capacity rooms, only allow if room is empty
-                if user.gender == "other" and room.capacity > 1 and room.current_occupants > 0:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Users with 'Other' gender can only be assigned to empty shared rooms or single occupancy rooms."
-                    )
-        
-        tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-        
-        # Convert dict to schema object for CRUD operation
-        from app.schemas.accommodation import AccommodationAllocationCreate
-        allocation_schema = AccommodationAllocationCreate(**allocation_data)
-        
-        allocation = crud.accommodation_allocation.create_with_tenant(
-            db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
-        )
-        print(f"🏠 DEBUG: ===== ALLOCATION CREATED SUCCESSFULLY: {allocation.id} =====")
-        return allocation
-    except Exception as e:
-        print(f"🏠 DEBUG: Error creating allocation: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating allocation: {str(e)}"
-        )
 
 # Vendor Accommodation endpoints
 @router.get("/vendor-accommodations", response_model=List[schemas.VendorAccommodation])
@@ -794,8 +688,6 @@ def get_vendor_event_setups(
             setup.current_occupants = current_occupants
             db.commit()
             print(f"🏨 DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
-        else:
-            print(f"🏨 DEBUG: Setup {setup.id} already has event_id {setup.event_id}, using existing count")
         else:
             print(f"🏨 DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
             print(f"🏨 DEBUG: Setup {setup.id} event_name: {setup.event_name}")
