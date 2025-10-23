@@ -305,6 +305,8 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
     
+    import logging
+    logger = logging.getLogger(__name__)
     logger.info(f"DEBUG: Looking for match for {participant.full_name} (gender: {gender})")
     
     # Look for unmatched visitor of same gender in single rooms (exclude facilitators/organizers)
