@@ -825,29 +825,23 @@ def confirm_event_attendance(
     # Trigger automatic accommodation booking
     try:
         from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
-        from app import crud
+        from app.models.event import Event
         
-        # Get tenant ID for auto booking
-        tenant_context = current_user.tenant_id or "default"
+        # Get event's tenant ID for auto booking
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Event not found")
         
-        # Convert tenant slug to tenant ID
-        if tenant_context and not tenant_context.isdigit():
-            tenant_obj = crud.tenant.get_by_slug(db, slug=tenant_context)
-            tenant_id = tenant_obj.id if tenant_obj else None
-        else:
-            tenant_id = int(tenant_context) if tenant_context and tenant_context.isdigit() else None
+        event_tenant_id = event.tenant_id
+        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for auto booking")
         
-        if not tenant_id:
-            logger.warning(f"⚠️ Could not determine tenant ID from context: {tenant_context}")
-            raise Exception("Could not determine tenant ID")
-        
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with tenant_id {tenant_id}")
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with event tenant_id {event_tenant_id}")
         booking_result = _auto_book_participant_internal(
             event_id=event_id,
             participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=str(tenant_id)  # Pass as string but it's actually a digit
+            tenant_context=str(event_tenant_id)  # Pass event's tenant ID
         )
         logger.info(f"🏨 Auto booking result: {booking_result}")
         
@@ -907,29 +901,23 @@ def admin_confirm_participant(
     # Trigger automatic accommodation booking
     try:
         from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
-        from app import crud
+        from app.models.event import Event
         
-        # Get tenant ID for auto booking
-        tenant_context = current_user.tenant_id or "default"
+        # Get event's tenant ID for auto booking
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise Exception("Event not found")
         
-        # Convert tenant slug to tenant ID
-        if tenant_context and not tenant_context.isdigit():
-            tenant_obj = crud.tenant.get_by_slug(db, slug=tenant_context)
-            tenant_id = tenant_obj.id if tenant_obj else None
-        else:
-            tenant_id = int(tenant_context) if tenant_context and tenant_context.isdigit() else None
+        event_tenant_id = event.tenant_id
+        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for auto booking")
         
-        if not tenant_id:
-            logger.warning(f"⚠️ Could not determine tenant ID from context: {tenant_context}")
-            raise Exception("Could not determine tenant ID")
-        
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with tenant_id {tenant_id}")
+        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with event tenant_id {event_tenant_id}")
         booking_result = _auto_book_participant_internal(
             event_id=event_id,
             participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=str(tenant_id)  # Pass as string but it's actually a digit
+            tenant_context=str(event_tenant_id)  # Pass event's tenant ID
         )
         logger.info(f"🏨 Auto booking result: {booking_result}")
         
