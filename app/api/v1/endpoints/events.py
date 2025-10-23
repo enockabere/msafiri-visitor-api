@@ -798,9 +798,9 @@ def confirm_event_attendance(
     
     db.commit()
     
-    # Trigger automatic accommodation booking
+    # Trigger global re-booking for all confirmed participants to optimize room sharing
     try:
-        from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
         from app.models.event import Event
         
         # Get event's tenant ID for auto booking
@@ -809,20 +809,49 @@ def confirm_event_attendance(
             raise Exception("Event not found")
         
         event_tenant_id = event.tenant_id
-        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for auto booking")
+        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
         
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with event tenant_id {event_tenant_id}")
-        booking_result = _auto_book_participant_internal(
+        # Cancel all existing bookings for this event first
+        from app.models.guesthouse import AccommodationAllocation
+        from sqlalchemy import text
+        
+        logger.info(f"🏨 Cancelling existing bookings for event {event_id} to re-optimize")
+        existing_bookings = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.event_id == event_id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        ).all()
+        
+        # Restore room counts and cancel bookings
+        for booking in existing_bookings:
+            if booking.room_type == 'single':
+                db.execute(text("""
+                    UPDATE vendor_event_accommodations 
+                    SET single_rooms = single_rooms + 1 
+                    WHERE id = :accommodation_setup_id
+                """), {"accommodation_setup_id": event.accommodation_setup_id})
+            elif booking.room_type == 'double':
+                db.execute(text("""
+                    UPDATE vendor_event_accommodations 
+                    SET double_rooms = double_rooms + 1 
+                    WHERE id = :accommodation_setup_id
+                """), {"accommodation_setup_id": event.accommodation_setup_id})
+            
+            booking.status = "cancelled"
+            booking.cancelled_reason = "Re-optimizing room assignments"
+        
+        db.commit()
+        
+        logger.info(f"🏨 Triggering global re-booking for all confirmed participants in event {event_id}")
+        booking_result = auto_book_all_participants(
             event_id=event_id,
-            participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=str(event_tenant_id)  # Pass event's tenant ID
+            tenant_context=str(event_tenant_id)
         )
-        logger.info(f"🏨 Auto booking result: {booking_result}")
+        logger.info(f"🏨 Global re-booking result: {booking_result}")
         
     except Exception as e:
-        logger.warning(f"⚠️ Auto booking failed but attendance confirmed: {str(e)}")
+        logger.warning(f"⚠️ Global re-booking failed but attendance confirmed: {str(e)}")
         # Don't fail the confirmation if booking fails
     
     return {
@@ -874,9 +903,9 @@ def admin_confirm_participant(
     
     db.commit()
     
-    # Trigger automatic accommodation booking
+    # Trigger global re-booking for all confirmed participants to optimize room sharing
     try:
-        from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
         from app.models.event import Event
         
         # Get event's tenant ID for auto booking
@@ -885,20 +914,49 @@ def admin_confirm_participant(
             raise Exception("Event not found")
         
         event_tenant_id = event.tenant_id
-        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for auto booking")
+        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
         
-        logger.info(f"🏨 Triggering auto booking for participant {participation.id} with event tenant_id {event_tenant_id}")
-        booking_result = _auto_book_participant_internal(
+        # Cancel all existing bookings for this event first
+        from app.models.guesthouse import AccommodationAllocation
+        from sqlalchemy import text
+        
+        logger.info(f"🏨 Cancelling existing bookings for event {event_id} to re-optimize")
+        existing_bookings = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.event_id == event_id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        ).all()
+        
+        # Restore room counts and cancel bookings
+        for booking in existing_bookings:
+            if booking.room_type == 'single':
+                db.execute(text("""
+                    UPDATE vendor_event_accommodations 
+                    SET single_rooms = single_rooms + 1 
+                    WHERE id = :accommodation_setup_id
+                """), {"accommodation_setup_id": event.accommodation_setup_id})
+            elif booking.room_type == 'double':
+                db.execute(text("""
+                    UPDATE vendor_event_accommodations 
+                    SET double_rooms = double_rooms + 1 
+                    WHERE id = :accommodation_setup_id
+                """), {"accommodation_setup_id": event.accommodation_setup_id})
+            
+            booking.status = "cancelled"
+            booking.cancelled_reason = "Re-optimizing room assignments"
+        
+        db.commit()
+        
+        logger.info(f"🏨 Triggering global re-booking for all confirmed participants in event {event_id}")
+        booking_result = auto_book_all_participants(
             event_id=event_id,
-            participant_id=participation.id,
             db=db,
             current_user=current_user,
-            tenant_context=str(event_tenant_id)  # Pass event's tenant ID
+            tenant_context=str(event_tenant_id)
         )
-        logger.info(f"🏨 Auto booking result: {booking_result}")
+        logger.info(f"🏨 Global re-booking result: {booking_result}")
         
     except Exception as e:
-        logger.warning(f"⚠️ Auto booking failed but participant confirmed: {str(e)}")
+        logger.warning(f"⚠️ Global re-booking failed but participant confirmed: {str(e)}")
         # Don't fail the confirmation if booking fails
     
     return {
