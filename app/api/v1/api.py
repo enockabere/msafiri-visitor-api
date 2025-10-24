@@ -282,6 +282,14 @@ api_router.include_router(
     tags=["enhanced-feedback"]
 )
 
+# Add room stats endpoint
+from app.api.v1.endpoints import room_stats
+api_router.include_router(
+    room_stats.router,
+    prefix="/events",
+    tags=["room-stats"]
+)
+
 # Add accommodation stats endpoint
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
