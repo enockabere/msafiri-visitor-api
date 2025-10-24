@@ -37,7 +37,7 @@ class RoomAssignment(BaseModel):
     created_by = Column(String(255), nullable=False)
     
     # Relationships
-    participant = relationship("EventParticipant", back_populates="room_assignment")
+    participant = relationship("EventParticipant")
 
 class RoomAgent(BaseModel):
     __tablename__ = "room_agents"
