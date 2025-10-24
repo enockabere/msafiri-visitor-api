@@ -798,9 +798,46 @@ def confirm_event_attendance(
     
     db.commit()
     
-    # Note: Room booking system temporarily disabled during migration
-    # Will be re-enabled with new room planning system
-    logger.info(f"🏨 Room booking system temporarily disabled during migration")
+    # Create accommodation booking for confirmed participant
+    try:
+        from app.models.guesthouse import AccommodationAllocation
+        from app.models.vendor_accommodation import VendorAccommodation
+        
+        # Check if booking already exists
+        existing_booking = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participation.id
+        ).first()
+        
+        if not existing_booking:
+            # Get available vendor accommodation for this event's tenant
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if event:
+                vendor_accommodation = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.tenant_id == event.tenant_id
+                ).first()
+                
+                if vendor_accommodation:
+                    # Create new accommodation allocation
+                    new_allocation = AccommodationAllocation(
+                        participant_id=participation.id,
+                        event_id=event_id,
+                        vendor_accommodation_id=vendor_accommodation.id,
+                        room_type='single',  # Default to single room
+                        status='booked',
+                        check_in_date=event.start_date,
+                        check_out_date=event.end_date
+                    )
+                    db.add(new_allocation)
+                    db.commit()
+                    logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
+                else:
+                    logger.warning(f"⚠️ No vendor accommodation found for tenant {event.tenant_id}")
+        else:
+            logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
+        # Don't fail the confirmation if booking fails
     
     return {
         "message": "Attendance confirmed successfully",
@@ -851,9 +888,46 @@ def admin_confirm_participant(
     
     db.commit()
     
-    # Note: Room booking system temporarily disabled during migration
-    # Will be re-enabled with new room planning system
-    logger.info(f"🏨 Room booking system temporarily disabled during migration")
+    # Create accommodation booking for confirmed participant
+    try:
+        from app.models.guesthouse import AccommodationAllocation
+        from app.models.vendor_accommodation import VendorAccommodation
+        
+        # Check if booking already exists
+        existing_booking = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participation.id
+        ).first()
+        
+        if not existing_booking:
+            # Get available vendor accommodation for this event's tenant
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if event:
+                vendor_accommodation = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.tenant_id == event.tenant_id
+                ).first()
+                
+                if vendor_accommodation:
+                    # Create new accommodation allocation
+                    new_allocation = AccommodationAllocation(
+                        participant_id=participation.id,
+                        event_id=event_id,
+                        vendor_accommodation_id=vendor_accommodation.id,
+                        room_type='single',  # Default to single room
+                        status='booked',
+                        check_in_date=event.start_date,
+                        check_out_date=event.end_date
+                    )
+                    db.add(new_allocation)
+                    db.commit()
+                    logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
+                else:
+                    logger.warning(f"⚠️ No vendor accommodation found for tenant {event.tenant_id}")
+        else:
+            logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
+        # Don't fail the confirmation if booking fails
     
     return {
         "message": f"Participant {participation.full_name} confirmed successfully",

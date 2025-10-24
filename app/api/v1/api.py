@@ -298,32 +298,56 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Get accommodation statistics using raw SQL to avoid relationship issues
+    # Get participant statistics during migration period
     try:
-        result = db.execute(text("""
-            SELECT 
-                COUNT(ra.id) as total_bookings,
-                COUNT(CASE WHEN ra.room_number IS NOT NULL THEN 1 END) as booked_rooms,
-                COUNT(CASE WHEN ra.checked_in = true THEN 1 END) as checked_in_visitors
-            FROM room_assignments ra
-            JOIN event_participants ep ON ra.participant_id = ep.id
-            WHERE ep.event_id = :event_id
+        # Count confirmed participants as "bookings needed"
+        confirmed_result = db.execute(text("""
+            SELECT COUNT(*) as confirmed_count
+            FROM event_participants ep
+            WHERE ep.event_id = :event_id AND ep.status = 'confirmed'
         """), {"event_id": event_id})
         
-        stats = result.fetchone()
+        confirmed_count = confirmed_result.fetchone().confirmed_count or 0
+        
+        # Try to get actual bookings from accommodation_allocations table
+        booking_result = db.execute(text("""
+            SELECT 
+                COUNT(*) as total_bookings,
+                COUNT(CASE WHEN aa.status = 'checked_in' THEN 1 END) as checked_in_visitors
+            FROM accommodation_allocations aa
+            JOIN event_participants ep ON aa.participant_id = ep.id
+            WHERE ep.event_id = :event_id AND aa.status IN ('booked', 'checked_in')
+        """), {"event_id": event_id})
+        
+        booking_stats = booking_result.fetchone()
         
         return {
-            "total_bookings": stats.total_bookings or 0,
-            "booked_rooms": stats.booked_rooms or 0,
-            "checked_in_visitors": stats.checked_in_visitors or 0
+            "total_bookings": booking_stats.total_bookings or confirmed_count,
+            "booked_rooms": booking_stats.total_bookings or confirmed_count,
+            "checked_in_visitors": booking_stats.checked_in_visitors or 0
         }
     except Exception:
-        # If tables don't exist yet, return zeros
-        return {
-            "total_bookings": 0,
-            "booked_rooms": 0,
-            "checked_in_visitors": 0
-        }
+        # Fallback: count confirmed participants
+        try:
+            confirmed_result = db.execute(text("""
+                SELECT COUNT(*) as confirmed_count
+                FROM event_participants ep
+                WHERE ep.event_id = :event_id AND ep.status = 'confirmed'
+            """), {"event_id": event_id})
+            
+            confirmed_count = confirmed_result.fetchone().confirmed_count or 0
+            
+            return {
+                "total_bookings": confirmed_count,
+                "booked_rooms": confirmed_count,
+                "checked_in_visitors": 0
+            }
+        except Exception:
+            return {
+                "total_bookings": 0,
+                "booked_rooms": 0,
+                "checked_in_visitors": 0
+            }
 
 
 
