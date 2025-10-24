@@ -801,6 +801,7 @@ def confirm_event_attendance(
     # Create accommodation booking for confirmed participant
     try:
         from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
+        from app.models.event import Event
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
@@ -895,6 +896,7 @@ def admin_confirm_participant(
     # Create accommodation booking for confirmed participant
     try:
         from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
+        from app.models.event import Event
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
