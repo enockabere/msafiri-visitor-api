@@ -798,60 +798,9 @@ def confirm_event_attendance(
     
     db.commit()
     
-    # Trigger global re-booking for all confirmed participants to optimize room sharing
-    try:
-        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
-        from app.models.event import Event
-        
-        # Get event's tenant ID for auto booking
-        event = db.query(Event).filter(Event.id == event_id).first()
-        if not event:
-            raise Exception("Event not found")
-        
-        event_tenant_id = event.tenant_id
-        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
-        
-        # Delete all existing bookings for this event first to prevent duplicates
-        from app.models.guesthouse import AccommodationAllocation
-        from sqlalchemy import text
-        
-        logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize")
-        existing_bookings = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.event_id == event_id,
-            AccommodationAllocation.status.in_(["booked", "checked_in"])
-        ).all()
-        
-        # Restore room counts and delete bookings
-        for booking in existing_bookings:
-            if booking.room_type == 'single':
-                db.execute(text("""
-                    UPDATE vendor_event_accommodations 
-                    SET single_rooms = single_rooms + 1 
-                    WHERE id = :accommodation_setup_id
-                """), {"accommodation_setup_id": event.accommodation_setup_id})
-            elif booking.room_type == 'double':
-                db.execute(text("""
-                    UPDATE vendor_event_accommodations 
-                    SET double_rooms = double_rooms + 1 
-                    WHERE id = :accommodation_setup_id
-                """), {"accommodation_setup_id": event.accommodation_setup_id})
-            
-            db.delete(booking)
-        
-        db.commit()
-        
-        logger.info(f"🏨 Triggering global re-booking for all confirmed participants in event {event_id}")
-        booking_result = auto_book_all_participants(
-            event_id=event_id,
-            db=db,
-            current_user=current_user,
-            tenant_context=str(event_tenant_id)
-        )
-        logger.info(f"🏨 Global re-booking result: {booking_result}")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Global re-booking failed but attendance confirmed: {str(e)}")
-        # Don't fail the confirmation if booking fails
+    # Note: Room booking system temporarily disabled during migration
+    # Will be re-enabled with new room planning system
+    logger.info(f"🏨 Room booking system temporarily disabled during migration")
     
     return {
         "message": "Attendance confirmed successfully",
@@ -902,60 +851,9 @@ def admin_confirm_participant(
     
     db.commit()
     
-    # Trigger global re-booking for all confirmed participants to optimize room sharing
-    try:
-        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
-        from app.models.event import Event
-        
-        # Get event's tenant ID for auto booking
-        event = db.query(Event).filter(Event.id == event_id).first()
-        if not event:
-            raise Exception("Event not found")
-        
-        event_tenant_id = event.tenant_id
-        logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking")
-        
-        # Delete all existing bookings for this event first to prevent duplicates
-        from app.models.guesthouse import AccommodationAllocation
-        from sqlalchemy import text
-        
-        logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize")
-        existing_bookings = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.event_id == event_id,
-            AccommodationAllocation.status.in_(["booked", "checked_in"])
-        ).all()
-        
-        # Restore room counts and delete bookings
-        for booking in existing_bookings:
-            if booking.room_type == 'single':
-                db.execute(text("""
-                    UPDATE vendor_event_accommodations 
-                    SET single_rooms = single_rooms + 1 
-                    WHERE id = :accommodation_setup_id
-                """), {"accommodation_setup_id": event.accommodation_setup_id})
-            elif booking.room_type == 'double':
-                db.execute(text("""
-                    UPDATE vendor_event_accommodations 
-                    SET double_rooms = double_rooms + 1 
-                    WHERE id = :accommodation_setup_id
-                """), {"accommodation_setup_id": event.accommodation_setup_id})
-            
-            db.delete(booking)
-        
-        db.commit()
-        
-        logger.info(f"🏨 Triggering global re-booking for all confirmed participants in event {event_id}")
-        booking_result = auto_book_all_participants(
-            event_id=event_id,
-            db=db,
-            current_user=current_user,
-            tenant_context=str(event_tenant_id)
-        )
-        logger.info(f"🏨 Global re-booking result: {booking_result}")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Global re-booking failed but participant confirmed: {str(e)}")
-        # Don't fail the confirmation if booking fails
+    # Note: Room booking system temporarily disabled during migration
+    # Will be re-enabled with new room planning system
+    logger.info(f"🏨 Room booking system temporarily disabled during migration")
     
     return {
         "message": f"Participant {participation.full_name} confirmed successfully",
@@ -1106,22 +1004,6 @@ def decline_event_attendance(
         
         for allocation in existing_allocations:
             logger.info(f"Cancelling allocation {allocation.id} for declined participant")
-            
-            # Restore room counts in vendor_event_accommodations
-            if allocation.vendor_accommodation_id and allocation.event_id:
-                if allocation.room_type == 'single':
-                    db.execute(text("""
-                        UPDATE vendor_event_accommodations 
-                        SET single_rooms = single_rooms + 1 
-                        WHERE event_id = :event_id
-                    """), {"event_id": allocation.event_id})
-                elif allocation.room_type == 'double':
-                    db.execute(text("""
-                        UPDATE vendor_event_accommodations 
-                        SET double_rooms = double_rooms + 1 
-                        WHERE event_id = :event_id
-                    """), {"event_id": allocation.event_id})
-            
             db.delete(allocation)
     
     except Exception as e:
@@ -1129,55 +1011,9 @@ def decline_event_attendance(
     
     db.commit()
     
-    # Trigger global re-booking for remaining confirmed participants to re-optimize
-    try:
-        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
-        from app.models.event import Event
-        
-        # Get event's tenant ID for auto booking
-        event = db.query(Event).filter(Event.id == event_id).first()
-        if event and event.accommodation_setup_id:
-            event_tenant_id = event.tenant_id
-            logger.info(f"🏨 Using event tenant ID {event_tenant_id} for global re-booking after decline")
-            
-            # Delete all existing bookings for this event first to prevent duplicates
-            logger.info(f"🏨 Deleting existing bookings for event {event_id} to re-optimize after decline")
-            remaining_bookings = db.query(AccommodationAllocation).filter(
-                AccommodationAllocation.event_id == event_id,
-                AccommodationAllocation.status.in_(["booked", "checked_in"])
-            ).all()
-            
-            # Restore room counts and delete bookings
-            for booking in remaining_bookings:
-                if booking.room_type == 'single':
-                    db.execute(text("""
-                        UPDATE vendor_event_accommodations 
-                        SET single_rooms = single_rooms + 1 
-                        WHERE id = :accommodation_setup_id
-                    """), {"accommodation_setup_id": event.accommodation_setup_id})
-                elif booking.room_type == 'double':
-                    db.execute(text("""
-                        UPDATE vendor_event_accommodations 
-                        SET double_rooms = double_rooms + 1 
-                        WHERE id = :accommodation_setup_id
-                    """), {"accommodation_setup_id": event.accommodation_setup_id})
-                
-                db.delete(booking)
-            
-            db.commit()
-            
-            logger.info(f"🏨 Triggering global re-booking for remaining confirmed participants after decline")
-            booking_result = auto_book_all_participants(
-                event_id=event_id,
-                db=db,
-                current_user=current_user,
-                tenant_context=str(event_tenant_id)
-            )
-            logger.info(f"🏨 Global re-booking after decline result: {booking_result}")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Global re-booking after decline failed: {str(e)}")
-        # Don't fail the decline if re-booking fails
+    # Note: Room booking system temporarily disabled during migration
+    # Will be re-enabled with new room planning system
+    logger.info(f"🏨 Room booking system temporarily disabled during migration")
     
     return {
         "message": "Attendance declined successfully",
