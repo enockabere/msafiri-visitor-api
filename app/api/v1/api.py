@@ -282,6 +282,36 @@ api_router.include_router(
     tags=["enhanced-feedback"]
 )
 
+# Add accommodation stats endpoint
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from app.db.database import get_db
+from app.models.event import Event
+from app.models.accommodation import VisitorAllocation
+
+@api_router.get("/events/{event_id}/accommodation-stats")
+def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
+    """Get accommodation booking statistics for an event"""
+    
+    # Verify event exists
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Get accommodation statistics
+    stats = db.query(
+        func.count(VisitorAllocation.id).label('total_bookings'),
+        func.count(VisitorAllocation.room_number).label('booked_rooms'),
+        func.sum(func.case([(VisitorAllocation.checked_in == True, 1)], else_=0)).label('checked_in_visitors')
+    ).filter(VisitorAllocation.event_id == event_id).first()
+    
+    return {
+        "total_bookings": stats.total_bookings or 0,
+        "booked_rooms": stats.booked_rooms or 0,
+        "checked_in_visitors": stats.checked_in_visitors or 0
+    }
+
 from app.api.v1.endpoints import countries
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
