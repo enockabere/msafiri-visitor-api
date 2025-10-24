@@ -288,7 +288,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.database import get_db
 from app.models.event import Event
-from app.models.accommodation import VisitorAllocation
+from app.models.accommodation import RoomAssignment
+from app.models.event_participant import EventParticipant
 
 @api_router.get("/events/{event_id}/accommodation-stats")
 def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
@@ -299,12 +300,13 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Get accommodation statistics
+    # Get accommodation statistics by joining with event participants
     stats = db.query(
-        func.count(VisitorAllocation.id).label('total_bookings'),
-        func.count(VisitorAllocation.room_number).label('booked_rooms'),
-        func.sum(func.case([(VisitorAllocation.checked_in == True, 1)], else_=0)).label('checked_in_visitors')
-    ).filter(VisitorAllocation.event_id == event_id).first()
+        func.count(RoomAssignment.id).label('total_bookings'),
+        func.count(RoomAssignment.room_number).label('booked_rooms'),
+        func.sum(func.case([(RoomAssignment.checked_in == True, 1)], else_=0)).label('checked_in_visitors')
+    ).join(EventParticipant, RoomAssignment.participant_id == EventParticipant.id
+    ).filter(EventParticipant.event_id == event_id).first()
     
     return {
         "total_bookings": stats.total_bookings or 0,
