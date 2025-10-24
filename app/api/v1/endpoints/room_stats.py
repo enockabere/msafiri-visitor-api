@@ -14,17 +14,29 @@ def get_event_room_stats(
     """Get detailed room statistics for an event"""
     
     # Get room occupancy statistics - count actual rooms occupied
-    result = db.execute(
+    single_result = db.execute(
         text("""
             SELECT 
-                room_type,
-                COUNT(CASE WHEN room_type = 'single' THEN 1 END) as single_allocations,
-                COUNT(CASE WHEN room_type = 'double' THEN 1 END) as double_allocations,
-                SUM(CASE WHEN room_type = 'single' THEN 1 ELSE 0 END) as single_guests,
-                SUM(CASE WHEN room_type = 'double' THEN 2 ELSE 0 END) as double_guests
+                COUNT(*) as single_rooms_occupied,
+                COUNT(*) as single_guests
             FROM accommodation_allocations aa
             WHERE aa.event_id = :event_id 
             AND aa.status IN ('booked', 'checked_in')
+            AND aa.room_type = 'single'
+        """),
+        {"event_id": event_id}
+    ).fetchone()
+    
+    # For double rooms, count unique shared rooms (2 people = 1 room)
+    double_result = db.execute(
+        text("""
+            SELECT 
+                COUNT(DISTINCT CONCAT(aa.vendor_accommodation_id, '-', aa.check_in_date, '-', aa.check_out_date)) as double_rooms_occupied,
+                COUNT(*) * 2 as double_guests
+            FROM accommodation_allocations aa
+            WHERE aa.event_id = :event_id 
+            AND aa.status IN ('booked', 'checked_in')
+            AND aa.room_type = 'double'
         """),
         {"event_id": event_id}
     ).fetchone()
@@ -43,10 +55,10 @@ def get_event_room_stats(
         raise HTTPException(status_code=404, detail="Event not found")
     
     # Calculate room occupancy
-    single_rooms_occupied = result.single_allocations if result else 0
-    double_rooms_occupied = (result.double_allocations // 2) if result and result.double_allocations else 0
-    single_room_guests = result.single_guests if result else 0
-    double_room_guests = result.double_guests if result else 0
+    single_rooms_occupied = single_result.single_rooms_occupied if single_result else 0
+    double_rooms_occupied = double_result.double_rooms_occupied if double_result else 0
+    single_room_guests = single_result.single_guests if single_result else 0
+    double_room_guests = double_result.double_guests if double_result else 0
     
     return {
         "single_rooms": {
@@ -61,5 +73,5 @@ def get_event_room_stats(
         },
         "expected_participants": event_result.expected_participants or 0,
         "total_capacity": (event_result.single_rooms or 0) + ((event_result.double_rooms or 0) * 2),
-        "total_occupied_guests": single_room_guests + double_room_guests
+        "total_occupied_guests": single_room_guests + (double_room_guests // 2 if double_room_guests else 0)
     }
