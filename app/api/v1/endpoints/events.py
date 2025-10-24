@@ -804,7 +804,8 @@ def confirm_event_attendance(
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.participant_id == participation.id
+            AccommodationAllocation.participant_id == participation.id,
+            AccommodationAllocation.status.in_(['booked', 'checked_in'])
         ).first()
         
         if not existing_booking:
@@ -897,7 +898,8 @@ def admin_confirm_participant(
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.participant_id == participation.id
+            AccommodationAllocation.participant_id == participation.id,
+            AccommodationAllocation.status.in_(['booked', 'checked_in'])
         ).first()
         
         if not existing_booking:
