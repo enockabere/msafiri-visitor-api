@@ -800,8 +800,7 @@ def confirm_event_attendance(
     
     # Create accommodation booking for confirmed participant
     try:
-        from app.models.guesthouse import AccommodationAllocation
-        from app.models.vendor_accommodation import VendorAccommodation
+        from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
@@ -819,13 +818,18 @@ def confirm_event_attendance(
                 if vendor_accommodation:
                     # Create new accommodation allocation
                     new_allocation = AccommodationAllocation(
+                        tenant_id=event.tenant_id,
+                        accommodation_type='vendor',
                         participant_id=participation.id,
                         event_id=event_id,
                         vendor_accommodation_id=vendor_accommodation.id,
-                        room_type='single',  # Default to single room
-                        status='booked',
+                        guest_name=participation.full_name,
+                        guest_email=participation.email,
                         check_in_date=event.start_date,
-                        check_out_date=event.end_date
+                        check_out_date=event.end_date,
+                        number_of_guests=1,
+                        room_type='single',
+                        status='booked'
                     )
                     db.add(new_allocation)
                     db.commit()
@@ -837,7 +841,6 @@ def confirm_event_attendance(
             
     except Exception as e:
         logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
-        # Don't fail the confirmation if booking fails
     
     return {
         "message": "Attendance confirmed successfully",
@@ -890,8 +893,7 @@ def admin_confirm_participant(
     
     # Create accommodation booking for confirmed participant
     try:
-        from app.models.guesthouse import AccommodationAllocation
-        from app.models.vendor_accommodation import VendorAccommodation
+        from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
@@ -909,13 +911,18 @@ def admin_confirm_participant(
                 if vendor_accommodation:
                     # Create new accommodation allocation
                     new_allocation = AccommodationAllocation(
+                        tenant_id=event.tenant_id,
+                        accommodation_type='vendor',
                         participant_id=participation.id,
                         event_id=event_id,
                         vendor_accommodation_id=vendor_accommodation.id,
-                        room_type='single',  # Default to single room
-                        status='booked',
+                        guest_name=participation.full_name,
+                        guest_email=participation.email,
                         check_in_date=event.start_date,
-                        check_out_date=event.end_date
+                        check_out_date=event.end_date,
+                        number_of_guests=1,
+                        room_type='single',
+                        status='booked'
                     )
                     db.add(new_allocation)
                     db.commit()
@@ -927,7 +934,6 @@ def admin_confirm_participant(
             
     except Exception as e:
         logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
-        # Don't fail the confirmation if booking fails
     
     return {
         "message": f"Participant {participation.full_name} confirmed successfully",
