@@ -12,6 +12,22 @@ def get_event_room_stats(
     event_id: int
 ) -> dict:
     """Get detailed room statistics for an event"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🏨 Getting room stats for event {event_id}")
+    
+    # Debug: Check all allocations for this event
+    debug_result = db.execute(
+        text("""
+            SELECT id, room_type, status, participant_id, vendor_accommodation_id, check_in_date, check_out_date
+            FROM accommodation_allocations aa
+            WHERE aa.event_id = :event_id
+        """),
+        {"event_id": event_id}
+    ).fetchall()
+    
+    logger.info(f"🔍 All allocations for event {event_id}: {[(r.id, r.room_type, r.status) for r in debug_result]}")
     
     # Get room occupancy statistics - count actual rooms occupied
     single_result = db.execute(
@@ -27,12 +43,14 @@ def get_event_room_stats(
         {"event_id": event_id}
     ).fetchone()
     
+    logger.info(f"📊 Single room query result: occupied={single_result.single_rooms_occupied if single_result else 'None'}")
+    
     # For double rooms, count unique shared rooms (2 people = 1 room)
     double_result = db.execute(
         text("""
             SELECT 
                 COUNT(DISTINCT CONCAT(aa.vendor_accommodation_id, '-', aa.check_in_date, '-', aa.check_out_date)) as double_rooms_occupied,
-                COUNT(*) * 2 as double_guests
+                COUNT(*) as double_guests
             FROM accommodation_allocations aa
             WHERE aa.event_id = :event_id 
             AND aa.status IN ('booked', 'checked_in')
@@ -40,6 +58,8 @@ def get_event_room_stats(
         """),
         {"event_id": event_id}
     ).fetchone()
+    
+    logger.info(f"📊 Double room query result: occupied={double_result.double_rooms_occupied if double_result else 'None'}, guests={double_result.double_guests if double_result else 'None'}")
     
     # Get event room planning details
     event_result = db.execute(
@@ -54,13 +74,15 @@ def get_event_room_stats(
     if not event_result:
         raise HTTPException(status_code=404, detail="Event not found")
     
+    logger.info(f"📋 Event planning: single={event_result.single_rooms}, double={event_result.double_rooms}")
+    
     # Calculate room occupancy
     single_rooms_occupied = single_result.single_rooms_occupied if single_result else 0
     double_rooms_occupied = double_result.double_rooms_occupied if double_result else 0
     single_room_guests = single_result.single_guests if single_result else 0
     double_room_guests = double_result.double_guests if double_result else 0
     
-    return {
+    result = {
         "single_rooms": {
             "occupied": single_rooms_occupied,
             "total": event_result.single_rooms or 0,
@@ -73,5 +95,8 @@ def get_event_room_stats(
         },
         "expected_participants": event_result.expected_participants or 0,
         "total_capacity": (event_result.single_rooms or 0) + ((event_result.double_rooms or 0) * 2),
-        "total_occupied_guests": single_room_guests + (double_room_guests // 2 if double_room_guests else 0)
+        "total_occupied_guests": single_room_guests + double_room_guests
     }
+    
+    logger.info(f"✅ Final room stats: {result}")
+    return result
