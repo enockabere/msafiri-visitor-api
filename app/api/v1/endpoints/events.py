@@ -798,10 +798,11 @@ def confirm_event_attendance(
     
     db.commit()
     
-    # Create accommodation booking for confirmed participant
+    # Create accommodation booking for confirmed participant with room sharing
     try:
-        from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
+        from app.models.guesthouse import AccommodationAllocation
         from app.models.event import Event
+        from app.services.room_assignment_service import assign_room_with_sharing
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
@@ -810,34 +811,16 @@ def confirm_event_attendance(
         ).first()
         
         if not existing_booking:
-            # Get available vendor accommodation for this event's tenant
             event = db.query(Event).filter(Event.id == event_id).first()
             if event:
-                vendor_accommodation = db.query(VendorAccommodation).filter(
-                    VendorAccommodation.tenant_id == event.tenant_id
-                ).first()
-                
-                if vendor_accommodation:
-                    # Create new accommodation allocation
-                    new_allocation = AccommodationAllocation(
-                        tenant_id=event.tenant_id,
-                        accommodation_type='vendor',
-                        participant_id=participation.id,
-                        event_id=event_id,
-                        vendor_accommodation_id=vendor_accommodation.id,
-                        guest_name=participation.full_name,
-                        guest_email=participation.email,
-                        check_in_date=event.start_date,
-                        check_out_date=event.end_date,
-                        number_of_guests=1,
-                        room_type='single',
-                        status='booked'
-                    )
-                    db.add(new_allocation)
-                    db.commit()
+                # Use intelligent room assignment with sharing
+                allocation = assign_room_with_sharing(
+                    db, participation.id, event_id, event.tenant_id
+                )
+                if allocation:
                     logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
                 else:
-                    logger.warning(f"⚠️ No vendor accommodation found for tenant {event.tenant_id}")
+                    logger.warning(f"⚠️ Failed to create accommodation booking for participant {participation.id}")
         else:
             logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
             
@@ -893,10 +876,11 @@ def admin_confirm_participant(
     
     db.commit()
     
-    # Create accommodation booking for confirmed participant
+    # Create accommodation booking for confirmed participant with room sharing
     try:
-        from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
+        from app.models.guesthouse import AccommodationAllocation
         from app.models.event import Event
+        from app.services.room_assignment_service import assign_room_with_sharing
         
         # Check if booking already exists
         existing_booking = db.query(AccommodationAllocation).filter(
@@ -905,34 +889,16 @@ def admin_confirm_participant(
         ).first()
         
         if not existing_booking:
-            # Get available vendor accommodation for this event's tenant
             event = db.query(Event).filter(Event.id == event_id).first()
             if event:
-                vendor_accommodation = db.query(VendorAccommodation).filter(
-                    VendorAccommodation.tenant_id == event.tenant_id
-                ).first()
-                
-                if vendor_accommodation:
-                    # Create new accommodation allocation
-                    new_allocation = AccommodationAllocation(
-                        tenant_id=event.tenant_id,
-                        accommodation_type='vendor',
-                        participant_id=participation.id,
-                        event_id=event_id,
-                        vendor_accommodation_id=vendor_accommodation.id,
-                        guest_name=participation.full_name,
-                        guest_email=participation.email,
-                        check_in_date=event.start_date,
-                        check_out_date=event.end_date,
-                        number_of_guests=1,
-                        room_type='single',
-                        status='booked'
-                    )
-                    db.add(new_allocation)
-                    db.commit()
+                # Use intelligent room assignment with sharing
+                allocation = assign_room_with_sharing(
+                    db, participation.id, event_id, event.tenant_id
+                )
+                if allocation:
                     logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
                 else:
-                    logger.warning(f"⚠️ No vendor accommodation found for tenant {event.tenant_id}")
+                    logger.warning(f"⚠️ Failed to create accommodation booking for participant {participation.id}")
         else:
             logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
             
@@ -1079,17 +1045,10 @@ def decline_event_attendance(
     participation.decline_reason = decline_reason
     participation.declined_at = datetime.utcnow()
     
-    # Cancel any existing accommodation bookings
+    # Cancel any existing accommodation bookings with room sharing logic
     try:
-        existing_allocations = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.participant_id == participation.id,
-            AccommodationAllocation.status.in_(["booked", "checked_in"])
-        ).all()
-        
-        for allocation in existing_allocations:
-            logger.info(f"Cancelling allocation {allocation.id} for declined participant")
-            db.delete(allocation)
-    
+        from app.services.room_assignment_service import handle_room_cancellation
+        handle_room_cancellation(db, participation.id)
     except Exception as e:
         logger.error(f"Error cancelling accommodations: {str(e)}")
     
