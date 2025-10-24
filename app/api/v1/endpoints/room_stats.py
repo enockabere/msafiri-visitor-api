@@ -13,20 +13,21 @@ def get_event_room_stats(
 ) -> dict:
     """Get detailed room statistics for an event"""
     
-    # Get room occupancy statistics using raw SQL
+    # Get room occupancy statistics - count actual rooms occupied
     result = db.execute(
         text("""
             SELECT 
                 room_type,
-                COUNT(*) as occupied_rooms,
-                SUM(number_of_guests) as total_guests
+                COUNT(CASE WHEN room_type = 'single' THEN 1 END) as single_allocations,
+                COUNT(CASE WHEN room_type = 'double' THEN 1 END) as double_allocations,
+                SUM(CASE WHEN room_type = 'single' THEN 1 ELSE 0 END) as single_guests,
+                SUM(CASE WHEN room_type = 'double' THEN 2 ELSE 0 END) as double_guests
             FROM accommodation_allocations aa
             WHERE aa.event_id = :event_id 
             AND aa.status IN ('booked', 'checked_in')
-            GROUP BY room_type
         """),
         {"event_id": event_id}
-    ).fetchall()
+    ).fetchone()
     
     # Get event room planning details
     event_result = db.execute(
@@ -41,20 +42,11 @@ def get_event_room_stats(
     if not event_result:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Initialize counters
-    single_rooms_occupied = 0
-    double_rooms_occupied = 0
-    single_room_guests = 0
-    double_room_guests = 0
-    
-    # Process results
-    for row in result:
-        if row.room_type == 'single':
-            single_rooms_occupied = row.occupied_rooms
-            single_room_guests = row.total_guests
-        elif row.room_type == 'double':
-            double_rooms_occupied = row.occupied_rooms
-            double_room_guests = row.total_guests
+    # Calculate room occupancy
+    single_rooms_occupied = result.single_allocations if result else 0
+    double_rooms_occupied = (result.double_allocations // 2) if result and result.double_allocations else 0
+    single_room_guests = result.single_guests if result else 0
+    double_room_guests = result.double_guests if result else 0
     
     return {
         "single_rooms": {
