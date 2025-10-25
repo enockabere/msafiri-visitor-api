@@ -376,6 +376,13 @@ api_router.include_router(
     tags=["country-travel-requirements"]
 )
 
+from app.api.v1.endpoints import transport_providers
+api_router.include_router(
+    transport_providers.router,
+    prefix="/transport-providers",
+    tags=["transport-providers"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
