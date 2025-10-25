@@ -32,13 +32,10 @@ def get_transport_provider(
     current_user: User = Depends(deps.get_current_user)
 ):
     """Get specific transport provider configuration"""
-    print(f"DEBUG API: Getting provider {provider_name} for tenant {tenant_id}")
     provider = transport_provider.get_by_tenant_and_provider(
         db, tenant_id=tenant_id, provider_name=provider_name
     )
-    print(f"DEBUG API: Provider found: {provider is not None}")
     if not provider:
-        print(f"DEBUG API: Returning 404 for {provider_name}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transport provider not found"
