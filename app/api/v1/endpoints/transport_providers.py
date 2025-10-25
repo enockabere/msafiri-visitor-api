@@ -40,7 +40,26 @@ def get_transport_provider(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Transport provider not found"
         )
-    return provider
+    
+    # Create response with masked secrets
+    response_data = {
+        "id": provider.id,
+        "provider_name": provider.provider_name,
+        "is_enabled": provider.is_enabled,
+        "client_id": provider.client_id,
+        "api_base_url": provider.api_base_url,
+        "token_url": provider.token_url,
+        "tenant_id": provider.tenant_id,
+        "created_by": provider.created_by,
+        "updated_by": provider.updated_by,
+        "created_at": provider.created_at,
+        "updated_at": provider.updated_at,
+        # Mask secrets if they exist
+        "client_secret": "••••••••" if provider.client_secret else "",
+        "hmac_secret": "••••••••" if provider.hmac_secret else ""
+    }
+    
+    return response_data
 
 @router.post("/tenant/{tenant_id}", response_model=TransportProvider)
 def create_transport_provider(

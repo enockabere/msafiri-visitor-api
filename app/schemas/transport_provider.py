@@ -24,6 +24,8 @@ class TransportProviderUpdate(BaseModel):
 class TransportProvider(TransportProviderBase):
     id: int
     tenant_id: int
+    client_secret: Optional[str] = None  # Will be masked in response
+    hmac_secret: Optional[str] = None    # Will be masked in response
     created_by: str
     updated_by: Optional[str] = None
     created_at: datetime
