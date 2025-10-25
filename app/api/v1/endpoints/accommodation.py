@@ -1269,12 +1269,13 @@ def bulk_check_in_allocations(
 @router.get("/participant/{participant_id}/accommodation")
 def get_participant_accommodation(
     participant_id: int,
+    event_id: int = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(deps.get_current_user),
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get accommodation details for a specific participant"""
-    print(f"DEBUG: get_participant_accommodation - Participant: {participant_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     
     from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
     from app.models.event_participant import EventParticipant
@@ -1283,11 +1284,18 @@ def get_participant_accommodation(
     print(f"DEBUG: Resolved tenant_id: {tenant_id}")
     
     # Get participant's accommodation allocations
-    allocations = db.query(AccommodationAllocation).filter(
+    query = db.query(AccommodationAllocation).filter(
         AccommodationAllocation.participant_id == participant_id,
         AccommodationAllocation.tenant_id == tenant_id,
         AccommodationAllocation.status.in_(["booked", "checked_in"])
-    ).all()
+    )
+    
+    # Filter by event if provided
+    if event_id:
+        query = query.filter(AccommodationAllocation.event_id == event_id)
+        print(f"DEBUG: Filtering by event_id: {event_id}")
+    
+    allocations = query.all()
     
     print(f"DEBUG: Found {len(allocations)} allocations for participant {participant_id}")
     
