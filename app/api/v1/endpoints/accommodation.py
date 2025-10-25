@@ -1298,6 +1298,8 @@ def get_participant_accommodation(
     allocations = query.all()
     
     print(f"DEBUG: Found {len(allocations)} allocations for participant {participant_id}")
+    for i, allocation in enumerate(allocations):
+        print(f"DEBUG: Allocation {i+1}: ID={allocation.id}, Event ID={allocation.event_id}, Type={allocation.accommodation_type}, Status={allocation.status}")
     
     accommodations = []
     for allocation in allocations:
@@ -1325,7 +1327,7 @@ def get_participant_accommodation(
                 VendorAccommodation.id == allocation.vendor_accommodation_id
             ).first()
             if vendor:
-                accommodations.append({
+                accommodation_data = {
                     "type": "vendor",
                     "name": vendor.vendor_name,
                     "location": vendor.location,
@@ -1336,9 +1338,13 @@ def get_participant_accommodation(
                     "room_capacity": vendor.capacity,
                     "room_occupants": vendor.current_occupants,
                     "is_shared": vendor.capacity > 1
-                })
+                }
+                print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
+                accommodations.append(accommodation_data)
     
     print(f"DEBUG: Returning {len(accommodations)} accommodation details")
+    for i, acc in enumerate(accommodations):
+        print(f"DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
     return accommodations
 
 @router.put("/vendor-event-setup/{setup_id}", response_model=schemas.VendorEventAccommodation)
