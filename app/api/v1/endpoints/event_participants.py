@@ -98,7 +98,7 @@ def get_participants(
         # Get registration data from public_registrations table
         registration_result = db.execute(
             text("""
-                SELECT gender_identity, accommodation_needs 
+                SELECT gender_identity, accommodation_needs, travelling_from_country 
                 FROM public_registrations 
                 WHERE event_id = :event_id AND (personal_email = :email OR msf_email = :email)
                 LIMIT 1
@@ -370,10 +370,12 @@ def get_participant_details(
     
     gender = None
     accommodation_needs = None
+    travelling_from_country = None
     
     if registration_result:
         gender_identity = registration_result[0]
         accommodation_needs = registration_result[1]
+        travelling_from_country = registration_result[2]
         
         # Convert gender_identity to standard format
         if gender_identity:
@@ -390,7 +392,8 @@ def get_participant_details(
         "email": participant.email,
         "role": participant.role,
         "gender": gender,
-        "accommodation_needs": accommodation_needs
+        "accommodation_needs": accommodation_needs,
+        "travelling_from_country": travelling_from_country
     }
     
     return result

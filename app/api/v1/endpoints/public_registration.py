@@ -30,6 +30,7 @@ class PublicRegistrationRequest(BaseModel):
     lineManagerEmail: Optional[str] = ""
     phoneNumber: str
     travellingInternationally: Optional[str] = ""
+    travellingFromCountry: Optional[str] = ""
     accommodationType: Optional[str] = ""
     dietaryRequirements: Optional[str] = ""
     accommodationNeeds: Optional[str] = ""
@@ -196,7 +197,7 @@ async def public_register_for_event(
             contract_type, gender_identity, sex, pronouns, current_position, 
             country_of_work, project_of_work, personal_email, msf_email, 
             hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
-            phone_number, travelling_internationally, accommodation_type, 
+            phone_number, travelling_internationally, travelling_from_country, accommodation_type, 
             dietary_requirements, accommodation_needs, daily_meals, certificate_name,
             badge_name, motivation_letter, code_of_conduct_confirm, travel_requirements_confirm, created_at
         ) VALUES (
@@ -204,7 +205,7 @@ async def public_register_for_event(
             :contract_type, :gender_identity, :sex, :pronouns, :current_position,
             :country_of_work, :project_of_work, :personal_email, :msf_email,
             :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
-            :phone_number, :travelling_internationally, :accommodation_type,
+            :phone_number, :travelling_internationally, :travelling_from_country, :accommodation_type,
             :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
             :badge_name, :motivation_letter, :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
         )
@@ -232,6 +233,7 @@ async def public_register_for_event(
             "line_manager_email": registration.lineManagerEmail,
             "phone_number": registration.phoneNumber,
             "travelling_internationally": registration.travellingInternationally,
+            "travelling_from_country": registration.travellingFromCountry,
             "accommodation_type": registration.accommodationType,
             "dietary_requirements": registration.dietaryRequirements,
             "accommodation_needs": registration.accommodationNeeds,
