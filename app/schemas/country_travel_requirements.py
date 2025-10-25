@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
 class CountryTravelRequirementBase(BaseModel):
     country: str
@@ -22,8 +23,8 @@ class CountryTravelRequirement(CountryTravelRequirementBase):
     tenant_id: int
     created_by: str
     updated_by: Optional[str] = None
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
