@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.db.database import get_db
 from app.crud.country_travel_requirements import country_travel_requirement
 from app.schemas.country_travel_requirements import (
     CountryTravelRequirement,
@@ -16,7 +17,7 @@ router = APIRouter()
 @router.get("/tenant/{tenant_id}", response_model=List[CountryTravelRequirement])
 def get_tenant_travel_requirements(
     tenant_id: int,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Get all travel requirements for a tenant"""
@@ -27,7 +28,7 @@ def get_tenant_travel_requirements(
 def get_country_travel_requirement(
     tenant_id: int,
     country: str,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Get travel requirements for a specific country and tenant"""
@@ -45,7 +46,7 @@ def get_country_travel_requirement(
 def create_travel_requirement(
     tenant_id: int,
     requirement_in: CountryTravelRequirementCreate,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Create travel requirements for a country"""
@@ -69,7 +70,7 @@ def update_travel_requirement(
     tenant_id: int,
     country: str,
     requirement_in: CountryTravelRequirementUpdate,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Update travel requirements for a country"""
@@ -91,7 +92,7 @@ def update_travel_requirement(
 def delete_travel_requirement(
     tenant_id: int,
     country: str,
-    db: Session = Depends(deps.get_db),
+    db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ):
     """Delete travel requirements for a country"""
