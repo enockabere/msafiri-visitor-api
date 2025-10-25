@@ -271,11 +271,11 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
         # Create a mock user for auto-booking
         class MockUser:
             def __init__(self):
-                self.tenant_id = "ko-oca"
+                self.tenant_id = "msf-oca"
                 self.id = 1
         
         mock_user = MockUser()
-        tenant_context = "ko-oca"
+        tenant_context = "msf-oca"
         print(f"DEBUG ROLE UPDATE: Triggering MASS auto-booking for all participants with tenant_context: {tenant_context}")
         
         # Call the mass auto-booking function directly
@@ -394,6 +394,124 @@ def get_participant_details(
     }
     
     return result
+
+@router.put("/{participant_id}/status", operation_id="update_participant_status_unique")
+async def update_participant_status(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    participant_id: int,
+    status_data: dict
+) -> Any:
+    """Update participant status with auto-booking"""
+    
+    print(f"DEBUG STATUS UPDATE: Starting status update for participant {participant_id} in event {event_id}")
+    print(f"DEBUG STATUS UPDATE: Status data: {status_data}")
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    print(f"DEBUG STATUS UPDATE: Found participant: {participant.full_name}")
+    
+    # Validate status
+    valid_statuses = ['invited', 'confirmed', 'declined', 'waiting', 'selected', 'attended']
+    new_status = status_data.get('status', '').lower()
+    if new_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+    
+    old_status = participant.status
+    print(f"DEBUG STATUS UPDATE: Status change - Old: {old_status}, New: {new_status}")
+    
+    # Update status
+    try:
+        participant.status = new_status
+        db.commit()
+        print(f"DEBUG STATUS UPDATE: Database updated successfully")
+        
+        # Trigger auto-booking if status changed to confirmed
+        if new_status == 'confirmed' and old_status != 'confirmed':
+            print(f"DEBUG STATUS UPDATE: Triggering auto-booking for newly confirmed participant")
+            
+            from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+            
+            # Create a mock user for auto-booking
+            class MockUser:
+                def __init__(self):
+                    self.tenant_id = "msf-oca"
+                    self.id = 1
+            
+            mock_user = MockUser()
+            tenant_context = "msf-oca"
+            
+            try:
+                booking_result = _auto_book_participant_internal(
+                    event_id=event_id,
+                    participant_id=participant_id,
+                    db=db,
+                    current_user=mock_user,
+                    tenant_context=tenant_context
+                )
+                print(f"DEBUG STATUS UPDATE: Auto-booking completed: {booking_result}")
+            except Exception as e:
+                print(f"DEBUG STATUS UPDATE: Auto-booking failed: {str(e)}")
+                import traceback
+                print(f"DEBUG STATUS UPDATE: Traceback: {traceback.format_exc()}")
+        
+        # Remove accommodation if status changed from confirmed to something else
+        elif old_status == 'confirmed' and new_status != 'confirmed':
+            print(f"DEBUG STATUS UPDATE: Removing accommodation for no longer confirmed participant")
+            
+            from app.models.guesthouse import AccommodationAllocation
+            from sqlalchemy import text
+            
+            # Delete existing allocations for this participant
+            existing_allocations = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.participant_id == participant_id,
+                AccommodationAllocation.status.in_(["booked", "checked_in"])
+            ).all()
+            
+            for allocation in existing_allocations:
+                print(f"DEBUG STATUS UPDATE: Deleting allocation {allocation.id} for {allocation.guest_name}")
+                
+                # Restore room counts to vendor_event_accommodations
+                if allocation.vendor_accommodation_id:
+                    # Find the accommodation setup for this event
+                    setup_query = text("""
+                        SELECT accommodation_setup_id FROM events WHERE id = :event_id
+                    """)
+                    setup_result = db.execute(setup_query, {"event_id": event_id}).first()
+                    
+                    if setup_result and setup_result[0]:
+                        if allocation.room_type == 'single':
+                            db.execute(text("""
+                                UPDATE vendor_event_accommodations 
+                                SET single_rooms = single_rooms + 1 
+                                WHERE id = :setup_id
+                            """), {"setup_id": setup_result[0]})
+                        elif allocation.room_type == 'double':
+                            db.execute(text("""
+                                UPDATE vendor_event_accommodations 
+                                SET double_rooms = double_rooms + 1 
+                                WHERE id = :setup_id
+                            """), {"setup_id": setup_result[0]})
+                
+                db.delete(allocation)
+            
+            db.commit()
+            print(f"DEBUG STATUS UPDATE: Deleted {len(existing_allocations)} existing allocations")
+        
+        print(f"DEBUG STATUS UPDATE: Process completed successfully")
+        return {"message": "Status updated successfully", "new_status": new_status}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"DEBUG STATUS UPDATE: Error updating participant status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update status")
 
 @router.delete("/{participant_id}", operation_id="delete_event_participant_unique")
 def delete_participant(

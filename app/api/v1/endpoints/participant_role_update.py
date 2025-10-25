@@ -85,22 +85,29 @@ def update_participant_role(
             print(f"DEBUG ROLE UPDATE: Deleting allocation {allocation.id} for {allocation.guest_name} (room_type: {allocation.room_type})")
             logger.info(f"Deleting allocation {allocation.id} for {allocation.guest_name}")
             
-            # Restore room counts
+            # Restore room counts to vendor_event_accommodations
             if allocation.vendor_accommodation_id:
-                if allocation.room_type == 'single':
-                    print(f"DEBUG ROLE UPDATE: Restoring 1 single room to vendor {allocation.vendor_accommodation_id}")
-                    db.execute(text("""
-                        UPDATE vendor_accommodations 
-                        SET single_rooms = single_rooms + 1 
-                        WHERE id = :vendor_id
-                    """), {"vendor_id": allocation.vendor_accommodation_id})
-                elif allocation.room_type == 'double':
-                    print(f"DEBUG ROLE UPDATE: Restoring 1 double room to vendor {allocation.vendor_accommodation_id}")
-                    db.execute(text("""
-                        UPDATE vendor_accommodations 
-                        SET double_rooms = double_rooms + 1 
-                        WHERE id = :vendor_id
-                    """), {"vendor_id": allocation.vendor_accommodation_id})
+                # Find the accommodation setup for this event
+                setup_query = text("""
+                    SELECT accommodation_setup_id FROM events WHERE id = :event_id
+                """)
+                setup_result = db.execute(setup_query, {"event_id": event_id}).first()
+                
+                if setup_result and setup_result[0]:
+                    if allocation.room_type == 'single':
+                        print(f"DEBUG ROLE UPDATE: Restoring 1 single room to setup {setup_result[0]}")
+                        db.execute(text("""
+                            UPDATE vendor_event_accommodations 
+                            SET single_rooms = single_rooms + 1 
+                            WHERE id = :setup_id
+                        """), {"setup_id": setup_result[0]})
+                    elif allocation.room_type == 'double':
+                        print(f"DEBUG ROLE UPDATE: Restoring 1 double room to setup {setup_result[0]}")
+                        db.execute(text("""
+                            UPDATE vendor_event_accommodations 
+                            SET double_rooms = double_rooms + 1 
+                            WHERE id = :setup_id
+                        """), {"setup_id": setup_result[0]})
             
             db.delete(allocation)
         
