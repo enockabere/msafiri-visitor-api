@@ -207,12 +207,7 @@ api_router.include_router(
     tags=["accommodation"]
 )
 
-from app.api.v1.endpoints import guest_house
-api_router.include_router(
-    guest_house.router,
-    prefix="/guest-houses",
-    tags=["guest-houses"]
-)
+
 
 from app.api.v1.endpoints import transport_booking
 api_router.include_router(

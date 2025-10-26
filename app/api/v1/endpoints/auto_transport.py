@@ -9,7 +9,7 @@ from app.core.permissions import has_transport_permissions
 from app.models.event_participant import EventParticipant
 from app.models.accommodation import RoomAssignment
 from app.models.transport_booking import TransportBooking, BookingType, BookingStatus, VendorType
-from app.crud.guest_house import guest_house_booking_crud
+
 from app.schemas.transport_booking import TransportBookingCreate
 from app.crud.transport_booking import transport_booking
 import requests
@@ -115,23 +115,28 @@ def auto_create_transport_bookings(
             if existing_booking:
                 continue
                 
-            # Get participant's first accommodation (guest house or vendor hotel)
-            first_accommodation = guest_house_booking_crud.get_participant_first_accommodation(db, participant.id)
+            # Get participant's accommodations ordered by check-in date
+            accommodations = db.query(RoomAssignment).filter(
+                RoomAssignment.participant_id == participant.id
+            ).order_by(RoomAssignment.check_in_date).all()
             
-            if not first_accommodation:
+            if not accommodations:
                 continue
+                
+            # Create airport pickup booking
+            first_accommodation = accommodations[0]
             
             booking_data = TransportBookingCreate(
                 booking_type=BookingType.AIRPORT_PICKUP,
                 participant_ids=[participant.id],
                 pickup_locations=["JKIA Airport"],
-                destination=f"{first_accommodation['location']}, {first_accommodation['address']}",
-                scheduled_time=first_accommodation['check_in_date'] - timedelta(hours=2),
+                destination=f"{first_accommodation.hotel_name}, {first_accommodation.address}",
+                scheduled_time=first_accommodation.check_in_date - timedelta(hours=2),
                 vendor_type=VendorType.ABSOLUTE_TAXI,
                 vendor_name="Absolute Cabs",
                 flight_number="TBD",  # To be updated by admin
-                arrival_time=first_accommodation['check_in_date'] - timedelta(hours=3),
-                special_instructions=f"Pickup for {participant.full_name} from {participant.travelling_from_country}. Flight details to be confirmed. Accommodation type: {first_accommodation['type']}",
+                arrival_time=first_accommodation.check_in_date - timedelta(hours=3),
+                special_instructions=f"Pickup for {participant.full_name} from {participant.travelling_from_country}. Flight details to be confirmed.",
                 admin_notes="Auto-created booking - requires admin confirmation before sending to vendor"
             )
             
@@ -141,8 +146,7 @@ def auto_create_transport_bookings(
                 "booking_id": booking.id,
                 "participant": participant.full_name,
                 "event": event.title,
-                "destination": booking.destination,
-                "accommodation_type": first_accommodation['type']
+                "destination": booking.destination
             })
     
     return {
