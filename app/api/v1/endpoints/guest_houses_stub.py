@@ -10,17 +10,11 @@ router = APIRouter()
 class GuestHouseCreate(BaseModel):
     name: str
     location: str
-    address: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     description: Optional[str] = None
-    contact_person: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
     house_rules: Optional[str] = None
-    check_in_time: Optional[str] = "14:00"
-    check_out_time: Optional[str] = "11:00"
     tenant_id: str
 
 @router.get("/")
@@ -30,8 +24,14 @@ async def get_guest_houses(
 ):
     """Get all guest houses for a tenant"""
     try:
+        # Convert tenant slug to tenant ID
+        from app.models.tenant import Tenant
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_context).first()
+        if not tenant:
+            return []
+        
         guest_houses = db.query(GuestHouse).filter(
-            GuestHouse.tenant_id == tenant_context
+            GuestHouse.tenant_id == tenant.id
         ).all()
         
         result = []
@@ -70,21 +70,20 @@ async def create_guest_house(
 ):
     """Create a new guest house"""
     try:
+        # Convert tenant slug to tenant ID
+        from app.models.tenant import Tenant
+        tenant = db.query(Tenant).filter(Tenant.slug == guest_house_data.tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
         new_guest_house = GuestHouse(
             name=guest_house_data.name,
             location=guest_house_data.location,
-            address=guest_house_data.address,
+            address="",  # Not used in simplified form
             latitude=guest_house_data.latitude,
             longitude=guest_house_data.longitude,
             description=guest_house_data.description,
-            contact_person=guest_house_data.contact_person,
-            phone=guest_house_data.phone,
-            email=guest_house_data.email,
-            facilities=guest_house_data.facilities,
-            house_rules=guest_house_data.house_rules,
-            check_in_time=guest_house_data.check_in_time,
-            check_out_time=guest_house_data.check_out_time,
-            tenant_id=guest_house_data.tenant_id,
+            tenant_id=tenant.id,  # Use tenant ID instead of slug
             created_by="system",
             is_active=True
         )
@@ -118,17 +117,11 @@ async def update_guest_house(
         # Update fields
         guest_house.name = guest_house_data.name
         guest_house.location = guest_house_data.location
-        guest_house.address = guest_house_data.address
         guest_house.latitude = guest_house_data.latitude
         guest_house.longitude = guest_house_data.longitude
         guest_house.description = guest_house_data.description
-        guest_house.contact_person = guest_house_data.contact_person
-        guest_house.phone = guest_house_data.phone
-        guest_house.email = guest_house_data.email
         guest_house.facilities = guest_house_data.facilities
         guest_house.house_rules = guest_house_data.house_rules
-        guest_house.check_in_time = guest_house_data.check_in_time
-        guest_house.check_out_time = guest_house_data.check_out_time
         
         db.commit()
         
