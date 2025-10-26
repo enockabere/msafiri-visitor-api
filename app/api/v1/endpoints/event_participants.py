@@ -276,6 +276,119 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
         import traceback
         print(f"DEBUG ROLE UPDATE: Traceback: {traceback.format_exc()}")
 
+async def handle_participant_decline_reallocation(event_id, participant_id, db):
+    """Handle room reallocation when a participant declines"""
+    try:
+        from app.models.guesthouse import AccommodationAllocation
+        from sqlalchemy import text
+        
+        # Find existing allocations for this participant
+        existing_allocations = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participant_id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        ).all()
+        
+        for allocation in existing_allocations:
+            print(f"DEBUG DECLINE: Processing allocation {allocation.id} for {allocation.guest_name}")
+            
+            # If this was a double room, find the roommate
+            if allocation.room_type == 'double' and allocation.vendor_accommodation_id:
+                # Find roommate in the same vendor accommodation with same dates
+                roommate_allocation = db.query(AccommodationAllocation).filter(
+                    AccommodationAllocation.vendor_accommodation_id == allocation.vendor_accommodation_id,
+                    AccommodationAllocation.room_type == 'double',
+                    AccommodationAllocation.check_in_date == allocation.check_in_date,
+                    AccommodationAllocation.check_out_date == allocation.check_out_date,
+                    AccommodationAllocation.id != allocation.id,
+                    AccommodationAllocation.status.in_(["booked", "checked_in"])
+                ).first()
+                
+                if roommate_allocation:
+                    print(f"DEBUG DECLINE: Found roommate {roommate_allocation.guest_name}, reallocating...")
+                    
+                    # Try to find another single person to pair with
+                    single_person = db.query(AccommodationAllocation).filter(
+                        AccommodationAllocation.event_id == event_id,
+                        AccommodationAllocation.room_type == 'single',
+                        AccommodationAllocation.vendor_accommodation_id == allocation.vendor_accommodation_id,
+                        AccommodationAllocation.check_in_date == allocation.check_in_date,
+                        AccommodationAllocation.check_out_date == allocation.check_out_date,
+                        AccommodationAllocation.status.in_(["booked", "checked_in"])
+                    ).first()
+                    
+                    if single_person:
+                        # Merge the single person with the roommate
+                        print(f"DEBUG DECLINE: Merging {single_person.guest_name} with {roommate_allocation.guest_name}")
+                        
+                        # Update both to double room
+                        single_person.room_type = 'double'
+                        roommate_allocation.room_type = 'double'
+                        
+                        # Add roommate names
+                        if hasattr(single_person, 'roommate_name'):
+                            single_person.roommate_name = roommate_allocation.guest_name
+                        if hasattr(roommate_allocation, 'roommate_name'):
+                            roommate_allocation.roommate_name = single_person.guest_name
+                        
+                        # Restore one single room (since we're converting 2 singles to 1 double)
+                        setup_query = text("""
+                            SELECT accommodation_setup_id FROM events WHERE id = :event_id
+                        """)
+                        setup_result = db.execute(setup_query, {"event_id": event_id}).first()
+                        
+                        if setup_result and setup_result[0]:
+                            db.execute(text("""
+                                UPDATE vendor_event_accommodations 
+                                SET single_rooms = single_rooms + 1 
+                                WHERE id = :setup_id
+                            """), {"setup_id": setup_result[0]})
+                        
+                        print(f"DEBUG DECLINE: Successfully merged rooms")
+                    else:
+                        # No single person to merge with, convert roommate to single
+                        print(f"DEBUG DECLINE: No single person found, converting {roommate_allocation.guest_name} to single room")
+                        roommate_allocation.room_type = 'single'
+                        
+                        # Clear roommate name if it exists
+                        if hasattr(roommate_allocation, 'roommate_name'):
+                            roommate_allocation.roommate_name = None
+            
+            # Delete the declining participant's allocation
+            print(f"DEBUG DECLINE: Deleting allocation {allocation.id}")
+            
+            # Restore room counts
+            if allocation.vendor_accommodation_id:
+                setup_query = text("""
+                    SELECT accommodation_setup_id FROM events WHERE id = :event_id
+                """)
+                setup_result = db.execute(setup_query, {"event_id": event_id}).first()
+                
+                if setup_result and setup_result[0]:
+                    if allocation.room_type == 'single':
+                        db.execute(text("""
+                            UPDATE vendor_event_accommodations 
+                            SET single_rooms = single_rooms + 1 
+                            WHERE id = :setup_id
+                        """), {"setup_id": setup_result[0]})
+                    elif allocation.room_type == 'double':
+                        db.execute(text("""
+                            UPDATE vendor_event_accommodations 
+                            SET double_rooms = double_rooms + 1 
+                            WHERE id = :setup_id
+                        """), {"setup_id": setup_result[0]})
+            
+            db.delete(allocation)
+        
+        db.commit()
+        print(f"DEBUG DECLINE: Completed reallocation for {len(existing_allocations)} allocations")
+        
+    except Exception as e:
+        print(f"DEBUG DECLINE: Error in reallocation: {str(e)}")
+        import traceback
+        print(f"DEBUG DECLINE: Traceback: {traceback.format_exc()}")
+        db.rollback()
+        raise e
+
 async def send_role_change_notification(participant, old_role, new_role, db):
     """Send email notification when participant role changes"""
     try:
@@ -451,45 +564,7 @@ async def update_participant_status(
         # Remove accommodation if status changed from confirmed to something else
         elif old_status == 'confirmed' and new_status != 'confirmed':
             print(f"DEBUG STATUS UPDATE: Removing accommodation for no longer confirmed participant")
-            
-            from app.models.guesthouse import AccommodationAllocation
-            from sqlalchemy import text
-            
-            # Delete existing allocations for this participant
-            existing_allocations = db.query(AccommodationAllocation).filter(
-                AccommodationAllocation.participant_id == participant_id,
-                AccommodationAllocation.status.in_(["booked", "checked_in"])
-            ).all()
-            
-            for allocation in existing_allocations:
-                print(f"DEBUG STATUS UPDATE: Deleting allocation {allocation.id} for {allocation.guest_name}")
-                
-                # Restore room counts to vendor_event_accommodations
-                if allocation.vendor_accommodation_id:
-                    # Find the accommodation setup for this event
-                    setup_query = text("""
-                        SELECT accommodation_setup_id FROM events WHERE id = :event_id
-                    """)
-                    setup_result = db.execute(setup_query, {"event_id": event_id}).first()
-                    
-                    if setup_result and setup_result[0]:
-                        if allocation.room_type == 'single':
-                            db.execute(text("""
-                                UPDATE vendor_event_accommodations 
-                                SET single_rooms = single_rooms + 1 
-                                WHERE id = :setup_id
-                            """), {"setup_id": setup_result[0]})
-                        elif allocation.room_type == 'double':
-                            db.execute(text("""
-                                UPDATE vendor_event_accommodations 
-                                SET double_rooms = double_rooms + 1 
-                                WHERE id = :setup_id
-                            """), {"setup_id": setup_result[0]})
-                
-                db.delete(allocation)
-            
-            db.commit()
-            print(f"DEBUG STATUS UPDATE: Deleted {len(existing_allocations)} existing allocations")
+            await handle_participant_decline_reallocation(event_id, participant_id, db)
         
         print(f"DEBUG STATUS UPDATE: Process completed successfully")
         return {"message": "Status updated successfully", "new_status": new_status}
