@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.guesthouse import GuestHouse, GuestHouseRoom
+from app.models.guesthouse import GuestHouse, Room
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
@@ -229,19 +229,18 @@ async def get_rooms(
         if not guest_house:
             raise HTTPException(status_code=404, detail="Guest house not found")
         
-        rooms = db.query(GuestHouseRoom).filter(GuestHouseRoom.guest_house_id == guest_house_id).all()
+        rooms = db.query(Room).filter(Room.guesthouse_id == guest_house_id).all()
         
         result = []
         for room in rooms:
             try:
-                facilities = json.loads(room.facilities) if room.facilities else {}
+                facilities = json.loads(room.amenities) if room.amenities else {}
             except:
                 facilities = {}
             
             result.append({
                 "id": room.id,
                 "room_number": room.room_number,
-                "room_name": room.room_name,
                 "capacity": room.capacity,
                 "room_type": room.room_type,
                 "description": room.description,
@@ -266,14 +265,14 @@ async def create_room(
         if not guest_house:
             raise HTTPException(status_code=404, detail="Guest house not found")
         
-        new_room = GuestHouseRoom(
-            guest_house_id=guest_house_id,
+        new_room = Room(
+            guesthouse_id=guest_house_id,
+            tenant_id=guest_house.tenant_id,
             room_number=room_data.room_number,
-            room_name=room_data.room_name,
             capacity=room_data.capacity,
-            room_type=room_data.room_type,
+            room_type=room_data.room_type or "single",
             description=room_data.description,
-            facilities=json.dumps(room_data.facilities) if room_data.facilities else None,
+            amenities=json.dumps(room_data.facilities) if room_data.facilities else None,
             is_active=True
         )
         
@@ -299,15 +298,13 @@ async def update_room(
 ):
     """Update a room"""
     try:
-        room = db.query(GuestHouseRoom).filter(GuestHouseRoom.id == room_id).first()
+        room = db.query(Room).filter(Room.id == room_id).first()
         if not room:
             raise HTTPException(status_code=404, detail="Room not found")
         
         # Update only provided fields
         if room_data.room_number is not None:
             room.room_number = room_data.room_number
-        if room_data.room_name is not None:
-            room.room_name = room_data.room_name
         if room_data.capacity is not None:
             room.capacity = room_data.capacity
         if room_data.room_type is not None:
@@ -315,7 +312,7 @@ async def update_room(
         if room_data.description is not None:
             room.description = room_data.description
         if room_data.facilities is not None:
-            room.facilities = json.dumps(room_data.facilities)
+            room.amenities = json.dumps(room_data.facilities)
         if room_data.is_active is not None:
             room.is_active = room_data.is_active
         
