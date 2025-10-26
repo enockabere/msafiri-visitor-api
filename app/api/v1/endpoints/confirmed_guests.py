@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.core.permissions import get_current_user, has_accommodation_permissions
+from app.api import deps
+from app.core.permissions import has_accommodation_permissions
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
 from app.models.tenant import Tenant
@@ -12,13 +13,13 @@ router = APIRouter()
 @router.get("/confirmed-guests")
 async def get_confirmed_guests(
     tenant_context: str,
-    current_user: dict = Depends(get_current_user),
+    current_user = Depends(deps.get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all confirmed guests from all events for guest house booking"""
     
     # Check permissions
-    if not has_accommodation_permissions(current_user):
+    if not has_accommodation_permissions(current_user, db):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     
     # Get tenant
