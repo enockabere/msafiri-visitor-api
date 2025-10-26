@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models.guesthouse import GuestHouse
+from app.models.guesthouse import GuestHouse, GuestHouseRoom
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import json
@@ -27,6 +27,23 @@ class GuestHouseUpdate(BaseModel):
     description: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
     house_rules: Optional[str] = None
+
+class RoomCreate(BaseModel):
+    room_number: str
+    room_name: Optional[str] = None
+    capacity: int
+    room_type: Optional[str] = None
+    description: Optional[str] = None
+    facilities: Optional[Dict[str, Any]] = None
+
+class RoomUpdate(BaseModel):
+    room_number: Optional[str] = None
+    room_name: Optional[str] = None
+    capacity: Optional[int] = None
+    room_type: Optional[str] = None
+    description: Optional[str] = None
+    facilities: Optional[Dict[str, Any]] = None
+    is_active: Optional[bool] = None
 
 @router.get("/")
 async def get_guest_houses(
@@ -199,3 +216,117 @@ async def delete_guest_house(
         db.rollback()
         print(f"Error deleting guest house: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete guest house")
+
+# Room Management Endpoints
+@router.get("/{guest_house_id}/rooms")
+async def get_rooms(
+    guest_house_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get all rooms for a guest house"""
+    try:
+        guest_house = db.query(GuestHouse).filter(GuestHouse.id == guest_house_id).first()
+        if not guest_house:
+            raise HTTPException(status_code=404, detail="Guest house not found")
+        
+        rooms = db.query(GuestHouseRoom).filter(GuestHouseRoom.guest_house_id == guest_house_id).all()
+        
+        result = []
+        for room in rooms:
+            try:
+                facilities = json.loads(room.facilities) if room.facilities else {}
+            except:
+                facilities = {}
+            
+            result.append({
+                "id": room.id,
+                "room_number": room.room_number,
+                "room_name": room.room_name,
+                "capacity": room.capacity,
+                "room_type": room.room_type,
+                "description": room.description,
+                "facilities": facilities,
+                "is_active": room.is_active
+            })
+        
+        return result
+    except Exception as e:
+        print(f"Error fetching rooms: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch rooms")
+
+@router.post("/{guest_house_id}/rooms")
+async def create_room(
+    guest_house_id: int,
+    room_data: RoomCreate,
+    db: Session = Depends(get_db)
+):
+    """Create a new room"""
+    try:
+        guest_house = db.query(GuestHouse).filter(GuestHouse.id == guest_house_id).first()
+        if not guest_house:
+            raise HTTPException(status_code=404, detail="Guest house not found")
+        
+        new_room = GuestHouseRoom(
+            guest_house_id=guest_house_id,
+            room_number=room_data.room_number,
+            room_name=room_data.room_name,
+            capacity=room_data.capacity,
+            room_type=room_data.room_type,
+            description=room_data.description,
+            facilities=json.dumps(room_data.facilities) if room_data.facilities else None,
+            is_active=True
+        )
+        
+        db.add(new_room)
+        db.commit()
+        db.refresh(new_room)
+        
+        return {
+            "id": new_room.id,
+            "room_number": new_room.room_number,
+            "message": "Room created successfully"
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating room: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create room")
+
+@router.put("/rooms/{room_id}")
+async def update_room(
+    room_id: int,
+    room_data: RoomUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a room"""
+    try:
+        room = db.query(GuestHouseRoom).filter(GuestHouseRoom.id == room_id).first()
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+        
+        # Update only provided fields
+        if room_data.room_number is not None:
+            room.room_number = room_data.room_number
+        if room_data.room_name is not None:
+            room.room_name = room_data.room_name
+        if room_data.capacity is not None:
+            room.capacity = room_data.capacity
+        if room_data.room_type is not None:
+            room.room_type = room_data.room_type
+        if room_data.description is not None:
+            room.description = room_data.description
+        if room_data.facilities is not None:
+            room.facilities = json.dumps(room_data.facilities)
+        if room_data.is_active is not None:
+            room.is_active = room_data.is_active
+        
+        db.commit()
+        
+        return {
+            "id": room.id,
+            "room_number": room.room_number,
+            "message": "Room updated successfully"
+        }
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating room: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update room")
