@@ -207,11 +207,25 @@ api_router.include_router(
     tags=["accommodation"]
 )
 
+from app.api.v1.endpoints import guest_house
+api_router.include_router(
+    guest_house.router,
+    prefix="/guest-houses",
+    tags=["guest-houses"]
+)
+
 from app.api.v1.endpoints import transport_booking
 api_router.include_router(
     transport_booking.router,
     prefix="/transport",
     tags=["transport-booking"]
+)
+
+from app.api.v1.endpoints import auto_transport
+api_router.include_router(
+    auto_transport.router,
+    prefix="/transport",
+    tags=["auto-transport"]
 )
 
 from app.api.v1.endpoints import user_roles

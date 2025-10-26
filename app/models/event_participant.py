@@ -33,6 +33,7 @@ class EventParticipant(BaseModel):
     
     # Registration details
     country = Column(String(100), nullable=True)
+    travelling_from_country = Column(String(100), nullable=True)
     position = Column(String(255), nullable=True)
     project = Column(String(255), nullable=True)
     gender = Column(String(50), nullable=True)
