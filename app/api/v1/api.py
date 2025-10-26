@@ -407,6 +407,13 @@ api_router.include_router(
     tags=["accommodation-refresh"]
 )
 
+from app.api.v1.endpoints import confirmed_guests
+api_router.include_router(
+    confirmed_guests.router,
+    prefix="/accommodation",
+    tags=["confirmed-guests"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
