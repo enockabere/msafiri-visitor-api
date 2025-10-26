@@ -32,32 +32,26 @@ async def get_confirmed_guests(
     one_month_ago = datetime.now() - timedelta(days=30)
     
     confirmed_guests = db.query(
-        EventParticipant.first_name,
-        EventParticipant.last_name,
-        EventParticipant.personal_email,
-        EventParticipant.msf_email,
-        EventParticipant.phone_number,
+        EventParticipant.full_name,
+        EventParticipant.email,
         Event.title.label("event_title")
     ).join(
         Event, EventParticipant.event_id == Event.id
     ).filter(
         Event.tenant_id == tenant.id,
-        EventParticipant.status == "Confirmed",
+        EventParticipant.status == "confirmed",
         Event.end_date >= one_month_ago
     ).all()
     
     # Format response
     guests = []
     for guest in confirmed_guests:
-        full_name = f"{guest.first_name} {guest.last_name}"
-        email = guest.msf_email or guest.personal_email
-        
         guests.append({
-            "name": full_name,
-            "email": email,
-            "phone": guest.phone_number,
+            "name": guest.full_name,
+            "email": guest.email,
+            "phone": "",  # Phone not available in EventParticipant model
             "event": guest.event_title,
-            "display_text": f"{full_name} ({guest.event_title})"
+            "display_text": f"{guest.full_name} ({guest.event_title})"
         })
     
     return {"guests": guests}
