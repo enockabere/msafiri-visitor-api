@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.db.database import get_db
 from app.core.permissions import get_current_user, has_accommodation_permissions
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
