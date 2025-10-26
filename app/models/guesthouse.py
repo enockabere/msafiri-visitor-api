@@ -14,6 +14,13 @@ class GuestHouse(Base):
     latitude = Column(String(20), nullable=True)
     longitude = Column(String(20), nullable=True)
     description = Column(Text, nullable=True)
+    contact_person = Column(String(200), nullable=True)
+    phone = Column(String(20), nullable=True)
+    email = Column(String(100), nullable=True)
+    facilities = Column(Text, nullable=True)  # JSON string
+    house_rules = Column(Text, nullable=True)
+    check_in_time = Column(String(10), nullable=True)
+    check_out_time = Column(String(10), nullable=True)
     is_active = Column(Boolean, default=True)
     total_rooms = Column(Integer, default=0)
     occupied_rooms = Column(Integer, default=0)
@@ -22,7 +29,7 @@ class GuestHouse(Base):
     created_by = Column(String(200), nullable=True)
 
     # Relationships
-    rooms = relationship("Room", back_populates="guesthouse", cascade="all, delete-orphan")
+    rooms = relationship("Room", back_populates="guesthouse", cascade="all, delete-orphan", lazy="select")
 
 class Room(Base):
     __tablename__ = "rooms"

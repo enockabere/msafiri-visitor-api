@@ -4,6 +4,7 @@ from app.db.database import get_db
 from app.models.guesthouse import GuestHouse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+import json
 
 router = APIRouter()
 
@@ -47,7 +48,7 @@ async def get_guest_houses(
                 "contact_person": gh.contact_person,
                 "phone": gh.phone,
                 "email": gh.email,
-                "facilities": gh.facilities or {},
+                "facilities": json.loads(gh.facilities) if gh.facilities else {},
                 "house_rules": gh.house_rules,
                 "check_in_time": gh.check_in_time,
                 "check_out_time": gh.check_out_time,
@@ -55,7 +56,14 @@ async def get_guest_houses(
                 "tenant_id": gh.tenant_id,
                 "created_by": gh.created_by,
                 "created_at": gh.created_at.isoformat() if gh.created_at else None,
-                "rooms": []  # Empty for now
+                "rooms": [{
+                    "id": room.id,
+                    "room_number": room.room_number,
+                    "capacity": room.capacity,
+                    "room_type": room.room_type,
+                    "description": room.description,
+                    "is_active": room.is_active
+                } for room in gh.rooms]
             })
         
         return result
