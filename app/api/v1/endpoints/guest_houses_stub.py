@@ -25,30 +25,43 @@ async def get_guest_houses(
 ):
     """Get all guest houses for a tenant"""
     try:
+        print(f"🔍 [DEBUG] Guest house API called with tenant_context: {tenant_context}")
+        
         # Convert tenant slug to tenant ID
         from app.models.tenant import Tenant
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_context).first()
+        print(f"🔍 [DEBUG] Found tenant: {tenant.name if tenant else 'None'} (ID: {tenant.id if tenant else 'None'})")
+        
         if not tenant:
+            print(f"🔍 [DEBUG] No tenant found for slug: {tenant_context}")
             return []
         
         guest_houses = db.query(GuestHouse).filter(
             GuestHouse.tenant_id == tenant.id
         ).all()
+        print(f"🔍 [DEBUG] Found {len(guest_houses)} guest houses for tenant ID {tenant.id}")
         
         result = []
         for gh in guest_houses:
-            result.append({
+            print(f"🔍 [DEBUG] Processing guest house: {gh.name} (ID: {gh.id})")
+            try:
+                facilities = json.loads(gh.facilities) if gh.facilities else {}
+            except Exception as facility_error:
+                print(f"🔍 [DEBUG] Error parsing facilities for {gh.name}: {facility_error}")
+                facilities = {}
+            
+            house_data = {
                 "id": gh.id,
                 "name": gh.name,
                 "location": gh.location,
-                "address": gh.address,
+                "address": gh.address or "",
                 "latitude": gh.latitude,
                 "longitude": gh.longitude,
                 "description": gh.description,
                 "contact_person": gh.contact_person,
                 "phone": gh.phone,
                 "email": gh.email,
-                "facilities": json.loads(gh.facilities) if gh.facilities else {},
+                "facilities": facilities,
                 "house_rules": gh.house_rules,
                 "check_in_time": gh.check_in_time,
                 "check_out_time": gh.check_out_time,
@@ -64,11 +77,16 @@ async def get_guest_houses(
                     "description": room.description,
                     "is_active": room.is_active
                 } for room in gh.rooms]
-            })
+            }
+            result.append(house_data)
+            print(f"🔍 [DEBUG] Added house data: {house_data['name']} with {len(house_data['rooms'])} rooms")
         
+        print(f"🔍 [DEBUG] Returning {len(result)} guest houses")
         return result
     except Exception as e:
-        print(f"Error fetching guest houses: {e}")
+        print(f"🔍 [DEBUG] Error fetching guest houses: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 @router.post("/")
