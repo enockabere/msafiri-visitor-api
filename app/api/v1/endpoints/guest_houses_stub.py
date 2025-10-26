@@ -18,6 +18,16 @@ class GuestHouseCreate(BaseModel):
     house_rules: Optional[str] = None
     tenant_id: str
 
+class GuestHouseUpdate(BaseModel):
+    is_active: Optional[bool] = None
+    name: Optional[str] = None
+    location: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    description: Optional[str] = None
+    facilities: Optional[Dict[str, Any]] = None
+    house_rules: Optional[str] = None
+
 @router.get("/")
 async def get_guest_houses(
     tenant_context: str = Query(...),
@@ -131,23 +141,32 @@ async def create_guest_house(
 @router.put("/{guest_house_id}")
 async def update_guest_house(
     guest_house_id: int,
-    guest_house_data: GuestHouseCreate,
+    guest_house_data: GuestHouseUpdate,
     db: Session = Depends(get_db)
 ):
-    """Update an existing guest house"""
+    """Update an existing guest house (partial update)"""
     try:
         guest_house = db.query(GuestHouse).filter(GuestHouse.id == guest_house_id).first()
         if not guest_house:
             raise HTTPException(status_code=404, detail="Guest house not found")
         
-        # Update fields
-        guest_house.name = guest_house_data.name
-        guest_house.location = guest_house_data.location
-        guest_house.latitude = guest_house_data.latitude
-        guest_house.longitude = guest_house_data.longitude
-        guest_house.description = guest_house_data.description
-        guest_house.facilities = guest_house_data.facilities
-        guest_house.house_rules = guest_house_data.house_rules
+        # Update only provided fields
+        if guest_house_data.is_active is not None:
+            guest_house.is_active = guest_house_data.is_active
+        if guest_house_data.name is not None:
+            guest_house.name = guest_house_data.name
+        if guest_house_data.location is not None:
+            guest_house.location = guest_house_data.location
+        if guest_house_data.latitude is not None:
+            guest_house.latitude = guest_house_data.latitude
+        if guest_house_data.longitude is not None:
+            guest_house.longitude = guest_house_data.longitude
+        if guest_house_data.description is not None:
+            guest_house.description = guest_house_data.description
+        if guest_house_data.facilities is not None:
+            guest_house.facilities = guest_house_data.facilities
+        if guest_house_data.house_rules is not None:
+            guest_house.house_rules = guest_house_data.house_rules
         
         db.commit()
         
