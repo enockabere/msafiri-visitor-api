@@ -22,3 +22,8 @@ def has_transport_permissions(user: User, db: Session) -> bool:
     """Check if user has permissions for transport management"""
     required_roles = ["super_admin", "mt_admin", "hr_admin", "SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN"]
     return has_any_role(user, db, required_roles)
+
+def has_accommodation_permissions(user: User, db: Session) -> bool:
+    """Check if user has permissions for accommodation management"""
+    required_roles = ["super_admin", "mt_admin", "hr_admin", "SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN"]
+    return has_any_role(user, db, required_roles)
