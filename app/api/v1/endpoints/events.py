@@ -305,44 +305,23 @@ def get_events(
     import logging
     logger = logging.getLogger(__name__)
     
-    try:
-        logger.info(f"🎯 === EVENTS GET REQUEST START ===")
-        logger.info(f"🏢 Tenant param: {tenant}")
-        logger.info(f"📊 Skip: {skip}, Limit: {limit}")
-        
-        # If no tenant specified, return all events
-        if not tenant:
-            logger.info(f"✅ Accessing all events (no tenant filter)")
-            events = crud.event.get_multi(db, skip=skip, limit=limit)
-            logger.info(f"📊 Found {len(events)} events (all tenants)")
-            return events
-        
-        # Convert tenant slug to tenant ID if tenant is specified
-        tenant_obj = crud.tenant.get_by_slug(db, slug=tenant)
-        if not tenant_obj:
-            logger.error(f"❌ Tenant not found: {tenant}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Tenant {tenant} not found"
-            )
-        
-        logger.info(f"✅ Fetching events for tenant: {tenant} (ID: {tenant_obj.id})")
-        events = crud.event.get_by_tenant(
-            db, tenant_id=tenant_obj.id, skip=skip, limit=limit
-        )
-        logger.info(f"📊 Found {len(events)} events for tenant {tenant}")
-        logger.info(f"🎯 === EVENTS GET REQUEST END ===")
+    # If no tenant specified, return all events
+    if not tenant:
+        events = crud.event.get_multi(db, skip=skip, limit=limit)
         return events
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"💥 EVENTS GET ERROR: {str(e)}")
-        logger.exception("Full traceback:")
+    
+    # Convert tenant slug to tenant ID if tenant is specified
+    tenant_obj = crud.tenant.get_by_slug(db, slug=tenant)
+    if not tenant_obj:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Tenant {tenant} not found"
         )
+    
+    events = crud.event.get_by_tenant(
+        db, tenant_id=tenant_obj.id, skip=skip, limit=limit
+    )
+    return events
 
 @router.get("/{event_id}", response_model=schemas.Event)
 def get_event(

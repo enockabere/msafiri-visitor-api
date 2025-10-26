@@ -67,34 +67,13 @@ def read_users(
     tenant: str = None
 ) -> Any:
     """Retrieve users."""
-    import logging
-    logger = logging.getLogger(__name__)
+
+    if tenant:
+        users = crud.user.get_by_tenant(db, tenant_id=tenant, skip=skip, limit=limit)
+    else:
+        users = crud.user.get_multi(db, skip=skip, limit=limit)
     
-    try:
-        logger.info(f"🎯 === USERS GET REQUEST START ===")
-        logger.info(f"🏢 Tenant param: {tenant}")
-        logger.info(f"📊 Skip: {skip}, Limit: {limit}")
-        
-        if tenant:
-            logger.info(f"✅ Fetching users for tenant: {tenant}")
-            users = crud.user.get_by_tenant(db, tenant_id=tenant, skip=skip, limit=limit)
-            logger.info(f"📊 Found {len(users)} users for tenant {tenant}")
-        else:
-            logger.info(f"✅ Fetching all users")
-            users = crud.user.get_multi(db, skip=skip, limit=limit)
-            logger.info(f"📊 Found {len(users)} total users")
-        
-        # Log user details for debugging
-        for user in users:
-            logger.info(f"👤 User: {user.email}, tenant_id: {user.tenant_id}, role: {user.role}, active: {user.is_active}")
-        
-        logger.info(f"🎯 === USERS GET REQUEST END ===")
-        return users
-        
-    except Exception as e:
-        logger.error(f"💥 USERS GET ERROR: {str(e)}")
-        logger.exception("Full traceback:")
-        raise
+    return users
 
 @router.post("/activate/{user_id}", response_model=schemas.User)
 def activate_user(

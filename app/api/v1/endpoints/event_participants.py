@@ -57,11 +57,7 @@ def get_participants(
     limit: int = 50
 ) -> Any:
     """Get event participants with optional role filtering and pagination"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    logger.info(f"🎯 Get participants - Event: {event_id}, Role filter: {role}")
-    
+
     query = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id
     )
@@ -77,24 +73,17 @@ def get_participants(
                     text(f"participant_role = '{role}'")
                 )
             )
-            logger.info(f"✅ Applied role filter for both 'role' and 'participant_role' columns")
-        except Exception as e:
+        except Exception:
             # Fallback to just role column if participant_role doesn't exist
-            logger.warning(f"⚠️ participant_role column might not exist, using only role column: {e}")
             query = query.filter(EventParticipant.role == role)
     
     participants = query.offset(skip).limit(limit).all()
-    logger.info(f"📊 Found {len(participants)} participants")
     
     # Enrich participants with registration data
     from sqlalchemy import text
     enriched_participants = []
     
-    logger.info(f"🔍 Enriching {len(participants)} participants with registration data")
-    
     for participant in participants:
-        logger.info(f"👤 Processing participant: {participant.full_name} ({participant.email})")
-        
         # Get registration data from public_registrations table
         registration_result = db.execute(
             text("""
@@ -121,10 +110,6 @@ def get_participants(
                     gender = 'female'
                 else:
                     gender = 'other'
-            
-            logger.info(f"✅ Found registration for {participant.email}: gender_identity={gender_identity}, gender={gender}, accommodation_needs={accommodation_needs}")
-        else:
-            logger.warning(f"❌ No registration found for {participant.email} in event {event_id}")
         
         # Create participant dict with additional fields
         participant_dict = {
@@ -149,10 +134,8 @@ def get_participants(
         except:
             pass
         
-        logger.info(f"📦 Final participant data: {participant_dict}")
         enriched_participants.append(participant_dict)
     
-    logger.info(f"🎯 Returning {len(enriched_participants)} enriched participants")
     return enriched_participants
 
 @router.put("/{participant_id}/role", operation_id="update_participant_role_unique")
