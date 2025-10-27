@@ -29,6 +29,10 @@ def get_contacts_for_mobile(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get useful contacts for mobile app based on user's event participation"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
+    print("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
     print(f"🔥🔥🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email} 🔥🔥🔥")
     
     from app.models.event_participant import EventParticipant
