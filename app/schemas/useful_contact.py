@@ -8,6 +8,8 @@ class UsefulContactBase(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     department: Optional[str] = None
+    availability_schedule: Optional[str] = None  # "24/7", "business_hours", "custom"
+    availability_details: Optional[str] = None  # JSON string with detailed schedule
 
 class UsefulContactCreate(UsefulContactBase):
     pass
@@ -18,6 +20,8 @@ class UsefulContactUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     department: Optional[str] = None
+    availability_schedule: Optional[str] = None
+    availability_details: Optional[str] = None
 
 class UsefulContact(UsefulContactBase):
     id: int

@@ -23,6 +23,70 @@ def get_contacts(
     contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
     return contacts
 
+@router.get("/mobile", response_model=List[schemas.UsefulContact])
+def get_contacts_for_mobile(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get useful contacts for mobile app based on user's event participation"""
+    from app.models.event_participant import EventParticipant
+    from app.models.event import Event
+    from app.models.useful_contact import UsefulContact
+    from datetime import datetime, timedelta
+    from sqlalchemy import and_
+    
+    # Get user's active event participations (selected/confirmed, not declined)
+    active_participations = db.query(EventParticipant).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        and_(
+            EventParticipant.email == current_user.email,
+            EventParticipant.status.in_(['selected', 'confirmed', 'approved']),
+            Event.end_date >= (datetime.now().date() - timedelta(days=30))  # Include events ended within 30 days
+        )
+    ).all()
+    
+    if not active_participations:
+        return []  # No contacts if not assigned to any events
+    
+    # Get unique tenant IDs from user's events
+    tenant_ids = list(set([p.event.tenant_id for p in active_participations]))
+    
+    # Get contacts from all relevant tenants
+    contacts = db.query(UsefulContact).filter(
+        UsefulContact.tenant_id.in_([str(tid) for tid in tenant_ids])
+    ).all()
+    
+    # Add tenant name to each contact for display
+    from app.models.tenant import Tenant
+    tenant_names = {}
+    for tenant_id in tenant_ids:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant:
+            tenant_names[str(tenant_id)] = tenant.name
+    
+    # Enhance contacts with tenant information
+    enhanced_contacts = []
+    for contact in contacts:
+        contact_dict = {
+            "id": contact.id,
+            "tenant_id": contact.tenant_id,
+            "tenant_name": tenant_names.get(contact.tenant_id, "Unknown"),
+            "name": contact.name,
+            "position": contact.position,
+            "email": contact.email,
+            "phone": contact.phone,
+            "department": contact.department,
+            "availability_schedule": contact.availability_schedule,
+            "availability_details": contact.availability_details,
+            "created_at": contact.created_at,
+            "updated_at": contact.updated_at,
+            "created_by": contact.created_by
+        }
+        enhanced_contacts.append(contact_dict)
+    
+    return enhanced_contacts
+
 @router.post("/debug")
 def create_contact_debug(
     request_data: dict,
