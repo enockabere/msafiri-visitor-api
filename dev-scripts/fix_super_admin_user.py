@@ -43,7 +43,11 @@ def fix_super_admin_user():
         print(f"   Role: {user.role}")
         print(f"   Auth Provider: {user.auth_provider}")
         print(f"   Active: {user.is_active}")
-        print(f"   Verified: {user.is_verified}")
+        # Check if user has email_verified_at field instead of is_verified
+        if hasattr(user, 'email_verified_at'):
+            print(f"   Email Verified: {user.email_verified_at is not None}")
+        elif hasattr(user, 'is_verified'):
+            print(f"   Verified: {user.is_verified}")
         
         # Test current password
         if user.hashed_password:
@@ -68,14 +72,22 @@ def fix_super_admin_user():
         
         # Fix other fields if needed
         if user.role != UserRole.SUPER_ADMIN:
-            user.role = UserRole.SUPER_ADMIN
-            print("✅ Role updated to SUPER_ADMIN")
+            print(f"   Current role: {user.role}")
+            upgrade = input(f"Upgrade role from {user.role} to SUPER_ADMIN? (y/n): ").strip().lower()
+            if upgrade == 'y':
+                user.role = UserRole.SUPER_ADMIN
+                print("✅ Role updated to SUPER_ADMIN")
         
         if not user.is_active:
             user.is_active = True
             print("✅ User activated")
             
-        if not user.is_verified:
+        # Handle verification field
+        if hasattr(user, 'email_verified_at') and user.email_verified_at is None:
+            from datetime import datetime
+            user.email_verified_at = datetime.utcnow()
+            print("✅ User email verified")
+        elif hasattr(user, 'is_verified') and not user.is_verified:
             user.is_verified = True
             print("✅ User verified")
             
