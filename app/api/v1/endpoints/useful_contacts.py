@@ -60,6 +60,8 @@ def get_contacts_for_mobile(
     """Get useful contacts for mobile app based on user's event participation"""
     logger.info(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
     print(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
+    print(f"📱 MOBILE APP - CONTACT SUPPORT PAGE ACCESSED")
+    print(f"{'='*80}")
     
     from app.models.event_participant import EventParticipant
     from app.models.event import Event
@@ -68,6 +70,7 @@ def get_contacts_for_mobile(
     from datetime import datetime, timedelta
     from sqlalchemy import and_
     
+    logger.info(f"DEBUG MOBILE API: Current user email: {current_user.email}")
     print(f"DEBUG MOBILE API: Current user email: {current_user.email}")
     
     # Get user's active event participations
@@ -110,6 +113,15 @@ def get_contacts_for_mobile(
     
     print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
     
+    # Enhanced logging for mobile app
+    print(f"📱 MOBILE APP USEFUL CONTACTS - DISPLAYING {len(contacts)} CONTACTS:")
+    print(f"{'='*80}")
+    
+    for i, contact in enumerate(contacts, 1):
+        contact_info = f"📞 Mobile Contact {i}: Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}"
+        logger.info(contact_info)
+        print(contact_info)
+    
     # Get tenant names for display
     tenant_names = {}
     for tenant_id in tenant_ids:
@@ -144,7 +156,11 @@ def get_contacts_for_mobile(
         enhanced_contacts.append(contact_dict)
     
     print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
+    
+    logger.info(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
     print(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
+    print(f"📱 MOBILE APP - CONTACT SUPPORT DATA SENT TO USER")
+    print(f"{'='*80}")
     return enhanced_contacts
 
 @router.post("/debug")
