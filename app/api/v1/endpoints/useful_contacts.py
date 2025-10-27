@@ -36,6 +36,10 @@ def get_contacts_for_mobile(
     logger.info("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
     print("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
     print(f"🔥🔥🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email} 🔥🔥🔥")
+    print(f"📧 DEBUG MOBILE API: Current user email: {current_user.email}")
+    print(f"👤 DEBUG MOBILE API: Current user ID: {current_user.id}")
+    print(f"🏢 DEBUG MOBILE API: Current user tenant_id: {current_user.tenant_id}")
+    print("🚀 Starting mobile contacts debug process...")
     
     from app.models.event_participant import EventParticipant
     from app.models.event import Event
@@ -44,16 +48,14 @@ def get_contacts_for_mobile(
     from datetime import datetime, timedelta
     from sqlalchemy import and_
     
-    print(f"📧 DEBUG MOBILE API: Current user email: {current_user.email}")
-    print(f"👤 DEBUG MOBILE API: Current user ID: {current_user.id}")
-    print(f"🏢 DEBUG MOBILE API: Current user tenant_id: {current_user.tenant_id}")
-    
+    print("📊 Querying all contacts in database...")
     # Print all contacts in database first
     all_contacts = db.query(UsefulContact).all()
     print(f"📊 DEBUG: TOTAL CONTACTS IN DATABASE: {len(all_contacts)}")
     for i, contact in enumerate(all_contacts, 1):
         print(f"📞 DEBUG Contact {i}: ID={contact.id}, Name='{contact.name}', Email={contact.email}, Phone={contact.phone}, Tenant_ID='{contact.tenant_id}' (type: {type(contact.tenant_id)}), Created_by={contact.created_by}")
     
+    print("🏢 Querying all tenants in database...")
     # Print all tenants
     all_tenants = db.query(Tenant).all()
     print(f"🏢 DEBUG: TOTAL TENANTS IN DATABASE: {len(all_tenants)}")
@@ -186,6 +188,7 @@ def get_contacts_for_mobile(
     
     print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
     print(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
+    print("🚨🚨🚨 MOBILE ENDPOINT FINISHED 🚨🚨🚨")
     return enhanced_contacts
 
 @router.post("/debug")
