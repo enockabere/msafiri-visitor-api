@@ -6,14 +6,8 @@ from app.core.config import settings
 def fix_feedback_enum():
     """Fix the feedback category enum in the database"""
     
-    # Connect to database
-    conn = psycopg2.connect(
-        host=settings.POSTGRES_SERVER,
-        database=settings.POSTGRES_DB,
-        user=settings.POSTGRES_USER,
-        password=settings.POSTGRES_PASSWORD,
-        port=settings.POSTGRES_PORT
-    )
+    # Connect to database using DATABASE_URL
+    conn = psycopg2.connect(settings.DATABASE_URL)
     
     try:
         with conn.cursor() as cur:
