@@ -17,7 +17,7 @@ class AppFeedback(BaseModel):
     
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     rating = Column(Integer, nullable=False)  # 1-5 stars
-    category = Column(Enum(FeedbackCategory), nullable=False)
+    category = Column(Enum(FeedbackCategory, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
     feedback_text = Column(Text, nullable=False)
     
     # Relationships
