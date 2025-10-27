@@ -23,7 +23,7 @@ def get_contacts(
     contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
     return contacts
 
-@router.get("/mobile", response_model=List[schemas.UsefulContact])
+@router.get("/mobile")
 def get_contacts_for_mobile(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(deps.get_current_user)
@@ -32,90 +32,40 @@ def get_contacts_for_mobile(
     from app.models.event_participant import EventParticipant
     from app.models.event import Event
     from app.models.useful_contact import UsefulContact
+    from app.models.tenant import Tenant
     from datetime import datetime, timedelta
     from sqlalchemy import and_
     
-    print(f"DEBUG MOBILE API: Current user email: {current_user.email}")
-    
-    # Get user's active event participations (selected/confirmed, not declined)
+    # Get user's active event participations
     active_participations = db.query(EventParticipant).join(
         Event, EventParticipant.event_id == Event.id
     ).filter(
         and_(
             EventParticipant.email == current_user.email,
             EventParticipant.status.in_(['selected', 'confirmed', 'approved']),
-            Event.end_date >= (datetime.now().date() - timedelta(days=30))  # Include events ended within 30 days
+            Event.end_date >= (datetime.now().date() - timedelta(days=30))
         )
     ).all()
     
-    print(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
-    for p in active_participations:
-        print(f"DEBUG MOBILE API: Event: {p.event.title}, Status: {p.status}, Tenant: {p.event.tenant_id}, End Date: {p.event.end_date}")
-    
     if not active_participations:
-        # Check if user has ANY participations at all
-        all_participations = db.query(EventParticipant).filter(
-            EventParticipant.email == current_user.email
-        ).all()
-        print(f"DEBUG MOBILE API: User has {len(all_participations)} total participations")
-        for p in all_participations:
-            print(f"DEBUG MOBILE API: All Events - Event: {p.event.title if p.event else 'No Event'}, Status: {p.status}")
-        return []  # No contacts if not assigned to any events
+        return []
     
     # Get unique tenant IDs from user's events
     tenant_ids = list(set([p.event.tenant_id for p in active_participations]))
-    print(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
     
-    # Convert tenant IDs to both string and numeric formats for matching
-    tenant_id_strings = []
-    for tid in tenant_ids:
-        tenant_id_strings.append(str(tid))  # Convert to string
-        # Also try to find tenant slug/name
-        tenant = db.query(Event).filter(Event.id == active_participations[0].event_id).first()
-        if tenant:
-            print(f"DEBUG MOBILE API: Event tenant details - ID: {tenant.tenant_id}")
-    
-    print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
-    
-    # Get contacts from all relevant tenants - try both numeric and string matching
+    # Get contacts from all user's tenants
     contacts = db.query(UsefulContact).filter(
-        UsefulContact.tenant_id.in_(tenant_id_strings)
+        UsefulContact.tenant_id.in_([str(tid) for tid in tenant_ids])
     ).all()
     
-    # If no contacts found, also try looking for contacts with tenant slug
-    if not contacts:
-        from app.models.tenant import Tenant
-        # Get tenant slugs for the numeric IDs
-        tenant_slugs = []
-        for tid in tenant_ids:
-            tenant = db.query(Tenant).filter(Tenant.id == tid).first()
-            if tenant:
-                tenant_slugs.append(tenant.slug)
-                print(f"DEBUG MOBILE API: Found tenant slug '{tenant.slug}' for ID {tid}")
-        
-        if tenant_slugs:
-            print(f"DEBUG MOBILE API: Also searching for contacts with tenant slugs: {tenant_slugs}")
-            contacts = db.query(UsefulContact).filter(
-                UsefulContact.tenant_id.in_(tenant_slugs)
-            ).all()
-    
-    print(f"DEBUG MOBILE API: Found {len(contacts)} contacts for tenants {tenant_ids}")
-    
-    # Also check all contacts in database for debugging
-    all_contacts = db.query(UsefulContact).all()
-    print(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
-    for c in all_contacts:
-        print(f"DEBUG MOBILE API: Contact: {c.name}, Tenant: {c.tenant_id}")
-    
-    # Add tenant name to each contact for display
-    from app.models.tenant import Tenant
+    # Get tenant names for display
     tenant_names = {}
     for tenant_id in tenant_ids:
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant:
             tenant_names[str(tenant_id)] = tenant.name
     
-    # Enhance contacts with tenant information
+    # Return contacts with tenant information
     enhanced_contacts = []
     for contact in contacts:
         contact_dict = {
@@ -135,7 +85,6 @@ def get_contacts_for_mobile(
         }
         enhanced_contacts.append(contact_dict)
     
-    print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
     return enhanced_contacts
 
 @router.post("/debug")
