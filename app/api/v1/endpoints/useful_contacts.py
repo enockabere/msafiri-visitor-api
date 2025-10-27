@@ -13,8 +13,6 @@ def test_endpoint():
     print("DEBUG: Test endpoint reached")
     return {"message": "Useful contacts endpoint is working"}
 
-
-
 @router.get("/", response_model=List[schemas.UsefulContact])
 def get_contacts(
     db: Session = Depends(get_db),
@@ -31,18 +29,93 @@ def get_contacts_for_mobile(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get useful contacts for mobile app based on user's event participation"""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
-    print("🚨🚨🚨 USEFUL CONTACTS MOBILE ENDPOINT HIT 🚨🚨🚨")
-    print(f"User: {current_user.email}")
+    print(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
     
+    from app.models.event_participant import EventParticipant
+    from app.models.event import Event
     from app.models.useful_contact import UsefulContact
-    all_contacts = db.query(UsefulContact).all()
-    print(f"Total contacts in DB: {len(all_contacts)}")
+    from app.models.tenant import Tenant
+    from datetime import datetime, timedelta
+    from sqlalchemy import and_
     
-    return []
-
+    print(f"DEBUG MOBILE API: Current user email: {current_user.email}")
+    
+    # Get user's active event participations
+    active_participations = db.query(EventParticipant).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        and_(
+            EventParticipant.email == current_user.email,
+            EventParticipant.status.in_(['selected', 'confirmed', 'approved']),
+            Event.end_date >= (datetime.now().date() - timedelta(days=30))
+        )
+    ).all()
+    
+    print(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
+    for p in active_participations:
+        print(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}")
+    
+    if not active_participations:
+        print("DEBUG MOBILE API: No active participations found")
+        return []
+    
+    # Get unique tenant IDs from user's events
+    tenant_ids = list(set([p.event.tenant_id for p in active_participations]))
+    print(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
+    
+    # Check all contacts in database for debugging
+    all_contacts = db.query(UsefulContact).all()
+    print(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
+    for c in all_contacts:
+        print(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
+    
+    # Convert tenant IDs to strings for matching (since contact tenant_id is varchar)
+    tenant_id_strings = [str(tid) for tid in tenant_ids]
+    print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
+    
+    # Use string matching since contact tenant_id is varchar
+    contacts = db.query(UsefulContact).filter(
+        UsefulContact.tenant_id.in_(tenant_id_strings)
+    ).all()
+    
+    print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
+    
+    # Get tenant names for display
+    tenant_names = {}
+    for tenant_id in tenant_ids:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant:
+            tenant_names[str(tenant_id)] = tenant.name
+            print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
+        else:
+            print(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
+    
+    # Return contacts with tenant information
+    enhanced_contacts = []
+    for contact in contacts:
+        print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
+        # Ensure tenant_id is string for lookup
+        tenant_key = str(contact.tenant_id) if contact.tenant_id else "unknown"
+        contact_dict = {
+            "id": contact.id,
+            "tenant_id": contact.tenant_id,
+            "tenant_name": tenant_names.get(tenant_key, "Unknown"),
+            "name": contact.name,
+            "position": contact.position,
+            "email": contact.email,
+            "phone": contact.phone,
+            "department": contact.department,
+            "availability_schedule": contact.availability_schedule,
+            "availability_details": contact.availability_details,
+            "created_at": contact.created_at,
+            "updated_at": contact.updated_at,
+            "created_by": contact.created_by
+        }
+        enhanced_contacts.append(contact_dict)
+    
+    print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
+    print(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
+    return enhanced_contacts
 
 @router.post("/debug")
 def create_contact_debug(
