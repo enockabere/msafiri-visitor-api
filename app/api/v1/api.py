@@ -421,6 +421,13 @@ api_router.include_router(
     tags=["absolute-transport"]
 )
 
+from app.api.v1.endpoints import test_data
+api_router.include_router(
+    test_data.router,
+    prefix="/test-data",
+    tags=["test-data"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
