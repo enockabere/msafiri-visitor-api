@@ -50,7 +50,7 @@ def get_contacts_for_mobile(
     
     print(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
     for p in active_participations:
-        print(f"DEBUG MOBILE API: Event: {p.event.name}, Status: {p.status}, Tenant: {p.event.tenant_id}, End Date: {p.event.end_date}")
+        print(f"DEBUG MOBILE API: Event: {p.event.title}, Status: {p.status}, Tenant: {p.event.tenant_id}, End Date: {p.event.end_date}")
     
     if not active_participations:
         # Check if user has ANY participations at all
@@ -59,7 +59,7 @@ def get_contacts_for_mobile(
         ).all()
         print(f"DEBUG MOBILE API: User has {len(all_participations)} total participations")
         for p in all_participations:
-            print(f"DEBUG MOBILE API: All Events - Event: {p.event.name if p.event else 'No Event'}, Status: {p.status}")
+            print(f"DEBUG MOBILE API: All Events - Event: {p.event.title if p.event else 'No Event'}, Status: {p.status}")
         return []  # No contacts if not assigned to any events
     
     # Get unique tenant IDs from user's events
