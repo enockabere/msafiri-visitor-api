@@ -233,6 +233,31 @@ def create_room(
     return room
 
 # Room Allocation endpoints
+@router.post("/allocations", response_model=schemas.AccommodationAllocation)
+def create_allocation(
+    allocation_data: dict,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Create accommodation allocation for guest house or vendor"""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    # Convert dict to schema object for CRUD operation
+    from app.schemas.accommodation import AccommodationAllocationCreate
+    allocation_schema = AccommodationAllocationCreate(**allocation_data)
+    
+    allocation = crud.accommodation_allocation.create_with_tenant(
+        db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
+    )
+    return allocation
+
 @router.post("/room-allocations", response_model=schemas.AccommodationAllocation)
 def create_room_allocation(
     allocation_data: dict,
