@@ -67,6 +67,9 @@ from .emergency_contact import (
 from .user_consent import (
     UserConsent, UserConsentCreate, UserConsentUpdate
 )
+from .app_feedback import (
+    AppFeedbackCreate, AppFeedbackResponse
+)
 
 # Legacy compatibility - keep the basic schemas that were in the original __init__.py
 class TenantWithStats(Tenant):
@@ -150,5 +153,8 @@ __all__ = [
     "EmergencyContact", "EmergencyContactCreate", "EmergencyContactUpdate",
     
     # User consent schemas
-    "UserConsent", "UserConsentCreate", "UserConsentUpdate"
+    "UserConsent", "UserConsentCreate", "UserConsentUpdate",
+    
+    # App feedback schemas
+    "AppFeedbackCreate", "AppFeedbackResponse"
 ]
