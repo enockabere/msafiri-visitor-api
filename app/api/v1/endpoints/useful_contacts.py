@@ -13,62 +13,7 @@ def test_endpoint():
     print("DEBUG: Test endpoint reached")
     return {"message": "Useful contacts endpoint is working"}
 
-@router.get("/debug-all")
-def debug_all_contacts(
-    db: Session = Depends(get_db)
-):
-    """Debug endpoint to show all contacts in database"""
-    from app.models.useful_contact import UsefulContact
-    from app.models.tenant import Tenant
-    
-    print("🔍🔍🔍 DEBUG ALL CONTACTS ENDPOINT HIT 🔍🔍🔍")
-    
-    # Get all contacts
-    all_contacts = db.query(UsefulContact).all()
-    print(f"📊 TOTAL CONTACTS IN DATABASE: {len(all_contacts)}")
-    
-    for i, contact in enumerate(all_contacts, 1):
-        print(f"📞 Contact {i}:")
-        print(f"   ID: {contact.id}")
-        print(f"   Name: {contact.name}")
-        print(f"   Position: {contact.position}")
-        print(f"   Email: {contact.email}")
-        print(f"   Phone: {contact.phone}")
-        print(f"   Department: {contact.department}")
-        print(f"   Tenant ID: '{contact.tenant_id}' (type: {type(contact.tenant_id)})")
-        print(f"   Availability: {contact.availability_schedule}")
-        print(f"   Created by: {contact.created_by}")
-        print(f"   Created at: {contact.created_at}")
-        
-        # Get tenant name
-        if contact.tenant_id:
-            try:
-                tenant_id_int = int(contact.tenant_id) if isinstance(contact.tenant_id, str) else contact.tenant_id
-                tenant = db.query(Tenant).filter(Tenant.id == tenant_id_int).first()
-                if tenant:
-                    print(f"   Tenant Name: {tenant.name}")
-                else:
-                    print(f"   Tenant Name: NOT FOUND for ID {tenant_id_int}")
-            except:
-                print(f"   Tenant Name: ERROR converting tenant_id '{contact.tenant_id}'")
-        print("   ---")
-    
-    # Also get all tenants
-    all_tenants = db.query(Tenant).all()
-    print(f"🏢 TOTAL TENANTS IN DATABASE: {len(all_tenants)}")
-    for tenant in all_tenants:
-        print(f"   Tenant ID: {tenant.id}, Name: {tenant.name}, Slug: {tenant.slug}")
-    
-    return {
-        "total_contacts": len(all_contacts),
-        "total_tenants": len(all_tenants),
-        "contacts": [{
-            "id": c.id,
-            "name": c.name,
-            "email": c.email,
-            "tenant_id": c.tenant_id
-        } for c in all_contacts]
-    }
+
 
 @router.get("/", response_model=List[schemas.UsefulContact])
 def get_contacts(
@@ -102,6 +47,18 @@ def get_contacts_for_mobile(
     print(f"📧 DEBUG MOBILE API: Current user email: {current_user.email}")
     print(f"👤 DEBUG MOBILE API: Current user ID: {current_user.id}")
     print(f"🏢 DEBUG MOBILE API: Current user tenant_id: {current_user.tenant_id}")
+    
+    # Print all contacts in database first
+    all_contacts = db.query(UsefulContact).all()
+    print(f"📊 DEBUG: TOTAL CONTACTS IN DATABASE: {len(all_contacts)}")
+    for i, contact in enumerate(all_contacts, 1):
+        print(f"📞 DEBUG Contact {i}: ID={contact.id}, Name='{contact.name}', Email={contact.email}, Phone={contact.phone}, Tenant_ID='{contact.tenant_id}' (type: {type(contact.tenant_id)}), Created_by={contact.created_by}")
+    
+    # Print all tenants
+    all_tenants = db.query(Tenant).all()
+    print(f"🏢 DEBUG: TOTAL TENANTS IN DATABASE: {len(all_tenants)}")
+    for tenant in all_tenants:
+        print(f"🏢 DEBUG Tenant: ID={tenant.id}, Name='{tenant.name}', Slug='{tenant.slug}'")
     
     # First, let's check ALL participations for this user
     all_participations = db.query(EventParticipant).filter(
