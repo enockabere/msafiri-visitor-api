@@ -9,6 +9,7 @@ from app.models.notification import NotificationType, NotificationPriority
 from app.schemas.admin_invitations import AdminInvitationCreate, AdminInvitationResponse, AdminInvitationAccept
 from app.core.email_service import email_service
 from app.core.security import get_password_hash, verify_password
+from app.models.user import AuthProvider
 import logging
 
 logger = logging.getLogger(__name__)
@@ -77,7 +78,8 @@ def invite_super_admin(
             full_name=invitation_data.email.split("@")[0],
             role=UserRole.VISITOR,  # Start as visitor, will be upgraded on acceptance
             status=UserStatus.PENDING_APPROVAL,
-            is_active=False
+            is_active=False,
+            auth_provider=AuthProvider.LOCAL  # Ensure password gets hashed
         )
         
         new_user = crud.user.create(db, obj_in=user_create)
