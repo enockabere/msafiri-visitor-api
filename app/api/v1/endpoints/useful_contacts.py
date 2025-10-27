@@ -22,18 +22,26 @@ def get_contacts(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all useful contacts for tenant"""
-    print(f"🌐 PORTAL CONTACTS ENDPOINT HIT - User: {current_user.email}, Tenant: {tenant_context}")
-    
-    # Print all contacts in database
-    from app.models.useful_contact import UsefulContact
-    all_contacts = db.query(UsefulContact).all()
-    print(f"📊 PORTAL: TOTAL CONTACTS IN DATABASE: {len(all_contacts)}")
-    for i, contact in enumerate(all_contacts, 1):
-        print(f"📞 PORTAL Contact {i}: ID={contact.id}, Name='{contact.name}', Email={contact.email}, Phone={contact.phone}, Tenant_ID='{contact.tenant_id}' (type: {type(contact.tenant_id)}), Created_by={contact.created_by}")
-    
-    contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
-    print(f"✅ PORTAL: Found {len(contacts)} contacts for tenant {tenant_context}")
-    return contacts
+    try:
+        print(f"🌐 PORTAL CONTACTS ENDPOINT HIT - User: {current_user.email}, Tenant: {tenant_context}")
+        print(f"👤 PORTAL: User role: {current_user.role}")
+        
+        # Print all contacts in database
+        from app.models.useful_contact import UsefulContact
+        all_contacts = db.query(UsefulContact).all()
+        print(f"📊 PORTAL: TOTAL CONTACTS IN DATABASE: {len(all_contacts)}")
+        for i, contact in enumerate(all_contacts, 1):
+            print(f"📞 PORTAL Contact {i}: ID={contact.id}, Name='{contact.name}', Email={contact.email}, Phone={contact.phone}, Tenant_ID='{contact.tenant_id}' (type: {type(contact.tenant_id)}), Created_by={contact.created_by}")
+        
+        contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
+        print(f"✅ PORTAL: Found {len(contacts)} contacts for tenant {tenant_context}")
+        return contacts
+    except Exception as e:
+        print(f"🚨 PORTAL ERROR: {str(e)}")
+        print(f"🚨 PORTAL Error type: {type(e).__name__}")
+        import traceback
+        print(f"🚨 PORTAL Traceback: {traceback.format_exc()}")
+        raise e
 
 @router.get("/mobile")
 def get_contacts_for_mobile(
