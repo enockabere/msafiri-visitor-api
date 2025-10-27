@@ -155,12 +155,28 @@ def get_contacts_for_mobile(
     
     # Convert tenant IDs to strings for matching (since contact tenant_id is varchar)
     tenant_id_strings = [str(tid) for tid in tenant_ids]
+    
+    # Also get tenant slugs since contacts might be stored with slugs instead of numeric IDs
+    tenant_slugs = []
+    for tenant_id in tenant_ids:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant and tenant.slug:
+            tenant_slugs.append(tenant.slug)
+            print(f"DEBUG MOBILE API: Tenant {tenant_id} has slug: {tenant.slug}")
+    
+    # Combine both numeric IDs and slugs for matching
+    all_tenant_identifiers = tenant_id_strings + tenant_slugs
+    
     logger.info(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
     print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
+    logger.info(f"DEBUG MOBILE API: Looking for contacts with tenant_slugs: {tenant_slugs}")
+    print(f"DEBUG MOBILE API: Looking for contacts with tenant_slugs: {tenant_slugs}")
+    logger.info(f"DEBUG MOBILE API: All tenant identifiers to match: {all_tenant_identifiers}")
+    print(f"DEBUG MOBILE API: All tenant identifiers to match: {all_tenant_identifiers}")
     
-    # Use string matching since contact tenant_id is varchar
+    # Use string matching for both numeric IDs and slugs
     contacts = db.query(UsefulContact).filter(
-        UsefulContact.tenant_id.in_(tenant_id_strings)
+        UsefulContact.tenant_id.in_(all_tenant_identifiers)
     ).all()
     
     logger.info(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
