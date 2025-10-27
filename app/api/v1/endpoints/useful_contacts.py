@@ -29,6 +29,8 @@ def get_contacts_for_mobile(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get useful contacts for mobile app based on user's event participation"""
+    print(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
+    
     from app.models.event_participant import EventParticipant
     from app.models.event import Event
     from app.models.useful_contact import UsefulContact
@@ -112,6 +114,7 @@ def get_contacts_for_mobile(
         enhanced_contacts.append(contact_dict)
     
     print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
+    print(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
     return enhanced_contacts
 
 @router.post("/debug")
