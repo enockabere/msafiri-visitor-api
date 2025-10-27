@@ -9,13 +9,10 @@ class CRUDAppFeedback(CRUDBase[AppFeedback, AppFeedbackCreate, AppFeedbackCreate
     def create_feedback(
         self, db: Session, *, feedback_in: AppFeedbackCreate, user_id: int
     ) -> AppFeedback:
-        # Ensure we use the enum value, not the enum name
-        category_value = feedback_in.category.value if hasattr(feedback_in.category, 'value') else feedback_in.category
-        
         feedback = AppFeedback(
             user_id=user_id,
             rating=feedback_in.rating,
-            category=category_value,
+            category=feedback_in.category,
             feedback_text=feedback_in.feedback_text
         )
         db.add(feedback)
@@ -59,11 +56,8 @@ class CRUDAppFeedback(CRUDBase[AppFeedback, AppFeedbackCreate, AppFeedbackCreate
         self, db: Session, *, feedback: AppFeedback, feedback_in: AppFeedbackCreate
     ) -> AppFeedback:
         from datetime import datetime
-        # Ensure we use the enum value, not the enum name
-        category_value = feedback_in.category.value if hasattr(feedback_in.category, 'value') else feedback_in.category
-        
         feedback.rating = feedback_in.rating
-        feedback.category = category_value
+        feedback.category = feedback_in.category
         feedback.feedback_text = feedback_in.feedback_text
         feedback.updated_at = datetime.utcnow()
         db.add(feedback)
