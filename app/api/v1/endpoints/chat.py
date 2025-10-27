@@ -469,19 +469,13 @@ def get_conversations(
     current_user: User = Depends(get_current_user)
 ):
     """Get list of users with whom current user has conversations"""
-    # Get unique conversation partners
+    # Get unique conversation partners - allow cross-tenant conversations
     sent_to = db.query(DirectMessage.recipient_email, DirectMessage.recipient_name).filter(
-        and_(
-            DirectMessage.sender_email == current_user.email,
-            DirectMessage.tenant_id == current_user.tenant_id
-        )
+        DirectMessage.sender_email == current_user.email
     ).distinct()
     
     received_from = db.query(DirectMessage.sender_email, DirectMessage.sender_name).filter(
-        and_(
-            DirectMessage.recipient_email == current_user.email,
-            DirectMessage.tenant_id == current_user.tenant_id
-        )
+        DirectMessage.recipient_email == current_user.email
     ).distinct()
     
     conversations = []
@@ -491,12 +485,9 @@ def get_conversations(
         if email != current_user.email:
             # Get last message
             last_msg = db.query(DirectMessage).filter(
-                and_(
-                    DirectMessage.tenant_id == current_user.tenant_id,
-                    or_(
-                        and_(DirectMessage.sender_email == current_user.email, DirectMessage.recipient_email == email),
-                        and_(DirectMessage.sender_email == email, DirectMessage.recipient_email == current_user.email)
-                    )
+                or_(
+                    and_(DirectMessage.sender_email == current_user.email, DirectMessage.recipient_email == email),
+                    and_(DirectMessage.sender_email == email, DirectMessage.recipient_email == current_user.email)
                 )
             ).order_by(desc(DirectMessage.created_at)).first()
             
@@ -522,12 +513,9 @@ def get_conversations(
         if email != current_user.email and not any(c["email"] == email for c in conversations):
             # Get last message
             last_msg = db.query(DirectMessage).filter(
-                and_(
-                    DirectMessage.tenant_id == current_user.tenant_id,
-                    or_(
-                        and_(DirectMessage.sender_email == current_user.email, DirectMessage.recipient_email == email),
-                        and_(DirectMessage.sender_email == email, DirectMessage.recipient_email == current_user.email)
-                    )
+                or_(
+                    and_(DirectMessage.sender_email == current_user.email, DirectMessage.recipient_email == email),
+                    and_(DirectMessage.sender_email == email, DirectMessage.recipient_email == current_user.email)
                 )
             ).order_by(desc(DirectMessage.created_at)).first()
             
