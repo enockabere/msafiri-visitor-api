@@ -67,23 +67,16 @@ def get_contacts_for_mobile(
     for c in all_contacts:
         print(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
     
-    # Try both string and numeric matching
+    # Convert tenant IDs to strings for matching (since contact tenant_id is varchar)
     tenant_id_strings = [str(tid) for tid in tenant_ids]
     print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
     
+    # Use string matching since contact tenant_id is varchar
     contacts = db.query(UsefulContact).filter(
         UsefulContact.tenant_id.in_(tenant_id_strings)
     ).all()
     
     print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
-    
-    # If no contacts found with string matching, try numeric matching
-    if not contacts:
-        print(f"DEBUG MOBILE API: Trying numeric matching with: {tenant_ids}")
-        contacts = db.query(UsefulContact).filter(
-            UsefulContact.tenant_id.in_(tenant_ids)
-        ).all()
-        print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with numeric matching")
     
     # Get tenant names for display
     tenant_names = {}
@@ -92,15 +85,19 @@ def get_contacts_for_mobile(
         if tenant:
             tenant_names[str(tenant_id)] = tenant.name
             print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
+        else:
+            print(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
     
     # Return contacts with tenant information
     enhanced_contacts = []
     for contact in contacts:
-        print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: {contact.tenant_id}")
+        print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
+        # Ensure tenant_id is string for lookup
+        tenant_key = str(contact.tenant_id) if contact.tenant_id else "unknown"
         contact_dict = {
             "id": contact.id,
             "tenant_id": contact.tenant_id,
-            "tenant_name": tenant_names.get(contact.tenant_id, "Unknown"),
+            "tenant_name": tenant_names.get(tenant_key, "Unknown"),
             "name": contact.name,
             "position": contact.position,
             "email": contact.email,
