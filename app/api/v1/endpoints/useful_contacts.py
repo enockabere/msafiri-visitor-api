@@ -20,7 +20,32 @@ def get_contacts(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all useful contacts for tenant"""
+    print(f"🔥 PORTAL USEFUL CONTACTS API CALLED")
+    print(f"📡 User: {current_user.email} (Role: {current_user.role})")
+    print(f"🏢 Tenant Context: {tenant_context}")
+    
     contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
+    
+    print(f"📊 FETCHED {len(contacts)} USEFUL CONTACTS FROM DATABASE:")
+    print(f"{'='*80}")
+    
+    for i, contact in enumerate(contacts, 1):
+        print(f"📞 Contact {i}:")
+        print(f"   ID: {contact.id}")
+        print(f"   Name: {contact.name}")
+        print(f"   Position: {contact.position}")
+        print(f"   Email: {contact.email}")
+        print(f"   Phone: {contact.phone or 'N/A'}")
+        print(f"   Department: {contact.department or 'N/A'}")
+        print(f"   Tenant ID: {contact.tenant_id}")
+        print(f"   Created By: {contact.created_by}")
+        print(f"   Created At: {contact.created_at}")
+        print(f"   Availability: {getattr(contact, 'availability_schedule', 'N/A')}")
+        print(f"   {'-'*50}")
+    
+    print(f"{'='*80}")
+    print(f"🚀 RETURNING {len(contacts)} CONTACTS TO PORTAL")
+    
     return contacts
 
 @router.get("/mobile")
