@@ -54,6 +54,33 @@ async def submit_feedback(
         db.add(prompt_record)
         db.commit()
     
+    # Send notification to super admins about new feedback
+    try:
+        from app.models.user import User, UserRole
+        from app.models.notification import Notification, NotificationPriority
+        
+        # Get all super admins
+        super_admins = db.query(User).filter(User.role == UserRole.SUPER_ADMIN).all()
+        
+        # Create notification for each super admin
+        for admin in super_admins:
+            notification = Notification(
+                user_id=admin.id,
+                title="New App Feedback Received",
+                message=f"New {feedback_in.rating}-star feedback from {current_user.full_name or current_user.email} in category: {feedback_in.category.value}",
+                priority=NotificationPriority.MEDIUM,
+                notification_type="app_feedback",
+                metadata={"feedback_id": feedback.id, "rating": feedback_in.rating}
+            )
+            db.add(notification)
+        
+        db.commit()
+        logger.info(f"📧 Sent feedback notifications to {len(super_admins)} super admins")
+    except Exception as e:
+        logger.error(f"❌ Failed to send feedback notifications: {e}")
+        # Don't fail the feedback submission if notification fails
+        pass
+    
     # Return with user info
     return AppFeedbackResponse(
         id=feedback.id,
