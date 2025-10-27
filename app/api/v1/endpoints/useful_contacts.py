@@ -142,16 +142,20 @@ def get_contacts_for_mobile(
     
     # Get unique tenant IDs from user's events
     tenant_ids = list(set([p.event.tenant_id for p in active_participations]))
+    logger.info(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
     print(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
     
     # Check all contacts in database for debugging
     all_contacts = db.query(UsefulContact).all()
+    logger.info(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
     print(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
     for c in all_contacts:
+        logger.info(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
         print(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
     
     # Convert tenant IDs to strings for matching (since contact tenant_id is varchar)
     tenant_id_strings = [str(tid) for tid in tenant_ids]
+    logger.info(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
     print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
     
     # Use string matching since contact tenant_id is varchar
@@ -159,6 +163,7 @@ def get_contacts_for_mobile(
         UsefulContact.tenant_id.in_(tenant_id_strings)
     ).all()
     
+    logger.info(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
     print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
     
     # Enhanced logging for mobile app
@@ -176,13 +181,16 @@ def get_contacts_for_mobile(
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant:
             tenant_names[str(tenant_id)] = tenant.name
+            logger.info(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
             print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
         else:
+            logger.info(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
             print(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
     
     # Return contacts with tenant information
     enhanced_contacts = []
     for contact in contacts:
+        logger.info(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
         print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
         # Ensure tenant_id is string for lookup
         tenant_key = str(contact.tenant_id) if contact.tenant_id else "unknown"
@@ -203,6 +211,7 @@ def get_contacts_for_mobile(
         }
         enhanced_contacts.append(contact_dict)
     
+    logger.info(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
     print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
     
     logger.info(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
