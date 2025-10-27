@@ -291,14 +291,16 @@ def send_super_admin_invitation_email(email: str, token: str, invited_by: str, u
                 </ul>
             </div>
             
-            {f"<p><strong>Note:</strong> Since you already have an account, clicking the link below will upgrade your existing account to Super Administrator.</p>" if user_existed else f"<p><strong>Temporary Login Details:</strong><br>Email: {email}<br>Password: <code>{default_password}</code></p><p><strong>Important:</strong> You must change this password on first login.</p>"}
+            {f"<p><strong>Note:</strong> Since you already have an account, clicking the link below will upgrade your existing account to Super Administrator.</p>" if user_existed else f"<div style='background: #e7f3ff; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #007bff;'><h3 style='margin-top: 0; color: #007bff;'>Temporary Login Details:</h3><p><strong>Email:</strong> {email}<br><strong>Password:</strong> <code style='background: #f8f9fa; padding: 4px 8px; border-radius: 3px; font-family: monospace;'>{default_password}</code></p><p style='color: #dc3545; font-weight: bold;'>Important: You must change this password on first login.</p></div>"}
             
             <div style="text-align: center; margin: 30px 0;">
                 <a href="{magic_link}" 
-                   style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                   style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                     Accept Invitation
                 </a>
             </div>
+            
+            {'' if user_existed else '<p style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;"><strong>First Login Process:</strong><br>1. Click "Accept Invitation" above<br>2. Login with the temporary credentials provided<br>3. You will be prompted to change your password immediately</p>'}
             
             <p><strong>Important:</strong> This invitation will expire in 24 hours.</p>
             
