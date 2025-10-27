@@ -191,29 +191,48 @@ def get_contacts_for_mobile(
         logger.info(contact_info)
         print(contact_info)
     
-    # Get tenant names for display
+    # Get tenant names for display - build mapping for both IDs and slugs
     tenant_names = {}
+    
+    # First, map numeric IDs to names
     for tenant_id in tenant_ids:
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant:
             tenant_names[str(tenant_id)] = tenant.name
-            logger.info(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
-            print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}")
+            # Also map the slug to the same name
+            if tenant.slug:
+                tenant_names[tenant.slug] = tenant.name
+            logger.info(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}, slug: {tenant.slug}")
+            print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}, slug: {tenant.slug}")
         else:
             logger.info(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
             print(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
+    
+    # Also check if any contacts have tenant_ids that are slugs we haven't mapped yet
+    for contact in contacts:
+        if contact.tenant_id and contact.tenant_id not in tenant_names:
+            # Try to find tenant by slug
+            tenant = db.query(Tenant).filter(Tenant.slug == contact.tenant_id).first()
+            if tenant:
+                tenant_names[contact.tenant_id] = tenant.name
+                print(f"DEBUG MOBILE API: Found tenant by slug '{contact.tenant_id}': {tenant.name}")
     
     # Return contacts with tenant information
     enhanced_contacts = []
     for contact in contacts:
         logger.info(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
         print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
-        # Ensure tenant_id is string for lookup
-        tenant_key = str(contact.tenant_id) if contact.tenant_id else "unknown"
+        # Get tenant name for this contact
+        tenant_name = "Unknown"
+        if contact.tenant_id:
+            tenant_name = tenant_names.get(contact.tenant_id, "Unknown")
+        
+        print(f"DEBUG MOBILE API: Contact {contact.name} tenant_id '{contact.tenant_id}' -> tenant_name '{tenant_name}'")
+        
         contact_dict = {
             "id": contact.id,
             "tenant_id": contact.tenant_id,
-            "tenant_name": tenant_names.get(tenant_key, "Unknown"),
+            "tenant_name": tenant_name,
             "name": contact.name,
             "position": contact.position,
             "email": contact.email,
