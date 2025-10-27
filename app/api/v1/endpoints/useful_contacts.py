@@ -5,11 +5,16 @@ from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.get("/test")
 def test_endpoint():
+    logger.info("DEBUG: Test endpoint reached")
     print("DEBUG: Test endpoint reached")
     return {"message": "Useful contacts endpoint is working"}
 
@@ -20,31 +25,30 @@ def get_contacts(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all useful contacts for tenant"""
+    # Use both logger and print to ensure visibility
+    logger.info(f"🔥 PORTAL USEFUL CONTACTS API CALLED")
     print(f"🔥 PORTAL USEFUL CONTACTS API CALLED")
+    
+    logger.info(f"📡 User: {current_user.email} (Role: {current_user.role})")
     print(f"📡 User: {current_user.email} (Role: {current_user.role})")
+    
+    logger.info(f"🏢 Tenant Context: {tenant_context}")
     print(f"🏢 Tenant Context: {tenant_context}")
     
     contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
     
+    logger.info(f"📊 FETCHED {len(contacts)} USEFUL CONTACTS FROM DATABASE:")
     print(f"📊 FETCHED {len(contacts)} USEFUL CONTACTS FROM DATABASE:")
     print(f"{'='*80}")
     
     for i, contact in enumerate(contacts, 1):
-        print(f"📞 Contact {i}:")
-        print(f"   ID: {contact.id}")
-        print(f"   Name: {contact.name}")
-        print(f"   Position: {contact.position}")
-        print(f"   Email: {contact.email}")
-        print(f"   Phone: {contact.phone or 'N/A'}")
-        print(f"   Department: {contact.department or 'N/A'}")
-        print(f"   Tenant ID: {contact.tenant_id}")
-        print(f"   Created By: {contact.created_by}")
-        print(f"   Created At: {contact.created_at}")
-        print(f"   Availability: {getattr(contact, 'availability_schedule', 'N/A')}")
-        print(f"   {'-'*50}")
+        contact_info = f"📞 Contact {i}: ID={contact.id}, Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}, TenantID={contact.tenant_id}, CreatedBy={contact.created_by}"
+        logger.info(contact_info)
+        print(contact_info)
     
-    print(f"{'='*80}")
+    logger.info(f"🚀 RETURNING {len(contacts)} CONTACTS TO PORTAL")
     print(f"🚀 RETURNING {len(contacts)} CONTACTS TO PORTAL")
+    print(f"{'='*80}")
     
     return contacts
 
@@ -54,6 +58,7 @@ def get_contacts_for_mobile(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get useful contacts for mobile app based on user's event participation"""
+    logger.info(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
     print(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
     
     from app.models.event_participant import EventParticipant
@@ -164,6 +169,7 @@ def create_contact(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Create new useful contact"""
+    logger.info(f"DEBUG: Endpoint reached! Creating contact with data: {contact_in.dict()}")
     print(f"DEBUG: Endpoint reached! Creating contact with data: {contact_in.dict()}")
     print(f"DEBUG: Current user: {current_user.email}, role: {current_user.role}")
     print(f"DEBUG: Tenant context: {tenant_context}")
@@ -179,9 +185,11 @@ def create_contact(
         contact = crud.useful_contact.create_with_tenant(
             db, obj_in=contact_in, tenant_id=tenant_context, created_by=current_user.email
         )
+        logger.info(f"DEBUG: Contact created successfully: {contact.id}")
         print(f"DEBUG: Contact created successfully: {contact.id}")
         return contact
     except Exception as e:
+        logger.info(f"DEBUG: Error creating contact: {str(e)}")
         print(f"DEBUG: Error creating contact: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
