@@ -100,6 +100,28 @@ class AbsoluteCabsAPI:
         response.raise_for_status()
         
         return response.json()
+    
+    def get_bookings(self):
+        """Get all bookings - may include driver details for assigned bookings"""
+        self._ensure_authenticated()
+        
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_hex(16)
+        signature = self._generate_signature("GET", "/api/bookings", None, timestamp, nonce)
+        
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "X-Client-Id": self.client_id,
+            "X-Timestamp": timestamp,
+            "X-Nonce": nonce,
+            "X-Signature": signature
+        }
+        
+        url = f"{self.base_url}/api/bookings"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        return response.json()
 
 @router.post("/create-absolute-booking")
 def create_absolute_cabs_booking(
@@ -154,6 +176,30 @@ def create_absolute_cabs_booking(
         raise HTTPException(
             status_code=500, 
             detail=f"Error creating booking: {str(e)}"
+        )
+
+@router.get("/absolute-bookings")
+def get_absolute_cabs_bookings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all bookings from Absolute Cabs API - includes driver details if assigned"""
+    if not has_transport_permissions(current_user, db):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    try:
+        absolute_api = AbsoluteCabsAPI()
+        bookings = absolute_api.get_bookings()
+        
+        return {
+            "success": True,
+            "bookings": bookings
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch bookings from Absolute Cabs API: {str(e)}"
         )
 
 @router.get("/test-absolute-connection")
