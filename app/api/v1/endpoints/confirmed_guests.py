@@ -69,6 +69,7 @@ async def get_confirmed_guests(
             "phone": "",  # Phone not available in EventParticipant model
             "event": guest.event_title,
             "gender": gender,
+            "participant_id": guest.participant_id,
             "display_text": f"{guest.full_name} ({guest.event_title})"
         })
     
