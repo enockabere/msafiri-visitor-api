@@ -71,50 +71,21 @@ def auto_create_event_rooms(
     current_user: User = Depends(get_current_user)
 ):
     """Auto-create chat rooms for events that don't have them"""
-    print(f"DEBUG: Current user: {current_user.email}")
-    print(f"DEBUG: Current user role: {current_user.role}")
-    print(f"DEBUG: Current user role type: {type(current_user.role)}")
-    print(f"DEBUG: Current user tenant_id: {current_user.tenant_id}")
     
-    # Handle both enum values and string values
-    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-    print(f"DEBUG: User role value: {user_role}")
-    
-    admin_roles = ["super_admin", "mt_admin", "hr_admin", "event_admin", "SUPER_ADMIN", "MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN"]
-    print(f"DEBUG: Admin roles: {admin_roles}")
-    print(f"DEBUG: Role check result: {user_role in admin_roles}")
-    
-    if user_role not in admin_roles:
-        print(f"DEBUG: Authorization failed for role: {user_role}")
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    # Get ALL events first to see what's in the database
-    print(f"DEBUG: Looking for events with tenant_id: {current_user.tenant_id}")
-    
-    all_events = db.query(Event).all()
-    print(f"DEBUG: Total events in database: {len(all_events)}")
-    for event in all_events:
-        print(f"DEBUG: All Events - {event.title}, tenant_id: {event.tenant_id} (type: {type(event.tenant_id)})")
-    
+    # Get all events without chat rooms
     events_without_rooms = db.query(Event).outerjoin(
         ChatRoom, and_(Event.id == ChatRoom.event_id, ChatRoom.chat_type == ChatType.EVENT_CHATROOM)
     ).filter(
         ChatRoom.id.is_(None)
     ).all()
     
-    print(f"DEBUG: Found {len(events_without_rooms)} events without chat rooms")
-    for event in events_without_rooms:
-        print(f"DEBUG: Event: {event.title}, tenant_id: {event.tenant_id}, type: {type(event.tenant_id)}")
-    
     created_rooms = []
     for event in events_without_rooms:
-        # Create rooms for all events - no tenant filtering for now
-        print(f"DEBUG: Creating room for event: {event.title} (ID: {event.id})")
         room = ChatRoom(
             name=f"{event.title} - Event Chat",
             chat_type=ChatType.EVENT_CHATROOM,
             event_id=event.id,
-            tenant_id=current_user.tenant_id,
+            tenant_id=event.tenant_id,
             created_by=current_user.email
         )
         db.add(room)
@@ -122,9 +93,7 @@ def auto_create_event_rooms(
     
     if created_rooms:
         db.commit()
-        print(f"DEBUG: Successfully created {len(created_rooms)} chat rooms")
-    else:
-        print("DEBUG: No rooms created - no matching events found")
+    
     return {"message": f"Created {len(created_rooms)} chat rooms", "rooms": len(created_rooms)}
 
 @router.post("/messages/", response_model=MessageSchema)

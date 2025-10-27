@@ -283,6 +283,22 @@ def create_event(
         from app.services.notification_service import send_event_notifications
         send_event_notifications(db, event, "created", current_user.email)
         
+        # Auto-create chat room for the event
+        try:
+            from app.models.chat import ChatRoom, ChatType
+            
+            chat_room = ChatRoom(
+                name=f"{event.title} - Event Chat",
+                chat_type=ChatType.EVENT_CHATROOM,
+                event_id=event.id,
+                tenant_id=tenant_obj.id,
+                created_by=current_user.email
+            )
+            db.add(chat_room)
+            logger.info(f"✅ Auto-created chat room for event: {event.title}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to create chat room for event: {str(e)}")
+        
         db.commit()
         
         logger.info(f"🎉 Event created successfully with ID: {event.id}")
