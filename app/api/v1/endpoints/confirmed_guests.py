@@ -29,11 +29,13 @@ async def get_confirmed_guests(
     
     # Get confirmed participants from events within 1 month after end date
     from datetime import datetime, timedelta
+    from sqlalchemy import text
     one_month_ago = datetime.now() - timedelta(days=30)
     
     confirmed_guests = db.query(
         EventParticipant.full_name,
         EventParticipant.email,
+        EventParticipant.id.label("participant_id"),
         Event.title.label("event_title")
     ).join(
         Event, EventParticipant.event_id == Event.id
@@ -46,11 +48,27 @@ async def get_confirmed_guests(
     # Format response
     guests = []
     for guest in confirmed_guests:
+        # Get gender from public_registrations table
+        gender_result = db.execute(text(
+            "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+        ), {"participant_id": guest.participant_id}).fetchone()
+        
+        gender = None
+        if gender_result and gender_result[0]:
+            reg_gender = gender_result[0].lower()
+            if reg_gender in ['man', 'male']:
+                gender = 'male'
+            elif reg_gender in ['woman', 'female']:
+                gender = 'female'
+            else:
+                gender = 'other'
+        
         guests.append({
             "name": guest.full_name,
             "email": guest.email,
             "phone": "",  # Phone not available in EventParticipant model
             "event": guest.event_title,
+            "gender": gender,
             "display_text": f"{guest.full_name} ({guest.event_title})"
         })
     
