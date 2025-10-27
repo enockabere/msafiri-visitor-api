@@ -84,12 +84,60 @@ def get_contacts_for_mobile(
         )
     ).all()
     
+    logger.info(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
     print(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
-    for p in active_participations:
-        print(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}")
+    
+    # Also check ALL participations for this user to debug
+    all_participations = db.query(EventParticipant).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(EventParticipant.email == current_user.email).all()
+    
+    print(f"DEBUG MOBILE API: Found {len(all_participations)} TOTAL participations for user")
+    for p in all_participations:
+        days_since_end = (datetime.now().date() - p.event.end_date).days if p.event.end_date else 999
+        is_active = days_since_end <= 30
+        logger.info(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}, End Date: {p.event.end_date}, Days Since End: {days_since_end}, Is Active: {is_active}")
+        print(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}, End Date: {p.event.end_date}, Days Since End: {days_since_end}, Is Active: {is_active}")
     
     if not active_participations:
-        print("DEBUG MOBILE API: No active participations found")
+        logger.info("DEBUG MOBILE API: No active participations found - checking if we should return all contacts")
+        print("DEBUG MOBILE API: No active participations found - checking if we should return all contacts")
+        
+        # For debugging, let's return ALL contacts if user has ANY participation
+        if all_participations:
+            print("DEBUG MOBILE API: User has participations but none are active - returning all contacts for debugging")
+            all_contacts = db.query(UsefulContact).all()
+            
+            print(f"📱 MOBILE APP USEFUL CONTACTS - DISPLAYING ALL {len(all_contacts)} CONTACTS (DEBUG MODE):")
+            print(f"{'='*80}")
+            
+            enhanced_contacts = []
+            for i, contact in enumerate(all_contacts, 1):
+                contact_info = f"📞 Mobile Contact {i}: Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}, TenantID={contact.tenant_id}"
+                logger.info(contact_info)
+                print(contact_info)
+                
+                contact_dict = {
+                    "id": contact.id,
+                    "tenant_id": contact.tenant_id,
+                    "tenant_name": "Debug Mode",
+                    "name": contact.name,
+                    "position": contact.position,
+                    "email": contact.email,
+                    "phone": contact.phone,
+                    "department": contact.department,
+                    "availability_schedule": contact.availability_schedule,
+                    "availability_details": contact.availability_details,
+                    "created_at": contact.created_at,
+                    "updated_at": contact.updated_at,
+                    "created_by": contact.created_by
+                }
+                enhanced_contacts.append(contact_dict)
+            
+            print(f"📱 MOBILE APP - RETURNING {len(enhanced_contacts)} CONTACTS IN DEBUG MODE")
+            print(f"{'='*80}")
+            return enhanced_contacts
+        
         return []
     
     # Get unique tenant IDs from user's events
