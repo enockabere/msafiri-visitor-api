@@ -142,7 +142,7 @@ async def get_guest_houses(
                     "occupant_genders": occupant_genders
                 }
                 house_data["rooms"].append(room_data)
-            }
+            
             result.append(house_data)
             print(f"🔍 [DEBUG] Added house data: {house_data['name']} with {len(house_data['rooms'])} rooms")
         
