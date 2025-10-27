@@ -1,22 +1,34 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.schemas.app_feedback import AppFeedbackCreate, AppFeedbackResponse
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/", response_model=AppFeedbackResponse)
-def submit_feedback(
+async def submit_feedback(
     *,
+    request: Request,
     db: Session = Depends(get_db),
     feedback_in: AppFeedbackCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Submit app feedback (creates new or updates existing)"""
+    # Debug raw request body
+    body = await request.body()
+    logger.info(f"🔥 RAW REQUEST: {body.decode()}")
+    
+    logger.info(f"🔥 FEEDBACK DEBUG: Received feedback_in: {feedback_in}")
+    logger.info(f"🔥 FEEDBACK DEBUG: Category type: {type(feedback_in.category)}")
+    logger.info(f"🔥 FEEDBACK DEBUG: Category value: {feedback_in.category}")
+    logger.info(f"🔥 FEEDBACK DEBUG: Category repr: {repr(feedback_in.category)}")
+    
     # Check if user already has feedback
     existing_feedback = crud.app_feedback.get_by_user_latest(db, user_id=current_user.id)
     
