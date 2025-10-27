@@ -14,8 +14,7 @@ router = APIRouter()
 
 @router.get("/test")
 def test_endpoint():
-    logger.info("DEBUG: Test endpoint reached")
-    print("DEBUG: Test endpoint reached")
+
     return {"message": "Useful contacts endpoint is working"}
 
 @router.get("/", response_model=List[schemas.UsefulContact])
@@ -25,30 +24,7 @@ def get_contacts(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all useful contacts for tenant"""
-    # Use both logger and print to ensure visibility
-    logger.info(f"🔥 PORTAL USEFUL CONTACTS API CALLED")
-    print(f"🔥 PORTAL USEFUL CONTACTS API CALLED")
-    
-    logger.info(f"📡 User: {current_user.email} (Role: {current_user.role})")
-    print(f"📡 User: {current_user.email} (Role: {current_user.role})")
-    
-    logger.info(f"🏢 Tenant Context: {tenant_context}")
-    print(f"🏢 Tenant Context: {tenant_context}")
-    
     contacts = crud.useful_contact.get_by_tenant(db, tenant_id=tenant_context)
-    
-    logger.info(f"📊 FETCHED {len(contacts)} USEFUL CONTACTS FROM DATABASE:")
-    print(f"📊 FETCHED {len(contacts)} USEFUL CONTACTS FROM DATABASE:")
-    print(f"{'='*80}")
-    
-    for i, contact in enumerate(contacts, 1):
-        contact_info = f"📞 Contact {i}: ID={contact.id}, Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}, TenantID={contact.tenant_id}, CreatedBy={contact.created_by}"
-        logger.info(contact_info)
-        print(contact_info)
-    
-    logger.info(f"🚀 RETURNING {len(contacts)} CONTACTS TO PORTAL")
-    print(f"🚀 RETURNING {len(contacts)} CONTACTS TO PORTAL")
-    print(f"{'='*80}")
     
     return contacts
 
@@ -58,20 +34,12 @@ def get_contacts_for_mobile(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Get useful contacts for mobile app based on user's event participation"""
-    logger.info(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
-    print(f"🔥 MOBILE CONTACTS ENDPOINT CALLED - User: {current_user.email}")
-    print(f"📱 MOBILE APP - CONTACT SUPPORT PAGE ACCESSED")
-    print(f"{'='*80}")
-    
     from app.models.event_participant import EventParticipant
     from app.models.event import Event
     from app.models.useful_contact import UsefulContact
     from app.models.tenant import Tenant
     from datetime import datetime, timedelta
     from sqlalchemy import and_
-    
-    logger.info(f"DEBUG MOBILE API: Current user email: {current_user.email}")
-    print(f"DEBUG MOBILE API: Current user email: {current_user.email}")
     
     # Get user's active event participations
     active_participations = db.query(EventParticipant).join(
@@ -84,74 +52,16 @@ def get_contacts_for_mobile(
         )
     ).all()
     
-    logger.info(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
-    print(f"DEBUG MOBILE API: Found {len(active_participations)} active participations")
-    
-    # Also check ALL participations for this user to debug
-    all_participations = db.query(EventParticipant).join(
-        Event, EventParticipant.event_id == Event.id
-    ).filter(EventParticipant.email == current_user.email).all()
-    
-    print(f"DEBUG MOBILE API: Found {len(all_participations)} TOTAL participations for user")
-    for p in all_participations:
-        days_since_end = (datetime.now().date() - p.event.end_date).days if p.event.end_date else 999
-        is_active = days_since_end <= 30
-        logger.info(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}, End Date: {p.event.end_date}, Days Since End: {days_since_end}, Is Active: {is_active}")
-        print(f"DEBUG MOBILE API: Event: {p.event.title}, Tenant ID: {p.event.tenant_id}, Status: {p.status}, End Date: {p.event.end_date}, Days Since End: {days_since_end}, Is Active: {is_active}")
+
     
     if not active_participations:
-        logger.info("DEBUG MOBILE API: No active participations found - checking if we should return all contacts")
-        print("DEBUG MOBILE API: No active participations found - checking if we should return all contacts")
-        
-        # For debugging, let's return ALL contacts if user has ANY participation
-        if all_participations:
-            print("DEBUG MOBILE API: User has participations but none are active - returning all contacts for debugging")
-            all_contacts = db.query(UsefulContact).all()
-            
-            print(f"📱 MOBILE APP USEFUL CONTACTS - DISPLAYING ALL {len(all_contacts)} CONTACTS (DEBUG MODE):")
-            print(f"{'='*80}")
-            
-            enhanced_contacts = []
-            for i, contact in enumerate(all_contacts, 1):
-                contact_info = f"📞 Mobile Contact {i}: Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}, TenantID={contact.tenant_id}"
-                logger.info(contact_info)
-                print(contact_info)
-                
-                contact_dict = {
-                    "id": contact.id,
-                    "tenant_id": contact.tenant_id,
-                    "tenant_name": "Debug Mode",
-                    "name": contact.name,
-                    "position": contact.position,
-                    "email": contact.email,
-                    "phone": contact.phone,
-                    "department": contact.department,
-                    "availability_schedule": contact.availability_schedule,
-                    "availability_details": contact.availability_details,
-                    "created_at": contact.created_at,
-                    "updated_at": contact.updated_at,
-                    "created_by": contact.created_by
-                }
-                enhanced_contacts.append(contact_dict)
-            
-            print(f"📱 MOBILE APP - RETURNING {len(enhanced_contacts)} CONTACTS IN DEBUG MODE")
-            print(f"{'='*80}")
-            return enhanced_contacts
+
         
         return []
     
     # Get unique tenant IDs from user's events
     tenant_ids = list(set([p.event.tenant_id for p in active_participations]))
-    logger.info(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
-    print(f"DEBUG MOBILE API: Tenant IDs from events: {tenant_ids}")
-    
-    # Check all contacts in database for debugging
-    all_contacts = db.query(UsefulContact).all()
-    logger.info(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
-    print(f"DEBUG MOBILE API: Total contacts in database: {len(all_contacts)}")
-    for c in all_contacts:
-        logger.info(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
-        print(f"DEBUG MOBILE API: Contact '{c.name}' has tenant_id: '{c.tenant_id}' (type: {type(c.tenant_id)})")
+
     
     # Convert tenant IDs to strings for matching (since contact tenant_id is varchar)
     tenant_id_strings = [str(tid) for tid in tenant_ids]
@@ -162,34 +72,18 @@ def get_contacts_for_mobile(
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if tenant and tenant.slug:
             tenant_slugs.append(tenant.slug)
-            print(f"DEBUG MOBILE API: Tenant {tenant_id} has slug: {tenant.slug}")
     
     # Combine both numeric IDs and slugs for matching
     all_tenant_identifiers = tenant_id_strings + tenant_slugs
     
-    logger.info(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
-    print(f"DEBUG MOBILE API: Looking for contacts with tenant_ids: {tenant_id_strings}")
-    logger.info(f"DEBUG MOBILE API: Looking for contacts with tenant_slugs: {tenant_slugs}")
-    print(f"DEBUG MOBILE API: Looking for contacts with tenant_slugs: {tenant_slugs}")
-    logger.info(f"DEBUG MOBILE API: All tenant identifiers to match: {all_tenant_identifiers}")
-    print(f"DEBUG MOBILE API: All tenant identifiers to match: {all_tenant_identifiers}")
+
     
     # Use string matching for both numeric IDs and slugs
     contacts = db.query(UsefulContact).filter(
         UsefulContact.tenant_id.in_(all_tenant_identifiers)
     ).all()
     
-    logger.info(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
-    print(f"DEBUG MOBILE API: Found {len(contacts)} contacts with string matching")
-    
-    # Enhanced logging for mobile app
-    print(f"📱 MOBILE APP USEFUL CONTACTS - DISPLAYING {len(contacts)} CONTACTS:")
-    print(f"{'='*80}")
-    
-    for i, contact in enumerate(contacts, 1):
-        contact_info = f"📞 Mobile Contact {i}: Name={contact.name}, Position={contact.position}, Email={contact.email}, Phone={contact.phone or 'N/A'}, Department={contact.department or 'N/A'}"
-        logger.info(contact_info)
-        print(contact_info)
+
     
     # Get tenant names for display - build mapping for both IDs and slugs
     tenant_names = {}
@@ -202,11 +96,7 @@ def get_contacts_for_mobile(
             # Also map the slug to the same name
             if tenant.slug:
                 tenant_names[tenant.slug] = tenant.name
-            logger.info(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}, slug: {tenant.slug}")
-            print(f"DEBUG MOBILE API: Tenant {tenant_id} name: {tenant.name}, slug: {tenant.slug}")
-        else:
-            logger.info(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
-            print(f"DEBUG MOBILE API: No tenant found for ID {tenant_id}")
+
     
     # Also check if any contacts have tenant_ids that are slugs we haven't mapped yet
     for contact in contacts:
@@ -215,19 +105,15 @@ def get_contacts_for_mobile(
             tenant = db.query(Tenant).filter(Tenant.slug == contact.tenant_id).first()
             if tenant:
                 tenant_names[contact.tenant_id] = tenant.name
-                print(f"DEBUG MOBILE API: Found tenant by slug '{contact.tenant_id}': {tenant.name}")
+
     
     # Return contacts with tenant information
     enhanced_contacts = []
     for contact in contacts:
-        logger.info(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
-        print(f"DEBUG MOBILE API: Processing contact: {contact.name}, tenant_id: '{contact.tenant_id}'")
         # Get tenant name for this contact
         tenant_name = "Unknown"
         if contact.tenant_id:
             tenant_name = tenant_names.get(contact.tenant_id, "Unknown")
-        
-        print(f"DEBUG MOBILE API: Contact {contact.name} tenant_id '{contact.tenant_id}' -> tenant_name '{tenant_name}'")
         
         contact_dict = {
             "id": contact.id,
@@ -246,13 +132,7 @@ def get_contacts_for_mobile(
         }
         enhanced_contacts.append(contact_dict)
     
-    logger.info(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
-    print(f"DEBUG MOBILE API: Returning {len(enhanced_contacts)} enhanced contacts")
-    
-    logger.info(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
-    print(f"🔥 MOBILE CONTACTS ENDPOINT COMPLETE - Returning {len(enhanced_contacts)} contacts")
-    print(f"📱 MOBILE APP - CONTACT SUPPORT DATA SENT TO USER")
-    print(f"{'='*80}")
+
     return enhanced_contacts
 
 @router.post("/debug")
@@ -263,9 +143,7 @@ def create_contact_debug(
     tenant_context: str = Depends(deps.get_tenant_context),
 ):
     """Debug endpoint to test without schema validation"""
-    print(f"DEBUG: Raw request data: {request_data}")
-    print(f"DEBUG: Current user: {current_user.email}, role: {current_user.role}")
-    print(f"DEBUG: Tenant context: {tenant_context}")
+
     return {"status": "debug success", "data": request_data}
 
 @router.post("/", response_model=schemas.UsefulContact)
@@ -277,13 +155,10 @@ def create_contact(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Create new useful contact"""
-    logger.info(f"DEBUG: Endpoint reached! Creating contact with data: {contact_in.dict()}")
-    print(f"DEBUG: Endpoint reached! Creating contact with data: {contact_in.dict()}")
-    print(f"DEBUG: Current user: {current_user.email}, role: {current_user.role}")
-    print(f"DEBUG: Tenant context: {tenant_context}")
+
     
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
-        print(f"DEBUG: Permission denied for role: {current_user.role}")
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -293,12 +168,10 @@ def create_contact(
         contact = crud.useful_contact.create_with_tenant(
             db, obj_in=contact_in, tenant_id=tenant_context, created_by=current_user.email
         )
-        logger.info(f"DEBUG: Contact created successfully: {contact.id}")
-        print(f"DEBUG: Contact created successfully: {contact.id}")
+
         return contact
     except Exception as e:
-        logger.info(f"DEBUG: Error creating contact: {str(e)}")
-        print(f"DEBUG: Error creating contact: {str(e)}")
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to create contact: {str(e)}"
