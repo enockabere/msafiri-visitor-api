@@ -10,16 +10,37 @@ from app.schemas.app_feedback import AppFeedbackCreate, AppFeedbackResponse
 router = APIRouter()
 
 @router.post("/", response_model=AppFeedbackResponse)
-def create_feedback(
+def submit_feedback(
     *,
     db: Session = Depends(get_db),
     feedback_in: AppFeedbackCreate,
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
-    """Create new app feedback"""
-    feedback = crud.app_feedback.create_feedback(
-        db, feedback_in=feedback_in, user_id=current_user.id
-    )
+    """Submit app feedback (creates new or updates existing)"""
+    # Check if user already has feedback
+    existing_feedback = crud.app_feedback.get_by_user_latest(db, user_id=current_user.id)
+    
+    if existing_feedback:
+        # Update existing feedback
+        feedback = crud.app_feedback.update_feedback(
+            db, feedback=existing_feedback, feedback_in=feedback_in
+        )
+    else:
+        # Create new feedback
+        feedback = crud.app_feedback.create_feedback(
+            db, feedback_in=feedback_in, user_id=current_user.id
+        )
+    
+    # Mark that user has submitted feedback
+    from app.models.feedback_prompt import FeedbackPrompt
+    prompt_record = db.query(FeedbackPrompt).filter(
+        FeedbackPrompt.user_id == current_user.id
+    ).first()
+    
+    if prompt_record:
+        prompt_record.has_submitted_feedback = True
+        db.add(prompt_record)
+        db.commit()
     
     # Return with user info
     return AppFeedbackResponse(
@@ -132,3 +153,95 @@ def get_feedback_stats(
         "rating_distribution": rating_distribution,
         "category_distribution": category_distribution
     }
+
+@router.get("/should-prompt")
+def should_prompt_feedback(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Check if user should be prompted for feedback"""
+    from datetime import datetime, timedelta
+    from app.models.feedback_prompt import FeedbackPrompt
+    
+    # Get or create prompt record
+    prompt_record = db.query(FeedbackPrompt).filter(
+        FeedbackPrompt.user_id == current_user.id
+    ).first()
+    
+    if not prompt_record:
+        # First time user - create record but don't prompt yet
+        prompt_record = FeedbackPrompt(
+            user_id=current_user.id,
+            last_prompted_at=None,
+            prompt_count=0,
+            dismissed_count=0,
+            has_submitted_feedback=False
+        )
+        db.add(prompt_record)
+        db.commit()
+        return {"should_prompt": False, "reason": "new_user"}
+    
+    # Check if user already submitted feedback
+    if prompt_record.has_submitted_feedback:
+        return {"should_prompt": False, "reason": "already_submitted"}
+    
+    # Don't prompt if dismissed too many times
+    if prompt_record.dismissed_count >= 3:
+        return {"should_prompt": False, "reason": "dismissed_too_many"}
+    
+    # Check time-based prompting
+    now = datetime.utcnow()
+    
+    if prompt_record.last_prompted_at is None:
+        # First prompt after 3 days of app usage
+        user_created = current_user.created_at
+        if now - user_created >= timedelta(days=3):
+            return {"should_prompt": True, "reason": "first_prompt"}
+    else:
+        # Subsequent prompts - wait 7 days between prompts
+        if now - prompt_record.last_prompted_at >= timedelta(days=7):
+            return {"should_prompt": True, "reason": "periodic_prompt"}
+    
+    return {"should_prompt": False, "reason": "too_soon"}
+
+@router.post("/mark-prompted")
+def mark_feedback_prompted(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Mark that user was prompted for feedback"""
+    from datetime import datetime
+    from app.models.feedback_prompt import FeedbackPrompt
+    
+    prompt_record = db.query(FeedbackPrompt).filter(
+        FeedbackPrompt.user_id == current_user.id
+    ).first()
+    
+    if prompt_record:
+        prompt_record.last_prompted_at = datetime.utcnow()
+        prompt_record.prompt_count += 1
+        db.add(prompt_record)
+        db.commit()
+    
+    return {"message": "Prompt recorded"}
+
+@router.post("/mark-dismissed")
+def mark_feedback_dismissed(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Mark that user dismissed feedback prompt"""
+    from datetime import datetime
+    from app.models.feedback_prompt import FeedbackPrompt
+    
+    prompt_record = db.query(FeedbackPrompt).filter(
+        FeedbackPrompt.user_id == current_user.id
+    ).first()
+    
+    if prompt_record:
+        prompt_record.dismissed_count += 1
+        prompt_record.last_prompted_at = datetime.utcnow()
+        db.add(prompt_record)
+        db.commit()
+    
+    return {"message": "Dismissal recorded"}

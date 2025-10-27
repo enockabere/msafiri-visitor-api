@@ -44,6 +44,27 @@ class CRUDAppFeedback(CRUDBase[AppFeedback, AppFeedbackCreate, AppFeedbackCreate
             .all()
         )
     
+    def get_by_user_latest(self, db: Session, *, user_id: int) -> Optional[AppFeedback]:
+        return (
+            db.query(self.model)
+            .filter(AppFeedback.user_id == user_id)
+            .order_by(AppFeedback.created_at.desc())
+            .first()
+        )
+    
+    def update_feedback(
+        self, db: Session, *, feedback: AppFeedback, feedback_in: AppFeedbackCreate
+    ) -> AppFeedback:
+        from datetime import datetime
+        feedback.rating = feedback_in.rating
+        feedback.category = feedback_in.category
+        feedback.feedback_text = feedback_in.feedback_text
+        feedback.updated_at = datetime.utcnow()
+        db.add(feedback)
+        db.commit()
+        db.refresh(feedback)
+        return feedback
+    
     def get_average_rating(self, db: Session) -> Optional[float]:
         from sqlalchemy import func
         result = db.query(func.avg(AppFeedback.rating)).scalar()

@@ -33,10 +33,28 @@ def upgrade() -> None:
     op.create_index(op.f('ix_app_feedback_user_id'), 'app_feedback', ['user_id'], unique=False)
     op.create_index(op.f('ix_app_feedback_rating'), 'app_feedback', ['rating'], unique=False)
     op.create_index(op.f('ix_app_feedback_category'), 'app_feedback', ['category'], unique=False)
+    
+    # Create feedback_prompts table
+    op.create_table(
+        'feedback_prompts',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.Column('last_prompted_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('prompt_count', sa.Integer(), default=0),
+        sa.Column('dismissed_count', sa.Integer(), default=0),
+        sa.Column('has_submitted_feedback', sa.Boolean(), default=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_feedback_prompts_user_id'), 'feedback_prompts', ['user_id'], unique=True)
 
 
 def downgrade() -> None:
     # Drop app_feedback table
+    op.drop_index(op.f('ix_feedback_prompts_user_id'), table_name='feedback_prompts')
+    op.drop_table('feedback_prompts')
     op.drop_index(op.f('ix_app_feedback_category'), table_name='app_feedback')
     op.drop_index(op.f('ix_app_feedback_rating'), table_name='app_feedback')
     op.drop_index(op.f('ix_app_feedback_user_id'), table_name='app_feedback')
