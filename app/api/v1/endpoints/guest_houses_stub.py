@@ -96,14 +96,52 @@ async def get_guest_houses(
                 "tenant_id": gh.tenant_id,
                 "created_by": gh.created_by,
                 "created_at": gh.created_at.isoformat() if gh.created_at else None,
-                "rooms": [{
+                "rooms": []
+            }
+            
+            # Get room data with occupancy information
+            for room in gh.rooms:
+                # Get current occupants and their genders
+                from app.models.guesthouse import AccommodationAllocation
+                from sqlalchemy import text
+                
+                allocations = db.query(AccommodationAllocation).filter(
+                    AccommodationAllocation.room_id == room.id,
+                    AccommodationAllocation.status.in_(["booked", "checked_in"])
+                ).all()
+                
+                current_occupants = len(allocations)
+                occupant_genders = []
+                
+                for allocation in allocations:
+                    if allocation.participant_id:
+                        gender_result = db.execute(text(
+                            "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                        ), {"participant_id": allocation.participant_id}).fetchone()
+                        
+                        if gender_result and gender_result[0]:
+                            reg_gender = gender_result[0].lower()
+                            if reg_gender in ['man', 'male']:
+                                occupant_genders.append('male')
+                            elif reg_gender in ['woman', 'female']:
+                                occupant_genders.append('female')
+                            else:
+                                occupant_genders.append('other')
+                
+                # Remove duplicates
+                occupant_genders = list(set(occupant_genders))
+                
+                room_data = {
                     "id": room.id,
                     "room_number": room.room_number,
                     "capacity": room.capacity,
                     "room_type": room.room_type,
                     "description": room.description,
-                    "is_active": room.is_active
-                } for room in gh.rooms]
+                    "is_active": room.is_active,
+                    "current_occupants": current_occupants,
+                    "occupant_genders": occupant_genders
+                }
+                house_data["rooms"].append(room_data)
             }
             result.append(house_data)
             print(f"🔍 [DEBUG] Added house data: {house_data['name']} with {len(house_data['rooms'])} rooms")
