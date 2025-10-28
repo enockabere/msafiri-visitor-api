@@ -61,7 +61,7 @@ def get_chat_rooms(
             name=f"{event.title} - Event Chat",
             chat_type=ChatType.EVENT_CHATROOM,
             event_id=event.id,
-            tenant_id=str(event.tenant_id),  # Convert to string to match model
+            tenant_id=event.tenant_id,  # Use integer to match model
             created_by="system"
         )
         db.add(room)
