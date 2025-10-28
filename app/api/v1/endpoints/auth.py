@@ -386,3 +386,32 @@ async def microsoft_sso_mobile_login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Mobile SSO authentication failed: {str(e)}"
         )
+
+@router.post("/update-fcm-token")
+def update_fcm_token(
+    token_data: schemas.FCMTokenUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Update FCM token for push notifications"""
+    try:
+        user = crud.user.get_by_email(db, email=current_user.email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update FCM token
+        user.fcm_token = token_data.fcm_token
+        db.commit()
+        
+        logger.info(f"🔔 FCM token updated for user: {user.email}")
+        return {"message": "FCM token updated successfully"}
+        
+    except Exception as e:
+        logger.error(f"Failed to update FCM token: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update FCM token"
+        )

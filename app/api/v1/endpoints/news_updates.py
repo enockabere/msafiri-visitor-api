@@ -255,11 +255,15 @@ def get_published_news_for_mobile(
 def _send_news_notifications(db: Session, news_update, tenant_id: int):
     """Send push notifications for published news"""
     try:
+        logger.info(f"🔔 Starting notification process for news update: {news_update.id}")
+        
         # Get tenant slug from numeric ID
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
         if not tenant:
-            logger.error(f"Tenant not found for ID: {tenant_id}")
+            logger.error(f"🔔 Tenant not found for ID: {tenant_id}")
             return
+        
+        logger.info(f"🔔 Found tenant: {tenant.slug}")
         
         # Get all users in the tenant for push notifications
         tenant_users = db.query(UserModel).filter(
@@ -267,15 +271,27 @@ def _send_news_notifications(db: Session, news_update, tenant_id: int):
             UserModel.is_active == True
         ).all()
         
+        logger.info(f"🔔 Found {len(tenant_users)} active users in tenant {tenant.slug}")
+        
         notification_title = f"📰 {news_update.title}"
         if news_update.is_important:
             notification_title = f"🚨 {news_update.title}"
         
         notification_body = news_update.summary[:100] + "..." if len(news_update.summary) > 100 else news_update.summary
         
+        notifications_sent = 0
+        users_with_tokens = 0
+        
         for user in tenant_users:
             try:
-                firebase_service.send_to_user(
+                if user.fcm_token:
+                    users_with_tokens += 1
+                    logger.info(f"🔔 Sending notification to {user.email} (has FCM token)")
+                else:
+                    logger.info(f"🔔 Skipping {user.email} (no FCM token)")
+                    continue
+                
+                success = firebase_service.send_to_user(
                     db=db,
                     user_email=user.email,
                     title=notification_title,
@@ -288,10 +304,14 @@ def _send_news_notifications(db: Session, news_update, tenant_id: int):
                         "content_type": news_update.content_type
                     }
                 )
+                
+                if success:
+                    notifications_sent += 1
+                    
             except Exception as e:
-                logger.error(f"Failed to send push notification to {user.email}: {str(e)}")
+                logger.error(f"🔔 Failed to send push notification to {user.email}: {str(e)}")
         
-        logger.info(f"Push notifications sent for news update: {news_update.id}")
+        logger.info(f"🔔 Notification summary for news {news_update.id}: {notifications_sent}/{users_with_tokens} sent successfully (out of {len(tenant_users)} total users)")
         
     except Exception as e:
-        logger.error(f"Failed to send push notifications for news update {news_update.id}: {str(e)}")
+        logger.error(f"🔔 Failed to send push notifications for news update {news_update.id}: {str(e)}")

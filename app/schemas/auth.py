@@ -51,3 +51,6 @@ class UserRegistrationResponse(BaseModel):
     user_id: int
     status: str
     email: str
+
+class FCMTokenUpdate(BaseModel):
+    fcm_token: str

@@ -32,7 +32,7 @@ from .user import (
     # Advanced features
     ProfilePreferences, ProfileEmergencyContact, ProfileWorkDetails
 )
-from .auth import Token, TokenData, LoginRequest, UserRegistrationRequest, UserRegistrationResponse
+from .auth import Token, TokenData, LoginRequest, UserRegistrationRequest, UserRegistrationResponse, FCMTokenUpdate
 from .notification import (
     Notification, NotificationCreate, NotificationUpdate, NotificationStats,
     BroadcastNotification, UserNotification, TenantNotification,
