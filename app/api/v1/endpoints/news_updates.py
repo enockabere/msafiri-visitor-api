@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.models.tenant import Tenant
 from app.schemas.news_update import (
     NewsUpdateCreate, 
     NewsUpdateUpdate, 
@@ -21,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+def _get_tenant_numeric_id(db: Session, tenant_slug: str) -> int:
+    """Get numeric tenant ID from slug"""
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=400, detail="Invalid tenant")
+    return tenant.id
+
 @router.post("/", response_model=NewsUpdateResponse)
 def create_news_update(
     *,
@@ -32,16 +40,18 @@ def create_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     news_update = crud_news_update.create_news_update(
         db=db,
         news_update=news_update_in,
-        tenant_id=int(current_user.tenant_id),
+        tenant_id=tenant_numeric_id,
         created_by=current_user.email
     )
     
     # Send notifications if published immediately
     if news_update.is_published:
-        _send_news_notifications(db, news_update, current_user.tenant_id)
+        _send_news_notifications(db, news_update, tenant_numeric_id)
     
     logger.info(f"News update created: {news_update.id} by {current_user.email}")
     return news_update
@@ -61,12 +71,12 @@ def get_news_updates(
         if not current_user.tenant_id:
             raise HTTPException(status_code=400, detail="User must belong to a tenant")
         
-        tenant_id = int(current_user.tenant_id)
-        logger.info(f"Tenant ID: {tenant_id}")
+        tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+        logger.info(f"Tenant slug: {current_user.tenant_id}, Numeric ID: {tenant_numeric_id}")
         
         news_updates = crud_news_update.get_news_updates(
             db=db,
-            tenant_id=tenant_id,
+            tenant_id=tenant_numeric_id,
             skip=skip,
             limit=limit,
             published_only=published_only
@@ -74,7 +84,7 @@ def get_news_updates(
         
         total = crud_news_update.get_news_updates_count(
             db=db,
-            tenant_id=tenant_id,
+            tenant_id=tenant_numeric_id,
             published_only=published_only
         )
         
@@ -104,10 +114,12 @@ def get_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     news_update = crud_news_update.get_news_update(
         db=db,
         news_update_id=news_update_id,
-        tenant_id=int(current_user.tenant_id)
+        tenant_id=tenant_numeric_id
     )
     
     if not news_update:
@@ -126,17 +138,19 @@ def update_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     # Get original state
     original_news = crud_news_update.get_news_update(
         db=db,
         news_update_id=news_update_id,
-        tenant_id=int(current_user.tenant_id)
+        tenant_id=tenant_numeric_id
     )
     
     news_update = crud_news_update.update_news_update(
         db=db,
         news_update_id=news_update_id,
-        tenant_id=int(current_user.tenant_id),
+        tenant_id=tenant_numeric_id,
         news_update_update=news_update_in
     )
     
@@ -145,7 +159,7 @@ def update_news_update(
     
     # Send notifications if newly published
     if news_update.is_published and (not original_news or not original_news.is_published):
-        _send_news_notifications(db, news_update, current_user.tenant_id)
+        _send_news_notifications(db, news_update, tenant_numeric_id)
     
     logger.info(f"News update updated: {news_update_id} by {current_user.email}")
     return news_update
@@ -161,10 +175,12 @@ def publish_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     news_update = crud_news_update.publish_news_update(
         db=db,
         news_update_id=news_update_id,
-        tenant_id=int(current_user.tenant_id),
+        tenant_id=tenant_numeric_id,
         is_published=publish_data.is_published
     )
     
@@ -173,7 +189,7 @@ def publish_news_update(
     
     # Send push notifications when publishing
     if publish_data.is_published:
-        _send_news_notifications(db, news_update, current_user.tenant_id)
+        _send_news_notifications(db, news_update, tenant_numeric_id)
     
     action = "published" if publish_data.is_published else "unpublished"
     logger.info(f"News update {action}: {news_update_id} by {current_user.email}")
@@ -190,10 +206,12 @@ def delete_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     success = crud_news_update.delete_news_update(
         db=db,
         news_update_id=news_update_id,
-        tenant_id=int(current_user.tenant_id)
+        tenant_id=tenant_numeric_id
     )
     
     if not success:
@@ -214,9 +232,11 @@ def get_published_news_for_mobile(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+    
     news_updates = crud_news_update.get_published_news_for_mobile(
         db=db,
-        tenant_id=int(current_user.tenant_id),
+        tenant_id=tenant_numeric_id,
         skip=skip,
         limit=limit
     )
