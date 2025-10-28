@@ -1,7 +1,7 @@
 """add external link to news updates
 
 Revision ID: add_external_link_news
-Revises: 5ee79a036ab6
+Revises: 7ecda31119dc
 Create Date: 2024-01-01 12:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_external_link_news'
-down_revision = '5ee79a036ab6'
+down_revision = '7ecda31119dc'
 branch_labels = None
 depends_on = None
 
