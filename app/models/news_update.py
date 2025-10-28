@@ -24,7 +24,7 @@ class NewsUpdate(Base):
     video_url = Column(String(500), nullable=True)  # Video URL
     document_url = Column(String(500), nullable=True)  # Document URL
     content_type = Column(String(20), default="text")  # "text" or "link"
-    category = Column(Enum(NewsCategory), nullable=False, default=NewsCategory.GENERAL)
+    category = Column(String(50), nullable=False, default="general")
     is_important = Column(Boolean, default=False)
     is_published = Column(Boolean, default=False)
     scheduled_publish_at = Column(DateTime(timezone=True), nullable=True)  # For scheduled publishing
