@@ -18,7 +18,7 @@ class NewsUpdateBase(BaseModel):
     image_url: Optional[str] = None
 
 class NewsUpdateCreate(NewsUpdateBase):
-    pass
+    is_published: bool = False
 
 class NewsUpdateUpdate(BaseModel):
     title: Optional[str] = None
@@ -30,6 +30,7 @@ class NewsUpdateUpdate(BaseModel):
     content_type: Optional[str] = None
     category: Optional[NewsCategory] = None
     is_important: Optional[bool] = None
+    is_published: Optional[bool] = None
     scheduled_publish_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     image_url: Optional[str] = None
