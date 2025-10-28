@@ -299,7 +299,7 @@ def _send_news_notifications(db: Session, news_update, tenant_id: int):
                     data={
                         "type": "news_update",
                         "news_id": str(news_update.id),
-                        "category": news_update.category.value,
+                        "category": news_update.category,
                         "is_important": str(news_update.is_important),
                         "content_type": news_update.content_type
                     }
