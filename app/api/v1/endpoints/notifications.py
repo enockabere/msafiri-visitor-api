@@ -134,12 +134,27 @@ def get_mobile_notifications(
     # Format for mobile consumption
     result = []
     for notification in notifications:
+        # Handle enum values safely
+        notification_type = "general"
+        if notification.notification_type:
+            if hasattr(notification.notification_type, 'value'):
+                notification_type = notification.notification_type.value
+            else:
+                notification_type = str(notification.notification_type)
+        
+        priority = "medium"
+        if notification.priority:
+            if hasattr(notification.priority, 'value'):
+                priority = notification.priority.value
+            else:
+                priority = str(notification.priority)
+        
         result.append({
             "id": notification.id,
             "title": notification.title,
             "message": notification.message,
-            "type": notification.notification_type.value if notification.notification_type else "general",
-            "priority": notification.priority.value if notification.priority else "medium",
+            "type": notification_type,
+            "priority": priority,
             "isRead": notification.is_read,
             "createdAt": notification.created_at.isoformat(),
             "readAt": notification.read_at.isoformat() if notification.read_at else None,

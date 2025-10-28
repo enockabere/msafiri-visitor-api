@@ -266,17 +266,24 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         
         unread = base_query.filter(Notification.is_read == False).count()
         
-        urgent = base_query.filter(
-            and_(
-                Notification.priority == 'URGENT',
-                Notification.is_read == False
-            )
-        ).count()
+        # Handle priority filtering safely
+        try:
+            urgent = base_query.filter(
+                and_(
+                    or_(
+                        Notification.priority == NotificationPriority.URGENT,
+                        Notification.priority == 'URGENT'
+                    ),
+                    Notification.is_read == False
+                )
+            ).count()
+        except:
+            urgent = 0
         
         return {
-            "total": total,
-            "unread": unread,
-            "urgent": urgent
+            "total_count": total,
+            "unread_count": unread,
+            "urgent_count": urgent
         }
     
     def _send_notification(self, db: Session, notification: Notification):
