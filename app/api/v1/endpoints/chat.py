@@ -34,7 +34,7 @@ def create_chat_room(
     db_room = ChatRoom(
         **room.dict(),
         tenant_id=current_user.tenant_id,
-        created_by=current_user.email
+        created_by=current_user.id
     )
     db.add(db_room)
     db.commit()
@@ -117,7 +117,7 @@ def auto_create_event_rooms(
             chat_type=ChatType.EVENT_CHATROOM,
             event_id=event.id,
             tenant_id=event.tenant_id,
-            created_by=current_user.email
+            created_by=current_user.id
         )
         db.add(room)
         created_rooms.append(room)
