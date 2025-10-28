@@ -47,15 +47,49 @@ def get_chat_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get available chat rooms - show all active rooms for cross-tenant communication"""
+    """Get available chat rooms - auto-create missing event rooms and show rooms for user's events"""
+    # Auto-create chat rooms for events that don't have them
+    events_without_rooms = db.query(Event).outerjoin(
+        ChatRoom, and_(Event.id == ChatRoom.event_id, ChatRoom.chat_type == ChatType.EVENT_CHATROOM)
+    ).filter(
+        ChatRoom.id.is_(None)
+    ).all()
+    
+    created_rooms = []
+    for event in events_without_rooms:
+        room = ChatRoom(
+            name=f"{event.title} - Event Chat",
+            chat_type=ChatType.EVENT_CHATROOM,
+            event_id=event.id,
+            tenant_id=event.tenant_id,
+            created_by="system"
+        )
+        db.add(room)
+        created_rooms.append(room)
+    
+    if created_rooms:
+        db.commit()
+        print(f"AUTO-CREATED: {len(created_rooms)} chat rooms for events")
+    
+    # Get events user is participating in
+    user_event_ids = db.query(EventParticipant.event_id).filter(
+        EventParticipant.user_email == current_user.email
+    ).subquery()
+    
+    # Get chat rooms for user's events or all active rooms
     query = db.query(ChatRoom).join(Event, ChatRoom.event_id == Event.id, isouter=True).filter(
-        ChatRoom.is_active == True
+        and_(
+            ChatRoom.is_active == True,
+            or_(
+                ChatRoom.event_id.in_(user_event_ids),
+                ChatRoom.event_id.is_(None)  # Non-event rooms
+            )
+        )
     )
     
     if event_id:
         query = query.filter(ChatRoom.event_id == event_id)
     
-    # Simple ordering by creation date
     query = query.order_by(ChatRoom.created_at.desc())
     
     rooms = query.all()
