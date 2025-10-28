@@ -17,7 +17,7 @@ class ChatRoom(Base):
     event_id = Column(Integer, ForeignKey("events.id"), nullable=True)  # Only for event chatrooms
     tenant_id = Column(Integer, nullable=False)
     is_active = Column(Boolean, default=True)
-    created_by = Column(String(255), nullable=False)
+    created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
