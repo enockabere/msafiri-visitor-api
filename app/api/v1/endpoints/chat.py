@@ -47,7 +47,24 @@ def get_chat_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get available chat rooms - auto-create missing event rooms and show rooms for user's events"""
+    """Get available chat rooms - auto-create missing event rooms and cleanup old ones"""
+    # Auto-cleanup chat rooms for events ended more than 1 month ago
+    one_month_ago = datetime.now() - timedelta(days=30)
+    old_rooms = db.query(ChatRoom).join(Event).filter(
+        and_(
+            ChatRoom.chat_type == ChatType.EVENT_CHATROOM,
+            Event.end_date < one_month_ago
+        )
+    ).all()
+    
+    for room in old_rooms:
+        db.query(ChatMessage).filter(ChatMessage.chat_room_id == room.id).delete()
+        db.delete(room)
+    
+    if old_rooms:
+        db.commit()
+        print(f"AUTO-DELETED: {len(old_rooms)} old chat rooms")
+    
     # Auto-create chat rooms for events that don't have them
     events_without_rooms = db.query(Event).outerjoin(
         ChatRoom, and_(Event.id == ChatRoom.event_id, ChatRoom.chat_type == ChatType.EVENT_CHATROOM)
@@ -305,18 +322,17 @@ def cleanup_ended_event_chats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Cleanup chat rooms for events ended more than 1 week ago"""
+    """Cleanup chat rooms for events ended more than 1 month ago"""
     user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
     if user_role.upper() not in ["MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "SUPER_ADMIN"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    one_week_ago = datetime.now() - timedelta(days=7)
+    one_month_ago = datetime.now() - timedelta(days=30)
     
     rooms_to_delete = db.query(ChatRoom).join(Event).filter(
         and_(
-            ChatRoom.tenant_id == current_user.tenant_id,
             ChatRoom.chat_type == ChatType.EVENT_CHATROOM,
-            Event.end_date < one_week_ago
+            Event.end_date < one_month_ago
         )
     ).all()
     
