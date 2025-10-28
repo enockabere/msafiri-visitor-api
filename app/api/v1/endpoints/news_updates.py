@@ -265,13 +265,12 @@ def _send_news_notifications(db: Session, news_update, tenant_id: int):
         
         logger.info(f"🔔 Found tenant: {tenant.slug}")
         
-        # Get all users in the tenant for push notifications
+        # Get all active users across all tenants for push notifications
         tenant_users = db.query(UserModel).filter(
-            UserModel.tenant_id == tenant.slug,
             UserModel.is_active == True
         ).all()
         
-        logger.info(f"🔔 Found {len(tenant_users)} active users in tenant {tenant.slug}")
+        logger.info(f"🔔 Found {len(tenant_users)} active users across all tenants")
         
         notification_title = f"📰 {news_update.title}"
         if news_update.is_important:
