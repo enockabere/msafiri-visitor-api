@@ -249,9 +249,15 @@ def get_published_news_for_mobile(
 def _send_news_notifications(db: Session, news_update, tenant_id: int):
     """Send push notifications for published news"""
     try:
+        # Get tenant slug from numeric ID
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            logger.error(f"Tenant not found for ID: {tenant_id}")
+            return
+        
         # Get all users in the tenant for push notifications
         tenant_users = db.query(UserModel).filter(
-            UserModel.tenant_id == tenant_id,
+            UserModel.tenant_id == tenant.slug,
             UserModel.is_active == True
         ).all()
         
