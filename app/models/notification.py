@@ -22,10 +22,10 @@ class NotificationStatus(enum.Enum):
     READ = "read"
 
 class NotificationPriority(enum.Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    URGENT = "urgent"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
 
 class Notification(BaseModel):
     __tablename__ = "notifications"

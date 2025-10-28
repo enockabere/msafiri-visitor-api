@@ -7,7 +7,7 @@ class NotificationBase(BaseModel):
     title: str
     message: str
     notification_type: str
-    priority: str = 'medium'
+    priority: str = 'MEDIUM'
     send_in_app: bool = True
     send_email: bool = False
     send_push: bool = False
@@ -51,7 +51,7 @@ class NotificationStats(BaseModel):
 class BroadcastNotification(BaseModel):
     title: str
     message: str
-    priority: str = 'medium'
+    priority: str = 'MEDIUM'
     send_email: bool = False
     action_url: Optional[str] = None
 
@@ -60,7 +60,7 @@ class UserNotification(BaseModel):
     user_id: int
     title: str
     message: str
-    priority: str = 'medium'
+    priority: str = 'MEDIUM'
     send_email: bool = False
     send_push: bool = False
     action_url: Optional[str] = None
@@ -69,7 +69,7 @@ class TenantNotification(BaseModel):
     """Send notification to all users in tenant"""
     title: str
     message: str
-    priority: str = 'medium'
+    priority: str = 'MEDIUM'
     send_email: bool = False
     send_push: bool = False
     action_url: Optional[str] = None

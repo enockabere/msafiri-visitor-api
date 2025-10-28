@@ -68,9 +68,8 @@ async def submit_feedback(
                 user_id=admin.id,
                 title="New App Feedback Received",
                 message=f"New {feedback_in.rating}-star feedback from {current_user.full_name or current_user.email} in category: {feedback_in.category.value}",
-                priority=NotificationPriority.MEDIUM,
-                notification_type="app_feedback",
-                metadata={"feedback_id": feedback.id, "rating": feedback_in.rating}
+                priority="MEDIUM",
+                notification_type="app_feedback"
             )
             db.add(notification)
         
