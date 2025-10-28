@@ -6,7 +6,6 @@ from app.models.base import Base
 
 class NewsCategory(str, enum.Enum):
     HEALTH_PROGRAM = "health_program"
-    SECURITY = "security"
     SECURITY_BRIEFING = "security_briefing"
     EVENTS = "events"
     REPORTS = "reports"
