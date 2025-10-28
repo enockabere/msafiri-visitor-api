@@ -39,6 +39,10 @@ def create_news_update(
         created_by=current_user.email
     )
     
+    # Send notifications if published immediately
+    if news_update.is_published:
+        _send_news_notifications(db, news_update, current_user.tenant_id)
+    
     logger.info(f"News update created: {news_update.id} by {current_user.email}")
     return news_update
 
@@ -113,6 +117,13 @@ def update_news_update(
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
     
+    # Get original state
+    original_news = crud_news_update.get_news_update(
+        db=db,
+        news_update_id=news_update_id,
+        tenant_id=int(current_user.tenant_id)
+    )
+    
     news_update = crud_news_update.update_news_update(
         db=db,
         news_update_id=news_update_id,
@@ -122,6 +133,10 @@ def update_news_update(
     
     if not news_update:
         raise HTTPException(status_code=404, detail="News update not found")
+    
+    # Send notifications if newly published
+    if news_update.is_published and (not original_news or not original_news.is_published):
+        _send_news_notifications(db, news_update, current_user.tenant_id)
     
     logger.info(f"News update updated: {news_update_id} by {current_user.email}")
     return news_update
@@ -149,37 +164,7 @@ def publish_news_update(
     
     # Send push notifications when publishing
     if publish_data.is_published:
-        try:
-            # Get all users in the tenant for push notifications
-            tenant_users = db.query(UserModel).filter(
-                UserModel.tenant_id == current_user.tenant_id,
-                UserModel.is_active == True
-            ).all()
-            
-            notification_title = f"📰 {news_update.title}"
-            notification_body = news_update.summary[:100] + "..." if len(news_update.summary) > 100 else news_update.summary
-            
-            for user in tenant_users:
-                try:
-                    firebase_service.send_to_user(
-                        db=db,
-                        user_email=user.email,
-                        title=notification_title,
-                        body=notification_body,
-                        data={
-                            "type": "news_update",
-                            "news_id": str(news_update.id),
-                            "category": news_update.category.value,
-                            "is_important": str(news_update.is_important)
-                        }
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send push notification to {user.email}: {str(e)}")
-            
-            logger.info(f"Push notifications sent for news update: {news_update_id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to send push notifications for news update {news_update_id}: {str(e)}")
+        _send_news_notifications(db, news_update, current_user.tenant_id)
     
     action = "published" if publish_data.is_published else "unpublished"
     logger.info(f"News update {action}: {news_update_id} by {current_user.email}")
@@ -228,3 +213,41 @@ def get_published_news_for_mobile(
     )
     
     return news_updates
+
+def _send_news_notifications(db: Session, news_update, tenant_id: int):
+    """Send push notifications for published news"""
+    try:
+        # Get all users in the tenant for push notifications
+        tenant_users = db.query(UserModel).filter(
+            UserModel.tenant_id == tenant_id,
+            UserModel.is_active == True
+        ).all()
+        
+        notification_title = f"📰 {news_update.title}"
+        if news_update.is_important:
+            notification_title = f"🚨 {news_update.title}"
+        
+        notification_body = news_update.summary[:100] + "..." if len(news_update.summary) > 100 else news_update.summary
+        
+        for user in tenant_users:
+            try:
+                firebase_service.send_to_user(
+                    db=db,
+                    user_email=user.email,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "news_update",
+                        "news_id": str(news_update.id),
+                        "category": news_update.category.value,
+                        "is_important": str(news_update.is_important),
+                        "content_type": news_update.content_type
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to send push notification to {user.email}: {str(e)}")
+        
+        logger.info(f"Push notifications sent for news update: {news_update.id}")
+        
+    except Exception as e:
+        logger.error(f"Failed to send push notifications for news update {news_update.id}: {str(e)}")

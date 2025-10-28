@@ -11,8 +11,14 @@ def create_news_update(
     tenant_id: int, 
     created_by: str
 ) -> NewsUpdate:
+    news_data = news_update.dict()
+    
+    # Set published_at if publishing immediately
+    if news_data.get('is_published', False):
+        news_data['published_at'] = datetime.utcnow()
+    
     db_news_update = NewsUpdate(
-        **news_update.dict(),
+        **news_data,
         tenant_id=tenant_id,
         created_by=created_by
     )
@@ -59,6 +65,14 @@ def update_news_update(
         return None
     
     update_data = news_update_update.dict(exclude_unset=True)
+    
+    # Handle publishing logic
+    if 'is_published' in update_data and update_data['is_published']:
+        if not db_news_update.published_at:
+            update_data['published_at'] = datetime.utcnow()
+    elif 'is_published' in update_data and not update_data['is_published']:
+        update_data['published_at'] = None
+    
     for field, value in update_data.items():
         setattr(db_news_update, field, value)
     

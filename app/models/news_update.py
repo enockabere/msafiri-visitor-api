@@ -20,9 +20,12 @@ class NewsUpdate(Base):
     title = Column(String(255), nullable=False)
     summary = Column(Text, nullable=False)
     content = Column(Text, nullable=True)
+    external_link = Column(String(500), nullable=True)  # External link instead of full content
+    content_type = Column(String(20), default="text")  # "text" or "link"
     category = Column(Enum(NewsCategory), nullable=False, default=NewsCategory.GENERAL)
     is_important = Column(Boolean, default=False)
     is_published = Column(Boolean, default=False)
+    scheduled_publish_at = Column(DateTime(timezone=True), nullable=True)  # For scheduled publishing
     image_url = Column(String(500), nullable=True)
     created_by = Column(String(255), nullable=False)  # Email of creator
     created_at = Column(DateTime(timezone=True), server_default=func.now())
