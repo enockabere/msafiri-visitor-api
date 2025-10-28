@@ -55,35 +55,44 @@ def get_news_updates(
     published_only: bool = Query(False)
 ):
     """Get news updates for current tenant"""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=400, detail="User must belong to a tenant")
-    
-    tenant_id = int(current_user.tenant_id)
-    
-    news_updates = crud_news_update.get_news_updates(
-        db=db,
-        tenant_id=tenant_id,
-        skip=skip,
-        limit=limit,
-        published_only=published_only
-    )
-    
-    total = crud_news_update.get_news_updates_count(
-        db=db,
-        tenant_id=tenant_id,
-        published_only=published_only
-    )
-    
-    pages = math.ceil(total / limit) if total > 0 else 0
-    page = (skip // limit) + 1
-    
-    return NewsUpdateListResponse(
-        items=news_updates,
-        total=total,
-        page=page,
-        size=limit,
-        pages=pages
-    )
+    try:
+        logger.info(f"Getting news updates for user: {current_user.email}")
+        
+        if not current_user.tenant_id:
+            raise HTTPException(status_code=400, detail="User must belong to a tenant")
+        
+        tenant_id = int(current_user.tenant_id)
+        logger.info(f"Tenant ID: {tenant_id}")
+        
+        news_updates = crud_news_update.get_news_updates(
+            db=db,
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+            published_only=published_only
+        )
+        
+        total = crud_news_update.get_news_updates_count(
+            db=db,
+            tenant_id=tenant_id,
+            published_only=published_only
+        )
+        
+        pages = math.ceil(total / limit) if total > 0 else 0
+        page = (skip // limit) + 1
+        
+        logger.info(f"Found {len(news_updates)} news updates, total: {total}")
+        
+        return NewsUpdateListResponse(
+            items=news_updates,
+            total=total,
+            page=page,
+            size=limit,
+            pages=pages
+        )
+    except Exception as e:
+        logger.error(f"Error getting news updates: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/{news_update_id}", response_model=NewsUpdateResponse)
 def get_news_update(
