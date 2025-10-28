@@ -43,9 +43,9 @@ class Notification(NotificationBase):
         from_attributes = True
 
 class NotificationStats(BaseModel):
-    total: int
-    unread: int
-    urgent: int
+    total_count: int
+    unread_count: int
+    urgent_count: int
     by_type: Optional[Dict[str, int]] = None
 
 class BroadcastNotification(BaseModel):
