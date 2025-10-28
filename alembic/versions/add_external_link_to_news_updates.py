@@ -23,9 +23,13 @@ def upgrade():
     
     # Add scheduled_publish_at column
     op.add_column('news_updates', sa.Column('scheduled_publish_at', sa.DateTime(timezone=True), nullable=True))
+    
+    # Add expires_at column
+    op.add_column('news_updates', sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True))
 
 def downgrade():
     # Remove the columns
     op.drop_column('news_updates', 'external_link')
     op.drop_column('news_updates', 'content_type')
     op.drop_column('news_updates', 'scheduled_publish_at')
+    op.drop_column('news_updates', 'expires_at')

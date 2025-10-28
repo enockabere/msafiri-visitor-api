@@ -12,6 +12,7 @@ class NewsUpdateBase(BaseModel):
     category: NewsCategory
     is_important: bool = False
     scheduled_publish_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     image_url: Optional[str] = None
 
 class NewsUpdateCreate(NewsUpdateBase):
@@ -26,6 +27,7 @@ class NewsUpdateUpdate(BaseModel):
     category: Optional[NewsCategory] = None
     is_important: Optional[bool] = None
     scheduled_publish_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     image_url: Optional[str] = None
 
 class NewsUpdatePublish(BaseModel):

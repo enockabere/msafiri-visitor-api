@@ -1,6 +1,6 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, or_
 from app.models.news_update import NewsUpdate
 from app.schemas.news_update import NewsUpdateCreate, NewsUpdateUpdate
 from datetime import datetime
@@ -115,10 +115,18 @@ def get_published_news_for_mobile(
     skip: int = 0, 
     limit: int = 20
 ) -> List[NewsUpdate]:
-    """Get published news updates for mobile app"""
+    """Get published news updates for mobile app (excluding expired)"""
+    from datetime import datetime, timezone
+    current_time = datetime.now(timezone.utc)
+    
     return db.query(NewsUpdate).filter(
         and_(
             NewsUpdate.tenant_id == tenant_id,
-            NewsUpdate.is_published == True
+            NewsUpdate.is_published == True,
+            # Only show news that hasn't expired
+            or_(
+                NewsUpdate.expires_at.is_(None),
+                NewsUpdate.expires_at > current_time
+            )
         )
     ).order_by(desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
