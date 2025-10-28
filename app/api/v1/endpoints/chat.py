@@ -88,8 +88,21 @@ def get_chat_rooms(
         db.commit()
         print(f"AUTO-CREATED: {len(created_rooms)} chat rooms for events")
     
-    # Get all active chat rooms
-    query = db.query(ChatRoom).filter(ChatRoom.is_active == True)
+    # Get events user is selected to participate in
+    user_event_ids = db.query(EventParticipant.event_id).filter(
+        and_(
+            EventParticipant.email == current_user.email,
+            EventParticipant.status == "selected"
+        )
+    ).subquery()
+    
+    # Get chat rooms for user's selected events only
+    query = db.query(ChatRoom).filter(
+        and_(
+            ChatRoom.is_active == True,
+            ChatRoom.event_id.in_(user_event_ids)
+        )
+    )
     
     if event_id:
         query = query.filter(ChatRoom.event_id == event_id)
