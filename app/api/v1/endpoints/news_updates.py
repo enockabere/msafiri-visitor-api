@@ -17,6 +17,7 @@ from app.services.firebase_service import firebase_service
 from app.models.user import User as UserModel
 import logging
 import math
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -312,5 +313,31 @@ def _send_news_notifications(db: Session, news_update, tenant_id: int):
         
         logger.info(f"🔔 Notification summary for news {news_update.id}: {notifications_sent}/{users_with_tokens} sent successfully (out of {len(tenant_users)} total users)")
         
+        # Debug Firebase configuration
+        firebase_configured = firebase_service.project_id is not None and firebase_service.credentials is not None
+        logger.info(f"🔔 Firebase configured: {firebase_configured}")
+        if not firebase_configured:
+            logger.error("🔔 Firebase service account not configured - notifications will not be delivered!")
+        
     except Exception as e:
         logger.error(f"🔔 Failed to send push notifications for news update {news_update.id}: {str(e)}")
+
+@router.get("/debug/firebase-status")
+def check_firebase_status(
+    current_user: User = Depends(get_current_user)
+):
+    """Debug endpoint to check Firebase configuration"""
+    try:
+        firebase_configured = firebase_service.project_id is not None and firebase_service.credentials is not None
+        
+        return {
+            "firebase_configured": firebase_configured,
+            "project_id": firebase_service.project_id,
+            "has_credentials": firebase_service.credentials is not None,
+            "service_account_path_env": os.getenv('FIREBASE_SERVICE_ACCOUNT_PATH'),
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "firebase_configured": False
+        }
