@@ -53,7 +53,7 @@ def get_news_updates(
         )
         query = query.filter(search_filter)
     
-    return query.order_by(desc(NewsUpdate.created_at)).offset(skip).limit(limit).all()
+    return query.order_by(desc(NewsUpdate.is_important), desc(NewsUpdate.created_at)).offset(skip).limit(limit).all()
 
 def get_news_updates_count(db: Session, tenant_id: int, published_only: bool = False, search: Optional[str] = None) -> int:
     query = db.query(NewsUpdate).filter(NewsUpdate.tenant_id == tenant_id)
@@ -146,7 +146,7 @@ def get_published_news_for_mobile(
                 NewsUpdate.expires_at > current_time
             )
         )
-    ).order_by(desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
+    ).order_by(desc(NewsUpdate.is_important), desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
 
 def get_all_published_news_for_mobile(
     db: Session, 
@@ -166,4 +166,4 @@ def get_all_published_news_for_mobile(
                 NewsUpdate.expires_at > current_time
             )
         )
-    ).order_by(desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
+    ).order_by(desc(NewsUpdate.is_important), desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
