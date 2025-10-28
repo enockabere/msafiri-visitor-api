@@ -232,19 +232,30 @@ def get_published_news_for_mobile(
     limit: int = Query(20, ge=1, le=50)
 ):
     """Get published news updates for mobile app"""
-    if not current_user.tenant_id:
-        raise HTTPException(status_code=400, detail="User must belong to a tenant")
-    
-    tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
-    
-    news_updates = crud_news_update.get_published_news_for_mobile(
-        db=db,
-        tenant_id=tenant_numeric_id,
-        skip=skip,
-        limit=limit
-    )
-    
-    return news_updates
+    try:
+        logger.info(f"Mobile news request from user: {current_user.email}")
+        
+        if not current_user.tenant_id:
+            raise HTTPException(status_code=400, detail="User must belong to a tenant")
+        
+        tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
+        logger.info(f"Mobile request - Tenant: {current_user.tenant_id} -> ID: {tenant_numeric_id}")
+        
+        news_updates = crud_news_update.get_published_news_for_mobile(
+            db=db,
+            tenant_id=tenant_numeric_id,
+            skip=skip,
+            limit=limit
+        )
+        
+        logger.info(f"Mobile news found: {len(news_updates)} items")
+        for news in news_updates:
+            logger.info(f"  - News {news.id}: {news.title} (published: {news.is_published}, expires: {news.expires_at})")
+        
+        return news_updates
+    except Exception as e:
+        logger.error(f"Error in mobile news endpoint: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 def _send_news_notifications(db: Session, news_update, tenant_id: int):
     """Send push notifications for published news"""
