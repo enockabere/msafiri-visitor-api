@@ -73,7 +73,7 @@ def get_chat_rooms(
     
     # Get events user is participating in
     user_event_ids = db.query(EventParticipant.event_id).filter(
-        EventParticipant.user_email == current_user.email
+        EventParticipant.email == current_user.email
     ).subquery()
     
     # Get chat rooms for user's events only
