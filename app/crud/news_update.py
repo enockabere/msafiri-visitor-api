@@ -37,20 +37,37 @@ def get_news_updates(
     tenant_id: int, 
     skip: int = 0, 
     limit: int = 100,
-    published_only: bool = False
+    published_only: bool = False,
+    search: Optional[str] = None
 ) -> List[NewsUpdate]:
     query = db.query(NewsUpdate).filter(NewsUpdate.tenant_id == tenant_id)
     
     if published_only:
         query = query.filter(NewsUpdate.is_published == True)
     
+    if search:
+        search_filter = or_(
+            NewsUpdate.title.ilike(f"%{search}%"),
+            NewsUpdate.summary.ilike(f"%{search}%"),
+            NewsUpdate.content.ilike(f"%{search}%")
+        )
+        query = query.filter(search_filter)
+    
     return query.order_by(desc(NewsUpdate.created_at)).offset(skip).limit(limit).all()
 
-def get_news_updates_count(db: Session, tenant_id: int, published_only: bool = False) -> int:
+def get_news_updates_count(db: Session, tenant_id: int, published_only: bool = False, search: Optional[str] = None) -> int:
     query = db.query(NewsUpdate).filter(NewsUpdate.tenant_id == tenant_id)
     
     if published_only:
         query = query.filter(NewsUpdate.is_published == True)
+    
+    if search:
+        search_filter = or_(
+            NewsUpdate.title.ilike(f"%{search}%"),
+            NewsUpdate.summary.ilike(f"%{search}%"),
+            NewsUpdate.content.ilike(f"%{search}%")
+        )
+        query = query.filter(search_filter)
     
     return query.count()
 

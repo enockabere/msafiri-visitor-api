@@ -62,7 +62,8 @@ def get_news_updates(
     current_user: User = Depends(get_current_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    published_only: bool = Query(False)
+    published_only: bool = Query(False),
+    search: str = Query(None, description="Search in title, summary, and content")
 ):
     """Get news updates for current tenant"""
     try:
@@ -79,13 +80,15 @@ def get_news_updates(
             tenant_id=tenant_numeric_id,
             skip=skip,
             limit=limit,
-            published_only=published_only
+            published_only=published_only,
+            search=search
         )
         
         total = crud_news_update.get_news_updates_count(
             db=db,
             tenant_id=tenant_numeric_id,
-            published_only=published_only
+            published_only=published_only,
+            search=search
         )
         
         pages = math.ceil(total / limit) if total > 0 else 0
