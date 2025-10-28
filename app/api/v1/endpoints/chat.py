@@ -435,6 +435,8 @@ def get_conversations(
     current_user: User = Depends(get_current_user)
 ):
     """Get list of users with whom current user has conversations"""
+    print(f"DEBUG CONV: Getting conversations for user {current_user.email}")
+    
     # Get unique conversation partners - allow cross-tenant conversations
     sent_to = db.query(DirectMessage.recipient_email, DirectMessage.recipient_name).filter(
         DirectMessage.sender_email == current_user.email
@@ -457,7 +459,7 @@ def get_conversations(
                 )
             ).order_by(desc(DirectMessage.created_at)).first()
             
-            # Count unread messages
+            # Count unread messages (only messages FROM other user TO current user)
             unread_count = db.query(DirectMessage).filter(
                 and_(
                     DirectMessage.sender_email == email,
@@ -465,6 +467,8 @@ def get_conversations(
                     DirectMessage.is_read == False
                 )
             ).count()
+            
+            print(f"DEBUG CONV: Sent to {email}, unread_count: {unread_count}, last_msg: {last_msg.message if last_msg else None}")
             
             conversations.append({
                 "email": email,
@@ -485,7 +489,7 @@ def get_conversations(
                 )
             ).order_by(desc(DirectMessage.created_at)).first()
             
-            # Count unread messages
+            # Count unread messages (only messages FROM other user TO current user)
             unread_count = db.query(DirectMessage).filter(
                 and_(
                     DirectMessage.sender_email == email,
@@ -493,6 +497,8 @@ def get_conversations(
                     DirectMessage.is_read == False
                 )
             ).count()
+            
+            print(f"DEBUG CONV: Received from {email}, unread_count: {unread_count}, last_msg: {last_msg.message if last_msg else None}")
             
             conversations.append({
                 "email": email,
@@ -504,6 +510,10 @@ def get_conversations(
     
     # Sort by last message time
     conversations.sort(key=lambda x: x["last_message_time"] or datetime.min, reverse=True)
+    
+    print(f"DEBUG CONV: Returning {len(conversations)} conversations")
+    for conv in conversations:
+        print(f"DEBUG CONV: {conv['email']} - unread: {conv['unread_count']}, last: {conv['last_message']}")
     
     return conversations
 
