@@ -147,3 +147,23 @@ def get_published_news_for_mobile(
             )
         )
     ).order_by(desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()
+
+def get_all_published_news_for_mobile(
+    db: Session, 
+    skip: int = 0, 
+    limit: int = 20
+) -> List[NewsUpdate]:
+    """Get published news updates for mobile app from all tenants (excluding expired)"""
+    from datetime import datetime, timezone
+    current_time = datetime.now(timezone.utc)
+    
+    return db.query(NewsUpdate).filter(
+        and_(
+            NewsUpdate.is_published == True,
+            # Only show news that hasn't expired
+            or_(
+                NewsUpdate.expires_at.is_(None),
+                NewsUpdate.expires_at > current_time
+            )
+        )
+    ).order_by(desc(NewsUpdate.published_at)).offset(skip).limit(limit).all()

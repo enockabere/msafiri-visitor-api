@@ -223,7 +223,7 @@ def delete_news_update(
     logger.info(f"News update deleted: {news_update_id} by {current_user.email}")
     return {"message": "News update deleted successfully"}
 
-# Mobile app endpoint
+# Mobile app endpoint - Get news from all tenants
 @router.get("/mobile/published", response_model=List[NewsUpdateResponse])
 def get_published_news_for_mobile(
     db: Session = Depends(get_db),
@@ -231,30 +231,25 @@ def get_published_news_for_mobile(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=50)
 ):
-    """Get published news updates for mobile app"""
+    """Get published news updates for mobile app from all tenants"""
     try:
-        logger.info(f"Mobile news request from user: {current_user.email}")
+        logger.info(f"📱 Mobile news request from user: {current_user.email}")
+        logger.info(f"📱 User tenant_id: {current_user.tenant_id}")
         
-        if not current_user.tenant_id:
-            raise HTTPException(status_code=400, detail="User must belong to a tenant")
-        
-        tenant_numeric_id = _get_tenant_numeric_id(db, current_user.tenant_id)
-        logger.info(f"Mobile request - Tenant: {current_user.tenant_id} -> ID: {tenant_numeric_id}")
-        
-        news_updates = crud_news_update.get_published_news_for_mobile(
+        # Get news from all tenants for mobile users
+        news_updates = crud_news_update.get_all_published_news_for_mobile(
             db=db,
-            tenant_id=tenant_numeric_id,
             skip=skip,
             limit=limit
         )
         
-        logger.info(f"Mobile news found: {len(news_updates)} items")
+        logger.info(f"📱 Mobile news found: {len(news_updates)} items across all tenants")
         for news in news_updates:
-            logger.info(f"  - News {news.id}: {news.title} (published: {news.is_published}, expires: {news.expires_at})")
+            logger.info(f"📱   - News {news.id}: '{news.title}' (tenant: {news.tenant_id}, published: {news.is_published}, expires: {news.expires_at})")
         
         return news_updates
     except Exception as e:
-        logger.error(f"Error in mobile news endpoint: {str(e)}")
+        logger.error(f"📱 Error in mobile news endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 def _send_news_notifications(db: Session, news_update, tenant_id: int):
