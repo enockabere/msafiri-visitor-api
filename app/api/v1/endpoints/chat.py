@@ -196,56 +196,80 @@ async def send_message(
         }
     }, current_user.tenant_id, exclude_user=current_user.email)
     
-    # Send in-app notification to portal users
+    # Send push notifications to group participants only
     try:
-        from app.crud.notification import notification
+        from app.services.firebase_service import firebase_service
+        from app.models.event_participant import EventParticipant
         
-        print(f"CHAT: Creating in-app notifications for message in room {room.name}")
+        print(f"CHAT: Sending push notifications for message in room {room.name}")
         
-        # Get all users in the tenant except sender
-        tenant_users = db.query(User).filter(
-            and_(
-                User.tenant_id == current_user.tenant_id,
-                User.email != current_user.email,
-                User.is_active == True
-            )
-        ).all()
-        
-        print(f"CHAT: Found {len(tenant_users)} users to notify")
-        
-        for user in tenant_users:
-            print(f"CHAT: Creating notification for user {user.email}")
-            print(f"CHAT: User tenant_id: {user.tenant_id}, Current user tenant_id: {current_user.tenant_id}")
-            try:
-                created_notification = notification.create_user_notification(
-                    db=db,
-                    user_id=user.id,
-                    title=f"New message in {room.name}",
-                    message=f"{sender_name}: {message.message[:100]}{'...' if len(message.message) > 100 else ''}",
-                    tenant_id=user.tenant_id,
-                    notification_type="CHAT_MESSAGE",
-                    priority="LOW",
-                    send_email=False,
-                    send_push=False,
-                    action_url=f"/tenant/{current_user.tenant_id}/chat",
-                    triggered_by=current_user.email
+        # Get users who are participants in this event (for event chat rooms)
+        if room.event_id:
+            # Get event participants who are selected
+            participants = db.query(EventParticipant).filter(
+                and_(
+                    EventParticipant.event_id == room.event_id,
+                    EventParticipant.status == "selected",
+                    EventParticipant.email != current_user.email  # Exclude sender
                 )
-                print(f"CHAT: Created notification ID {created_notification.id} for user {user.email}")
-            except Exception as user_error:
-                print(f"CHAT ERROR: Failed to create notification for user {user.email}: {user_error}")
-                import traceback
-                traceback.print_exc()
+            ).all()
             
-        print(f"CHAT: Successfully created {len(tenant_users)} in-app notifications")
+            participant_emails = [p.email for p in participants]
+            print(f"CHAT: Found {len(participant_emails)} event participants to notify")
+            
+            # Get user objects for participants
+            target_users = db.query(User).filter(
+                and_(
+                    User.email.in_(participant_emails),
+                    User.is_active == True
+                )
+            ).all()
+        else:
+            # For general chat rooms, notify all tenant users
+            target_users = db.query(User).filter(
+                and_(
+                    User.tenant_id == current_user.tenant_id,
+                    User.email != current_user.email,
+                    User.is_active == True
+                )
+            ).all()
+        
+        print(f"CHAT: Sending push notifications to {len(target_users)} users")
+        
+        notification_title = f"💬 {room.name}"
+        notification_body = f"{sender_name}: {message.message[:100]}{'...' if len(message.message) > 100 else ''}"
+        
+        notifications_sent = 0
+        for user in target_users:
+            try:
+                if user.fcm_token:
+                    success = firebase_service.send_to_user(
+                        db=db,
+                        user_email=user.email,
+                        title=notification_title,
+                        body=notification_body,
+                        data={
+                            "type": "chat_message",
+                            "chat_room_id": str(room.id),
+                            "chat_room_name": room.name,
+                            "sender_name": sender_name,
+                            "message_preview": message.message[:100]
+                        }
+                    )
+                    if success:
+                        notifications_sent += 1
+                        print(f"CHAT: Push notification sent to {user.email}")
+                else:
+                    print(f"CHAT: Skipping {user.email} (no FCM token)")
+            except Exception as user_error:
+                print(f"CHAT ERROR: Failed to send push notification to {user.email}: {user_error}")
+        
+        print(f"CHAT: Successfully sent {notifications_sent} push notifications")
+        
     except Exception as e:
-        print(f"CHAT ERROR: Failed to create in-app notifications: {e}")
+        print(f"CHAT ERROR: Failed to send push notifications: {e}")
         import traceback
         traceback.print_exc()
-        # Rollback the session to prevent transaction issues
-        try:
-            db.rollback()
-        except Exception as rollback_error:
-            print(f"CHAT ERROR: Failed to rollback session: {rollback_error}")
     
     return db_message
 
@@ -419,39 +443,40 @@ async def send_direct_message(
         }
     }, dm.recipient_email)
     
-    # Send in-app notification to recipient
+    # Send push notification to recipient only
     try:
-        from app.crud.notification import notification
+        from app.services.firebase_service import firebase_service
         
-        print(f"CHAT: Creating direct message notification for {recipient.email}")
-        try:
-            created_notification = notification.create_user_notification(
+        print(f"CHAT: Sending direct message push notification to {recipient.email}")
+        
+        if recipient.fcm_token:
+            notification_title = f"💬 {current_user.full_name or current_user.email}"
+            notification_body = dm.message[:100] + "..." if len(dm.message) > 100 else dm.message
+            
+            success = firebase_service.send_to_user(
                 db=db,
-                user_id=recipient.id,
-                title=f"New direct message from {current_user.full_name or current_user.email}",
-                message=f"{dm.message[:100]}{'...' if len(dm.message) > 100 else ''}",
-                tenant_id=recipient.tenant_id,
-                notification_type="CHAT_MESSAGE",
-                priority="LOW",
-                send_email=False,
-                send_push=False,
-                action_url=f"/tenant/{recipient.tenant_id}/chat",
-                triggered_by=current_user.email
+                user_email=recipient.email,
+                title=notification_title,
+                body=notification_body,
+                data={
+                    "type": "direct_message",
+                    "sender_email": current_user.email,
+                    "sender_name": current_user.full_name or current_user.email,
+                    "message_preview": dm.message[:100]
+                }
             )
-            print(f"CHAT: Created direct message notification ID {created_notification.id}")
-        except Exception as dm_error:
-            print(f"CHAT ERROR: Failed to create direct message notification: {dm_error}")
-            import traceback
-            traceback.print_exc()
+            
+            if success:
+                print(f"CHAT: Direct message push notification sent to {recipient.email}")
+            else:
+                print(f"CHAT: Failed to send push notification to {recipient.email}")
+        else:
+            print(f"CHAT: Recipient {recipient.email} has no FCM token")
+            
     except Exception as e:
-        print(f"CHAT ERROR: Failed to create direct message notification: {e}")
+        print(f"CHAT ERROR: Failed to send direct message push notification: {e}")
         import traceback
         traceback.print_exc()
-        # Rollback the session to prevent transaction issues
-        try:
-            db.rollback()
-        except Exception as rollback_error:
-            print(f"CHAT ERROR: Failed to rollback session: {rollback_error}")
     
     return db_dm
 
