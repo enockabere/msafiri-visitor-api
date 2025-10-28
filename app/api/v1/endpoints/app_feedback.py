@@ -57,7 +57,7 @@ async def submit_feedback(
     # Send notification to super admins about new feedback
     try:
         from app.models.user import User, UserRole
-        from app.models.notification import Notification, NotificationPriority
+        from app.models.notification import Notification, NotificationPriority, NotificationType
         
         # Get all super admins
         super_admins = db.query(User).filter(User.role == UserRole.SUPER_ADMIN).all()
@@ -69,7 +69,7 @@ async def submit_feedback(
                 title="New App Feedback Received",
                 message=f"New {feedback_in.rating}-star feedback from {current_user.full_name or current_user.email} in category: {feedback_in.category.value}",
                 priority="MEDIUM",
-                notification_type="app_feedback"
+                notification_type=NotificationType.APP_FEEDBACK
             )
             db.add(notification)
         

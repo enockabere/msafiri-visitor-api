@@ -16,6 +16,7 @@ class NotificationType(enum.Enum):
     DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED"
     SYSTEM_ANNOUNCEMENT = "SYSTEM_ANNOUNCEMENT"
     CHAT_MESSAGE = "CHAT_MESSAGE"
+    APP_FEEDBACK = "APP_FEEDBACK"
 
 class NotificationStatus(enum.Enum):
     UNREAD = "unread"
@@ -36,7 +37,7 @@ class Notification(BaseModel):
     tenant_id = Column(String, nullable=True)
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
-    notification_type = Column(Enum('USER_CREATED', 'USER_ACTIVATED', 'USER_DEACTIVATED', 'ROLE_CHANGED', 'TENANT_CREATED', 'TENANT_ACTIVATED', 'TENANT_DEACTIVATED', 'VISITOR_INVITED', 'EVENT_CREATED', 'DOCUMENT_UPLOADED', 'SYSTEM_ANNOUNCEMENT', 'CHAT_MESSAGE', name='notificationtype'), nullable=True)
+    notification_type = Column(Enum('USER_CREATED', 'USER_ACTIVATED', 'USER_DEACTIVATED', 'ROLE_CHANGED', 'TENANT_CREATED', 'TENANT_ACTIVATED', 'TENANT_DEACTIVATED', 'VISITOR_INVITED', 'EVENT_CREATED', 'DOCUMENT_UPLOADED', 'SYSTEM_ANNOUNCEMENT', 'CHAT_MESSAGE', 'APP_FEEDBACK', name='notificationtype'), nullable=True)
     priority = Column(Enum('LOW', 'MEDIUM', 'HIGH', 'URGENT', name='notificationpriority'), nullable=True)
     send_in_app = Column(Boolean, default=True)
     send_email = Column(Boolean, default=False)
