@@ -61,7 +61,7 @@ def get_chat_rooms(
             name=f"{event.title} - Event Chat",
             chat_type=ChatType.EVENT_CHATROOM,
             event_id=event.id,
-            tenant_id=event.tenant_id,
+            tenant_id=event.tenant_id,  # Use event's tenant_id (integer)
             created_by="system"
         )
         db.add(room)
@@ -76,14 +76,11 @@ def get_chat_rooms(
         EventParticipant.user_email == current_user.email
     ).subquery()
     
-    # Get chat rooms for user's events or all active rooms
-    query = db.query(ChatRoom).join(Event, ChatRoom.event_id == Event.id, isouter=True).filter(
+    # Get chat rooms for user's events only
+    query = db.query(ChatRoom).filter(
         and_(
             ChatRoom.is_active == True,
-            or_(
-                ChatRoom.event_id.in_(user_event_ids),
-                ChatRoom.event_id.is_(None)  # Non-event rooms
-            )
+            ChatRoom.event_id.in_(user_event_ids)
         )
     )
     
