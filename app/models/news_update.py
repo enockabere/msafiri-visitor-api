@@ -7,6 +7,7 @@ from app.models.base import Base
 class NewsCategory(str, enum.Enum):
     HEALTH_PROGRAM = "health_program"
     SECURITY = "security"
+    SECURITY_BRIEFING = "security_briefing"
     EVENTS = "events"
     REPORTS = "reports"
     GENERAL = "general"
@@ -21,6 +22,8 @@ class NewsUpdate(Base):
     summary = Column(Text, nullable=False)
     content = Column(Text, nullable=True)
     external_link = Column(String(500), nullable=True)  # External link instead of full content
+    video_url = Column(String(500), nullable=True)  # Video URL
+    document_url = Column(String(500), nullable=True)  # Document URL
     content_type = Column(String(20), default="text")  # "text" or "link"
     category = Column(Enum(NewsCategory), nullable=False, default=NewsCategory.GENERAL)
     is_important = Column(Boolean, default=False)

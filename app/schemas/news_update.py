@@ -8,6 +8,8 @@ class NewsUpdateBase(BaseModel):
     summary: str
     content: Optional[str] = None
     external_link: Optional[str] = None
+    video_url: Optional[str] = None
+    document_url: Optional[str] = None
     content_type: str = "text"  # "text" or "link"
     category: NewsCategory
     is_important: bool = False
@@ -23,6 +25,8 @@ class NewsUpdateUpdate(BaseModel):
     summary: Optional[str] = None
     content: Optional[str] = None
     external_link: Optional[str] = None
+    video_url: Optional[str] = None
+    document_url: Optional[str] = None
     content_type: Optional[str] = None
     category: Optional[NewsCategory] = None
     is_important: Optional[bool] = None
