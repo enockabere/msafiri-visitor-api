@@ -160,8 +160,8 @@ def update_news_update(
     if not news_update:
         raise HTTPException(status_code=404, detail="News update not found")
     
-    # Send notifications if newly published
-    if news_update.is_published and (not original_news or not original_news.is_published):
+    # Send notifications every time news is published (including republishing)
+    if news_update.is_published:
         _send_news_notifications(db, news_update, tenant_numeric_id)
     
     logger.info(f"News update updated: {news_update_id} by {current_user.email}")
@@ -190,7 +190,7 @@ def publish_news_update(
     if not news_update:
         raise HTTPException(status_code=404, detail="News update not found")
     
-    # Send push notifications when publishing
+    # Send push notifications every time publishing (including republishing)
     if publish_data.is_published:
         _send_news_notifications(db, news_update, tenant_numeric_id)
     
