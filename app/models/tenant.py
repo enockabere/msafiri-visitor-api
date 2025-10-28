@@ -45,3 +45,4 @@ class Tenant(BaseModel):
     
     # Relationships - commented out to avoid conflicts
     # roles = relationship("Role", back_populates="tenant")
+    news_updates = relationship("NewsUpdate", back_populates="tenant")

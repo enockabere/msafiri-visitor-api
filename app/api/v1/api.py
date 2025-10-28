@@ -435,6 +435,13 @@ api_router.include_router(
     tags=["app-feedback"]
 )
 
+from app.api.v1.endpoints import news_updates
+api_router.include_router(
+    news_updates.router,
+    prefix="/news-updates",
+    tags=["news-updates"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
