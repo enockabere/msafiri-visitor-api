@@ -12,9 +12,9 @@ class ChatRoomCreate(ChatRoomBase):
 
 class ChatRoom(ChatRoomBase):
     id: int
-    tenant_id: str
+    tenant_id: int
     is_active: bool
-    created_by: str
+    created_by: int
     created_at: datetime
     
     class Config:

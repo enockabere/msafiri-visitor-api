@@ -61,8 +61,8 @@ def get_chat_rooms(
             name=f"{event.title} - Event Chat",
             chat_type=ChatType.EVENT_CHATROOM,
             event_id=event.id,
-            tenant_id=event.tenant_id,  # Use integer to match model
-            created_by=current_user.id
+            tenant_id=event.tenant_id,
+            created_by=1  # System user ID
         )
         db.add(room)
         created_rooms.append(room)
@@ -71,18 +71,8 @@ def get_chat_rooms(
         db.commit()
         print(f"AUTO-CREATED: {len(created_rooms)} chat rooms for events")
     
-    # Get events user is participating in
-    user_event_ids = db.query(EventParticipant.event_id).filter(
-        EventParticipant.email == current_user.email
-    ).subquery()
-    
-    # Get chat rooms for user's events only
-    query = db.query(ChatRoom).filter(
-        and_(
-            ChatRoom.is_active == True,
-            ChatRoom.event_id.in_(user_event_ids)
-        )
-    )
+    # Get all active chat rooms
+    query = db.query(ChatRoom).filter(ChatRoom.is_active == True)
     
     if event_id:
         query = query.filter(ChatRoom.event_id == event_id)
