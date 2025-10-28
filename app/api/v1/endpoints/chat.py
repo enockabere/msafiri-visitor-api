@@ -411,14 +411,11 @@ def get_direct_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get direct messages (sent or received)"""
+    """Get direct messages (sent or received) - allow cross-tenant messaging"""
     query = db.query(DirectMessage).filter(
-        and_(
-            DirectMessage.tenant_id == current_user.tenant_id,
-            or_(
-                DirectMessage.sender_email == current_user.email,
-                DirectMessage.recipient_email == current_user.email
-            )
+        or_(
+            DirectMessage.sender_email == current_user.email,
+            DirectMessage.recipient_email == current_user.email
         )
     )
     
