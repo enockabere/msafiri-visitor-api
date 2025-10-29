@@ -855,7 +855,19 @@ async def delete_participant(
                       {"participant_id": participant_id})
             print(f"✅ PUBLIC REGISTRATIONS DELETED")
         
-        # Check for other related records that might cause foreign key constraints
+        # Check and delete accommodation allocations
+        aa_result = db.execute(text("SELECT COUNT(*) FROM accommodation_allocations WHERE participant_id = :participant_id"), 
+                              {"participant_id": participant_id})
+        aa_count = aa_result.scalar()
+        print(f"📊 FOUND {aa_count} ACCOMMODATION ALLOCATION RECORDS")
+        
+        if aa_count > 0:
+            print(f"🗑️ DELETING ACCOMMODATION ALLOCATIONS for participant {participant_id}")
+            db.execute(text("DELETE FROM accommodation_allocations WHERE participant_id = :participant_id"), 
+                      {"participant_id": participant_id})
+            print(f"✅ ACCOMMODATION ALLOCATIONS DELETED")
+        
+        # Check for other related records (informational only)
         print(f"🔍 CHECKING OTHER RELATED RECORDS")
         
         # Check direct messages
@@ -863,7 +875,7 @@ async def delete_participant(
             dm_result = db.execute(text("SELECT COUNT(*) FROM direct_messages WHERE sender_email = :email OR recipient_email = :email"), 
                                   {"email": participant.email})
             dm_count = dm_result.scalar()
-            print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS")
+            print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS (will remain)")
         except Exception as e:
             print(f"⚠️ Could not check direct_messages table: {e}")
             dm_count = 0
