@@ -868,17 +868,18 @@ async def delete_participant(
                         text(f"DELETE FROM {table_name} WHERE {column_name} = :value"),
                         {"value": value}
                     )
+                    db.commit()  # Commit each deletion separately
                     print(f"✅ DELETED {count} records from {table_name}")
                 else:
                     print(f"ℹ️ No records found in {table_name}")
                     
             except Exception as e:
                 print(f"⚠️ Could not clean {table_name}: {e}")
+                db.rollback()  # Rollback failed operation
         
-        # Check for any remaining foreign key references
-        print(f"🔍 FINAL CHECK for remaining foreign key references")
+        # Final verification - check if there are still any foreign key references
+        print(f"🔍 FINAL VERIFICATION before deleting participant")
         try:
-            # Check if there are still accommodation allocations
             remaining_aa = db.execute(
                 text("SELECT COUNT(*) FROM accommodation_allocations WHERE participant_id = :participant_id"),
                 {"participant_id": participant_id}
@@ -891,10 +892,12 @@ async def delete_participant(
                     text("DELETE FROM accommodation_allocations WHERE participant_id = :participant_id"),
                     {"participant_id": participant_id}
                 )
-                db.flush()  # Force the deletion to be processed
+                db.commit()
+                print(f"✅ FORCE DELETED remaining accommodation allocations")
                 
         except Exception as e:
-            print(f"⚠️ Error in final check: {e}")
+            print(f"⚠️ Error in final verification: {e}")
+            db.rollback()
         
         # Now delete the participant
         print(f"🗑️ DELETING PARTICIPANT: ID={participant_id}")
