@@ -848,6 +848,7 @@ async def delete_participant(
         tables_to_clean = [
             ("public_registrations", "participant_id", participant_id),
             ("accommodation_allocations", "participant_id", participant_id),
+            ("participant_qr_codes", "participant_id", participant_id),
             ("event_allocations", "created_by", participant.email),
             ("notifications", "user_email", participant.email),
             ("user_fcm_tokens", "user_email", participant.email),
