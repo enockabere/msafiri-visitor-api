@@ -26,7 +26,11 @@ class CRUDCountryTravelRequirement(CRUDBase[CountryTravelRequirement, CountryTra
         # Convert additional_requirements to JSON format
         additional_reqs = None
         if obj_in.additional_requirements:
-            additional_reqs = [req.dict() for req in obj_in.additional_requirements]
+            # Check if items are already dicts or need conversion
+            if hasattr(obj_in.additional_requirements[0], 'dict'):
+                additional_reqs = [req.dict() for req in obj_in.additional_requirements]
+            else:
+                additional_reqs = obj_in.additional_requirements
         
         db_obj = CountryTravelRequirement(
             tenant_id=tenant_id,
@@ -50,7 +54,11 @@ class CRUDCountryTravelRequirement(CRUDBase[CountryTravelRequirement, CountryTra
         
         # Handle additional_requirements conversion
         if "additional_requirements" in update_data and update_data["additional_requirements"] is not None:
-            update_data["additional_requirements"] = [req.dict() for req in update_data["additional_requirements"]]
+            # Check if items are already dicts or need conversion
+            additional_reqs = update_data["additional_requirements"]
+            if additional_reqs and hasattr(additional_reqs[0], 'dict'):
+                update_data["additional_requirements"] = [req.dict() for req in additional_reqs]
+            # If already dicts, keep as is
         
         update_data["updated_by"] = updated_by
         return super().update(db, db_obj=db_obj, obj_in=update_data)
