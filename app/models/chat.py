@@ -49,6 +49,10 @@ class DirectMessage(Base):
     recipient_email = Column(String(255), nullable=False)
     recipient_name = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
+    reply_to_message_id = Column(Integer, ForeignKey("direct_messages.id"), nullable=True)
     is_read = Column(Boolean, default=False)
     tenant_id = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    reply_to = relationship("DirectMessage", remote_side=[id])

@@ -48,6 +48,7 @@ class ChatMessage(MessageBase):
 class DirectMessageCreate(BaseModel):
     recipient_email: str
     message: str
+    reply_to_message_id: Optional[int] = None
 
 class DirectMessage(BaseModel):
     id: int
@@ -56,6 +57,8 @@ class DirectMessage(BaseModel):
     recipient_email: str
     recipient_name: str
     message: str
+    reply_to_message_id: Optional[int] = None
+    reply_to: Optional[ReplyToMessage] = None
     is_read: bool
     tenant_id: str
     created_at: datetime

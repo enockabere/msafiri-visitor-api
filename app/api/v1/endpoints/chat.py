@@ -425,6 +425,7 @@ async def send_direct_message(
         recipient_email=dm.recipient_email,
         recipient_name=recipient.full_name or recipient.email,
         message=dm.message,
+        reply_to_message_id=dm.reply_to_message_id,
         tenant_id=tenant_context
     )
     
@@ -502,7 +503,39 @@ def get_direct_messages(
             )
         )
     
-    return query.order_by(desc(DirectMessage.created_at)).all()
+    messages = query.order_by(desc(DirectMessage.created_at)).all()
+    
+    # Add reply context to messages
+    result_messages = []
+    for message in messages:
+        message_dict = {
+            "id": message.id,
+            "sender_email": message.sender_email,
+            "sender_name": message.sender_name,
+            "recipient_email": message.recipient_email,
+            "recipient_name": message.recipient_name,
+            "message": message.message,
+            "reply_to_message_id": message.reply_to_message_id,
+            "is_read": message.is_read,
+            "tenant_id": message.tenant_id,
+            "created_at": message.created_at,
+            "reply_to": None
+        }
+        
+        if message.reply_to_message_id:
+            reply_to = db.query(DirectMessage).filter(
+                DirectMessage.id == message.reply_to_message_id
+            ).first()
+            if reply_to:
+                message_dict["reply_to"] = {
+                    "id": reply_to.id,
+                    "sender_name": reply_to.sender_name,
+                    "message": reply_to.message
+                }
+        
+        result_messages.append(message_dict)
+    
+    return result_messages
 
 @router.get("/conversations/")
 def get_conversations(
