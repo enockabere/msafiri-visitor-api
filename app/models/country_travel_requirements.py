@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
@@ -11,6 +11,7 @@ class CountryTravelRequirement(BaseModel):
     eta_required = Column(Boolean, default=False)
     passport_required = Column(Boolean, default=True)
     flight_ticket_required = Column(Boolean, default=True)
+    additional_requirements = Column(JSON, nullable=True)  # Custom requirements like vaccination, etc.
     created_by = Column(String(255), nullable=False)
     updated_by = Column(String(255), nullable=True)
     

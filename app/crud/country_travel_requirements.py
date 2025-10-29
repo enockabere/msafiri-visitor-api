@@ -23,6 +23,11 @@ class CRUDCountryTravelRequirement(CRUDBase[CountryTravelRequirement, CountryTra
     def create_with_tenant(
         self, db: Session, *, obj_in: CountryTravelRequirementCreate, tenant_id: int, created_by: str
     ) -> CountryTravelRequirement:
+        # Convert additional_requirements to JSON format
+        additional_reqs = None
+        if obj_in.additional_requirements:
+            additional_reqs = [req.dict() for req in obj_in.additional_requirements]
+        
         db_obj = CountryTravelRequirement(
             tenant_id=tenant_id,
             country=obj_in.country,
@@ -30,6 +35,7 @@ class CRUDCountryTravelRequirement(CRUDBase[CountryTravelRequirement, CountryTra
             eta_required=obj_in.eta_required,
             passport_required=obj_in.passport_required,
             flight_ticket_required=obj_in.flight_ticket_required,
+            additional_requirements=additional_reqs,
             created_by=created_by
         )
         db.add(db_obj)
@@ -41,6 +47,11 @@ class CRUDCountryTravelRequirement(CRUDBase[CountryTravelRequirement, CountryTra
         self, db: Session, *, db_obj: CountryTravelRequirement, obj_in: CountryTravelRequirementUpdate, updated_by: str
     ) -> CountryTravelRequirement:
         update_data = obj_in.dict(exclude_unset=True)
+        
+        # Handle additional_requirements conversion
+        if "additional_requirements" in update_data and update_data["additional_requirements"] is not None:
+            update_data["additional_requirements"] = [req.dict() for req in update_data["additional_requirements"]]
+        
         update_data["updated_by"] = updated_by
         return super().update(db, db_obj=db_obj, obj_in=update_data)
 
