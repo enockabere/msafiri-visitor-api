@@ -827,29 +827,63 @@ async def delete_participant(
 ):
     """Delete a participant from an event"""
     
+    print(f"🗑️ DELETE PARTICIPANT REQUEST: ID={participant_id}")
+    
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id
     ).first()
     
     if not participant:
+        print(f"❌ PARTICIPANT NOT FOUND: ID={participant_id}")
         raise HTTPException(status_code=404, detail="Participant not found")
+    
+    print(f"✅ PARTICIPANT FOUND: ID={participant.id}, Name={participant.full_name}, Email={participant.email}")
     
     try:
         # Delete related public registration data if exists
         from sqlalchemy import text
-        db.execute(text("DELETE FROM public_registrations WHERE participant_id = :participant_id"), 
-                  {"participant_id": participant_id})
+        
+        print(f"🔍 CHECKING PUBLIC REGISTRATIONS for participant {participant_id}")
+        pr_result = db.execute(text("SELECT COUNT(*) FROM public_registrations WHERE participant_id = :participant_id"), 
+                              {"participant_id": participant_id})
+        pr_count = pr_result.scalar()
+        print(f"📊 FOUND {pr_count} PUBLIC REGISTRATION RECORDS")
+        
+        if pr_count > 0:
+            print(f"🗑️ DELETING PUBLIC REGISTRATIONS for participant {participant_id}")
+            db.execute(text("DELETE FROM public_registrations WHERE participant_id = :participant_id"), 
+                      {"participant_id": participant_id})
+            print(f"✅ PUBLIC REGISTRATIONS DELETED")
+        
+        # Check for other related records that might cause foreign key constraints
+        print(f"🔍 CHECKING OTHER RELATED RECORDS")
+        
+        # Check direct messages
+        dm_result = db.execute(text("SELECT COUNT(*) FROM direct_messages WHERE sender_email = :email OR recipient_email = :email"), 
+                              {"email": participant.email})
+        dm_count = dm_result.scalar()
+        print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS")
+        
+        # Check chat room participants
+        cr_result = db.execute(text("SELECT COUNT(*) FROM chat_room_participants WHERE user_email = :email"), 
+                              {"email": participant.email})
+        cr_count = cr_result.scalar()
+        print(f"📊 FOUND {cr_count} CHAT ROOM PARTICIPANT RECORDS")
         
         # Delete the participant
+        print(f"🗑️ DELETING PARTICIPANT: ID={participant_id}")
         db.delete(participant)
         db.commit()
         
+        print(f"✅ PARTICIPANT DELETED SUCCESSFULLY: ID={participant_id}")
         return {"message": "Participant deleted successfully"}
         
     except Exception as e:
         db.rollback()
-        print(f"Error deleting participant: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete participant")
+        print(f"❌ ERROR DELETING PARTICIPANT: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to delete participant: {str(e)}")
 
 @router.post("/user/update-fcm-token")
 async def update_fcm_token(
