@@ -261,7 +261,7 @@ async def get_participant_details(
             text("""
                 SELECT 
                     ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, 
-                    ep.created_at, ep.updated_at, ep.country, ep.position, ep.project, 
+                    ep.created_at, ep.updated_at, ep.country, ep.travelling_from_country, ep.position, ep.project, 
                     ep.gender, ep.eta, ep.requires_eta, ep.passport_document, ep.ticket_document,
                     ep.dietary_requirements, ep.accommodation_type, ep.participant_name, ep.participant_email,
                     ep.decline_reason, ep.declined_at,
@@ -337,6 +337,7 @@ async def get_participant_details(
             "invitation_accepted_at": result.updated_at.isoformat() if result.status == "confirmed" and result.updated_at else None,
             # Registration details from event_participants
             "country": result.country,
+            "travelling_from_country": result.travelling_from_country,
             "position": result.position,
             "department": result.project,  # project field stores department
             "gender": result.gender,
