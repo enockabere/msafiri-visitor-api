@@ -781,6 +781,14 @@ def confirm_event_attendance(
     logger.info(f"📊 Checking if status '{participation.status}' is in ['approved', 'selected']")
     
     if participation.status not in ['approved', 'selected']:
+        # If already confirmed, just return success
+        if participation.status == 'confirmed':
+            logger.info(f"✅ User already confirmed for event {event_id}")
+            return {
+                "message": "Attendance already confirmed",
+                "status": "confirmed"
+            }
+        
         logger.error(f"❌ Invalid status for confirmation: '{participation.status}' (expected 'approved' or 'selected')")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

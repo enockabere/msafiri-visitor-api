@@ -92,7 +92,7 @@ def get_chat_rooms(
     user_event_ids = select(EventParticipant.event_id).filter(
         and_(
             EventParticipant.email == current_user.email,
-            EventParticipant.status.in_(["selected", "confirmed"])
+            EventParticipant.status.in_(["selected", "confirmed", "checked_in"])
         )
     )
     
