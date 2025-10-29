@@ -177,6 +177,7 @@ async def public_register_for_event(
             invited_by="public_form",
             # Store additional registration data
             country=registration.countryOfWork or None,
+            travelling_from_country=registration.travellingFromCountry if registration.travellingFromCountry else None,
             position=registration.currentPosition,
             project=registration.projectOfWork or None,
             gender=registration.genderIdentity.lower() if registration.genderIdentity in ['Man', 'Woman'] else 'other',
