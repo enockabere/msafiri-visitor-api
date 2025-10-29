@@ -88,11 +88,11 @@ def get_chat_rooms(
         db.commit()
         print(f"AUTO-CREATED: {len(created_rooms)} chat rooms for events")
     
-    # Get events user is selected to participate in
+    # Get events user is selected or confirmed to participate in
     user_event_ids = select(EventParticipant.event_id).filter(
         and_(
             EventParticipant.email == current_user.email,
-            EventParticipant.status == "selected"
+            EventParticipant.status.in_(["selected", "confirmed"])
         )
     )
     
@@ -205,11 +205,11 @@ async def send_message(
         
         # Get users who are participants in this event (for event chat rooms)
         if room.event_id:
-            # Get event participants who are selected
+            # Get event participants who are selected or confirmed
             participants = db.query(EventParticipant).filter(
                 and_(
                     EventParticipant.event_id == room.event_id,
-                    EventParticipant.status == "selected",
+                    EventParticipant.status.in_(["selected", "confirmed"]),
                     EventParticipant.email != current_user.email  # Exclude sender
                 )
             ).all()
