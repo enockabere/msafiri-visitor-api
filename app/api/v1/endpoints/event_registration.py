@@ -859,16 +859,14 @@ async def delete_participant(
         print(f"🔍 CHECKING OTHER RELATED RECORDS")
         
         # Check direct messages
-        dm_result = db.execute(text("SELECT COUNT(*) FROM direct_messages WHERE sender_email = :email OR recipient_email = :email"), 
-                              {"email": participant.email})
-        dm_count = dm_result.scalar()
-        print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS")
-        
-        # Check chat room participants
-        cr_result = db.execute(text("SELECT COUNT(*) FROM chat_room_participants WHERE user_email = :email"), 
-                              {"email": participant.email})
-        cr_count = cr_result.scalar()
-        print(f"📊 FOUND {cr_count} CHAT ROOM PARTICIPANT RECORDS")
+        try:
+            dm_result = db.execute(text("SELECT COUNT(*) FROM direct_messages WHERE sender_email = :email OR recipient_email = :email"), 
+                                  {"email": participant.email})
+            dm_count = dm_result.scalar()
+            print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS")
+        except Exception as e:
+            print(f"⚠️ Could not check direct_messages table: {e}")
+            dm_count = 0
         
         # Delete the participant
         print(f"🗑️ DELETING PARTICIPANT: ID={participant_id}")
