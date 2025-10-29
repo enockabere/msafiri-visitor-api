@@ -284,6 +284,7 @@ async def get_participant_details(
             print(f"🔥 BASIC DEBUG: EP Accommodation Type = {result.accommodation_type}")
             print(f"🔥 BASIC DEBUG: PR Accommodation Type = {result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') else 'N/A'}")
             print(f"🔥 BASIC DEBUG: Travelling Internationally = {result.travelling_internationally}")
+            print(f"🔥 BASIC DEBUG: Travelling From Country (EP) = {result.travelling_from_country}")
             print(f"🔥 BASIC DEBUG: Dietary Requirements (EP) = {result.dietary_requirements}")
             print(f"🔥 BASIC DEBUG: Certificate Name = {result.certificate_name}")
             print(f"🔥 BASIC DEBUG: Phone Number = {result.phone_number}")
@@ -300,6 +301,7 @@ async def get_participant_details(
             print(f"🔥 BASIC DEBUG: First Name = {pr_check.first_name}")
             print(f"🔥 BASIC DEBUG: Last Name = {pr_check.last_name}")
             print(f"🔥 BASIC DEBUG: Travelling Internationally = {pr_check.travelling_internationally}")
+            print(f"🔥 BASIC DEBUG: Travelling From Country (PR) = {pr_check.travelling_from_country}")
             print(f"🔥 BASIC DEBUG: Accommodation Type = {pr_check.accommodation_type}")
             print(f"🔥 BASIC DEBUG: Dietary Requirements = {pr_check.dietary_requirements}")
         
@@ -361,6 +363,8 @@ async def get_participant_details(
         print(f"🔥 BASIC DEBUG: Final response data:")
         print(f"🔥 BASIC DEBUG: Accommodation Type = {response_data['accommodation_type']}")
         print(f"🔥 BASIC DEBUG: Travelling Internationally = {response_data['travelling_internationally']}")
+        print(f"🔥 BASIC DEBUG: Travelling From Country = {response_data['travelling_from_country']}")
+        print(f"🔥 BASIC DEBUG: Raw DB travelling_from_country = {result.travelling_from_country}")
         print(f"🔥 BASIC DEBUG: Dietary Requirements = {response_data['dietary_requirements']}")
         print(f"🔥 BASIC DEBUG: Certificate Name = {response_data['certificate_name']}")
         
