@@ -117,7 +117,7 @@ async def get_event_registrations(
     query = """
     SELECT 
         ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
-        ep.country, ep.position, ep.project, ep.gender, ep.participant_role,
+        ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
         ep.decline_reason, ep.declined_at,
         pr.first_name, pr.last_name, pr.oc, pr.contract_status, pr.contract_type,
         pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
@@ -126,7 +126,7 @@ async def get_event_registrations(
         pr.dietary_requirements, pr.accommodation_needs, pr.certificate_name,
         pr.badge_name, pr.motivation_letter,
         pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
-        pr.travelling_internationally, pr.accommodation_type, pr.daily_meals
+        pr.travelling_internationally, pr.travelling_from_country as pr_travelling_from_country, pr.accommodation_type, pr.daily_meals
     FROM event_participants ep
     LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
     WHERE ep.event_id = :event_id
@@ -216,6 +216,7 @@ async def get_event_registrations(
                 "oc": p.oc,
                 "position": p.current_position or p.position,
                 "country": p.country_of_work or p.country,
+                "travelling_from_country": p.pr_travelling_from_country or p.travelling_from_country,
                 "contract_status": p.contract_status,
                 "contract_type": p.contract_type,
                 "gender_identity": p.gender_identity,
