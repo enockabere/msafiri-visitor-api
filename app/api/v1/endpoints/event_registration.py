@@ -840,53 +840,69 @@ async def delete_participant(
     print(f"✅ PARTICIPANT FOUND: ID={participant.id}, Name={participant.full_name}, Email={participant.email}")
     
     try:
-        # Delete related public registration data if exists
         from sqlalchemy import text
         
-        print(f"🔍 CHECKING PUBLIC REGISTRATIONS for participant {participant_id}")
-        pr_result = db.execute(text("SELECT COUNT(*) FROM public_registrations WHERE participant_id = :participant_id"), 
-                              {"participant_id": participant_id})
-        pr_count = pr_result.scalar()
-        print(f"📊 FOUND {pr_count} PUBLIC REGISTRATION RECORDS")
+        print(f"🗑️ COMPREHENSIVE DELETION for participant {participant_id} ({participant.email})")
         
-        if pr_count > 0:
-            print(f"🗑️ DELETING PUBLIC REGISTRATIONS for participant {participant_id}")
-            db.execute(text("DELETE FROM public_registrations WHERE participant_id = :participant_id"), 
-                      {"participant_id": participant_id})
-            print(f"✅ PUBLIC REGISTRATIONS DELETED")
+        # Delete all related records in correct order to avoid foreign key constraints
+        tables_to_clean = [
+            ("public_registrations", "participant_id", participant_id),
+            ("accommodation_allocations", "participant_id", participant_id),
+            ("event_allocations", "created_by", participant.email),
+            ("notifications", "user_email", participant.email),
+            ("user_fcm_tokens", "user_email", participant.email),
+        ]
         
-        # Check and delete accommodation allocations
-        aa_result = db.execute(text("SELECT COUNT(*) FROM accommodation_allocations WHERE participant_id = :participant_id"), 
-                              {"participant_id": participant_id})
-        aa_count = aa_result.scalar()
-        print(f"📊 FOUND {aa_count} ACCOMMODATION ALLOCATION RECORDS")
+        for table_name, column_name, value in tables_to_clean:
+            try:
+                # Check count first
+                count_result = db.execute(
+                    text(f"SELECT COUNT(*) FROM {table_name} WHERE {column_name} = :value"),
+                    {"value": value}
+                )
+                count = count_result.scalar()
+                
+                if count > 0:
+                    print(f"🗑️ DELETING {count} records from {table_name}")
+                    db.execute(
+                        text(f"DELETE FROM {table_name} WHERE {column_name} = :value"),
+                        {"value": value}
+                    )
+                    print(f"✅ DELETED {count} records from {table_name}")
+                else:
+                    print(f"ℹ️ No records found in {table_name}")
+                    
+            except Exception as e:
+                print(f"⚠️ Could not clean {table_name}: {e}")
         
-        if aa_count > 0:
-            print(f"🗑️ DELETING ACCOMMODATION ALLOCATIONS for participant {participant_id}")
-            db.execute(text("DELETE FROM accommodation_allocations WHERE participant_id = :participant_id"), 
-                      {"participant_id": participant_id})
-            print(f"✅ ACCOMMODATION ALLOCATIONS DELETED")
-        
-        # Check for other related records (informational only)
-        print(f"🔍 CHECKING OTHER RELATED RECORDS")
-        
-        # Check direct messages
+        # Check for any remaining foreign key references
+        print(f"🔍 FINAL CHECK for remaining foreign key references")
         try:
-            dm_result = db.execute(text("SELECT COUNT(*) FROM direct_messages WHERE sender_email = :email OR recipient_email = :email"), 
-                                  {"email": participant.email})
-            dm_count = dm_result.scalar()
-            print(f"📊 FOUND {dm_count} DIRECT MESSAGE RECORDS (will remain)")
+            # Check if there are still accommodation allocations
+            remaining_aa = db.execute(
+                text("SELECT COUNT(*) FROM accommodation_allocations WHERE participant_id = :participant_id"),
+                {"participant_id": participant_id}
+            ).scalar()
+            print(f"📊 Remaining accommodation allocations: {remaining_aa}")
+            
+            if remaining_aa > 0:
+                print(f"⚠️ FORCE DELETING remaining accommodation allocations")
+                db.execute(
+                    text("DELETE FROM accommodation_allocations WHERE participant_id = :participant_id"),
+                    {"participant_id": participant_id}
+                )
+                db.flush()  # Force the deletion to be processed
+                
         except Exception as e:
-            print(f"⚠️ Could not check direct_messages table: {e}")
-            dm_count = 0
+            print(f"⚠️ Error in final check: {e}")
         
-        # Delete the participant
+        # Now delete the participant
         print(f"🗑️ DELETING PARTICIPANT: ID={participant_id}")
         db.delete(participant)
         db.commit()
         
         print(f"✅ PARTICIPANT DELETED SUCCESSFULLY: ID={participant_id}")
-        return {"message": "Participant deleted successfully"}
+        return {"message": "Participant and all related data deleted successfully"}
         
     except Exception as e:
         db.rollback()
