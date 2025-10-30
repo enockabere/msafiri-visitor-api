@@ -38,7 +38,7 @@ async def upload_passport(
     # Verify user is registered for the event
     participant = db.query(EventParticipant).filter(
         EventParticipant.event_id == request.event_id,
-        EventParticipant.user_id == current_user.id
+        EventParticipant.email == current_user.email
     ).first()
     
     if not participant:
@@ -132,7 +132,7 @@ async def confirm_passport(
         
         # Update participant passport status in our database
         participant = db.query(EventParticipant).filter(
-            EventParticipant.user_id == current_user.id
+            EventParticipant.email == current_user.email
         ).first()
         
         if participant:
@@ -160,7 +160,7 @@ async def get_checklist_status(
     
     participant = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
-        EventParticipant.user_id == current_user.id
+        EventParticipant.email == current_user.email
     ).first()
     
     if not participant:
