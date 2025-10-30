@@ -452,7 +452,7 @@ api_router.include_router(
 from app.api.v1.endpoints import flight_itinerary
 api_router.include_router(
     flight_itinerary.router,
-    prefix="/flight",
+    prefix="/flight-itinerary",
     tags=["flight-itinerary"]
 )
 
