@@ -442,6 +442,13 @@ api_router.include_router(
     tags=["news-updates"]
 )
 
+from app.api.v1.endpoints import passport_upload
+api_router.include_router(
+    passport_upload.router,
+    prefix="/passport",
+    tags=["passport-upload"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(

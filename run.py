@@ -12,7 +12,7 @@ def extract_passport_data(image_path):
     """Extract passport data from image file"""
     
     API_URL = "https://ko-hr.kenya.msf.org/api/v1/extract-passport-data"
-    API_KEY = "L^HR0fIP3sx&^bqV^$ku6bLVPEbHek3b4&h1"
+    API_KEY = "n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW"
     
     print(f"Loading image: {image_path}")
     
