@@ -111,6 +111,7 @@ async def confirm_passport(
         }
         
         payload = {
+            "id": current_user.email,
             "passport_no": request.passport_no,
             "given_names": request.given_names,
             "surname": request.surname,
