@@ -35,6 +35,24 @@ async def upload_passport(
 ):
     """Upload passport image for processing"""
     
+    # Validate image format
+    try:
+        image_data = base64.b64decode(request.image_data)
+        # Check for common image file signatures
+        if not (image_data.startswith(b'\xff\xd8\xff') or  # JPEG
+                image_data.startswith(b'\x89PNG\r\n\x1a\n') or  # PNG
+                image_data.startswith(b'GIF87a') or  # GIF87a
+                image_data.startswith(b'GIF89a')):  # GIF89a
+            raise HTTPException(
+                status_code=400,
+                detail="Only image files (JPEG, PNG, GIF) are supported"
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image data format"
+        )
+    
     # Verify user is registered for the event
     participant = db.query(EventParticipant).filter(
         EventParticipant.event_id == request.event_id,
