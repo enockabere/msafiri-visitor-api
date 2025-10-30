@@ -334,3 +334,55 @@ async def delete_itinerary(
         "status": "success",
         "message": "Itinerary deleted successfully"
     }
+
+@router.get("/participant/{participant_id}")
+async def get_participant_itineraries(
+    participant_id: int,
+    event_id: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get flight itineraries for a specific participant (admin endpoint)"""
+    
+    # Get participant details
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=404,
+            detail="Participant not found"
+        )
+    
+    # Build query
+    query = db.query(FlightItinerary).filter(
+        FlightItinerary.user_email == participant.email
+    )
+    
+    if event_id:
+        query = query.filter(FlightItinerary.event_id == event_id)
+    else:
+        query = query.filter(FlightItinerary.event_id == participant.event_id)
+    
+    itineraries = query.all()
+    
+    return [
+        {
+            "id": it.id,
+            "departure_city": it.departure_airport,
+            "arrival_city": it.arrival_airport,
+            "departure_date": it.departure_date.strftime("%Y-%m-%d"),
+            "departure_time": it.departure_date.strftime("%H:%M"),
+            "arrival_date": it.arrival_date.strftime("%Y-%m-%d"),
+            "arrival_time": it.arrival_date.strftime("%H:%M"),
+            "airline": it.airline or "",
+            "flight_number": it.flight_number or "",
+            "booking_reference": getattr(it, 'booking_reference', None),
+            "seat_number": getattr(it, 'seat_number', None),
+            "ticket_type": it.itinerary_type,
+            "status": "confirmed" if it.confirmed else "pending",
+            "created_at": it.created_at.isoformat()
+        }
+        for it in itineraries
+    ]
