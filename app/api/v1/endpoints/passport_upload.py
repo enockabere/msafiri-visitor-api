@@ -49,8 +49,9 @@ async def upload_passport(
     
     # Call external passport processing API
     try:
-        API_URL = "https://ko-hr.kenya.msf.org/api/v1/extract-passport-data"
-        API_KEY = "n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW"
+        import os
+        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/extract-passport-data"
+        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
         
         headers = {
             "Content-Type": "application/json",
@@ -100,8 +101,9 @@ async def confirm_passport(
     
     try:
         # Update passport data on external API
-        API_URL = f"https://ko-hr.kenya.msf.org/api/v1/update-passport-data/{request.record_id}"
-        API_KEY = "n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW"
+        import os
+        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/update-passport-data/{request.record_id}"
+        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
         
         headers = {
             "Content-Type": "application/json",
