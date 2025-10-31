@@ -344,9 +344,6 @@ async def get_participant_itineraries(
 ):
     """Get flight itineraries for a specific participant (admin endpoint)"""
     
-    print(f"\n=== FLIGHT ITINERARY DEBUG START ===")
-    print(f"Request: participant_id={participant_id}, event_id={event_id}")
-    
     try:
         # Get participant details
         participant = db.query(EventParticipant).filter(
@@ -354,11 +351,7 @@ async def get_participant_itineraries(
         ).first()
         
         if not participant:
-            print(f"❌ ERROR: Participant with ID {participant_id} not found")
-            print(f"=== FLIGHT ITINERARY DEBUG END ===")
             return []
-        
-        print(f"✅ Found participant: {participant.email} for event {participant.event_id}")
         
         # Build query
         query = db.query(FlightItinerary).filter(
@@ -367,35 +360,14 @@ async def get_participant_itineraries(
         
         if event_id:
             query = query.filter(FlightItinerary.event_id == event_id)
-            print(f"🔍 Filtering by provided event_id: {event_id}")
         else:
             query = query.filter(FlightItinerary.event_id == participant.event_id)
-            print(f"🔍 Using participant's event_id: {participant.event_id}")
-        
-        # Debug: Check all flight itineraries for this user
-        all_user_flights = db.query(FlightItinerary).filter(
-            FlightItinerary.user_email == participant.email
-        ).all()
-        print(f"📊 Total flight itineraries for user {participant.email}: {len(all_user_flights)}")
-        
-        for flight in all_user_flights:
-            print(f"   - Flight ID {flight.id}: Event {flight.event_id}, Type: {flight.itinerary_type}, From: {flight.departure_airport} To: {flight.arrival_airport}")
         
         itineraries = query.all()
-        print(f"🎯 Filtered flight itineraries: {len(itineraries)}")
         
         result = []
         for it in itineraries:
             try:
-                print(f"📝 Processing itinerary ID {it.id}:")
-                print(f"   - Type: {it.itinerary_type}")
-                print(f"   - Route: {it.departure_airport} → {it.arrival_airport}")
-                print(f"   - Airline: {it.airline}")
-                print(f"   - Flight: {it.flight_number}")
-                print(f"   - Departure: {it.departure_date}")
-                print(f"   - Arrival: {it.arrival_date}")
-                print(f"   - Confirmed: {it.confirmed}")
-                
                 itinerary_data = {
                     "id": it.id,
                     "departure_city": it.departure_airport,
@@ -413,21 +385,10 @@ async def get_participant_itineraries(
                     "created_at": it.created_at.isoformat() if hasattr(it, 'created_at') and it.created_at else ""
                 }
                 result.append(itinerary_data)
-                print(f"   ✅ Successfully processed itinerary {it.id}")
-            except Exception as item_error:
-                print(f"   ❌ Error processing itinerary {it.id}: {item_error}")
+            except Exception:
                 continue
-        
-        print(f"🎉 Returning {len(result)} flight itineraries")
-        print(f"📤 Response data: {result}")
-        print(f"=== FLIGHT ITINERARY DEBUG END ===\n")
         
         return result
         
-    except Exception as e:
-        # Log the full error for debugging
-        import traceback
-        print(f"❌ CRITICAL ERROR fetching flight itineraries for participant {participant_id}: {e}")
-        print(f"📋 Full traceback: {traceback.format_exc()}")
-        print(f"=== FLIGHT ITINERARY DEBUG END ===\n")
+    except Exception:
         return []

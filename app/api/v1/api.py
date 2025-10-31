@@ -456,6 +456,13 @@ api_router.include_router(
     tags=["flight-itinerary"]
 )
 
+from app.api.v1.endpoints import travel_checklist
+api_router.include_router(
+    travel_checklist.router,
+    prefix="/travel-checklist",
+    tags=["travel-checklist"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
