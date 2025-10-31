@@ -1,9 +1,9 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from app.db.base_class import Base
+from app.models.base import BaseModel
 from datetime import datetime
 
-class PassportRecord(Base):
+class PassportRecord(BaseModel):
     __tablename__ = "passport_records"
 
     id = Column(Integer, primary_key=True, index=True)
