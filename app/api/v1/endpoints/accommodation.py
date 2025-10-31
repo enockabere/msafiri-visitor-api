@@ -11,12 +11,24 @@ from sqlalchemy import text
 
 def get_tenant_id_from_context(db, tenant_context, current_user):
     """Helper function to get tenant ID from context"""
-    if tenant_context.isdigit():
-        return int(tenant_context)
+    print(f"🏠 TENANT: Input tenant_context: {tenant_context}, type: {type(tenant_context)}")
+    
+    if tenant_context and tenant_context.isdigit():
+        result = int(tenant_context)
+        print(f"🏠 TENANT: Returning numeric tenant_id: {result}")
+        return result
     else:
         # Look up tenant by slug
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_context).first()
-        return tenant.id if tenant else current_user.tenant_id
+        if tenant:
+            print(f"🏠 TENANT: Found tenant by slug '{tenant_context}': ID {tenant.id}")
+            return tenant.id
+        else:
+            print(f"🏠 TENANT: Tenant not found for slug '{tenant_context}', using current_user.tenant_id: {current_user.tenant_id}")
+            # Ensure current_user.tenant_id is also an integer
+            if isinstance(current_user.tenant_id, str) and current_user.tenant_id.isdigit():
+                return int(current_user.tenant_id)
+            return current_user.tenant_id
 
 router = APIRouter()
 
@@ -1300,20 +1312,40 @@ def get_participant_accommodation(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get accommodation details for a specific participant"""
-    print(f"DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"🏠 DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     
     from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
     from app.models.event_participant import EventParticipant
+    from app.models.event import Event
     
-    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    print(f"DEBUG: Resolved tenant_id: {tenant_id}")
-    
-    # Get participant's accommodation allocations
-    query = db.query(AccommodationAllocation).filter(
-        AccommodationAllocation.participant_id == participant_id,
-        AccommodationAllocation.tenant_id == tenant_id,
-        AccommodationAllocation.status.in_(["booked", "checked_in"])
-    )
+    try:
+        # Get tenant_id from the event instead of user context
+        tenant_id = None
+        if event_id:
+            event = db.query(Event).filter(Event.id == event_id).first()
+            if event:
+                tenant_id = event.tenant_id
+                print(f"🏠 DEBUG: Using event's tenant_id: {tenant_id}")
+            else:
+                print(f"🏠 DEBUG: Event {event_id} not found")
+                return []
+        else:
+            # If no event_id provided, try to get it from tenant context as fallback
+            tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+            print(f"🏠 DEBUG: Using fallback tenant_id: {tenant_id}")
+        
+        if not tenant_id:
+            print(f"🏠 DEBUG: No tenant_id available")
+            return []
+        
+        print(f"🏠 DEBUG: Final tenant_id: {tenant_id}, type: {type(tenant_id)}")
+        
+        # Get participant's accommodation allocations
+        query = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participant_id,
+            AccommodationAllocation.tenant_id == tenant_id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"])
+        )
     
     # Filter by event if provided
     if event_id:
@@ -1367,10 +1399,19 @@ def get_participant_accommodation(
                 print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
                 accommodations.append(accommodation_data)
     
-    print(f"DEBUG: Returning {len(accommodations)} accommodation details")
-    for i, acc in enumerate(accommodations):
-        print(f"DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
-    return accommodations
+        print(f"🏠 DEBUG: Returning {len(accommodations)} accommodation details")
+        for i, acc in enumerate(accommodations):
+            print(f"🏠 DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
+        return accommodations
+        
+    except Exception as e:
+        print(f"🏠 DEBUG: Error in get_participant_accommodation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching participant accommodation: {str(e)}"
+        )
 
 @router.put("/vendor-event-setup/{setup_id}", response_model=schemas.VendorEventAccommodation)
 def update_vendor_event_setup(
