@@ -649,6 +649,12 @@ async def startup_event():
         if settings.ENVIRONMENT == "production":
             run_auto_migration()
         
+        # Start agenda notification scheduler
+        from app.core.agenda_scheduler import agenda_scheduler
+        import asyncio
+        asyncio.create_task(agenda_scheduler.start())
+        logger.info("📅 Agenda notification scheduler started")
+        
         logger.info("🎉 Application startup completed!")
         
     except Exception as e:
@@ -656,6 +662,18 @@ async def startup_event():
         # Don't exit in production - let the app start anyway
         if settings.ENVIRONMENT != "production":
             raise
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown"""
+    logger.info("🛑 Shutting down Msafiri Visitor System")
+    
+    # Stop agenda notification scheduler
+    from app.core.agenda_scheduler import agenda_scheduler
+    agenda_scheduler.stop()
+    logger.info("📅 Agenda notification scheduler stopped")
+    
+    logger.info("👋 Application shutdown completed")
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
