@@ -556,3 +556,81 @@ def submit_agenda_feedback(
     
     logger.info(f"✅ Agenda feedback submitted successfully with ID: {feedback_id}")
     return {"message": "Feedback submitted successfully", "feedback_id": feedback_id}
+
+@router.get("/{event_id}/agenda/{agenda_id}/feedback")
+def get_agenda_feedback(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    agenda_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get feedback for an agenda item."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"📖 Get agenda feedback - Event: {event_id}, Agenda: {agenda_id}, User: {current_user.email}")
+    
+    # Check if user has access to this event
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email,
+        EventParticipant.status.in_(['selected', 'approved', 'confirmed', 'checked_in'])
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    # Check if agenda item exists
+    from app.models.event_agenda import EventAgenda
+    
+    agenda_item = db.query(EventAgenda).filter(
+        EventAgenda.id == agenda_id,
+        EventAgenda.event_id == event_id
+    ).first()
+    
+    if not agenda_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agenda item {agenda_id} not found"
+        )
+    
+    # Get user's feedback for this agenda item
+    from app.models.agenda_feedback import AgendaFeedback, FeedbackResponse
+    
+    feedback = db.query(AgendaFeedback).filter(
+        AgendaFeedback.agenda_id == agenda_id,
+        AgendaFeedback.user_email == current_user.email
+    ).first()
+    
+    if not feedback:
+        return []
+    
+    # Get responses for this feedback
+    responses = db.query(FeedbackResponse).filter(
+        FeedbackResponse.feedback_id == feedback.id
+    ).all()
+    
+    # Format response
+    feedback_data = {
+        "id": feedback.id,
+        "rating": feedback.rating,
+        "comment": feedback.comment,
+        "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+        "responses": [
+            {
+                "id": resp.id,
+                "responder_email": resp.responder_email,
+                "response_text": resp.response_text,
+                "is_like": resp.is_like,
+                "created_at": resp.created_at.isoformat() if resp.created_at else None
+            }
+            for resp in responses
+        ]
+    }
+    
+    logger.info(f"📊 Found feedback with {len(responses)} responses")
+    return [feedback_data]
