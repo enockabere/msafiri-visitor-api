@@ -554,6 +554,31 @@ def submit_agenda_feedback(
         db.refresh(feedback)
         feedback_id = feedback.id
     
+    # Send notification to facilitators
+    try:
+        from app.crud.notification import create_notification
+        
+        # Get facilitators for this event
+        facilitators = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.participant_role == 'facilitator'
+        ).all()
+        
+        # Create notification for each facilitator
+        for facilitator in facilitators:
+            create_notification(
+                db=db,
+                recipient_email=facilitator.email,
+                title="New Agenda Feedback",
+                message=f"New feedback received for '{agenda_item.title}' from {current_user.email}",
+                notification_type="agenda_feedback",
+                related_id=feedback_id
+            )
+        
+        logger.info(f"📧 Sent feedback notifications to {len(facilitators)} facilitators")
+    except Exception as e:
+        logger.error(f"❌ Error sending feedback notifications: {e}")
+    
     logger.info(f"✅ Agenda feedback submitted successfully with ID: {feedback_id}")
     return {"message": "Feedback submitted successfully", "feedback_id": feedback_id}
 
@@ -634,3 +659,88 @@ def get_agenda_feedback(
     
     logger.info(f"📊 Found feedback with {len(responses)} responses")
     return [feedback_data]
+
+@router.post("/{event_id}/agenda/{agenda_id}/feedback/{feedback_id}/respond")
+def respond_to_feedback(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    agenda_id: int,
+    feedback_id: int,
+    response_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Respond to agenda feedback (facilitators only)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"💬 Respond to feedback - Event: {event_id}, Agenda: {agenda_id}, Feedback: {feedback_id}, User: {current_user.email}")
+    
+    # Check if user is facilitator for this event
+    participation = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participation:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - not a participant of this event"
+        )
+    
+    role = participation.role
+    if hasattr(participation, 'participant_role') and participation.participant_role:
+        role = participation.participant_role
+    
+    if role != 'facilitator':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied - only facilitators can respond to feedback"
+        )
+    
+    # Check if feedback exists
+    from app.models.agenda_feedback import AgendaFeedback, FeedbackResponse
+    
+    feedback = db.query(AgendaFeedback).filter(
+        AgendaFeedback.id == feedback_id,
+        AgendaFeedback.agenda_id == agenda_id
+    ).first()
+    
+    if not feedback:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Feedback not found"
+        )
+    
+    # Create response
+    response = FeedbackResponse(
+        feedback_id=feedback_id,
+        responder_email=current_user.email,
+        response_text=response_data.get('response_text', ''),
+        is_like=response_data.get('is_like', False)
+    )
+    
+    db.add(response)
+    db.commit()
+    db.refresh(response)
+    
+    # Send notification to feedback author
+    try:
+        from app.crud.notification import create_notification
+        
+        response_type = "liked" if response.is_like else "replied to"
+        create_notification(
+            db=db,
+            recipient_email=feedback.user_email,
+            title="Facilitator Response",
+            message=f"Facilitator {current_user.email} {response_type} your feedback",
+            notification_type="feedback_response",
+            related_id=response.id
+        )
+        
+        logger.info(f"📧 Sent response notification to {feedback.user_email}")
+    except Exception as e:
+        logger.error(f"❌ Error sending response notification: {e}")
+    
+    logger.info(f"✅ Feedback response created successfully with ID: {response.id}")
+    return {"message": "Response submitted successfully", "response_id": response.id}
