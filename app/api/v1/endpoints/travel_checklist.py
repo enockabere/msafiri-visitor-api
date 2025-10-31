@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 from app.db.database import get_db
-from app.auth.auth import get_current_user
+from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.travel_checklist_progress import TravelChecklistProgress
 from pydantic import BaseModel
