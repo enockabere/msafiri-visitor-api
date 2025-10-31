@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON
 from sqlalchemy.sql import func
-from app.core.database import Base
+from app.db.database import Base
 
 class TravelChecklistProgress(Base):
     __tablename__ = "travel_checklist_progress"
