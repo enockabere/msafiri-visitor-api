@@ -1346,59 +1346,59 @@ def get_participant_accommodation(
             AccommodationAllocation.tenant_id == tenant_id,
             AccommodationAllocation.status.in_(["booked", "checked_in"])
         )
-    
-    # Filter by event if provided
-    if event_id:
-        query = query.filter(AccommodationAllocation.event_id == event_id)
-        print(f"DEBUG: Filtering by event_id: {event_id}")
-    
-    allocations = query.all()
-    
-    print(f"DEBUG: Found {len(allocations)} allocations for participant {participant_id}")
-    for i, allocation in enumerate(allocations):
-        print(f"DEBUG: Allocation {i+1}: ID={allocation.id}, Event ID={allocation.event_id}, Type={allocation.accommodation_type}, Status={allocation.status}")
-    
-    accommodations = []
-    for allocation in allocations:
-        if allocation.room_id:
-            # Guesthouse accommodation
-            room = db.query(Room).filter(Room.id == allocation.room_id).first()
-            if room:
-                guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
-                if guesthouse:
-                    accommodations.append({
-                        "type": "guesthouse",
-                        "name": f"{guesthouse.name} - Room {room.room_number}",
-                        "location": guesthouse.location or guesthouse.name,
-                        "address": guesthouse.location or guesthouse.name,
+        
+        # Filter by event if provided
+        if event_id:
+            query = query.filter(AccommodationAllocation.event_id == event_id)
+            print(f"DEBUG: Filtering by event_id: {event_id}")
+        
+        allocations = query.all()
+        
+        print(f"DEBUG: Found {len(allocations)} allocations for participant {participant_id}")
+        for i, allocation in enumerate(allocations):
+            print(f"DEBUG: Allocation {i+1}: ID={allocation.id}, Event ID={allocation.event_id}, Type={allocation.accommodation_type}, Status={allocation.status}")
+        
+        accommodations = []
+        for allocation in allocations:
+            if allocation.room_id:
+                # Guesthouse accommodation
+                room = db.query(Room).filter(Room.id == allocation.room_id).first()
+                if room:
+                    guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                    if guesthouse:
+                        accommodations.append({
+                            "type": "guesthouse",
+                            "name": f"{guesthouse.name} - Room {room.room_number}",
+                            "location": guesthouse.location or guesthouse.name,
+                            "address": guesthouse.location or guesthouse.name,
+                            "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
+                            "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None,
+                            "status": allocation.status,
+                            "room_capacity": room.capacity,
+                            "room_occupants": room.current_occupants,
+                            "is_shared": room.capacity > 1
+                        })
+            elif allocation.vendor_accommodation_id:
+                # Vendor accommodation
+                vendor = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.id == allocation.vendor_accommodation_id
+                ).first()
+                if vendor:
+                    accommodation_data = {
+                        "type": "vendor",
+                        "name": vendor.vendor_name,
+                        "location": vendor.location,
+                        "address": vendor.location,
                         "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
                         "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None,
                         "status": allocation.status,
-                        "room_capacity": room.capacity,
-                        "room_occupants": room.current_occupants,
-                        "is_shared": room.capacity > 1
-                    })
-        elif allocation.vendor_accommodation_id:
-            # Vendor accommodation
-            vendor = db.query(VendorAccommodation).filter(
-                VendorAccommodation.id == allocation.vendor_accommodation_id
-            ).first()
-            if vendor:
-                accommodation_data = {
-                    "type": "vendor",
-                    "name": vendor.vendor_name,
-                    "location": vendor.location,
-                    "address": vendor.location,
-                    "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
-                    "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None,
-                    "status": allocation.status,
-                    "room_capacity": vendor.capacity,
-                    "room_occupants": vendor.current_occupants,
-                    "is_shared": vendor.capacity > 1
-                }
-                print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
-                accommodations.append(accommodation_data)
-    
+                        "room_capacity": vendor.capacity,
+                        "room_occupants": vendor.current_occupants,
+                        "is_shared": vendor.capacity > 1
+                    }
+                    print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
+                    accommodations.append(accommodation_data)
+        
         print(f"🏠 DEBUG: Returning {len(accommodations)} accommodation details")
         for i, acc in enumerate(accommodations):
             print(f"🏠 DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
