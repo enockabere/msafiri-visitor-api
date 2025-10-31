@@ -47,3 +47,4 @@ class Event(BaseModel):
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
     attachments = relationship("EventAttachment", back_populates="event", cascade="all, delete-orphan")
     venue = relationship("VendorAccommodation", foreign_keys=[vendor_accommodation_id])
+    passport_records = relationship("PassportRecord", back_populates="event", cascade="all, delete-orphan")

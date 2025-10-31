@@ -4,6 +4,7 @@ from app.db.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.event_participant import EventParticipant
+from app.models.passport_record import PassportRecord
 import requests
 import base64
 from typing import Dict, Any
@@ -96,10 +97,33 @@ async def upload_passport(
                 detail="Passport processing failed"
             )
         
+        # Save the record ID for future reference
+        record_id = result["result"]["record_id"]
+        
+        # Check if record already exists
+        existing_record = db.query(PassportRecord).filter(
+            PassportRecord.user_email == current_user.email,
+            PassportRecord.event_id == request.event_id
+        ).first()
+        
+        if existing_record:
+            # Update existing record
+            existing_record.record_id = record_id
+        else:
+            # Create new record
+            passport_record = PassportRecord(
+                user_email=current_user.email,
+                event_id=request.event_id,
+                record_id=record_id
+            )
+            db.add(passport_record)
+        
+        db.commit()
+        
         return {
             "status": "success",
             "extracted_data": result["result"]["extracted_data"],
-            "record_id": result["result"]["record_id"],
+            "record_id": record_id,
             "message": "Passport data extracted successfully"
         }
         
@@ -221,4 +245,28 @@ async def get_checklist_status(
         "checklist_complete": checklist_complete,
         "required_items": required_items,
         "completed_items": completed_items
+    }
+
+@router.get("/events/{event_id}/passport-record")
+async def get_passport_record(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get passport record ID for user and event"""
+    
+    passport_record = db.query(PassportRecord).filter(
+        PassportRecord.user_email == current_user.email,
+        PassportRecord.event_id == event_id
+    ).first()
+    
+    if not passport_record:
+        raise HTTPException(
+            status_code=404,
+            detail="No passport record found for this user and event"
+        )
+    
+    return {
+        "record_id": passport_record.record_id,
+        "created_at": passport_record.created_at.isoformat()
     }
