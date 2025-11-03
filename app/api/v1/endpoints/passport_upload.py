@@ -157,12 +157,34 @@ async def confirm_passport(
         'nationality': request.nationality
     }
     
-    empty_fields = [field for field, value in required_fields.items() if not value or not value.strip()]
+    # Check for empty or placeholder values
+    invalid_date_patterns = ['', 'YYYY-MM-DD', 'yyyy-mm-dd', 'DD/MM/YYYY', 'MM/DD/YYYY']
+    
+    empty_fields = []
+    for field, value in required_fields.items():
+        if not value or not value.strip():
+            empty_fields.append(field)
+        elif field.startswith('date_') and value.strip() in invalid_date_patterns:
+            empty_fields.append(f"{field} (invalid date format)")
+    
     if empty_fields:
         raise HTTPException(
             status_code=400,
             detail=f"The following fields are required and cannot be empty: {', '.join(empty_fields)}"
         )
+    
+    # Additional validation for date_of_issue specifically
+    if not request.date_of_issue or request.date_of_issue.strip() in invalid_date_patterns:
+        raise HTTPException(
+            status_code=400,
+            detail="Date of Issue is required and must be a valid date"
+        )
+    
+    print(f"📋 VALIDATION: All fields validated successfully")
+    print(f"📋 Date of Issue: '{request.date_of_issue}'")
+    print(f"📋 Passport No: '{request.passport_no}'")
+    print(f"📋 Given Names: '{request.given_names}'")
+    print(f"📋 Surname: '{request.surname}'")
     
     try:
         # Update passport data on external API
