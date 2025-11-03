@@ -1408,6 +1408,14 @@ def get_participant_accommodation(
                         if hasattr(guesthouse, 'facilities') and guesthouse.facilities:
                             facilities = guesthouse.facilities.split(',') if isinstance(guesthouse.facilities, str) else guesthouse.facilities
                         
+                        # Get room-specific facilities
+                        room_facilities = []
+                        if hasattr(room, 'amenities') and room.amenities:
+                            room_facilities = room.amenities.split(',') if isinstance(room.amenities, str) else room.amenities
+                        
+                        # Combine guesthouse and room facilities
+                        all_facilities = facilities + room_facilities
+                        
                         accommodations.append({
                             "type": "guesthouse",
                             "name": f"{guesthouse.name} - Room {room.room_number}",
@@ -1420,7 +1428,8 @@ def get_participant_accommodation(
                             "room_occupants": room.current_occupants,
                             "is_shared": room.capacity > 1,
                             "description": getattr(guesthouse, 'description', None),
-                            "facilities": facilities,
+                            "facilities": all_facilities,
+                            "room_facilities": room_facilities,
                             "roommates": roommates
                         })
             elif allocation.vendor_accommodation_id:
