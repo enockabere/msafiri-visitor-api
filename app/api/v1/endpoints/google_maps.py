@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.tenant import Tenant
+from app.models.event import Event
 
 router = APIRouter()
 
@@ -33,6 +34,7 @@ class GeocodingResponse(BaseModel):
 @router.get("/places/autocomplete")
 async def places_autocomplete(
     input: str = Query(..., description="Search query"),
+    event_id: Optional[int] = Query(None, description="Event ID for country filtering"),
     country: Optional[str] = Query(None, description="Country code override"),
     types: Optional[str] = Query("establishment", description="Place types"),
     current_user: User = Depends(get_current_user),
@@ -53,8 +55,13 @@ async def places_autocomplete(
         print("❌ [Google Maps API] No API key found in environment")
         raise HTTPException(status_code=500, detail="Google Maps API key not configured")
     
-    # Use provided country for filtering (no automatic tenant filtering)
+    # Get country from event if event_id provided
     filter_country = country
+    if event_id and not country:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event and event.country:
+            filter_country = _get_country_code(event.country)
+    
     print(f"🌍 [Google Maps API] Filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
@@ -188,6 +195,7 @@ async def reverse_geocoding(
 @router.get("/geocoding/forward")
 async def forward_geocoding(
     address: str = Query(..., description="Address to geocode"),
+    event_id: Optional[int] = Query(None, description="Event ID for country filtering"),
     country: Optional[str] = Query(None, description="Country code override"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -200,8 +208,13 @@ async def forward_geocoding(
     if not api_key:
         raise HTTPException(status_code=500, detail="Google Maps API key not configured")
     
-    # Use provided country for filtering (no automatic tenant filtering)
+    # Get country from event if event_id provided
     filter_country = country
+    if event_id and not country:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event and event.country:
+            filter_country = _get_country_code(event.country)
+    
     print(f"🌍 [Google Maps API] Forward geocoding - Filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/geocode/json"
