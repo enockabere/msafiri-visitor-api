@@ -1410,11 +1410,17 @@ def get_participant_accommodation(
                             if isinstance(guesthouse.facilities, str):
                                 try:
                                     import json
-                                    facilities = json.loads(guesthouse.facilities)
+                                    parsed_facilities = json.loads(guesthouse.facilities)
+                                    if isinstance(parsed_facilities, dict):
+                                        facilities = [key for key, value in parsed_facilities.items() if value]
+                                    else:
+                                        facilities = parsed_facilities
                                 except (json.JSONDecodeError, ValueError):
                                     facilities = [f.strip() for f in guesthouse.facilities.split(',') if f.strip()]
                             elif isinstance(guesthouse.facilities, list):
                                 facilities = guesthouse.facilities
+                            elif isinstance(guesthouse.facilities, dict):
+                                facilities = [key for key, value in guesthouse.facilities.items() if value]
                         
                         # Get room-specific facilities
                         room_facilities = []
@@ -1422,25 +1428,31 @@ def get_participant_accommodation(
                             if isinstance(room.amenities, str):
                                 try:
                                     import json
-                                    room_facilities = json.loads(room.amenities)
+                                    parsed_amenities = json.loads(room.amenities)
+                                    if isinstance(parsed_amenities, dict):
+                                        room_facilities = [key for key, value in parsed_amenities.items() if value]
+                                    else:
+                                        room_facilities = parsed_amenities
                                 except (json.JSONDecodeError, ValueError):
                                     room_facilities = [f.strip() for f in room.amenities.split(',') if f.strip()]
                             elif isinstance(room.amenities, list):
                                 room_facilities = room.amenities
+                            elif isinstance(room.amenities, dict):
+                                room_facilities = [key for key, value in room.amenities.items() if value]
                         
                         # Combine guesthouse and room facilities safely
                         all_facilities = []
                         if isinstance(facilities, list):
                             all_facilities.extend(facilities)
                         elif isinstance(facilities, dict):
-                            # Handle case where facilities is a dict
-                            all_facilities.extend(list(facilities.values()) if facilities else [])
+                            # Handle case where facilities is a dict - use keys where value is True
+                            all_facilities.extend([key for key, value in facilities.items() if value])
                         
                         if isinstance(room_facilities, list):
                             all_facilities.extend(room_facilities)
                         elif isinstance(room_facilities, dict):
-                            # Handle case where room_facilities is a dict
-                            all_facilities.extend(list(room_facilities.values()) if room_facilities else [])
+                            # Handle case where room_facilities is a dict - use keys where value is True
+                            all_facilities.extend([key for key, value in room_facilities.items() if value])
                         
                         accommodations.append({
                             "type": "guesthouse",
