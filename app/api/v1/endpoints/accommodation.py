@@ -1428,12 +1428,19 @@ def get_participant_accommodation(
                             elif isinstance(room.amenities, list):
                                 room_facilities = room.amenities
                         
-                        # Combine guesthouse and room facilities
+                        # Combine guesthouse and room facilities safely
                         all_facilities = []
                         if isinstance(facilities, list):
                             all_facilities.extend(facilities)
+                        elif isinstance(facilities, dict):
+                            # Handle case where facilities is a dict
+                            all_facilities.extend(list(facilities.values()) if facilities else [])
+                        
                         if isinstance(room_facilities, list):
                             all_facilities.extend(room_facilities)
+                        elif isinstance(room_facilities, dict):
+                            # Handle case where room_facilities is a dict
+                            all_facilities.extend(list(room_facilities.values()) if room_facilities else [])
                         
                         accommodations.append({
                             "type": "guesthouse",
