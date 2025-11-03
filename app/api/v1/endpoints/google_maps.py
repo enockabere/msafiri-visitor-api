@@ -39,21 +39,23 @@ async def places_autocomplete(
     db: Session = Depends(get_db)
 ) -> List[PlaceAutocompleteResponse]:
     """
-    Google Places Autocomplete API proxy for mobile app
+    Google Places Autocomplete API proxy for mobile app.
+    Use 'country' parameter to filter results by country code.
     """
+    print(f"🔍 [Google Maps API] Autocomplete request - input: '{input}', user: {current_user.email}")
+    
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    print(f"🔑 [Google Maps API] API key exists: {api_key is not None}")
+    if api_key:
+        print(f"🔑 [Google Maps API] API key preview: {api_key[:20]}...")
+    
     if not api_key:
+        print("❌ [Google Maps API] No API key found in environment")
         raise HTTPException(status_code=500, detail="Google Maps API key not configured")
     
-    # Get tenant country for filtering
-    tenant_country = None
-    if current_user.tenant_id:
-        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
-        if tenant and tenant.country:
-            tenant_country = _get_country_code(tenant.country)
-    
-    # Use provided country or fall back to tenant country
-    filter_country = country or tenant_country
+    # Use provided country for filtering (no automatic tenant filtering)
+    filter_country = country
+    print(f"🌍 [Google Maps API] Filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     params = {
@@ -64,14 +66,23 @@ async def places_autocomplete(
     
     if filter_country:
         params["components"] = f"country:{filter_country}"
-        print(f"🌍 Filtering places by country: {filter_country}")
+        print(f"🌍 [Google Maps API] Filtering places by country: {filter_country}")
     
     try:
+        print(f"🌐 [Google Maps API] Making request to: {url}")
+        print(f"🌐 [Google Maps API] Request params: {params}")
+        
         response = requests.get(url, params=params, timeout=10)
+        print(f"📊 [Google Maps API] Response status: {response.status_code}")
+        
         response.raise_for_status()
         data = response.json()
         
+        print(f"📊 [Google Maps API] Google API status: {data.get('status')}")
+        print(f"📊 [Google Maps API] Predictions count: {len(data.get('predictions', []))}")
+        
         if data.get("status") != "OK":
+            print(f"❌ [Google Maps API] Google API error: {data.get('status')} - {data.get('error_message', 'No error message')}")
             raise HTTPException(status_code=400, detail=f"Google API error: {data.get('status')}")
         
         results = []
@@ -82,10 +93,15 @@ async def places_autocomplete(
                 structured_formatting=prediction.get("structured_formatting", {})
             ))
         
+        print(f"✅ [Google Maps API] Returning {len(results)} results")
         return results
         
     except requests.RequestException as e:
+        print(f"❌ [Google Maps API] Request exception: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch places: {str(e)}")
+    except Exception as e:
+        print(f"❌ [Google Maps API] Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @router.get("/places/details/{place_id}")
 async def place_details(place_id: str) -> PlaceDetailsResponse:
@@ -177,21 +193,16 @@ async def forward_geocoding(
     db: Session = Depends(get_db)
 ) -> GeocodingResponse:
     """
-    Google Forward Geocoding API proxy for mobile app
+    Google Forward Geocoding API proxy for mobile app.
+    Use 'country' parameter to filter results by country code.
     """
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Google Maps API key not configured")
     
-    # Get tenant country for filtering
-    tenant_country = None
-    if current_user.tenant_id:
-        tenant = db.query(Tenant).filter(Tenant.id == current_user.tenant_id).first()
-        if tenant and tenant.country:
-            tenant_country = _get_country_code(tenant.country)
-    
-    # Use provided country or fall back to tenant country
-    filter_country = country or tenant_country
+    # Use provided country for filtering (no automatic tenant filtering)
+    filter_country = country
+    print(f"🌍 [Google Maps API] Forward geocoding - Filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {
@@ -201,7 +212,7 @@ async def forward_geocoding(
     
     if filter_country:
         params["components"] = f"country:{filter_country}"
-        print(f"🌍 Filtering geocoding by country: {filter_country}")
+        print(f"🌍 [Google Maps API] Filtering geocoding by country: {filter_country}")
     
     try:
         response = requests.get(url, params=params, timeout=10)
@@ -230,6 +241,7 @@ async def forward_geocoding(
 
 def _get_country_code(country_name: str) -> str:
     """Convert country name to ISO country code for Google Maps API"""
+    print(f"🗺️ [Google Maps API] Converting country name: '{country_name}'")
     country_map = {
         "Kenya": "ke",
         "Uganda": "ug",
@@ -387,4 +399,6 @@ def _get_country_code(country_name: str) -> str:
         "Bahrain": "bh",
         "Kuwait": "kw"
     }
-    return country_map.get(country_name, country_name.lower()[:2])
+    result = country_map.get(country_name, country_name.lower()[:2])
+    print(f"🗺️ [Google Maps API] Country code result: '{result}'")
+    return result
