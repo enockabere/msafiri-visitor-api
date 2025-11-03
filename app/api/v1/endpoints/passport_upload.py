@@ -144,6 +144,26 @@ async def confirm_passport(
 ):
     """Confirm passport data and update checklist"""
     
+    # Validate all required fields are not empty
+    required_fields = {
+        'passport_no': request.passport_no,
+        'given_names': request.given_names,
+        'surname': request.surname,
+        'issue_country': request.issue_country,
+        'date_of_birth': request.date_of_birth,
+        'date_of_expiry': request.date_of_expiry,
+        'date_of_issue': request.date_of_issue,
+        'gender': request.gender,
+        'nationality': request.nationality
+    }
+    
+    empty_fields = [field for field, value in required_fields.items() if not value or not value.strip()]
+    if empty_fields:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The following fields are required and cannot be empty: {', '.join(empty_fields)}"
+        )
+    
     try:
         # Update passport data on external API
         import os
