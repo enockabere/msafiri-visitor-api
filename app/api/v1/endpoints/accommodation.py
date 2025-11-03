@@ -1429,7 +1429,11 @@ def get_participant_accommodation(
                                 room_facilities = room.amenities
                         
                         # Combine guesthouse and room facilities
-                        all_facilities = facilities + room_facilities
+                        all_facilities = []
+                        if isinstance(facilities, list):
+                            all_facilities.extend(facilities)
+                        if isinstance(room_facilities, list):
+                            all_facilities.extend(room_facilities)
                         
                         accommodations.append({
                             "type": "guesthouse",
