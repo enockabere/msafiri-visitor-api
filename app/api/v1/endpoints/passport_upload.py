@@ -24,8 +24,11 @@ class PassportConfirmationRequest(BaseModel):
     issue_country: str
     date_of_birth: str
     date_of_expiry: str
+    date_of_issue: str
     gender: str
     nationality: str
+    user_email: str
+    location_id: Dict[str, Any]
     confirmed: bool = True
 
 @router.post("/upload-passport")
@@ -159,8 +162,11 @@ async def confirm_passport(
             "issue_country": request.issue_country,
             "date_of_birth": request.date_of_birth,
             "date_of_expiry": request.date_of_expiry,
+            "date_of_issue": request.date_of_issue,
             "gender": request.gender,
             "nationality": request.nationality,
+            "user_email": request.user_email,
+            "location_id": request.location_id,
             "confirmed": request.confirmed
         }
         
@@ -172,7 +178,7 @@ async def confirm_passport(
                 detail="Failed to confirm passport data"
             )
         
-        # Update participant passport status in our database
+        # Only update participant passport status - no sensitive data stored
         participant = db.query(EventParticipant).filter(
             EventParticipant.email == current_user.email
         ).first()
