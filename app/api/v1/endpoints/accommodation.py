@@ -423,11 +423,18 @@ def create_vendor_allocation(
         # Validate vendor accommodation and room type
         vendor_id = allocation_data.get("vendor_accommodation_id")
         room_type = allocation_data.get("room_type")  # "single" or "double"
+        event_id = allocation_data.get("event_id")
         
         if not vendor_id or not room_type:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Vendor accommodation ID and room type are required"
+            )
+        
+        if not event_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Event ID is required for vendor accommodation booking"
             )
         
         vendor = crud.vendor_accommodation.get(db, id=vendor_id)
@@ -437,14 +444,31 @@ def create_vendor_allocation(
                 detail="Vendor accommodation not found"
             )
         
-        # Check room availability based on type
+        # 🔥 CRITICAL FIX: Validate vendor is set up for this specific event
+        from app.models.guesthouse import VendorEventAccommodation
+        vendor_event_setup = db.query(VendorEventAccommodation).filter(
+            VendorEventAccommodation.vendor_accommodation_id == vendor_id,
+            VendorEventAccommodation.event_id == event_id,
+            VendorEventAccommodation.tenant_id == tenant_id,
+            VendorEventAccommodation.is_active == True
+        ).first()
+        
+        if not vendor_event_setup:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Hotel '{vendor.vendor_name}' is not available for this event. Please contact admin to set up accommodation for this event."
+            )
+        
+        print(f"🏨 VALIDATION: Vendor {vendor.vendor_name} is properly set up for event {event_id}")
+        
+        # Check room availability based on type using event-specific setup
         if room_type == "single":
-            if vendor.single_rooms <= 0:
+            if vendor_event_setup.single_rooms <= 0:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No single rooms available at this vendor accommodation"
+                    detail=f"No single rooms available at {vendor.vendor_name} for this event"
                 )
-            # Room count will be updated in the allocation loop below
+            print(f"🏨 AVAILABILITY: {vendor_event_setup.single_rooms} single rooms available for event {event_id}")
         
         else:
             raise HTTPException(
@@ -461,20 +485,22 @@ def create_vendor_allocation(
         if room_type == "double":
             # For double rooms, allocate 2 people per room
             rooms_needed = (len(participant_ids) + 1) // 2  # Ceiling division
-            if vendor.double_rooms < rooms_needed:
+            if vendor_event_setup.double_rooms < rooms_needed:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Not enough double rooms available. Need {rooms_needed}, have {vendor.double_rooms}"
+                    detail=f"Not enough double rooms available at {vendor.vendor_name} for this event. Need {rooms_needed}, have {vendor_event_setup.double_rooms}"
                 )
-            vendor.double_rooms -= rooms_needed
+            vendor_event_setup.double_rooms -= rooms_needed
+            print(f"🏨 BOOKING: Reserved {rooms_needed} double rooms for event {event_id}")
         else:
             # For single rooms, allocate 1 person per room
-            if vendor.single_rooms < len(participant_ids):
+            if vendor_event_setup.single_rooms < len(participant_ids):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Not enough single rooms available. Need {len(participant_ids)}, have {vendor.single_rooms}"
+                    detail=f"Not enough single rooms available at {vendor.vendor_name} for this event. Need {len(participant_ids)}, have {vendor_event_setup.single_rooms}"
                 )
-            vendor.single_rooms -= len(participant_ids)
+            vendor_event_setup.single_rooms -= len(participant_ids)
+            print(f"🏨 BOOKING: Reserved {len(participant_ids)} single rooms for event {event_id}")
         
         for participant_id in participant_ids:
             if participant_id:
@@ -491,8 +517,12 @@ def create_vendor_allocation(
                 )
                 allocations.append(allocation)
         
-        # Commit vendor room count changes
+        # Update event setup occupancy
+        vendor_event_setup.current_occupants += len(participant_ids)
+        
+        # Commit vendor event setup changes
         db.commit()
+        print(f"🏨 SUCCESS: Updated event setup occupancy to {vendor_event_setup.current_occupants}")
         
         # Return serialized response
         if len(allocations) == 1:
@@ -521,7 +551,8 @@ def create_vendor_allocation(
         
     except Exception as e:
         db.rollback()
-        print(f"🏨 DEBUG: Error creating vendor allocation: {str(e)}")
+        print(f"🏨 ERROR: Failed to create vendor allocation: {str(e)}")
+        print(f"🏨 ERROR: Event ID: {allocation_data.get('event_id')}, Vendor ID: {allocation_data.get('vendor_accommodation_id')}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
