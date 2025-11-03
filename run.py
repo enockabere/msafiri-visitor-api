@@ -1,57 +1,67 @@
 #!/usr/bin/env python3
 """
-MSF Passport Data Extraction API Test
-Sends JSON payload with base64-encoded passport image
+MSF Passport Data Fetching Script
+Fetches passport details using passport ID
 """
 
 import requests
-import base64
+import json
 
 
-def extract_passport_data(image_path):
-    """Extract passport data from image file"""
+def fetch_passport_data(passport_id):
+    """Fetch passport data using passport ID"""
     
-    API_URL = "https://ko-hr.kenya.msf.org/api/v1/extract-passport-data"
+    API_URL = f"https://ko-hr.kenya.msf.org/api/v1/get-passport-data/{passport_id}"
     API_KEY = "n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW"
     
-    print(f"Loading image: {image_path}")
+    print(f"Fetching passport data for ID: {passport_id}")
+    print(f"API Endpoint: {API_URL}")
     
-    # Read and encode the image
-    with open(image_path, 'rb') as f:
-        image_bytes = f.read()
-    
-    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-    
-    print(f"Image encoded: {len(image_base64)} characters")
-    print(f"Sending request to: {API_URL}")
-    
-    # Headers (matching screenshot)
+    # Headers with API key
     headers = {
+        "x-api-key": API_KEY,
         "Content-Type": "application/json",
-        "x-api-key": API_KEY
+        "Accept": "application/json"
     }
     
-    # JSON payload (raw data)
+    # JSON payload with passport_id
     payload = {
-        "image_data": image_base64
+        "passport_id": passport_id
     }
     
-    # Send JSON request
-    response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
-    
-    print(f"Status Code: {response.status_code}")
-    print(f"Response:\n{response.text}")
-    
-    return response.json() if response.status_code == 200 else None
+    try:
+        # Send GET request with JSON payload
+        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
+        
+        print(f"\nStatus Code: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print("\n✓ SUCCESS!")
+            print("\n" + "="*60)
+            print("PASSPORT DETAILS")
+            print("="*60)
+            print(json.dumps(data, indent=2))
+            return data
+        else:
+            print(f"\n✗ FAILED")
+            print(f"Error: {response.text}")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        print(f"\n✗ REQUEST FAILED")
+        print(f"Error: {e}")
+        return None
 
 
 if __name__ == "__main__":
-    image_path = "passport.png"
+    passport_id = 1824
     
-    result = extract_passport_data(image_path)
+    result = fetch_passport_data(passport_id)
     
     if result:
-        print("\n✓ SUCCESS!")
-        print("Extracted data:", result)
+        print("\n" + "="*60)
+        print("Data retrieved successfully!")
+        print("="*60)
     else:
-        print("\n✗ FAILED")
+        print("\nFailed to retrieve passport data")

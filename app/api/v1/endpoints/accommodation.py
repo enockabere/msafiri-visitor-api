@@ -1405,13 +1405,28 @@ def get_participant_accommodation(
                                         })
                         
                         # Get guesthouse facilities
+                        facilities = []
                         if hasattr(guesthouse, 'facilities') and guesthouse.facilities:
-                            facilities = guesthouse.facilities.split(',') if isinstance(guesthouse.facilities, str) else guesthouse.facilities
+                            if isinstance(guesthouse.facilities, str):
+                                try:
+                                    import json
+                                    facilities = json.loads(guesthouse.facilities)
+                                except (json.JSONDecodeError, ValueError):
+                                    facilities = [f.strip() for f in guesthouse.facilities.split(',') if f.strip()]
+                            elif isinstance(guesthouse.facilities, list):
+                                facilities = guesthouse.facilities
                         
                         # Get room-specific facilities
                         room_facilities = []
                         if hasattr(room, 'amenities') and room.amenities:
-                            room_facilities = room.amenities.split(',') if isinstance(room.amenities, str) else room.amenities
+                            if isinstance(room.amenities, str):
+                                try:
+                                    import json
+                                    room_facilities = json.loads(room.amenities)
+                                except (json.JSONDecodeError, ValueError):
+                                    room_facilities = [f.strip() for f in room.amenities.split(',') if f.strip()]
+                            elif isinstance(room.amenities, list):
+                                room_facilities = room.amenities
                         
                         # Combine guesthouse and room facilities
                         all_facilities = facilities + room_facilities
