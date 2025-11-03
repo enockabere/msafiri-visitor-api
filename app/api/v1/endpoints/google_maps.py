@@ -58,11 +58,17 @@ async def places_autocomplete(
     # Get country from event if event_id provided
     filter_country = country
     if event_id and not country:
+        print(f"🏢 [Google Maps API] Looking up event {event_id}")
         event = db.query(Event).filter(Event.id == event_id).first()
-        if event and event.country:
-            filter_country = _get_country_code(event.country)
+        if event:
+            print(f"🏢 [Google Maps API] Found event: {event.title}, country: {event.country}")
+            if event.country:
+                filter_country = _get_country_code(event.country)
+                print(f"🌍 [Google Maps API] Converted to country code: {filter_country}")
+        else:
+            print(f"❌ [Google Maps API] Event {event_id} not found")
     
-    print(f"🌍 [Google Maps API] Filter country: {filter_country}")
+    print(f"🌍 [Google Maps API] Final filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
     params = {
@@ -211,11 +217,17 @@ async def forward_geocoding(
     # Get country from event if event_id provided
     filter_country = country
     if event_id and not country:
+        print(f"🏢 [Google Maps API] Forward geocoding - Looking up event {event_id}")
         event = db.query(Event).filter(Event.id == event_id).first()
-        if event and event.country:
-            filter_country = _get_country_code(event.country)
+        if event:
+            print(f"🏢 [Google Maps API] Forward geocoding - Found event: {event.title}, country: {event.country}")
+            if event.country:
+                filter_country = _get_country_code(event.country)
+                print(f"🌍 [Google Maps API] Forward geocoding - Converted to country code: {filter_country}")
+        else:
+            print(f"❌ [Google Maps API] Forward geocoding - Event {event_id} not found")
     
-    print(f"🌍 [Google Maps API] Forward geocoding - Filter country: {filter_country}")
+    print(f"🌍 [Google Maps API] Forward geocoding - Final filter country: {filter_country}")
     
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {

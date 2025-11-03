@@ -181,6 +181,7 @@ async def microsoft_sso_login(
     try:
         ms_sso = MicrosoftSSO()
         user_data = await ms_sso.verify_token(microsoft_access_token)
+        user_data["email"] = user_data["email"].lower()
         
         is_msf_user = ms_sso.is_msf_email(user_data["email"])
         tenant_id = ms_sso.get_tenant_from_email(user_data["email"])
@@ -317,6 +318,7 @@ async def microsoft_sso_mobile_login(
         logger.info(f"Mobile SSO login attempt started")
         ms_sso = MicrosoftSSO()
         user_data = await ms_sso.verify_token(microsoft_access_token)
+        user_data["email"] = user_data["email"].lower()
         
         logger.info(f"User data retrieved: email={user_data.get('email')}, name={user_data.get('full_name')}")
         

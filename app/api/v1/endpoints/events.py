@@ -60,7 +60,7 @@ def check_my_event_participation(
     
     # Check if user has any event participation (approved or confirmed)
     participation = db.query(EventParticipant).filter(
-        EventParticipant.email == current_user.email,
+        EventParticipant.email.ilike(current_user.email),
         EventParticipant.status.in_(['approved', 'confirmed', 'checked_in'])
     ).first()
     
@@ -98,7 +98,7 @@ def get_my_selected_events(
         events_query = db.query(Event).join(
             EventParticipant, Event.id == EventParticipant.event_id
         ).filter(
-            EventParticipant.email == current_user.email,
+            EventParticipant.email.ilike(current_user.email),
             EventParticipant.status.in_(selected_statuses)
         ).distinct()
         
