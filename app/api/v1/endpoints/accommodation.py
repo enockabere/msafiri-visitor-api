@@ -1366,6 +1366,48 @@ def get_participant_accommodation(
                 if room:
                     guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
                     if guesthouse:
+                        # Get roommates for shared rooms
+                        roommates = []
+                        facilities = []
+                        if room.capacity > 1:
+                            # Get other allocations for this room
+                            other_allocations = db.query(AccommodationAllocation).filter(
+                                AccommodationAllocation.room_id == room.id,
+                                AccommodationAllocation.id != allocation.id,
+                                AccommodationAllocation.status.in_(["booked", "checked_in"])
+                            ).all()
+                            
+                            for other_alloc in other_allocations:
+                                if other_alloc.participant_id:
+                                    participant = db.query(EventParticipant).filter(
+                                        EventParticipant.id == other_alloc.participant_id
+                                    ).first()
+                                    if participant:
+                                        # Get gender from registration
+                                        gender_result = db.execute(text(
+                                            "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                                        ), {"participant_id": other_alloc.participant_id}).fetchone()
+                                        
+                                        gender = None
+                                        if gender_result and gender_result[0]:
+                                            reg_gender = gender_result[0].lower()
+                                            if reg_gender in ['man', 'male']:
+                                                gender = 'male'
+                                            elif reg_gender in ['woman', 'female']:
+                                                gender = 'female'
+                                            else:
+                                                gender = 'other'
+                                        
+                                        roommates.append({
+                                            "name": participant.full_name,
+                                            "role": participant.role,
+                                            "gender": gender
+                                        })
+                        
+                        # Get guesthouse facilities
+                        if hasattr(guesthouse, 'facilities') and guesthouse.facilities:
+                            facilities = guesthouse.facilities.split(',') if isinstance(guesthouse.facilities, str) else guesthouse.facilities
+                        
                         accommodations.append({
                             "type": "guesthouse",
                             "name": f"{guesthouse.name} - Room {room.room_number}",
@@ -1376,7 +1418,10 @@ def get_participant_accommodation(
                             "status": allocation.status,
                             "room_capacity": room.capacity,
                             "room_occupants": room.current_occupants,
-                            "is_shared": room.capacity > 1
+                            "is_shared": room.capacity > 1,
+                            "description": getattr(guesthouse, 'description', None),
+                            "facilities": facilities,
+                            "roommates": roommates
                         })
             elif allocation.vendor_accommodation_id:
                 # Vendor accommodation
@@ -1384,6 +1429,44 @@ def get_participant_accommodation(
                     VendorAccommodation.id == allocation.vendor_accommodation_id
                 ).first()
                 if vendor:
+                    # Get roommates for shared vendor rooms
+                    roommates = []
+                    if allocation.room_type == "double":
+                        # Find other allocations for the same vendor with double room type
+                        other_allocations = db.query(AccommodationAllocation).filter(
+                            AccommodationAllocation.vendor_accommodation_id == vendor.id,
+                            AccommodationAllocation.room_type == "double",
+                            AccommodationAllocation.id != allocation.id,
+                            AccommodationAllocation.status.in_(["booked", "checked_in"])
+                        ).all()
+                        
+                        for other_alloc in other_allocations:
+                            if other_alloc.participant_id:
+                                participant = db.query(EventParticipant).filter(
+                                    EventParticipant.id == other_alloc.participant_id
+                                ).first()
+                                if participant:
+                                    # Get gender from registration
+                                    gender_result = db.execute(text(
+                                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+                                    ), {"participant_id": other_alloc.participant_id}).fetchone()
+                                    
+                                    gender = None
+                                    if gender_result and gender_result[0]:
+                                        reg_gender = gender_result[0].lower()
+                                        if reg_gender in ['man', 'male']:
+                                            gender = 'male'
+                                        elif reg_gender in ['woman', 'female']:
+                                            gender = 'female'
+                                        else:
+                                            gender = 'other'
+                                    
+                                    roommates.append({
+                                        "name": participant.full_name,
+                                        "role": participant.role,
+                                        "gender": gender
+                                    })
+                    
                     accommodation_data = {
                         "type": "vendor",
                         "name": vendor.vendor_name,
@@ -1392,9 +1475,12 @@ def get_participant_accommodation(
                         "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
                         "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None,
                         "status": allocation.status,
-                        "room_capacity": vendor.capacity,
-                        "room_occupants": vendor.current_occupants,
-                        "is_shared": vendor.capacity > 1
+                        "room_capacity": 2 if allocation.room_type == "double" else 1,
+                        "room_occupants": len(roommates) + 1 if allocation.room_type == "double" else 1,
+                        "is_shared": allocation.room_type == "double",
+                        "vendor_name": vendor.vendor_name,
+                        "vendor_contact": getattr(vendor, 'contact_info', None),
+                        "roommates": roommates
                     }
                     print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
                     accommodations.append(accommodation_data)
