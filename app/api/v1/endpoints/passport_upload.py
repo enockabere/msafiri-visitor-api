@@ -274,5 +274,5 @@ async def get_passport_record(
     
     return {
         "record_id": passport_record.record_id,
-        "created_at": passport_record.created_at.isoformat()
+        "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None
     }
