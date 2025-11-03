@@ -1479,7 +1479,8 @@ def get_participant_accommodation(
                         "room_occupants": len(roommates) + 1 if allocation.room_type == "double" else 1,
                         "is_shared": allocation.room_type == "double",
                         "vendor_name": vendor.vendor_name,
-                        "vendor_contact": getattr(vendor, 'contact_info', None),
+                        "vendor_contact": vendor.contact_phone,
+                        "description": vendor.description,
                         "roommates": roommates
                     }
                     print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
