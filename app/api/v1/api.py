@@ -463,6 +463,13 @@ api_router.include_router(
     tags=["travel-checklist"]
 )
 
+from app.api.v1.endpoints import google_maps
+api_router.include_router(
+    google_maps.router,
+    prefix="/google-maps",
+    tags=["google-maps"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
