@@ -30,7 +30,7 @@ class PassportConfirmationRequest(BaseModel):
     gender: str
     nationality: str
     user_email: str
-    location_id: str
+    location_id: Dict[str, Any]
     confirmed: bool = True
 
 @router.post("/upload-passport")
