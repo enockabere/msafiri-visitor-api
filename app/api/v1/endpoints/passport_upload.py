@@ -18,6 +18,7 @@ class PassportUploadRequest(BaseModel):
 
 class PassportConfirmationRequest(BaseModel):
     record_id: int
+    event_id: int
     passport_no: str
     given_names: str
     surname: str
@@ -102,28 +103,8 @@ async def upload_passport(
                 detail="Passport processing failed"
             )
         
-        # Save the record ID for future reference
+        # Get the record ID but don't save it yet - only save after confirmation
         record_id = result["result"]["record_id"]
-        
-        # Check if record already exists
-        existing_record = db.query(PassportRecord).filter(
-            PassportRecord.user_email == current_user.email,
-            PassportRecord.event_id == request.event_id
-        ).first()
-        
-        if existing_record:
-            # Update existing record
-            existing_record.record_id = record_id
-        else:
-            # Create new record
-            passport_record = PassportRecord(
-                user_email=current_user.email,
-                event_id=request.event_id,
-                record_id=record_id
-            )
-            db.add(passport_record)
-        
-        db.commit()
         
         print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
         
@@ -226,24 +207,26 @@ async def confirm_passport(
                 detail="Failed to confirm passport data"
             )
         
-        # Find the event ID from the passport record
-        passport_record = db.query(PassportRecord).filter(
-            PassportRecord.record_id == request.record_id,
-            PassportRecord.user_email == current_user.email
+        # Use event_id from the request
+        event_id = request.event_id
+        
+        # Now save the record ID only after successful confirmation
+        existing_record = db.query(PassportRecord).filter(
+            PassportRecord.user_email == current_user.email,
+            PassportRecord.event_id == event_id
         ).first()
         
-        print(f"📋 PASSPORT CONFIRMATION: Looking for passport record with record_id: {request.record_id}")
-        print(f"📋 PASSPORT CONFIRMATION: Found passport record: {passport_record is not None}")
-        
-        if not passport_record:
-            print(f"📋 PASSPORT CONFIRMATION: WARNING - No passport record found for record_id {request.record_id}")
-            # Still return success since external API was updated successfully
-            return {
-                "status": "success",
-                "message": "Passport confirmed on external API, but local record not found"
-            }
-        
-        event_id = passport_record.event_id
+        if existing_record:
+            # Update existing record
+            existing_record.record_id = request.record_id
+        else:
+            # Create new record
+            passport_record = PassportRecord(
+                user_email=current_user.email,
+                event_id=event_id,
+                record_id=request.record_id
+            )
+            db.add(passport_record)
         print(f"📋 PASSPORT CONFIRMATION: Found event_id: {event_id}")
         
         # Update participant passport status for the specific event - no sensitive data stored
