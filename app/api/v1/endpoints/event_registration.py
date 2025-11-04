@@ -323,6 +323,13 @@ async def get_participant_details(
         elif result.accommodation_type and result.accommodation_type.strip():
             accommodation_type = result.accommodation_type
         
+        passport_status = bool(result.passport_document)
+        ticket_status = bool(result.ticket_document)
+        
+        print(f"📋 PARTICIPANT DETAILS: ID={participant_id}, Email={result.email}")
+        print(f"📋 PARTICIPANT DETAILS: PassportDoc={result.passport_document} -> {passport_status}")
+        print(f"📋 PARTICIPANT DETAILS: TicketDoc={result.ticket_document} -> {ticket_status}")
+        
         response_data = {
             "id": result.id,
             "email": result.email,
@@ -346,8 +353,8 @@ async def get_participant_details(
             "gender": result.gender,
             "eta": result.eta,
             "requires_eta": result.requires_eta,
-            "passport_document": bool(result.passport_document),
-            "ticket_document": bool(result.ticket_document),
+            "passport_document": passport_status,
+            "ticket_document": ticket_status,
             "dietary_requirements": result.dietary_requirements,
             "accommodation_type": accommodation_type,
             # Registration details from public_registrations
@@ -361,14 +368,11 @@ async def get_participant_details(
             "declined_at": result.declined_at.isoformat() if result.declined_at else None
         }
         
-        print(f"🔥 BASIC DEBUG: Final response data:")
-        print(f"🔥 BASIC DEBUG: Accommodation Type = {response_data['accommodation_type']}")
-        print(f"🔥 BASIC DEBUG: Travelling Internationally = {response_data['travelling_internationally']}")
-        print(f"🔥 BASIC DEBUG: Travelling From Country = {response_data['travelling_from_country']}")
-        print(f"🔥 BASIC DEBUG: Raw DB travelling_from_country = {result.travelling_from_country}")
-        print(f"🔥 BASIC DEBUG: Dietary Requirements = {response_data['dietary_requirements']}")
-        print(f"🔥 BASIC DEBUG: Certificate Name = {response_data['certificate_name']}")
+        print(f"🔥 PARTICIPANT RESPONSE: PassportComplete={response_data['passport_document']}, TicketComplete={response_data['ticket_document']}")
+        print(f"🔥 PARTICIPANT RESPONSE: TravellingIntl={response_data['travelling_internationally']}")
+        print(f"🔥 PARTICIPANT RESPONSE: AccommodationType={response_data['accommodation_type']}")
         
+        print(f"✅ PARTICIPANT DETAILS SUCCESS: ID={participant_id}, PassportStatus={response_data['passport_document']}")
         return response_data
     except HTTPException:
         raise

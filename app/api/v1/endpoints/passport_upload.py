@@ -39,6 +39,8 @@ async def upload_passport(
 ):
     """Upload passport image for processing"""
     
+    print(f"🚀 PASSPORT UPLOAD START: User={current_user.email}, Event={request.event_id}")
+    
     # Validate image format
     try:
         image_data = base64.b64decode(request.image_data)
@@ -123,6 +125,8 @@ async def upload_passport(
         
         db.commit()
         
+        print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
+        
         return {
             "status": "success",
             "extracted_data": result["result"]["extracted_data"],
@@ -143,6 +147,8 @@ async def confirm_passport(
     db: Session = Depends(get_db)
 ):
     """Confirm passport data and update checklist"""
+    
+    print(f"📋 PASSPORT CONFIRM START: User={current_user.email}, RecordID={request.record_id}")
     
     # Validate all required fields are not empty
     required_fields = {
@@ -220,18 +226,60 @@ async def confirm_passport(
                 detail="Failed to confirm passport data"
             )
         
-        # Only update participant passport status - no sensitive data stored
-        participant = db.query(EventParticipant).filter(
-            EventParticipant.email == current_user.email
+        # Find the event ID from the passport record
+        passport_record = db.query(PassportRecord).filter(
+            PassportRecord.record_id == request.record_id,
+            PassportRecord.user_email == current_user.email
         ).first()
         
+        print(f"📋 PASSPORT CONFIRMATION: Looking for passport record with record_id: {request.record_id}")
+        print(f"📋 PASSPORT CONFIRMATION: Found passport record: {passport_record is not None}")
+        
+        if not passport_record:
+            print(f"📋 PASSPORT CONFIRMATION: WARNING - No passport record found for record_id {request.record_id}")
+            # Still return success since external API was updated successfully
+            return {
+                "status": "success",
+                "message": "Passport confirmed on external API, but local record not found"
+            }
+        
+        event_id = passport_record.event_id
+        print(f"📋 PASSPORT CONFIRMATION: Found event_id: {event_id}")
+        
+        # Update participant passport status for the specific event - no sensitive data stored
+        participant = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.event_id == event_id
+        ).first()
+        
+        print(f"📋 PASSPORT CONFIRMATION: Looking for participant with email: {current_user.email}, event_id: {event_id}")
+        print(f"📋 PASSPORT CONFIRMATION: Found participant: {participant is not None}")
+        
+        completion_status = False
         if participant:
+            print(f"📋 PASSPORT CONFIRMATION: Updating participant {participant.id} passport status to True")
             participant.passport_document = True
             db.commit()
+            db.refresh(participant)
+            completion_status = True
+            print(f"✅ PASSPORT CONFIRMATION SUCCESS: Participant {participant.id} passport_document=True")
+        else:
+            print(f"⚠️ PASSPORT CONFIRMATION WARNING: No participant found for email {current_user.email}, event_id {event_id}")
+        
+        # Final status check
+        final_participant = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.event_id == event_id
+        ).first()
+        
+        final_status = final_participant.passport_document if final_participant else False
+        print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
         return {
             "status": "success",
-            "message": "Passport confirmed and checklist updated"
+            "message": "Passport confirmed and checklist updated",
+            "completion_status": final_status,
+            "participant_updated": completion_status
         }
         
     except requests.RequestException as e:

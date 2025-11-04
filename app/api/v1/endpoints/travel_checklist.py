@@ -20,13 +20,18 @@ async def get_checklist_progress(
     db: Session = Depends(get_db)
 ):
     """Get travel checklist progress for current user and event"""
+    print(f"📋 CHECKLIST GET: User={current_user.email}, Event={event_id}")
+    
     progress = db.query(TravelChecklistProgress).filter(
         TravelChecklistProgress.event_id == event_id,
         TravelChecklistProgress.user_email == current_user.email
     ).first()
     
     if not progress:
+        print(f"📋 CHECKLIST GET: No progress found, returning defaults")
         return {"checklist_items": {}, "completed": False}
+    
+    print(f"📋 CHECKLIST GET: Found progress - Completed={progress.completed}, Items={progress.checklist_items}")
     
     return {
         "checklist_items": progress.checklist_items,
@@ -43,6 +48,9 @@ async def save_checklist_progress(
 ):
     """Save travel checklist progress for current user and event"""
     
+    print(f"💾 CHECKLIST SAVE: User={current_user.email}, Event={event_id}")
+    print(f"💾 CHECKLIST SAVE: Completed={progress_data.completed}, Items={progress_data.checklist_items}")
+    
     # Check if progress already exists
     existing_progress = db.query(TravelChecklistProgress).filter(
         TravelChecklistProgress.event_id == event_id,
@@ -50,10 +58,12 @@ async def save_checklist_progress(
     ).first()
     
     if existing_progress:
+        print(f"💾 CHECKLIST SAVE: Updating existing progress record")
         # Update existing progress
         existing_progress.checklist_items = progress_data.checklist_items
         existing_progress.completed = progress_data.completed
     else:
+        print(f"💾 CHECKLIST SAVE: Creating new progress record")
         # Create new progress record
         new_progress = TravelChecklistProgress(
             event_id=event_id,
@@ -64,6 +74,7 @@ async def save_checklist_progress(
         db.add(new_progress)
     
     db.commit()
+    print(f"✅ CHECKLIST SAVE SUCCESS: User={current_user.email}, Event={event_id}, Completed={progress_data.completed}")
     return {"message": "Progress saved successfully"}
 
 @router.get("/progress/{event_id}/{participant_email}")
