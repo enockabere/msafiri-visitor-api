@@ -99,7 +99,7 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         skip: int = 0, 
         limit: int = 50
     ) -> List[Notification]:
-        """Get notifications for a specific user"""
+        """Get notifications for a specific user - includes chat notifications"""
         
         # Base query - get notifications for this user OR broadcast notifications
         query = db.query(Notification).filter(
@@ -109,11 +109,18 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
             )
         )
         
-        # Handle tenant filtering - super admins (tenant_id=None) should see all notifications
-        if tenant_id is not None:
-            # Regular users: only see notifications for their tenant
-            query = query.filter(Notification.tenant_id == tenant_id)
-        # Super admins (tenant_id=None): see notifications from all tenants
+        # For mobile users, don't filter by tenant to include all their notifications
+        # For admin users, filter by tenant
+        if tenant_id is not None and tenant_id != "system":
+            # Regular users: see notifications for their tenant AND system notifications
+            query = query.filter(
+                or_(
+                    Notification.tenant_id == tenant_id,
+                    Notification.tenant_id == "system",
+                    Notification.tenant_id.is_(None)
+                )
+            )
+        # Super admins and mobile users: see notifications from all tenants
         
         if unread_only:
             query = query.filter(Notification.is_read == False)
@@ -224,20 +231,33 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         
         return notification
     
-    def mark_all_as_read(self, db: Session, *, user_id: int, tenant_id: str) -> int:
-        """Mark all notifications as read for a user"""
+    def mark_all_as_read(self, db: Session, *, user_id: int, tenant_id: Optional[str]) -> int:
+        """Mark all notifications as read for a user - includes chat notifications"""
         from sqlalchemy import func
         
-        result = db.query(Notification).filter(
-            and_(
+        # Base filter for user notifications
+        base_filter = and_(
+            or_(
+                Notification.user_id == user_id,
+                Notification.user_id.is_(None)
+            ),
+            Notification.is_read == False
+        )
+        
+        # Add tenant filtering for non-mobile users
+        if tenant_id is not None and tenant_id != "system":
+            tenant_filter = and_(
+                base_filter,
                 or_(
-                    Notification.user_id == user_id,
-                    Notification.user_id.is_(None)
-                ),
-                Notification.tenant_id == tenant_id,
-                Notification.is_read == False
+                    Notification.tenant_id == tenant_id,
+                    Notification.tenant_id == "system",
+                    Notification.tenant_id.is_(None)
+                )
             )
-        ).update({
+        else:
+            tenant_filter = base_filter
+        
+        result = db.query(Notification).filter(tenant_filter).update({
             "is_read": True,
             "read_at": func.now()
         })
@@ -246,7 +266,7 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         return result
     
     def get_notification_stats(self, db: Session, *, user_id: int, tenant_id: Optional[str]) -> Dict[str, Any]:
-        """Get notification statistics for a user"""
+        """Get notification statistics for a user - includes chat notifications"""
         
         # Base query - get notifications for this user OR broadcast notifications
         base_query = db.query(Notification).filter(
@@ -256,11 +276,18 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
             )
         )
         
-        # Handle tenant filtering - super admins (tenant_id=None) should see all notifications
-        if tenant_id is not None:
-            # Regular users: only see notifications for their tenant
-            base_query = base_query.filter(Notification.tenant_id == tenant_id)
-        # Super admins (tenant_id=None): see notifications from all tenants
+        # For mobile users, don't filter by tenant to include all their notifications
+        # For admin users, filter by tenant
+        if tenant_id is not None and tenant_id != "system":
+            # Regular users: see notifications for their tenant AND system notifications
+            base_query = base_query.filter(
+                or_(
+                    Notification.tenant_id == tenant_id,
+                    Notification.tenant_id == "system",
+                    Notification.tenant_id.is_(None)
+                )
+            )
+        # Super admins and mobile users: see notifications from all tenants
         
         total = base_query.count()
         
@@ -279,6 +306,8 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
             ).count()
         except:
             urgent = 0
+        
+        print(f"NOTIFICATION STATS: User {user_id}, Tenant {tenant_id}, Total: {total}, Unread: {unread}, Urgent: {urgent}")
         
         return {
             "total_count": total,
