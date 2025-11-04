@@ -9,6 +9,7 @@ import requests
 import base64
 from typing import Dict, Any
 from pydantic import BaseModel
+import json
 
 router = APIRouter()
 
@@ -198,6 +199,9 @@ async def confirm_passport(
             "location_id": request.location_id,
             "confirmed": request.confirmed
         }
+        
+        print(f"📤 SENDING TO EXTERNAL API: {API_URL}")
+        print(f"📤 PAYLOAD: {json.dumps(payload, indent=2)}")
         
         response = requests.patch(API_URL, json=payload, headers=headers, timeout=30)
         
