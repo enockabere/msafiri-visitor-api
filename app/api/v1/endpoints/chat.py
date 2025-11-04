@@ -41,13 +41,13 @@ def create_chat_room(
     db.refresh(db_room)
     return db_room
 
-@router.get("/rooms/", response_model=List[ChatRoomSchema])
+@router.get("/rooms/")
 def get_chat_rooms(
     event_id: int = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get available chat rooms - auto-create missing event rooms and cleanup old ones"""
+    """Get available chat rooms with last message info - auto-create missing event rooms and cleanup old ones"""
     # Auto-cleanup chat rooms for events ended more than 1 month ago
     one_month_ago = datetime.now() - timedelta(days=30)
     old_rooms = db.query(ChatRoom).join(Event).filter(
@@ -111,10 +111,40 @@ def get_chat_rooms(
     
     rooms = query.all()
     print(f"DEBUG: Found {len(rooms)} chat rooms for user {current_user.email}")
-    for room in rooms:
-        print(f"DEBUG: Room: {room.name}, Event ID: {room.event_id}, Tenant: {room.tenant_id}")
     
-    return rooms
+    # Build response with last message info
+    result = []
+    for room in rooms:
+        # Get the latest message for this room
+        last_message = db.query(ChatMessage).filter(
+            ChatMessage.chat_room_id == room.id
+        ).order_by(desc(ChatMessage.created_at)).first()
+        
+        # Count unread messages (for now, we'll set to 0 since we don't track read status for group chats)
+        unread_count = 0
+        
+        room_data = {
+            "id": room.id,
+            "name": room.name,
+            "description": "",  # Add description if needed
+            "chat_type": room.chat_type.value,
+            "event_id": room.event_id,
+            "is_active": room.is_active,
+            "created_by": room.created_by,
+            "created_at": room.created_at,
+            "event": {
+                "id": room.event.id,
+                "title": room.event.title
+            } if room.event else None,
+            "unread_count": unread_count,
+            "last_message": last_message.message if last_message else None,
+            "last_message_time": last_message.created_at if last_message else None
+        }
+        
+        result.append(room_data)
+        print(f"DEBUG: Room {room.name} - last_message: {room_data['last_message']}, last_message_time: {room_data['last_message_time']}")
+    
+    return result
 
 @router.post("/rooms/auto-create")
 def auto_create_event_rooms(
