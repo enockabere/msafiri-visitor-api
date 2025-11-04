@@ -123,6 +123,12 @@ def get_chat_rooms(
         # Count unread messages (for now, we'll set to 0 since we don't track read status for group chats)
         unread_count = 0
         
+        # Format last message with sender name
+        formatted_last_message = None
+        if last_message:
+            sender_name = last_message.sender_name.split('@')[0] if '@' in last_message.sender_name else last_message.sender_name
+            formatted_last_message = f"{sender_name}: {last_message.message}"
+        
         room_data = {
             "id": room.id,
             "name": room.name,
@@ -137,12 +143,12 @@ def get_chat_rooms(
                 "title": room.event.title
             } if room.event else None,
             "unread_count": unread_count,
-            "last_message": last_message.message if last_message else None,
+            "last_message": formatted_last_message,
             "last_message_time": last_message.created_at if last_message else None
         }
         
         result.append(room_data)
-        print(f"DEBUG: Room {room.name} - last_message: {room_data['last_message']}, last_message_time: {room_data['last_message_time']}")
+        print(f"DEBUG: Room {room.name} - last_message: '{room_data['last_message']}', last_message_time: {room_data['last_message_time']}")
     
     return result
 
