@@ -258,7 +258,7 @@ async def confirm_passport(
             db.refresh(participant)
             completion_status = True
             print(f"✅ PASSPORT CONFIRMATION SUCCESS: Participant {participant.id} passport_document=True")
-        print(f"✅ DATABASE UPDATE: passport_document set to True for participant {participant.id}")
+            print(f"✅ DATABASE UPDATE: passport_document set to True for participant {participant.id}")
         else:
             print(f"⚠️ PASSPORT CONFIRMATION WARNING: No participant found for email {current_user.email}, event_id {event_id}")
         
