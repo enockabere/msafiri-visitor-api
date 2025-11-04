@@ -253,12 +253,14 @@ async def send_message(
         }
     }, current_user.tenant_id, exclude_user=current_user.email)
     
-    # Send push notifications to group participants and mentioned users
+    # Send notifications and store in database
     try:
         from app.services.firebase_service import firebase_service
         from app.models.event_participant import EventParticipant
+        from app import crud
+        from app.models.notification import NotificationPriority, NotificationType
         
-        print(f"CHAT: Sending push notifications for message in room {room.name}")
+        print(f"CHAT: Sending notifications for message in room {room.name}")
         
         # Get users who are participants in this event (for event chat rooms)
         target_users = []
@@ -296,10 +298,28 @@ async def send_message(
         mention_notifications_sent = 0
         for mentioned_user in mentioned_users:
             try:
+                mention_title = f"📢 You were mentioned in {room.name}"
+                mention_body = f"{sender_name} mentioned you: {message.message[:80]}{'...' if len(message.message) > 80 else ''}"
+                
+                # Create database notification for mention
+                try:
+                    crud.notification.create_user_notification(
+                        db,
+                        user_id=mentioned_user.id,
+                        title=mention_title,
+                        message=mention_body,
+                        tenant_id=mentioned_user.tenant_id or current_user.tenant_id,
+                        priority=NotificationPriority.HIGH,
+                        notification_type=NotificationType.CHAT_MENTION,
+                        send_push=True,
+                        triggered_by=current_user.email
+                    )
+                    print(f"CHAT: Created database notification for mention to {mentioned_user.email}")
+                except Exception as db_error:
+                    print(f"CHAT ERROR: Failed to create database notification for {mentioned_user.email}: {db_error}")
+                
+                # Send push notification
                 if mentioned_user.fcm_token:
-                    mention_title = f"📢 You were mentioned in {room.name}"
-                    mention_body = f"{sender_name} mentioned you: {message.message[:80]}{'...' if len(message.message) > 80 else ''}"
-                    
                     success = firebase_service.send_to_user(
                         db=db,
                         user_email=mentioned_user.email,
@@ -316,48 +336,65 @@ async def send_message(
                     )
                     if success:
                         mention_notifications_sent += 1
-                        print(f"CHAT: Mention notification sent to {mentioned_user.email}")
+                        print(f"CHAT: Mention push notification sent to {mentioned_user.email}")
             except Exception as e:
                 print(f"CHAT ERROR: Failed to send mention notification to {mentioned_user.email}: {e}")
         
         print(f"CHAT: Sent {mention_notifications_sent} mention notifications")
         
-        # Send regular notifications to other participants
-        print(f"CHAT: Sending push notifications to {len(target_users)} users")
-        
-        notification_title = f"💬 {room.name}"
-        notification_body = f"{sender_name}: {message.message[:100]}{'...' if len(message.message) > 100 else ''}"
-        
-        notifications_sent = 0
-        for user in target_users:
-            # Skip mentioned users (they already got special notifications)
-            if user in mentioned_users:
-                continue
-                
-            try:
-                if user.fcm_token:
-                    success = firebase_service.send_to_user(
-                        db=db,
-                        user_email=user.email,
-                        title=notification_title,
-                        body=notification_body,
-                        data={
-                            "type": "chat_message",
-                            "chat_room_id": str(room.id),
-                            "chat_room_name": room.name,
-                            "sender_name": sender_name,
-                            "message_preview": message.message[:100]
-                        }
-                    )
-                    if success:
-                        notifications_sent += 1
-                        print(f"CHAT: Push notification sent to {user.email}")
-                else:
-                    print(f"CHAT: Skipping {user.email} (no FCM token)")
-            except Exception as user_error:
-                print(f"CHAT ERROR: Failed to send push notification to {user.email}: {user_error}")
-        
-        print(f"CHAT: Successfully sent {notifications_sent} regular push notifications")
+        # Send regular notifications to other participants (only if no mentions or for non-mentioned users)
+        if not mentioned_users:  # Only send group notifications if no mentions
+            print(f"CHAT: Sending group notifications to {len(target_users)} users")
+            
+            notification_title = f"💬 {room.name}"
+            notification_body = f"{sender_name}: {message.message[:100]}{'...' if len(message.message) > 100 else ''}"
+            
+            notifications_sent = 0
+            for user in target_users:
+                try:
+                    # Create database notification for group message
+                    try:
+                        crud.notification.create_user_notification(
+                            db,
+                            user_id=user.id,
+                            title=notification_title,
+                            message=notification_body,
+                            tenant_id=user.tenant_id or current_user.tenant_id,
+                            priority=NotificationPriority.MEDIUM,
+                            notification_type=NotificationType.CHAT_MESSAGE,
+                            send_push=True,
+                            triggered_by=current_user.email
+                        )
+                        print(f"CHAT: Created database notification for {user.email}")
+                    except Exception as db_error:
+                        print(f"CHAT ERROR: Failed to create database notification for {user.email}: {db_error}")
+                    
+                    # Send push notification
+                    if user.fcm_token:
+                        success = firebase_service.send_to_user(
+                            db=db,
+                            user_email=user.email,
+                            title=notification_title,
+                            body=notification_body,
+                            data={
+                                "type": "chat_message",
+                                "chat_room_id": str(room.id),
+                                "chat_room_name": room.name,
+                                "sender_name": sender_name,
+                                "message_preview": message.message[:100]
+                            }
+                        )
+                        if success:
+                            notifications_sent += 1
+                            print(f"CHAT: Push notification sent to {user.email}")
+                    else:
+                        print(f"CHAT: Skipping push for {user.email} (no FCM token)")
+                except Exception as user_error:
+                    print(f"CHAT ERROR: Failed to send notification to {user.email}: {user_error}")
+            
+            print(f"CHAT: Successfully sent {notifications_sent} group notifications")
+        else:
+            print(f"CHAT: Skipping group notifications because message contains mentions")
         
     except Exception as e:
         print(f"CHAT ERROR: Failed to send push notifications: {e}")
@@ -537,16 +574,36 @@ async def send_direct_message(
         }
     }, dm.recipient_email)
     
-    # Send push notification to recipient only
+    # Send notification and store in database
     try:
         from app.services.firebase_service import firebase_service
+        from app import crud
+        from app.models.notification import NotificationPriority, NotificationType
         
-        print(f"CHAT: Sending direct message push notification to {recipient.email}")
+        print(f"CHAT: Sending direct message notification to {recipient.email}")
         
+        notification_title = f"💬 {current_user.full_name or current_user.email}"
+        notification_body = dm.message[:100] + "..." if len(dm.message) > 100 else dm.message
+        
+        # Create database notification for direct message
+        try:
+            crud.notification.create_user_notification(
+                db,
+                user_id=recipient.id,
+                title=notification_title,
+                message=notification_body,
+                tenant_id=recipient.tenant_id or current_user.tenant_id,
+                priority=NotificationPriority.MEDIUM,
+                notification_type=NotificationType.DIRECT_MESSAGE,
+                send_push=True,
+                triggered_by=current_user.email
+            )
+            print(f"CHAT: Created database notification for direct message to {recipient.email}")
+        except Exception as db_error:
+            print(f"CHAT ERROR: Failed to create database notification for {recipient.email}: {db_error}")
+        
+        # Send push notification
         if recipient.fcm_token:
-            notification_title = f"💬 {current_user.full_name or current_user.email}"
-            notification_body = dm.message[:100] + "..." if len(dm.message) > 100 else dm.message
-            
             success = firebase_service.send_to_user(
                 db=db,
                 user_email=recipient.email,
@@ -821,6 +878,42 @@ def get_room_participants(
     
     print(f"DEBUG: Returning {len(result)} users for room {room_id} mentions")
     return result
+
+@router.get("/unread-count")
+def get_total_unread_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get total unread chat count for current user"""
+    try:
+        # Count unread direct messages
+        direct_unread = db.query(DirectMessage).filter(
+            and_(
+                DirectMessage.recipient_email == current_user.email,
+                DirectMessage.is_read == False
+            )
+        ).count()
+        
+        # For group chats, we don't track read status, so return 0
+        # In the future, you could implement read tracking for group messages
+        group_unread = 0
+        
+        total_unread = direct_unread + group_unread
+        
+        print(f"CHAT UNREAD: User {current_user.email} has {direct_unread} direct + {group_unread} group = {total_unread} total")
+        
+        return {
+            "total_unread": total_unread,
+            "direct_unread": direct_unread,
+            "group_unread": group_unread
+        }
+    except Exception as e:
+        print(f"ERROR getting unread count: {e}")
+        return {
+            "total_unread": 0,
+            "direct_unread": 0,
+            "group_unread": 0
+        }
 
 @router.get("/admins/", response_model=List[dict])
 def get_available_admins(
