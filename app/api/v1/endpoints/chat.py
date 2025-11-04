@@ -189,7 +189,7 @@ async def send_message(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Send message to chat room - allow cross-tenant messaging"""
+    """Send message to chat room - allow cross-tenant messaging with mentions"""
     room = db.query(ChatRoom).filter(
         and_(
             ChatRoom.id == message.chat_room_id,
@@ -207,6 +207,27 @@ async def send_message(
     
     sender_name = current_user.full_name or current_user.email
     print(f"DEBUG: Creating message with sender_name: {sender_name} for user: {current_user.email}")
+    
+    # Extract mentions from message
+    mentioned_users = []
+    message_text = message.message
+    if '@' in message_text:
+        import re
+        # Find @mentions in the message
+        mention_pattern = r'@([^\s@]+)'
+        mentions = re.findall(mention_pattern, message_text)
+        
+        for mention in mentions:
+            # Find user by name or email
+            mentioned_user = db.query(User).filter(
+                or_(
+                    User.full_name.ilike(f"%{mention}%"),
+                    User.email.ilike(f"{mention}%")
+                )
+            ).first()
+            
+            if mentioned_user and mentioned_user.email != current_user.email:
+                mentioned_users.append(mentioned_user)
     
     db_message = ChatMessage(
         chat_room_id=message.chat_room_id,
@@ -232,7 +253,7 @@ async def send_message(
         }
     }, current_user.tenant_id, exclude_user=current_user.email)
     
-    # Send push notifications to group participants only
+    # Send push notifications to group participants and mentioned users
     try:
         from app.services.firebase_service import firebase_service
         from app.models.event_participant import EventParticipant
@@ -240,6 +261,7 @@ async def send_message(
         print(f"CHAT: Sending push notifications for message in room {room.name}")
         
         # Get users who are participants in this event (for event chat rooms)
+        target_users = []
         if room.event_id:
             # Get event participants who are selected or confirmed
             participants = db.query(EventParticipant).filter(
@@ -270,6 +292,37 @@ async def send_message(
                 )
             ).all()
         
+        # Send special notifications to mentioned users
+        mention_notifications_sent = 0
+        for mentioned_user in mentioned_users:
+            try:
+                if mentioned_user.fcm_token:
+                    mention_title = f"📢 You were mentioned in {room.name}"
+                    mention_body = f"{sender_name} mentioned you: {message.message[:80]}{'...' if len(message.message) > 80 else ''}"
+                    
+                    success = firebase_service.send_to_user(
+                        db=db,
+                        user_email=mentioned_user.email,
+                        title=mention_title,
+                        body=mention_body,
+                        data={
+                            "type": "chat_mention",
+                            "chat_room_id": str(room.id),
+                            "chat_room_name": room.name,
+                            "sender_name": sender_name,
+                            "message_preview": message.message[:100],
+                            "mentioned": True
+                        }
+                    )
+                    if success:
+                        mention_notifications_sent += 1
+                        print(f"CHAT: Mention notification sent to {mentioned_user.email}")
+            except Exception as e:
+                print(f"CHAT ERROR: Failed to send mention notification to {mentioned_user.email}: {e}")
+        
+        print(f"CHAT: Sent {mention_notifications_sent} mention notifications")
+        
+        # Send regular notifications to other participants
         print(f"CHAT: Sending push notifications to {len(target_users)} users")
         
         notification_title = f"💬 {room.name}"
@@ -277,6 +330,10 @@ async def send_message(
         
         notifications_sent = 0
         for user in target_users:
+            # Skip mentioned users (they already got special notifications)
+            if user in mentioned_users:
+                continue
+                
             try:
                 if user.fcm_token:
                     success = firebase_service.send_to_user(
@@ -300,7 +357,7 @@ async def send_message(
             except Exception as user_error:
                 print(f"CHAT ERROR: Failed to send push notification to {user.email}: {user_error}")
         
-        print(f"CHAT: Successfully sent {notifications_sent} push notifications")
+        print(f"CHAT: Successfully sent {notifications_sent} regular push notifications")
         
     except Exception as e:
         print(f"CHAT ERROR: Failed to send push notifications: {e}")
@@ -709,6 +766,60 @@ def get_available_users(
         for user in users
     ]
     print(f"DEBUG: Returning {len(result)} users as contacts")
+    return result
+
+@router.get("/rooms/{room_id}/participants", response_model=List[dict])
+def get_room_participants(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get list of users who can be mentioned in this chat room"""
+    room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+    
+    if not room:
+        raise HTTPException(status_code=404, detail="Chat room not found")
+    
+    # For event chat rooms, get event participants
+    if room.event_id:
+        from app.models.event_participant import EventParticipant
+        
+        participants = db.query(EventParticipant).filter(
+            and_(
+                EventParticipant.event_id == room.event_id,
+                EventParticipant.status.in_(["selected", "confirmed", "checked_in"]),
+                EventParticipant.email != current_user.email
+            )
+        ).all()
+        
+        participant_emails = [p.email for p in participants]
+        
+        # Get user objects for participants
+        users = db.query(User).filter(
+            and_(
+                User.email.in_(participant_emails),
+                User.is_active == True
+            )
+        ).all()
+    else:
+        # For general chat rooms, get all tenant users
+        users = db.query(User).filter(
+            and_(
+                User.tenant_id == current_user.tenant_id,
+                User.email != current_user.email,
+                User.is_active == True
+            )
+        ).all()
+    
+    result = [
+        {
+            "email": user.email,
+            "name": user.full_name or user.email.split('@')[0],
+        }
+        for user in users
+    ]
+    
+    print(f"DEBUG: Returning {len(result)} users for room {room_id} mentions")
     return result
 
 @router.get("/admins/", response_model=List[dict])
