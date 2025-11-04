@@ -884,7 +884,7 @@ def get_total_unread_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get total unread chat count for current user"""
+    """Get total unread chat count for current user - includes group chat notifications"""
     try:
         # Count unread direct messages
         direct_unread = db.query(DirectMessage).filter(
@@ -894,9 +894,18 @@ def get_total_unread_count(
             )
         ).count()
         
-        # For group chats, we don't track read status, so return 0
-        # In the future, you could implement read tracking for group messages
-        group_unread = 0
+        # Count unread group chat notifications from notifications table
+        from app.models.notification import Notification, NotificationType
+        group_unread = db.query(Notification).filter(
+            and_(
+                Notification.user_id == current_user.id,
+                Notification.notification_type.in_([
+                    NotificationType.CHAT_MESSAGE,
+                    NotificationType.CHAT_MENTION
+                ]),
+                Notification.is_read == False
+            )
+        ).count()
         
         total_unread = direct_unread + group_unread
         
