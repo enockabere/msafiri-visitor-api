@@ -201,14 +201,22 @@ async def confirm_passport(
         }
         
         print(f"📤 SENDING TO EXTERNAL API: {API_URL}")
+        print(f"📤 HEADERS: {headers}")
         print(f"📤 PAYLOAD: {json.dumps(payload, indent=2)}")
         
         response = requests.patch(API_URL, json=payload, headers=headers, timeout=30)
         
+        print(f"📥 EXTERNAL API RESPONSE:")
+        print(f"📥 Status Code: {response.status_code}")
+        print(f"📥 Response Headers: {dict(response.headers)}")
+        print(f"📥 Response Text: {response.text}")
+        
         if response.status_code not in [200, 204]:
+            print(f"❌ EXTERNAL API ERROR: Status {response.status_code}")
+            print(f"❌ Error Response: {response.text}")
             raise HTTPException(
                 status_code=400,
-                detail="Failed to confirm passport data"
+                detail=f"Failed to confirm passport data: {response.text}"
             )
         
         # Use event_id from the request
@@ -250,6 +258,7 @@ async def confirm_passport(
             db.refresh(participant)
             completion_status = True
             print(f"✅ PASSPORT CONFIRMATION SUCCESS: Participant {participant.id} passport_document=True")
+        print(f"✅ DATABASE UPDATE: passport_document set to True for participant {participant.id}")
         else:
             print(f"⚠️ PASSPORT CONFIRMATION WARNING: No participant found for email {current_user.email}, event_id {event_id}")
         
@@ -262,12 +271,17 @@ async def confirm_passport(
         final_status = final_participant.passport_document if final_participant else False
         print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
-        return {
+        api_response = {
             "status": "success",
             "message": "Passport confirmed and checklist updated",
             "completion_status": final_status,
             "participant_updated": completion_status
         }
+        
+        print(f"🏁 FINAL API RESPONSE TO MOBILE:")
+        print(f"🏁 {json.dumps(api_response, indent=2)}")
+        
+        return api_response
         
     except requests.RequestException as e:
         raise HTTPException(
