@@ -606,7 +606,7 @@ async def send_direct_message(
                 message=notification_body,
                 tenant_id=recipient.tenant_id or current_user.tenant_id,
                 priority=NotificationPriority.MEDIUM,
-                notification_type=NotificationType.DIRECT_MESSAGE,
+                notification_type=NotificationType.CHAT_MESSAGE,
                 send_push=True,
                 triggered_by=current_user.email
             )
