@@ -134,7 +134,17 @@ async def postpone_itinerary(
     try:
         reminder_date = datetime.fromisoformat(request.reminder_date.replace('Z', '+00:00'))
         
-        # Store reminder in database
+        # Delete any existing active reminders for this user/event (only one allowed)
+        existing_reminders = db.query(ItineraryReminder).filter(
+            ItineraryReminder.event_id == event_id,
+            ItineraryReminder.user_email == request.user_email,
+            ItineraryReminder.is_active == True
+        ).all()
+        
+        for existing in existing_reminders:
+            existing.is_active = False
+        
+        # Store new reminder in database
         reminder = ItineraryReminder(
             event_id=event_id,
             user_email=request.user_email,
