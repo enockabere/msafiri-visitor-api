@@ -7,7 +7,7 @@ from app.models.user import User
 from app.models.travel_checklist_progress import TravelChecklistProgress
 from pydantic import BaseModel
 from datetime import datetime
-from app.core.email_service import send_email
+from app.core.email_service import email_service
 
 router = APIRouter()
 
@@ -122,17 +122,11 @@ async def postpone_itinerary(
         reminder_date = datetime.fromisoformat(request.reminder_date.replace('Z', '+00:00'))
         
         # Send confirmation email
-        await send_email(
+        email_service.send_notification_email(
             to_email=request.user_email,
-            subject="Flight Itinerary Reminder Set",
-            body=f"""Dear {current_user.full_name or current_user.email},
-
-Your flight itinerary reminder has been set for {reminder_date.strftime('%B %d, %Y')}.
-
-You will receive a notification on this date to complete your flight itinerary for the event.
-
-Best regards,
-MSF Events Team"""
+            user_name=current_user.full_name or current_user.email,
+            title="Flight Itinerary Reminder Set",
+            message=f"Your flight itinerary reminder has been set for {reminder_date.strftime('%B %d, %Y')}. You will receive a notification on this date to complete your flight itinerary for the event."
         )
         
         return {"message": "Itinerary reminder set successfully"}
