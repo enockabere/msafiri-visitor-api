@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 from typing import Dict, Any
 from app.db.database import get_db
 from app.core.deps import get_current_user
@@ -8,6 +9,8 @@ from app.models.travel_checklist_progress import TravelChecklistProgress
 from pydantic import BaseModel
 from datetime import datetime
 from app.core.email_service import email_service
+from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from app.db.database import Base
 
 router = APIRouter()
 
@@ -18,6 +21,16 @@ class ChecklistProgressUpdate(BaseModel):
 class PostponeItineraryRequest(BaseModel):
     reminder_date: str
     user_email: str
+
+class ItineraryReminder(Base):
+    __tablename__ = "itinerary_reminders"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, nullable=False, index=True)
+    user_email = Column(String, nullable=False, index=True)
+    reminder_date = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
+    is_active = Column(Boolean, default=True)
 
 @router.get("/progress/{event_id}")
 async def get_checklist_progress(
@@ -121,6 +134,15 @@ async def postpone_itinerary(
     try:
         reminder_date = datetime.fromisoformat(request.reminder_date.replace('Z', '+00:00'))
         
+        # Store reminder in database
+        reminder = ItineraryReminder(
+            event_id=event_id,
+            user_email=request.user_email,
+            reminder_date=reminder_date
+        )
+        db.add(reminder)
+        db.commit()
+        
         # Send confirmation email
         email_service.send_notification_email(
             to_email=request.user_email,
@@ -129,8 +151,53 @@ async def postpone_itinerary(
             message=f"Your flight itinerary reminder has been set for {reminder_date.strftime('%B %d, %Y')}. You will receive a notification on this date to complete your flight itinerary for the event."
         )
         
-        return {"message": "Itinerary reminder set successfully"}
+        return {"message": "Itinerary reminder set successfully", "reminder_id": reminder.id}
         
     except Exception as e:
         print(f"Error setting itinerary reminder: {e}")
         raise HTTPException(status_code=500, detail="Failed to set reminder")
+
+@router.get("/reminders/{event_id}")
+async def get_reminders(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get active reminders for current user and event"""
+    
+    reminders = db.query(ItineraryReminder).filter(
+        ItineraryReminder.event_id == event_id,
+        ItineraryReminder.user_email == current_user.email,
+        ItineraryReminder.is_active == True
+    ).all()
+    
+    return {
+        "reminders": [
+            {
+                "id": r.id,
+                "reminder_date": r.reminder_date.isoformat(),
+                "created_at": r.created_at.isoformat()
+            } for r in reminders
+        ]
+    }
+
+@router.delete("/reminders/{reminder_id}")
+async def delete_reminder(
+    reminder_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a reminder"""
+    
+    reminder = db.query(ItineraryReminder).filter(
+        ItineraryReminder.id == reminder_id,
+        ItineraryReminder.user_email == current_user.email
+    ).first()
+    
+    if not reminder:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    
+    reminder.is_active = False
+    db.commit()
+    
+    return {"message": "Reminder deleted successfully"}
