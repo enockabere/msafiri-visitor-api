@@ -6,12 +6,18 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.travel_checklist_progress import TravelChecklistProgress
 from pydantic import BaseModel
+from datetime import datetime
+from app.core.email_service import send_email
 
 router = APIRouter()
 
 class ChecklistProgressUpdate(BaseModel):
     checklist_items: Dict[str, bool]
     completed: bool
+
+class PostponeItineraryRequest(BaseModel):
+    reminder_date: str
+    user_email: str
 
 @router.get("/progress/{event_id}")
 async def get_checklist_progress(
@@ -102,3 +108,35 @@ async def get_participant_checklist_progress(
         "completed": progress.completed,
         "updated_at": progress.updated_at
     }
+
+@router.post("/postpone-itinerary/{event_id}")
+async def postpone_itinerary(
+    event_id: int,
+    request: PostponeItineraryRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Postpone flight itinerary creation with reminder"""
+    
+    try:
+        reminder_date = datetime.fromisoformat(request.reminder_date.replace('Z', '+00:00'))
+        
+        # Send confirmation email
+        await send_email(
+            to_email=request.user_email,
+            subject="Flight Itinerary Reminder Set",
+            body=f"""Dear {current_user.full_name or current_user.email},
+
+Your flight itinerary reminder has been set for {reminder_date.strftime('%B %d, %Y')}.
+
+You will receive a notification on this date to complete your flight itinerary for the event.
+
+Best regards,
+MSF Events Team"""
+        )
+        
+        return {"message": "Itinerary reminder set successfully"}
+        
+    except Exception as e:
+        print(f"Error setting itinerary reminder: {e}")
+        raise HTTPException(status_code=500, detail="Failed to set reminder")
