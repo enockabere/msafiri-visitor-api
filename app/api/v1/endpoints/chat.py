@@ -896,9 +896,9 @@ def get_total_unread_count(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get total unread chat count for current user - includes group chat notifications"""
+    """Get unread direct message count for current user - excludes group chat notifications"""
     try:
-        # Count unread direct messages
+        # Count only unread direct messages (group chat notifications are handled by notification system)
         direct_unread = db.query(DirectMessage).filter(
             and_(
                 DirectMessage.recipient_email == current_user.email,
@@ -906,27 +906,15 @@ def get_total_unread_count(
             )
         ).count()
         
-        # Count unread group chat notifications from notifications table
-        from app.models.notification import Notification, NotificationType
-        group_unread = db.query(Notification).filter(
-            and_(
-                Notification.user_id == current_user.id,
-                Notification.notification_type.in_([
-                    NotificationType.CHAT_MESSAGE,
-                    NotificationType.CHAT_MENTION
-                ]),
-                Notification.is_read == False
-            )
-        ).count()
+        # Group chat notifications are handled by the notification system, not here
+        # This prevents double counting since group chat messages are stored as notifications
         
-        total_unread = direct_unread + group_unread
-        
-        print(f"CHAT UNREAD: User {current_user.email} has {direct_unread} direct + {group_unread} group = {total_unread} total")
+        print(f"CHAT UNREAD: User {current_user.email} has {direct_unread} direct messages (group chats handled by notifications)")
         
         return {
-            "total_unread": total_unread,
+            "total_unread": direct_unread,  # Only direct messages for chat badge
             "direct_unread": direct_unread,
-            "group_unread": group_unread
+            "group_unread": 0  # Group chats are in notifications, not chat count
         }
     except Exception as e:
         print(f"ERROR getting unread count: {e}")
