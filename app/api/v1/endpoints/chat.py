@@ -120,8 +120,20 @@ def get_chat_rooms(
             ChatMessage.chat_room_id == room.id
         ).order_by(desc(ChatMessage.created_at)).first()
         
-        # Count unread messages (for now, we'll set to 0 since we don't track read status for group chats)
-        unread_count = 0
+        # Count unread group chat notifications from notifications table
+        from app.models.notification import Notification, NotificationType
+        unread_count = db.query(Notification).filter(
+            and_(
+                Notification.user_id == current_user.id,
+                Notification.notification_type.in_([
+                    NotificationType.CHAT_MESSAGE,
+                    NotificationType.CHAT_MENTION
+                ]),
+                Notification.is_read == False,
+                # Match notifications for this specific chat room
+                Notification.title.like(f"%{room.name}%")
+            )
+        ).count()
         
         # Format last message with sender name
         formatted_last_message = None
