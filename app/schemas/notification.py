@@ -17,7 +17,7 @@ class NotificationBase(BaseModel):
 class NotificationCreate(NotificationBase):
     user_id: Optional[int] = None
     user_email: Optional[EmailStr] = None
-    tenant_id: str
+    tenant_id: Optional[str] = None
     triggered_by: Optional[str] = None
     extra_data: Optional[Dict[str, Any]] = None
 
@@ -29,7 +29,7 @@ class Notification(NotificationBase):
     id: int
     user_id: Optional[int] = None
     user_email: Optional[str] = None
-    tenant_id: str
+    tenant_id: Optional[str] = None
     is_read: bool
     read_at: Optional[datetime] = None
     sent_at: Optional[datetime] = None
