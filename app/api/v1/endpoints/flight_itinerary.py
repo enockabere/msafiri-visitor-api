@@ -314,6 +314,7 @@ async def confirm_itineraries(
 ):
     """Confirm flight itineraries and mark ticket as complete"""
     
+    print(f"DEBUG API: Confirming itineraries: {request.itinerary_ids}")
     transport_requests_created = []
     
     # Update itineraries as confirmed and create transport requests
@@ -324,21 +325,32 @@ async def confirm_itineraries(
         ).first()
         
         if itinerary:
+            print(f"DEBUG API: Processing itinerary {itinerary_id}, type: {itinerary.itinerary_type}")
             itinerary.confirmed = True
             
             # Create transport request for this itinerary
             if itinerary.itinerary_type == "arrival":
                 # For arrival flights: airport to destination
+                pickup_addr = itinerary.arrival_airport or itinerary.departure_airport
+                dropoff_addr = itinerary.destination or "Event Location"
+                pickup_time = itinerary.arrival_date or itinerary.departure_date
+                
+                print(f"DEBUG API: Creating ARRIVAL transport request:")
+                print(f"  - Pickup: {pickup_addr}")
+                print(f"  - Dropoff: {dropoff_addr}")
+                print(f"  - Time: {pickup_time}")
+                print(f"  - Passenger: {current_user.full_name}")
+                
                 transport_request = TransportRequest(
-                    pickup_address=itinerary.arrival_airport or itinerary.departure_airport,
-                    dropoff_address=itinerary.destination or "Event Location",
-                    pickup_time=itinerary.arrival_date or itinerary.departure_date,
+                    pickup_address=pickup_addr,
+                    dropoff_address=dropoff_addr,
+                    pickup_time=pickup_time,
                     passenger_name=current_user.full_name,
                     passenger_phone=current_user.phone_number or "",
                     passenger_email=current_user.email,
                     vehicle_type="SUV",
                     flight_details=f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip(),
-                    notes="Airport pickup for arrival flight",
+                    notes=notes,
                     event_id=itinerary.event_id,
                     flight_itinerary_id=itinerary.id,
                     user_email=current_user.email,
@@ -346,19 +358,30 @@ async def confirm_itineraries(
                 )
                 db.add(transport_request)
                 transport_requests_created.append("arrival")
+                print(f"DEBUG API: Added arrival transport request to DB")
                 
             elif itinerary.itinerary_type == "departure":
                 # For departure flights: pickup location to airport
+                pickup_addr = itinerary.pickup_location or "Event Location"
+                dropoff_addr = itinerary.departure_airport
+                pickup_time = itinerary.departure_date - timedelta(hours=2)
+                
+                print(f"DEBUG API: Creating DEPARTURE transport request:")
+                print(f"  - Pickup: {pickup_addr}")
+                print(f"  - Dropoff: {dropoff_addr}")
+                print(f"  - Time: {pickup_time}")
+                print(f"  - Passenger: {current_user.full_name}")
+                
                 transport_request = TransportRequest(
-                    pickup_address=itinerary.pickup_location or "Event Location",
-                    dropoff_address=itinerary.departure_airport,
-                    pickup_time=itinerary.departure_date - timedelta(hours=2),  # 2 hours before flight
+                    pickup_address=pickup_addr,
+                    dropoff_address=dropoff_addr,
+                    pickup_time=pickup_time,
                     passenger_name=current_user.full_name,
                     passenger_phone=current_user.phone_number or "",
                     passenger_email=current_user.email,
                     vehicle_type="SUV",
                     flight_details=f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip(),
-                    notes="Airport drop-off for departure flight",
+                    notes=notes,
                     event_id=itinerary.event_id,
                     flight_itinerary_id=itinerary.id,
                     user_email=current_user.email,
@@ -366,6 +389,7 @@ async def confirm_itineraries(
                 )
                 db.add(transport_request)
                 transport_requests_created.append("departure")
+                print(f"DEBUG API: Added departure transport request to DB")
     
     # Update participant ticket status
     if request.itinerary_ids:
@@ -382,7 +406,13 @@ async def confirm_itineraries(
             if participant:
                 participant.ticket_document = True
     
-    db.commit()
+    try:
+        db.commit()
+        print(f"DEBUG API: Successfully committed {len(transport_requests_created)} transport requests")
+    except Exception as e:
+        print(f"DEBUG API: Error committing transport requests: {e}")
+        db.rollback()
+        raise
     
     return {
         "status": "success",
