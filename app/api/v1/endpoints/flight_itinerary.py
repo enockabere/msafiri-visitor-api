@@ -24,10 +24,11 @@ class ItineraryRequest(BaseModel):
     airline: Optional[str] = None
     flight_number: Optional[str] = None
     departure_airport: str
-    arrival_airport: str
+    arrival_airport: Optional[str] = None
     departure_date: str  # ISO format
-    arrival_date: str    # ISO format
+    arrival_date: Optional[str] = None
     itinerary_type: str  # 'arrival', 'departure', 'custom'
+    pickup_location: Optional[str] = None
 
 class ItineraryConfirmRequest(BaseModel):
     itinerary_ids: List[int]
@@ -179,6 +180,20 @@ async def create_itinerary(
             detail="User not registered for this event"
         )
     
+    # Validate required fields based on itinerary type
+    if request.itinerary_type == "departure":
+        if not request.pickup_location:
+            raise HTTPException(
+                status_code=400,
+                detail="Pickup location is required for departure itineraries"
+            )
+    else:  # arrival or custom
+        if not request.arrival_airport or not request.arrival_date:
+            raise HTTPException(
+                status_code=400,
+                detail="Arrival airport and date are required for arrival itineraries"
+            )
+    
     # Create itinerary
     itinerary = FlightItinerary(
         event_id=request.event_id,
@@ -188,8 +203,9 @@ async def create_itinerary(
         departure_airport=request.departure_airport,
         arrival_airport=request.arrival_airport,
         departure_date=datetime.fromisoformat(request.departure_date),
-        arrival_date=datetime.fromisoformat(request.arrival_date),
-        itinerary_type=request.itinerary_type
+        arrival_date=datetime.fromisoformat(request.arrival_date) if request.arrival_date else None,
+        itinerary_type=request.itinerary_type,
+        pickup_location=request.pickup_location
     )
     
     db.add(itinerary)
@@ -254,14 +270,29 @@ async def update_itinerary(
             detail="Itinerary not found"
         )
     
+    # Validate required fields based on itinerary type
+    if request.itinerary_type == "departure":
+        if not request.pickup_location:
+            raise HTTPException(
+                status_code=400,
+                detail="Pickup location is required for departure itineraries"
+            )
+    else:  # arrival or custom
+        if not request.arrival_airport or not request.arrival_date:
+            raise HTTPException(
+                status_code=400,
+                detail="Arrival airport and date are required for arrival itineraries"
+            )
+    
     # Update fields
     itinerary.airline = request.airline
     itinerary.flight_number = request.flight_number
     itinerary.departure_airport = request.departure_airport
     itinerary.arrival_airport = request.arrival_airport
     itinerary.departure_date = datetime.fromisoformat(request.departure_date)
-    itinerary.arrival_date = datetime.fromisoformat(request.arrival_date)
+    itinerary.arrival_date = datetime.fromisoformat(request.arrival_date) if request.arrival_date else None
     itinerary.itinerary_type = request.itinerary_type
+    itinerary.pickup_location = request.pickup_location
     
     db.commit()
     
