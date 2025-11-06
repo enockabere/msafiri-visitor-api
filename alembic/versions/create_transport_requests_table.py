@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = 'create_transport_requests'
-down_revision = 'add_destination_field_to_flight_itineraries'
+down_revision = None  # Will be set to current head
 branch_labels = None
 depends_on = None
 
