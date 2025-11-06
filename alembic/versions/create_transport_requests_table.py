@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = 'create_transport_requests'
-down_revision = None  # Will be set to current head
+down_revision = 'add_destination_field'
 branch_labels = None
 depends_on = None
 
