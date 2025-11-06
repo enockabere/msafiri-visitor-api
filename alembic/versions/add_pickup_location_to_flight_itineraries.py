@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_pickup_location'
-down_revision = '148b242d4e59'
+down_revision = '81ebfb5e8a9f'
 branch_labels = None
 depends_on = None
 
