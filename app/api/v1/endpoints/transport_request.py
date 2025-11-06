@@ -207,7 +207,7 @@ def create_missing_transport_requests(
             event_id=itinerary.event_id,
             flight_itinerary_id=itinerary.id,
             user_email=current_user.email,
-            status="booked"  # Set to booked so pickup confirmation can be triggered
+            status="pending"  # Set to pending initially
         )
         
         db.add(transport_request)
