@@ -341,7 +341,8 @@ async def confirm_itineraries(
                     notes="Airport pickup for arrival flight",
                     event_id=itinerary.event_id,
                     flight_itinerary_id=itinerary.id,
-                    user_email=current_user.email
+                    user_email=current_user.email,
+                    status="created"
                 )
                 db.add(transport_request)
                 transport_requests_created.append("arrival")
@@ -360,7 +361,8 @@ async def confirm_itineraries(
                     notes="Airport drop-off for departure flight",
                     event_id=itinerary.event_id,
                     flight_itinerary_id=itinerary.id,
-                    user_email=current_user.email
+                    user_email=current_user.email,
+                    status="created"
                 )
                 db.add(transport_request)
                 transport_requests_created.append("departure")
