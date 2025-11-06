@@ -59,6 +59,58 @@ def create_transport_request(
     
     return {"message": "Transport request created successfully", "id": transport_request.id}
 
+@router.get("/transport-requests/tenant/{tenant_id}")
+def get_transport_requests_by_tenant(
+    tenant_id: int,
+    db: Session = Depends(get_db)
+):
+    from app.models.event import Event
+    
+    # Get all events for this tenant
+    events = db.query(Event).filter(Event.tenant_id == tenant_id).all()
+    event_ids = [event.id for event in events]
+    
+    if not event_ids:
+        return []
+    
+    # Get transport requests for all events of this tenant
+    requests = db.query(TransportRequest).filter(
+        TransportRequest.event_id.in_(event_ids)
+    ).all()
+    
+    # Create a mapping of event_id to event for quick lookup
+    events_map = {event.id: event for event in events}
+    
+    return [
+        {
+            "id": req.id,
+            "pickup_address": req.pickup_address,
+            "pickup_latitude": req.pickup_latitude,
+            "pickup_longitude": req.pickup_longitude,
+            "dropoff_address": req.dropoff_address,
+            "dropoff_latitude": req.dropoff_latitude,
+            "dropoff_longitude": req.dropoff_longitude,
+            "pickup_time": req.pickup_time.isoformat() if req.pickup_time else None,
+            "passenger_name": req.passenger_name,
+            "passenger_phone": req.passenger_phone,
+            "passenger_email": req.passenger_email,
+            "vehicle_type": req.vehicle_type,
+            "flight_details": req.flight_details,
+            "notes": req.notes,
+            "status": req.status,
+            "event_id": req.event_id,
+            "flight_itinerary_id": req.flight_itinerary_id,
+            "user_email": req.user_email,
+            "created_at": req.created_at.isoformat() if req.created_at else None,
+            "updated_at": req.updated_at.isoformat() if req.updated_at else None,
+            "event": {
+                "id": events_map[req.event_id].id,
+                "title": events_map[req.event_id].title,
+                "tenant_id": events_map[req.event_id].tenant_id
+            } if req.event_id in events_map else None
+        } for req in requests
+    ]
+
 @router.get("/transport-requests/event/{event_id}")
 def get_transport_requests_by_event(
     event_id: int,
@@ -271,3 +323,47 @@ def get_pending_pickup_confirmations(
             })
     
     return {"pending_confirmations": result}
+
+@router.post("/transport-requests/{request_id}/book-with-absolute-cabs")
+def book_with_absolute_cabs(
+    request_id: int,
+    db: Session = Depends(get_db)
+):
+    """Book a transport request with Absolute Cabs"""
+    
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.id == request_id
+    ).first()
+    
+    if not transport_request:
+        raise HTTPException(
+            status_code=404, 
+            detail="Transport request not found"
+        )
+    
+    if transport_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot book request with status: {transport_request.status}"
+        )
+    
+    try:
+        # Here you would integrate with Absolute Cabs API
+        # For now, we'll simulate a successful booking
+        
+        # Update status to booked
+        transport_request.status = "booked"
+        db.commit()
+        
+        return {
+            "success": True,
+            "booking_reference": f"AC{transport_request.id:06d}",
+            "message": "Transport request booked successfully with Absolute Cabs"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to book with Absolute Cabs: {str(e)}"
+        )
