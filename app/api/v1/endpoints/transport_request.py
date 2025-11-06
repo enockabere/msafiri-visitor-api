@@ -367,3 +367,55 @@ def book_with_absolute_cabs(
             status_code=500,
             detail=f"Failed to book with Absolute Cabs: {str(e)}"
         )
+
+class ManualBookingRequest(BaseModel):
+    driver_name: str
+    driver_phone: str
+    vehicle_type: str
+
+@router.post("/transport-requests/{request_id}/manual-booking")
+def create_manual_booking(
+    request_id: int,
+    booking_data: ManualBookingRequest,
+    db: Session = Depends(get_db)
+):
+    """Create a manual transport booking"""
+    
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.id == request_id
+    ).first()
+    
+    if not transport_request:
+        raise HTTPException(
+            status_code=404, 
+            detail="Transport request not found"
+        )
+    
+    if transport_request.status != "pending":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot book request with status: {transport_request.status}"
+        )
+    
+    try:
+        # Update transport request with manual booking details
+        transport_request.status = "booked"
+        transport_request.notes = f"Manual booking - Driver: {booking_data.driver_name}, Phone: {booking_data.driver_phone}, Vehicle: {booking_data.vehicle_type}"
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "booking_reference": f"MB{transport_request.id:06d}",
+            "message": "Manual transport booking created successfully",
+            "driver_name": booking_data.driver_name,
+            "driver_phone": booking_data.driver_phone,
+            "vehicle_type": booking_data.vehicle_type
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create manual booking: {str(e)}"
+        )
