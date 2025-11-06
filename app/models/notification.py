@@ -19,6 +19,7 @@ class NotificationType(enum.Enum):
     CHAT_MENTION = "CHAT_MENTION"
     DIRECT_MESSAGE = "DIRECT_MESSAGE"
     APP_FEEDBACK = "APP_FEEDBACK"
+    PICKUP_CONFIRMATION = "PICKUP_CONFIRMATION"
 
 class NotificationStatus(enum.Enum):
     UNREAD = "unread"

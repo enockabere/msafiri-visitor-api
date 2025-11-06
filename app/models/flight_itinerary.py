@@ -27,6 +27,7 @@ class FlightItinerary(BaseModel):
     
     # Status
     confirmed = Column(Boolean, default=False)
+    pickup_confirmed = Column(Boolean, default=False, nullable=False)
     
     # Ticket data (if extracted from uploaded ticket)
     ticket_record_id = Column(Integer, nullable=True)  # External API record ID

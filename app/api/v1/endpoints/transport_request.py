@@ -5,6 +5,7 @@ from app.db.database import get_db
 from app.models.transport_request import TransportRequest
 from app.models.flight_itinerary import FlightItinerary
 from app.models.user import User
+from app.models.notification import Notification, NotificationType, NotificationPriority
 from app.core.deps import get_current_user
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -154,12 +155,31 @@ def create_missing_transport_requests(
             event_id=itinerary.event_id,
             flight_itinerary_id=itinerary.id,
             user_email=current_user.email,
-            status="created"
+            status="booked"  # Set to booked so pickup confirmation can be triggered
         )
         
         db.add(transport_request)
         transport_requests_created.append(itinerary.itinerary_type)
         print(f"DEBUG API: Added {itinerary.itinerary_type} transport request")
+        
+        # Create pickup confirmation notification for same day or next day pickups
+        pickup_date = pickup_time.date()
+        today = datetime.now().date()
+        
+        if pickup_date <= today + timedelta(days=1):  # Today or tomorrow
+            notification = Notification(
+                user_email=current_user.email,
+                tenant_id=str(itinerary.event_id),
+                title="Transport Pickup Confirmation Required",
+                message=f"Please confirm your pickup for {itinerary.itinerary_type} transport on {pickup_date.strftime('%B %d')} at {pickup_time.strftime('%H:%M')} from {pickup_addr}.",
+                notification_type=NotificationType.PICKUP_CONFIRMATION,
+                priority=NotificationPriority.HIGH,
+                send_in_app=True,
+                send_push=True,
+                action_url=f"/movement?transport_id={transport_request.id}",
+                triggered_by="system"
+            )
+            db.add(notification)
     
     try:
         db.commit()
@@ -174,3 +194,80 @@ def create_missing_transport_requests(
         "transport_requests_created": transport_requests_created,
         "message": f"Created {len(transport_requests_created)} transport requests"
     }
+
+@router.post("/transport-requests/{request_id}/confirm-pickup")
+def confirm_pickup(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Confirm pickup for a transport request"""
+    
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.id == request_id,
+        TransportRequest.user_email == current_user.email
+    ).first()
+    
+    if not transport_request:
+        raise HTTPException(
+            status_code=404, 
+            detail="Transport request not found"
+        )
+    
+    # Update status to pickup confirmed
+    transport_request.status = "pickup_confirmed"
+    
+    # If there's an associated flight itinerary, mark it as pickup confirmed
+    if transport_request.flight_itinerary_id:
+        itinerary = db.query(FlightItinerary).filter(
+            FlightItinerary.id == transport_request.flight_itinerary_id
+        ).first()
+        if itinerary:
+            itinerary.pickup_confirmed = True
+    
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": "Pickup confirmed successfully"
+    }
+
+@router.get("/pending-pickup-confirmations")
+def get_pending_pickup_confirmations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get transport requests that need pickup confirmation for current user"""
+    
+    now = datetime.now()
+    today = now.date()
+    
+    # Get transport requests that are booked but not pickup confirmed
+    # and are scheduled for today or within 2 hours
+    pending_requests = db.query(TransportRequest).filter(
+        TransportRequest.user_email == current_user.email,
+        TransportRequest.status == "booked",
+        TransportRequest.pickup_time >= now - timedelta(hours=1),
+        TransportRequest.pickup_time <= now + timedelta(hours=2)
+    ).all()
+    
+    result = []
+    for req in pending_requests:
+        # Check if pickup time is within confirmation window
+        time_diff = req.pickup_time - now
+        hours_until_pickup = time_diff.total_seconds() / 3600
+        
+        if -1 <= hours_until_pickup <= 2:  # 1 hour after to 2 hours before
+            result.append({
+                "id": req.id,
+                "pickup_address": req.pickup_address,
+                "dropoff_address": req.dropoff_address,
+                "pickup_time": req.pickup_time.isoformat(),
+                "flight_details": req.flight_details,
+                "passenger_name": req.passenger_name,
+                "vehicle_type": req.vehicle_type,
+                "notes": req.notes,
+                "hours_until_pickup": round(hours_until_pickup, 1)
+            })
+    
+    return {"pending_confirmations": result}
