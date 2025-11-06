@@ -477,6 +477,13 @@ api_router.include_router(
     tags=["transport-request"]
 )
 
+# Also include under /transport prefix for mobile app compatibility
+api_router.include_router(
+    transport_request.router,
+    prefix="/transport",
+    tags=["transport-request-mobile"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
