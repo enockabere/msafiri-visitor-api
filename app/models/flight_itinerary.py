@@ -19,6 +19,9 @@ class FlightItinerary(BaseModel):
     # Departure-specific fields
     pickup_location = Column(String(255), nullable=True)  # For departure itineraries
     
+    # Arrival-specific fields
+    destination = Column(String(255), nullable=True)  # For arrival itineraries
+    
     # Itinerary type
     itinerary_type = Column(String(50), nullable=False)  # 'arrival', 'departure', 'custom'
     

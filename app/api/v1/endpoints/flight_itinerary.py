@@ -29,6 +29,7 @@ class ItineraryRequest(BaseModel):
     arrival_date: Optional[str] = None
     itinerary_type: str  # 'arrival', 'departure', 'custom'
     pickup_location: Optional[str] = None
+    destination: Optional[str] = None
 
 class ItineraryConfirmRequest(BaseModel):
     itinerary_ids: List[int]
@@ -205,7 +206,8 @@ async def create_itinerary(
         departure_date=datetime.fromisoformat(request.departure_date),
         arrival_date=datetime.fromisoformat(request.arrival_date) if request.arrival_date else None,
         itinerary_type=request.itinerary_type,
-        pickup_location=request.pickup_location
+        pickup_location=request.pickup_location,
+        destination=request.destination
     )
     
     db.add(itinerary)
@@ -244,7 +246,8 @@ async def get_itineraries(
                 "itinerary_type": it.itinerary_type,
                 "confirmed": it.confirmed,
                 "ticket_record_id": it.ticket_record_id,
-                "pickup_location": it.pickup_location
+                "pickup_location": it.pickup_location,
+                "destination": it.destination
             }
             for it in itineraries
         ]
@@ -293,6 +296,7 @@ async def update_itinerary(
     itinerary.arrival_date = datetime.fromisoformat(request.arrival_date) if request.arrival_date else None
     itinerary.itinerary_type = request.itinerary_type
     itinerary.pickup_location = request.pickup_location
+    itinerary.destination = request.destination
     
     db.commit()
     
@@ -359,6 +363,20 @@ async def delete_itinerary(
             status_code=404,
             detail="Itinerary not found"
         )
+    
+    # Check if trying to delete arrival itinerary when departure exists
+    if itinerary.itinerary_type == "arrival":
+        departure_exists = db.query(FlightItinerary).filter(
+            FlightItinerary.event_id == itinerary.event_id,
+            FlightItinerary.user_email == current_user.email,
+            FlightItinerary.itinerary_type == "departure"
+        ).first()
+        
+        if departure_exists:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete arrival itinerary when departure itinerary exists. Delete departure first."
+            )
     
     db.delete(itinerary)
     db.commit()
