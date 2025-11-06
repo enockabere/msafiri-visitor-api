@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.event_participant import EventParticipant
 from app.models.flight_itinerary import FlightItinerary
 from app.models.event import Event
+from app.models.transport_request import TransportRequest
 import requests
 import base64
 from datetime import datetime, timedelta
@@ -313,7 +314,9 @@ async def confirm_itineraries(
 ):
     """Confirm flight itineraries and mark ticket as complete"""
     
-    # Update itineraries as confirmed
+    transport_requests_created = []
+    
+    # Update itineraries as confirmed and create transport requests
     for itinerary_id in request.itinerary_ids:
         itinerary = db.query(FlightItinerary).filter(
             FlightItinerary.id == itinerary_id,
@@ -322,6 +325,45 @@ async def confirm_itineraries(
         
         if itinerary:
             itinerary.confirmed = True
+            
+            # Create transport request for this itinerary
+            if itinerary.itinerary_type == "arrival":
+                # For arrival flights: airport to destination
+                transport_request = TransportRequest(
+                    pickup_address=itinerary.arrival_airport or itinerary.departure_airport,
+                    dropoff_address=itinerary.destination or "Event Location",
+                    pickup_time=itinerary.arrival_date or itinerary.departure_date,
+                    passenger_name=current_user.full_name,
+                    passenger_phone=current_user.phone_number or "",
+                    passenger_email=current_user.email,
+                    vehicle_type="SUV",
+                    flight_details=f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip(),
+                    notes="Airport pickup for arrival flight",
+                    event_id=itinerary.event_id,
+                    flight_itinerary_id=itinerary.id,
+                    user_email=current_user.email
+                )
+                db.add(transport_request)
+                transport_requests_created.append("arrival")
+                
+            elif itinerary.itinerary_type == "departure":
+                # For departure flights: pickup location to airport
+                transport_request = TransportRequest(
+                    pickup_address=itinerary.pickup_location or "Event Location",
+                    dropoff_address=itinerary.departure_airport,
+                    pickup_time=itinerary.departure_date - timedelta(hours=2),  # 2 hours before flight
+                    passenger_name=current_user.full_name,
+                    passenger_phone=current_user.phone_number or "",
+                    passenger_email=current_user.email,
+                    vehicle_type="SUV",
+                    flight_details=f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip(),
+                    notes="Airport drop-off for departure flight",
+                    event_id=itinerary.event_id,
+                    flight_itinerary_id=itinerary.id,
+                    user_email=current_user.email
+                )
+                db.add(transport_request)
+                transport_requests_created.append("departure")
     
     # Update participant ticket status
     if request.itinerary_ids:
@@ -342,7 +384,8 @@ async def confirm_itineraries(
     
     return {
         "status": "success",
-        "message": "Itineraries confirmed and ticket marked as complete"
+        "message": "Itineraries confirmed and ticket marked as complete",
+        "transport_requests_created": transport_requests_created
     }
 
 @router.delete("/itinerary/{itinerary_id}")

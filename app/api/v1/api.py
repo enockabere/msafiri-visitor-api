@@ -470,6 +470,13 @@ api_router.include_router(
     tags=["google-maps"]
 )
 
+from app.api.v1.endpoints import transport_request
+api_router.include_router(
+    transport_request.router,
+    prefix="/transport",
+    tags=["transport-request"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
