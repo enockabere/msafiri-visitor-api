@@ -299,6 +299,27 @@ async def update_itinerary(
     itinerary.pickup_location = request.pickup_location
     itinerary.destination = request.destination
     
+    # Update corresponding transport request if it exists
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.flight_itinerary_id == itinerary_id,
+        TransportRequest.user_email == current_user.email
+    ).first()
+    
+    if transport_request:
+        print(f"DEBUG API: Updating transport request for itinerary {itinerary_id}")
+        
+        if itinerary.itinerary_type == "arrival":
+            transport_request.pickup_address = itinerary.arrival_airport or itinerary.departure_airport
+            transport_request.dropoff_address = itinerary.destination or "Event Location"
+            transport_request.pickup_time = itinerary.arrival_date or itinerary.departure_date
+        elif itinerary.itinerary_type == "departure":
+            transport_request.pickup_address = itinerary.pickup_location or "Event Location"
+            transport_request.dropoff_address = itinerary.departure_airport
+            transport_request.pickup_time = itinerary.departure_date - timedelta(hours=2)
+            
+        transport_request.flight_details = f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip()
+        print(f"DEBUG API: Updated transport request addresses and times")
+    
     db.commit()
     
     return {
