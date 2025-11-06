@@ -473,7 +473,7 @@ api_router.include_router(
 from app.api.v1.endpoints import transport_request
 api_router.include_router(
     transport_request.router,
-    prefix="/transport",
+    prefix="",
     tags=["transport-request"]
 )
 
