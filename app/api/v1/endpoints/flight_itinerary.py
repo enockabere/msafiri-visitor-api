@@ -224,10 +224,11 @@ async def get_itineraries(
                 "departure_airport": it.departure_airport,
                 "arrival_airport": it.arrival_airport,
                 "departure_date": it.departure_date.isoformat(),
-                "arrival_date": it.arrival_date.isoformat(),
+                "arrival_date": it.arrival_date.isoformat() if it.arrival_date else None,
                 "itinerary_type": it.itinerary_type,
                 "confirmed": it.confirmed,
-                "ticket_record_id": it.ticket_record_id
+                "ticket_record_id": it.ticket_record_id,
+                "pickup_location": it.pickup_location
             }
             for it in itineraries
         ]
