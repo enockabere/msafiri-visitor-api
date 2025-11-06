@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.core.database import get_db
+from app.db.database import get_db
 from app.models.transport_request import TransportRequest
 from app.models.flight_itinerary import FlightItinerary
 from app.models.user import User
