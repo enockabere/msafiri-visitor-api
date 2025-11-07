@@ -272,13 +272,12 @@ def create_event(
                 created_by=current_user.email
             )
         except Exception as e:
-            pass
-            # if "duplicate key value violates unique constraint" in str(e).lower() and "title" in str(e).lower():
-            #     raise HTTPException(
-            #         status_code=status.HTTP_400_BAD_REQUEST,
-            #         detail="An event with this title already exists. Please choose a different title."
-            #     )
-            # raise e
+            if "duplicate key value violates unique constraint" in str(e).lower() and "title" in str(e).lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="An event with this title already exists. Please choose a different title."
+                )
+            raise e
         
         # Send notifications to tenant admins
         from app.services.notification_service import send_event_notifications
