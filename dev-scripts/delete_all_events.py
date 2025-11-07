@@ -43,6 +43,7 @@ def delete_all_events():
             "DELETE FROM event_feedback WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM accommodation_bookings WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM transport_requests WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM flight_itineraries WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM chat_rooms WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM notifications WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM events"
