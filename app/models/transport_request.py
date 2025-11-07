@@ -35,6 +35,13 @@ class TransportRequest(BaseModel):
     # Status
     status = Column(String(50), default="pending")  # pending, confirmed, completed, cancelled
     
+    # Driver and vehicle details (populated when confirmed)
+    driver_name = Column(String(255), nullable=True)
+    driver_phone = Column(String(50), nullable=True)
+    vehicle_number = Column(String(50), nullable=True)
+    vehicle_color = Column(String(50), nullable=True)
+    booking_reference = Column(String(100), nullable=True)
+    
     # Relationships
     event = relationship("Event")
     flight_itinerary = relationship("FlightItinerary")

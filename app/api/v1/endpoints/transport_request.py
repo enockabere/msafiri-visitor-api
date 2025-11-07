@@ -101,6 +101,11 @@ def get_transport_requests_by_tenant(
             "event_id": req.event_id,
             "flight_itinerary_id": req.flight_itinerary_id,
             "user_email": req.user_email,
+            "driver_name": req.driver_name,
+            "driver_phone": req.driver_phone,
+            "vehicle_number": req.vehicle_number,
+            "vehicle_color": req.vehicle_color,
+            "booking_reference": req.booking_reference,
             "created_at": req.created_at.isoformat() if req.created_at else None,
             "updated_at": req.updated_at.isoformat() if req.updated_at else None,
             "event": {
@@ -142,6 +147,11 @@ def get_transport_requests_by_event(
             "event_id": req.event_id,
             "flight_itinerary_id": req.flight_itinerary_id,
             "user_email": req.user_email,
+            "driver_name": req.driver_name,
+            "driver_phone": req.driver_phone,
+            "vehicle_number": req.vehicle_number,
+            "vehicle_color": req.vehicle_color,
+            "booking_reference": req.booking_reference,
             "created_at": req.created_at.isoformat() if req.created_at else None
         } for req in requests
     ]}
@@ -453,7 +463,14 @@ def confirm_manual_request(
     
     try:
         # Update transport request with confirmation details
-        transport_request.status = "confirmed"
+        transport_request.status = "booked"  # Change to booked for mobile app
+        transport_request.driver_name = confirmation_data.driver_name
+        transport_request.driver_phone = confirmation_data.driver_phone
+        transport_request.vehicle_number = confirmation_data.number_plate
+        transport_request.vehicle_color = confirmation_data.vehicle_color
+        transport_request.vehicle_type = confirmation_data.vehicle_type
+        transport_request.booking_reference = f"CR{transport_request.id:06d}"
+        
         vehicle_info = f"Driver: {confirmation_data.driver_name}, Phone: {confirmation_data.driver_phone}, Vehicle: {confirmation_data.vehicle_type}"
         if confirmation_data.vehicle_color:
             vehicle_info += f" ({confirmation_data.vehicle_color})"
