@@ -341,7 +341,7 @@ def book_with_absolute_cabs(
             detail="Transport request not found"
         )
     
-    if transport_request.status != "pending":
+    if transport_request.status not in ["pending", "created"]:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot book request with status: {transport_request.status}"
@@ -391,7 +391,7 @@ def create_manual_booking(
             detail="Transport request not found"
         )
     
-    if transport_request.status != "pending":
+    if transport_request.status not in ["pending", "created"]:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot book request with status: {transport_request.status}"
