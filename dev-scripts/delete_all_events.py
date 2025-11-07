@@ -19,12 +19,6 @@ def delete_all_events():
         print("⚠️  WARNING: This will delete ALL events for ALL tenants!")
         print("This action cannot be undone.")
         
-        # Get confirmation
-        confirm = input("Type 'DELETE ALL EVENTS' to confirm: ")
-        if confirm != "DELETE ALL EVENTS":
-            print("❌ Operation cancelled")
-            return
-        
         # Get event count first
         result = db.execute(text("SELECT COUNT(*) FROM events"))
         event_count = result.scalar()
@@ -42,6 +36,7 @@ def delete_all_events():
         deletion_queries = [
             "DELETE FROM participant_qr_codes WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id IN (SELECT id FROM events))",
             "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id IN (SELECT id FROM events))",
+            "DELETE FROM agenda_feedback WHERE agenda_id IN (SELECT id FROM event_agenda WHERE event_id IN (SELECT id FROM events))",
             "DELETE FROM event_participants WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM events)", 
             "DELETE FROM event_agenda WHERE event_id IN (SELECT id FROM events)",
