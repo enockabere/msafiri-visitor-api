@@ -419,3 +419,64 @@ def create_manual_booking(
             status_code=500,
             detail=f"Failed to create manual booking: {str(e)}"
         )
+
+class ManualConfirmationRequest(BaseModel):
+    driver_name: str
+    driver_phone: str
+    vehicle_type: str
+    vehicle_color: str = None
+    number_plate: str
+
+@router.post("/transport-requests/{request_id}/confirm-manual")
+def confirm_manual_request(
+    request_id: int,
+    confirmation_data: ManualConfirmationRequest,
+    db: Session = Depends(get_db)
+):
+    """Confirm a transport request manually with vehicle details"""
+    
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.id == request_id
+    ).first()
+    
+    if not transport_request:
+        raise HTTPException(
+            status_code=404, 
+            detail="Transport request not found"
+        )
+    
+    if transport_request.status not in ["pending", "booked"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot confirm request with status: {transport_request.status}"
+        )
+    
+    try:
+        # Update transport request with confirmation details
+        transport_request.status = "confirmed"
+        vehicle_info = f"Driver: {confirmation_data.driver_name}, Phone: {confirmation_data.driver_phone}, Vehicle: {confirmation_data.vehicle_type}"
+        if confirmation_data.vehicle_color:
+            vehicle_info += f" ({confirmation_data.vehicle_color})"
+        vehicle_info += f", Plate: {confirmation_data.number_plate}"
+        
+        transport_request.notes = f"Confirmed - {vehicle_info}"
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "confirmation_reference": f"CR{transport_request.id:06d}",
+            "message": "Transport request confirmed successfully",
+            "driver_name": confirmation_data.driver_name,
+            "driver_phone": confirmation_data.driver_phone,
+            "vehicle_type": confirmation_data.vehicle_type,
+            "vehicle_color": confirmation_data.vehicle_color,
+            "number_plate": confirmation_data.number_plate
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to confirm request: {str(e)}"
+        )
