@@ -41,6 +41,7 @@ def delete_all_events():
         # Delete in correct order to respect foreign key constraints
         deletion_queries = [
             "DELETE FROM participant_qr_codes WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id IN (SELECT id FROM events))",
+            "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id IN (SELECT id FROM events))",
             "DELETE FROM event_participants WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM events)", 
             "DELETE FROM event_agenda WHERE event_id IN (SELECT id FROM events)",
