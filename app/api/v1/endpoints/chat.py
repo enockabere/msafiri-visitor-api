@@ -924,6 +924,45 @@ def get_total_unread_count(
             "group_unread": 0
         }
 
+@router.post("/rooms/{room_id}/mark-read")
+def mark_room_as_read(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark all group chat notifications as read for this room"""
+    try:
+        from app.models.notification import Notification, NotificationType
+        
+        # Get the room to get its name for matching notifications
+        room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+        if not room:
+            raise HTTPException(status_code=404, detail="Chat room not found")
+        
+        # Mark all unread chat notifications for this room as read
+        notifications_updated = db.query(Notification).filter(
+            and_(
+                Notification.user_id == current_user.id,
+                Notification.notification_type.in_([
+                    NotificationType.CHAT_MESSAGE,
+                    NotificationType.CHAT_MENTION
+                ]),
+                Notification.is_read == False,
+                # Match notifications for this specific chat room
+                Notification.title.like(f"%{room.name}%")
+            )
+        ).update({"is_read": True})
+        
+        db.commit()
+        
+        return {
+            "message": f"Marked {notifications_updated} notifications as read for room {room.name}",
+            "notifications_marked": notifications_updated
+        }
+    except Exception as e:
+        print(f"Error marking room as read: {e}")
+        raise HTTPException(status_code=500, detail="Failed to mark room as read")
+
 @router.get("/admins/", response_model=List[dict])
 def get_available_admins(
     db: Session = Depends(get_db),
