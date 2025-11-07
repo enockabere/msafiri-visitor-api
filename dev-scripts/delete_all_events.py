@@ -40,7 +40,6 @@ def delete_all_events():
             "DELETE FROM event_participants WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM events)", 
             "DELETE FROM event_agenda WHERE event_id IN (SELECT id FROM events)",
-            "DELETE FROM event_food_menus WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM event_feedback WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM accommodation_bookings WHERE event_id IN (SELECT id FROM events)",
             "DELETE FROM transport_requests WHERE event_id IN (SELECT id FROM events)",
@@ -59,9 +58,13 @@ def delete_all_events():
                     if table_name == "events":
                         total_deleted = result.rowcount
             except Exception as e:
-                print(f"   Warning: Query failed: {e}")
-                db.rollback()
-                return
+                table_name = query.split(" FROM ")[1].split(" ")[0]
+                if "does not exist" in str(e):
+                    print(f"   Skipped {table_name} (table does not exist)")
+                else:
+                    print(f"   Warning: Query failed for {table_name}: {e}")
+                    db.rollback()
+                    return
         
         # Commit all changes
         db.commit()
