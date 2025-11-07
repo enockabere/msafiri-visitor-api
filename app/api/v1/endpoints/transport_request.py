@@ -445,7 +445,7 @@ def confirm_manual_request(
             detail="Transport request not found"
         )
     
-    if transport_request.status not in ["pending", "booked"]:
+    if transport_request.status not in ["pending", "booked", "created"]:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot confirm request with status: {transport_request.status}"
