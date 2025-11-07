@@ -506,6 +506,16 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
+    # Delete associated chat rooms first to avoid foreign key constraint
+    try:
+        from app.models.chat import ChatRoom
+        chat_rooms = db.query(ChatRoom).filter(ChatRoom.event_id == event_id).all()
+        for chat_room in chat_rooms:
+            db.delete(chat_room)
+        logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to delete chat rooms: {str(e)}")
+    
     # Hard delete for draft events (since they haven't been published)
     logger.info(f"✅ Deleting draft event: {event_id}")
     db.delete(event)
