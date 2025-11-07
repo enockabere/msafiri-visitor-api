@@ -52,22 +52,20 @@ def delete_all_events():
         for query in deletion_queries:
             try:
                 result = db.execute(text(query))
+                table_name = query.split(" FROM ")[1].split(" ")[0]
                 if result.rowcount > 0:
-                    table_name = query.split(" FROM ")[1].split(" ")[0]
                     print(f"   Deleted {result.rowcount} records from {table_name}")
                     if table_name == "events":
                         total_deleted = result.rowcount
+                db.commit()  # Commit each successful deletion
             except Exception as e:
                 table_name = query.split(" FROM ")[1].split(" ")[0]
                 if "does not exist" in str(e):
                     print(f"   Skipped {table_name} (table does not exist)")
                 else:
                     print(f"   Warning: Query failed for {table_name}: {e}")
-                    db.rollback()
-                    return
-        
-        # Commit all changes
-        db.commit()
+                db.rollback()  # Rollback only this query
+                # Continue with next query
         
         print(f"✅ Successfully deleted {total_deleted} events and all related data")
         
