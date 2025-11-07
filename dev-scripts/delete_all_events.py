@@ -38,36 +38,39 @@ def delete_all_events():
         # Delete related data first (to avoid foreign key constraints)
         print("🗑️  Deleting related data...")
         
-        # Delete in order to respect foreign key constraints
-        tables_to_clear = [
-            "event_participants",
-            "event_attachments", 
-            "event_agenda",
-            "event_food_menus",
-            "event_feedback",
-            "accommodation_bookings",
-            "transport_requests",
-            "chat_rooms",
-            "notifications"
+        # Delete in correct order to respect foreign key constraints
+        deletion_queries = [
+            "DELETE FROM participant_qr_codes WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id IN (SELECT id FROM events))",
+            "DELETE FROM event_participants WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM event_attachments WHERE event_id IN (SELECT id FROM events)", 
+            "DELETE FROM event_agenda WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM event_food_menus WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM event_feedback WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM accommodation_bookings WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM transport_requests WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM chat_rooms WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM notifications WHERE event_id IN (SELECT id FROM events)",
+            "DELETE FROM events"
         ]
         
-        for table in tables_to_clear:
+        total_deleted = 0
+        for query in deletion_queries:
             try:
-                result = db.execute(text(f"DELETE FROM {table} WHERE event_id IN (SELECT id FROM events)"))
+                result = db.execute(text(query))
                 if result.rowcount > 0:
-                    print(f"   Deleted {result.rowcount} records from {table}")
+                    table_name = query.split(" FROM ")[1].split(" ")[0]
+                    print(f"   Deleted {result.rowcount} records from {table_name}")
+                    if table_name == "events":
+                        total_deleted = result.rowcount
             except Exception as e:
-                print(f"   Warning: Could not clear {table}: {e}")
-        
-        # Delete events
-        print("🗑️  Deleting events...")
-        result = db.execute(text("DELETE FROM events"))
-        deleted_count = result.rowcount
+                print(f"   Warning: Query failed: {e}")
+                db.rollback()
+                return
         
         # Commit all changes
         db.commit()
         
-        print(f"✅ Successfully deleted {deleted_count} events and all related data")
+        print(f"✅ Successfully deleted {total_deleted} events and all related data")
         
     except Exception as e:
         print(f"❌ Error: {e}")
