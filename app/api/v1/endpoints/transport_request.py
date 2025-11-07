@@ -253,7 +253,7 @@ def confirm_pickup(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Confirm pickup for a transport request"""
+    """Confirm pickup for a transport request - marks as completed"""
     
     transport_request = db.query(TransportRequest).filter(
         TransportRequest.id == request_id,
@@ -266,8 +266,8 @@ def confirm_pickup(
             detail="Transport request not found"
         )
     
-    # Update status to pickup confirmed
-    transport_request.status = "pickup_confirmed"
+    # Update status to completed when user confirms pickup
+    transport_request.status = "completed"
     
     # If there's an associated flight itinerary, mark it as pickup confirmed
     if transport_request.flight_itinerary_id:
