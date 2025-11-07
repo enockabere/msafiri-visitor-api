@@ -338,6 +338,30 @@ async def confirm_itineraries(
     print(f"DEBUG API: Confirming itineraries: {request.itinerary_ids}")
     transport_requests_created = []
     
+    # Validate itinerary limits: max 1 arrival and 1 departure per user per event
+    event_id = None
+    arrival_count = 0
+    departure_count = 0
+    
+    for itinerary_id in request.itinerary_ids:
+        itinerary = db.query(FlightItinerary).filter(
+            FlightItinerary.id == itinerary_id,
+            FlightItinerary.user_email == current_user.email
+        ).first()
+        
+        if itinerary:
+            event_id = itinerary.event_id
+            if itinerary.itinerary_type == "arrival":
+                arrival_count += 1
+            elif itinerary.itinerary_type == "departure":
+                departure_count += 1
+    
+    if arrival_count > 1 or departure_count > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot have more than 1 arrival and 1 departure itinerary per event"
+        )
+    
     # Update itineraries as confirmed and create transport requests
     for itinerary_id in request.itinerary_ids:
         itinerary = db.query(FlightItinerary).filter(
@@ -348,6 +372,16 @@ async def confirm_itineraries(
         if itinerary:
             print(f"DEBUG API: Processing itinerary {itinerary_id}, type: {itinerary.itinerary_type}")
             itinerary.confirmed = True
+            
+            # Check if transport request already exists for this itinerary
+            existing_transport = db.query(TransportRequest).filter(
+                TransportRequest.flight_itinerary_id == itinerary.id,
+                TransportRequest.user_email == current_user.email
+            ).first()
+            
+            if existing_transport:
+                print(f"DEBUG API: Transport request already exists for itinerary {itinerary.id}")
+                continue
             
             # Create transport request for this itinerary
             if itinerary.itinerary_type == "arrival":
