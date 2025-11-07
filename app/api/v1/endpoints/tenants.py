@@ -110,6 +110,10 @@ def create_tenant(
     tenant_data = tenant_in.dict()
     tenant_data["created_by"] = current_user.email
     
+    # Handle empty domain - convert to NULL to avoid unique constraint violation
+    if "domain" in tenant_data and (tenant_data["domain"] == "" or tenant_data["domain"] is None):
+        tenant_data["domain"] = None
+    
     # Note: additional_admin_emails field has been removed
     
     # Create tenant
@@ -162,6 +166,10 @@ def update_tenant(
     # Prepare update data
     update_data = tenant_update.changes.dict(exclude_unset=True)
     update_data["last_modified_by"] = current_user.email
+    
+    # Handle empty domain - convert to NULL to avoid unique constraint violation
+    if "domain" in update_data and (update_data["domain"] == "" or update_data["domain"] is None):
+        update_data["domain"] = None
     
     # Force updated_at to be set
     from sqlalchemy import func
