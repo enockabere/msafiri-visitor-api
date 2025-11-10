@@ -107,12 +107,17 @@ async def upload_passport(
         # Get the record ID but don't save it yet - only save after confirmation
         record_id = result["result"]["record_id"]
         
+        # Generate the public LOI URL
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        loi_url = f"{base_url}/public/loi/{record_id}"
+        
         print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
         
         return {
             "status": "success",
             "extracted_data": result["result"]["extracted_data"],
             "record_id": record_id,
+            "loi_url": loi_url,
             "message": "Passport data extracted successfully"
         }
         
@@ -185,6 +190,15 @@ async def confirm_passport(
             "x-api-key": API_KEY
         }
         
+        # Generate the public LOI URL
+        import os
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        loi_url = f"{base_url}/public/loi/{request.record_id}"
+        
+        print(f"🔗 PUBLIC LOI URL GENERATED: {loi_url}")
+        print(f"🔗 BASE URL FROM ENV: {base_url}")
+        print(f"🔗 RECORD ID: {request.record_id}")
+        
         payload = {
             "passport_no": request.passport_no,
             "given_names": request.given_names,
@@ -197,12 +211,16 @@ async def confirm_passport(
             "nationality": request.nationality,
             "user_email": request.user_email,
             "location_id": request.location_id,
-            "confirmed": request.confirmed
+            "confirmed": request.confirmed,
+            "url": loi_url
         }
+        
+        print(f"🔗 URL IN PAYLOAD: {payload['url']}")
         
         print(f"📤 SENDING TO EXTERNAL API: {API_URL}")
         print(f"📤 HEADERS: {headers}")
-        print(f"📤 PAYLOAD: {json.dumps(payload, indent=2)}")
+        print(f"📤 PAYLOAD WITH PUBLIC URL: {json.dumps(payload, indent=2)}")
+        print(f"📤 CONFIRMING URL BEING PATCHED: {payload['url']}")
         
         response = requests.patch(API_URL, json=payload, headers=headers, timeout=30)
         
@@ -271,15 +289,26 @@ async def confirm_passport(
         final_status = final_participant.passport_document if final_participant else False
         print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
+        # Generate the public LOI URL for mobile app
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        loi_url = f"{base_url}/public/loi/{request.record_id}"
+        
+        print(f"📱 MOBILE APP LOI URL: {loi_url}")
+        
         api_response = {
             "status": "success",
             "message": "Passport confirmed and checklist updated",
             "completion_status": final_status,
-            "participant_updated": completion_status
+            "participant_updated": completion_status,
+            "loi_url": loi_url,
+            "record_id": request.record_id
         }
         
         print(f"🏁 FINAL API RESPONSE TO MOBILE:")
         print(f"🏁 {json.dumps(api_response, indent=2)}")
+        print(f"🏁 LOI URL RETURNED TO MOBILE: {api_response['loi_url']}")
+        print(f"🏁 RECORD ID: {api_response['record_id']}")
+        print(f"🏁 FULL PUBLIC URL: http://41.90.97.253:8001/public/loi/{api_response['record_id']}")
         
         return api_response
         

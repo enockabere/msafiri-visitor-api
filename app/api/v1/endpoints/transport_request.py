@@ -9,6 +9,7 @@ from app.models.notification import Notification, NotificationType, Notification
 from app.core.deps import get_current_user
 from pydantic import BaseModel
 from datetime import datetime, timedelta
+from typing import List, Optional
 
 router = APIRouter()
 
@@ -340,6 +341,8 @@ def book_with_absolute_cabs(
     db: Session = Depends(get_db)
 ):
     """Book a transport request with Absolute Cabs"""
+    from app.services.absolute_cabs_service import get_absolute_cabs_service
+    from app.models.event import Event
     
     transport_request = db.query(TransportRequest).filter(
         TransportRequest.id == request_id
@@ -357,18 +360,64 @@ def book_with_absolute_cabs(
             detail=f"Cannot book request with status: {transport_request.status}"
         )
     
+    # Get tenant ID from event
+    event = db.query(Event).filter(Event.id == transport_request.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Get Absolute Cabs service
+    absolute_service = get_absolute_cabs_service(event.tenant_id, db)
+    if not absolute_service:
+        raise HTTPException(
+            status_code=400,
+            detail="Absolute Cabs not configured for this tenant"
+        )
+    
     try:
-        # Here you would integrate with Absolute Cabs API
-        # For now, we'll simulate a successful booking
+        # Prepare booking data for Absolute Cabs API
+        pickup_datetime = transport_request.pickup_time.strftime("%Y-%m-%d %H:%M")
         
-        # Update status to booked
+        booking_data = {
+            "vehicle_type": transport_request.vehicle_type or "SALOON",
+            "pickup_address": transport_request.pickup_address,
+            "pickup_latitude": transport_request.pickup_latitude or 0,
+            "pickup_longitude": transport_request.pickup_longitude or 0,
+            "dropoff_address": transport_request.dropoff_address,
+            "dropoff_latitude": transport_request.dropoff_latitude or 0,
+            "dropoff_longitude": transport_request.dropoff_longitude or 0,
+            "pickup_time": pickup_datetime,
+            "flightdetails": transport_request.flight_details or "",
+            "passengers": [
+                {
+                    "name": transport_request.passenger_name,
+                    "telephone": transport_request.passenger_phone,
+                    "email": transport_request.passenger_email or ""
+                }
+            ],
+            "notes": transport_request.notes or "MSF Event Transport"
+        }
+        
+        # Create booking with Absolute Cabs
+        api_response = absolute_service.create_booking(booking_data)
+        
+        # Extract booking reference
+        booking_ref = None
+        if "booking" in api_response and "ref_no" in api_response["booking"]:
+            booking_ref = api_response["booking"]["ref_no"]
+        elif "ref_no" in api_response:
+            booking_ref = api_response["ref_no"]
+        
+        # Update transport request
         transport_request.status = "booked"
+        transport_request.booking_reference = booking_ref or f"AC{transport_request.id:06d}"
+        
         db.commit()
         
         return {
             "success": True,
-            "booking_reference": f"AC{transport_request.id:06d}",
-            "message": "Transport request booked successfully with Absolute Cabs"
+            "booking_reference": transport_request.booking_reference,
+            "message": "Transport request booked successfully with Absolute Cabs",
+            "api_response": api_response
         }
         
     except Exception as e:
@@ -497,3 +546,243 @@ def confirm_manual_request(
             status_code=500,
             detail=f"Failed to confirm request: {str(e)}"
         )
+
+@router.get("/transport-requests/tenant/{tenant_id}/vehicle-types")
+def get_vehicle_types(
+    tenant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get available vehicle types from Absolute Cabs"""
+    from app.services.absolute_cabs_service import get_absolute_cabs_service
+    
+    absolute_service = get_absolute_cabs_service(tenant_id, db)
+    if not absolute_service:
+        # Return default vehicle types if service not configured
+        return {
+            "vehicle_types": [
+                {"id": 1, "type": "Saloon", "seats": 4},
+                {"id": 2, "type": "SUV", "seats": 6},
+                {"id": 3, "type": "Van", "seats": 8},
+                {"id": 4, "type": "Bus", "seats": 14}
+            ]
+        }
+    
+    try:
+        vehicle_types = absolute_service.get_vehicle_types()
+        return {"vehicle_types": vehicle_types}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch vehicle types: {str(e)}"
+        )
+
+class PooledBookingRequest(BaseModel):
+    request_ids: List[int]
+    vehicle_type: str
+    notes: Optional[str] = None
+
+@router.post("/transport-requests/pool-booking")
+def create_pooled_booking(
+    pooled_request: PooledBookingRequest,
+    db: Session = Depends(get_db)
+):
+    """Create a pooled booking for multiple transport requests"""
+    from app.services.absolute_cabs_service import get_absolute_cabs_service
+    from app.models.event import Event
+    
+    if len(pooled_request.request_ids) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="At least 2 requests required for pooling"
+        )
+    
+    # Get all transport requests
+    transport_requests = db.query(TransportRequest).filter(
+        TransportRequest.id.in_(pooled_request.request_ids)
+    ).all()
+    
+    if len(transport_requests) != len(pooled_request.request_ids):
+        raise HTTPException(
+            status_code=404,
+            detail="One or more transport requests not found"
+        )
+    
+    # Validate all requests are pending/created
+    for req in transport_requests:
+        if req.status not in ["pending", "created"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Request {req.id} has status {req.status}, cannot pool"
+            )
+    
+    # Get tenant ID from first request's event
+    event = db.query(Event).filter(Event.id == transport_requests[0].event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Get Absolute Cabs service
+    absolute_service = get_absolute_cabs_service(event.tenant_id, db)
+    if not absolute_service:
+        raise HTTPException(
+            status_code=400,
+            detail="Absolute Cabs not configured for this tenant"
+        )
+    
+    try:
+        # Use the earliest pickup time and first pickup location
+        earliest_request = min(transport_requests, key=lambda x: x.pickup_time)
+        pickup_datetime = earliest_request.pickup_time.strftime("%Y-%m-%d %H:%M")
+        
+        # Collect all passengers
+        passengers = []
+        flight_details = []
+        for req in transport_requests:
+            passengers.append({
+                "name": req.passenger_name,
+                "telephone": req.passenger_phone,
+                "email": req.passenger_email or ""
+            })
+            if req.flight_details:
+                flight_details.append(req.flight_details)
+        
+        # Create pooled booking data
+        booking_data = {
+            "vehicle_type": pooled_request.vehicle_type,
+            "pickup_address": earliest_request.pickup_address,
+            "pickup_latitude": earliest_request.pickup_latitude or 0,
+            "pickup_longitude": earliest_request.pickup_longitude or 0,
+            "dropoff_address": earliest_request.dropoff_address,
+            "dropoff_latitude": earliest_request.dropoff_latitude or 0,
+            "dropoff_longitude": earliest_request.dropoff_longitude or 0,
+            "pickup_time": pickup_datetime,
+            "flightdetails": "; ".join(flight_details) if flight_details else "",
+            "passengers": passengers,
+            "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip()
+        }
+        
+        # Create booking with Absolute Cabs
+        api_response = absolute_service.create_booking(booking_data)
+        
+        # Extract booking reference
+        booking_ref = None
+        if "booking" in api_response and "ref_no" in api_response["booking"]:
+            booking_ref = api_response["booking"]["ref_no"]
+        elif "ref_no" in api_response:
+            booking_ref = api_response["ref_no"]
+        
+        # Update all transport requests with same booking reference
+        shared_ref = booking_ref or f"POOL{earliest_request.id:06d}"
+        for req in transport_requests:
+            req.status = "booked"
+            req.booking_reference = shared_ref
+            req.vehicle_type = pooled_request.vehicle_type
+            req.notes = f"Pooled booking - {req.notes or ''}".strip()
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "booking_reference": shared_ref,
+            "pooled_requests": len(transport_requests),
+            "passengers": len(passengers),
+            "message": f"Successfully created pooled booking for {len(passengers)} passengers",
+            "api_response": api_response
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create pooled booking: {str(e)}"
+        )
+
+@router.get("/transport-requests/tenant/{tenant_id}/pooling-suggestions")
+def get_pooling_suggestions(
+    tenant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get suggestions for pooling transport requests"""
+    from app.models.event import Event
+    from geopy.distance import geodesic
+    
+    # Get all events for this tenant
+    events = db.query(Event).filter(Event.tenant_id == tenant_id).all()
+    event_ids = [event.id for event in events]
+    
+    if not event_ids:
+        return {"suggestions": []}
+    
+    # Get pending transport requests
+    pending_requests = db.query(TransportRequest).filter(
+        TransportRequest.event_id.in_(event_ids),
+        TransportRequest.status.in_(["pending", "created"])
+    ).all()
+    
+    if len(pending_requests) < 2:
+        return {"suggestions": []}
+    
+    suggestions = []
+    processed_requests = set()
+    
+    for i, req1 in enumerate(pending_requests):
+        if req1.id in processed_requests:
+            continue
+            
+        pool_group = [req1]
+        processed_requests.add(req1.id)
+        
+        for j, req2 in enumerate(pending_requests[i+1:], i+1):
+            if req2.id in processed_requests:
+                continue
+                
+            # Check time proximity (within 30 minutes)
+            time_diff = abs((req1.pickup_time - req2.pickup_time).total_seconds() / 60)
+            if time_diff > 30:
+                continue
+                
+            # Check location proximity if coordinates available
+            if (req1.pickup_latitude and req1.pickup_longitude and 
+                req2.pickup_latitude and req2.pickup_longitude):
+                pickup_distance = geodesic(
+                    (req1.pickup_latitude, req1.pickup_longitude),
+                    (req2.pickup_latitude, req2.pickup_longitude)
+                ).kilometers
+                
+                if (req1.dropoff_latitude and req1.dropoff_longitude and 
+                    req2.dropoff_latitude and req2.dropoff_longitude):
+                    dropoff_distance = geodesic(
+                        (req1.dropoff_latitude, req1.dropoff_longitude),
+                        (req2.dropoff_latitude, req2.dropoff_longitude)
+                    ).kilometers
+                    
+                    # Pool if pickup within 2km and dropoff within 5km
+                    if pickup_distance <= 2 and dropoff_distance <= 5:
+                        pool_group.append(req2)
+                        processed_requests.add(req2.id)
+            else:
+                # Fallback to address similarity if no coordinates
+                if (req1.pickup_address.lower() in req2.pickup_address.lower() or
+                    req2.pickup_address.lower() in req1.pickup_address.lower()):
+                    pool_group.append(req2)
+                    processed_requests.add(req2.id)
+        
+        # Only suggest if we have 2+ requests in the group
+        if len(pool_group) >= 2:
+            suggestions.append({
+                "group_id": f"pool_{req1.id}",
+                "requests": [
+                    {
+                        "id": req.id,
+                        "passenger_name": req.passenger_name,
+                        "pickup_address": req.pickup_address,
+                        "dropoff_address": req.dropoff_address,
+                        "pickup_time": req.pickup_time.isoformat(),
+                        "flight_details": req.flight_details
+                    } for req in pool_group
+                ],
+                "passenger_count": len(pool_group),
+                "time_window": f"{min(req.pickup_time for req in pool_group).strftime('%H:%M')} - {max(req.pickup_time for req in pool_group).strftime('%H:%M')}",
+                "suggested_vehicle": "Van" if len(pool_group) > 4 else "SUV"
+            })
+    
+    return {"suggestions": suggestions}

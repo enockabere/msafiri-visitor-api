@@ -484,6 +484,20 @@ api_router.include_router(
     tags=["transport-request-mobile"]
 )
 
+from app.api.v1.endpoints import loi
+api_router.include_router(
+    loi.router,
+    prefix="/loi",
+    tags=["loi"]
+)
+
+from app.api.v1.endpoints import mobile_allocations
+api_router.include_router(
+    mobile_allocations.router,
+    prefix="/mobile-allocations",
+    tags=["mobile-allocations"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
