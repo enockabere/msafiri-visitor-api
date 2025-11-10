@@ -298,6 +298,51 @@ def create_event(
             logger.info(f"✅ Auto-created chat room for event: {event.title}")
         except Exception as e:
             logger.warning(f"⚠️ Failed to create chat room for event: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        
+        # Auto-create vendor event accommodation setup if vendor is specified
+        try:
+            if event.vendor_accommodation_id and event.single_rooms is not None and event.double_rooms is not None:
+                from app.models.guesthouse import VendorEventAccommodation
+                
+                # Check if setup already exists
+                existing_setup = db.query(VendorEventAccommodation).filter(
+                    VendorEventAccommodation.vendor_accommodation_id == event.vendor_accommodation_id,
+                    VendorEventAccommodation.event_id == event.id,
+                    VendorEventAccommodation.tenant_id == tenant_obj.id
+                ).first()
+                
+                if not existing_setup:
+                    total_capacity = event.single_rooms + (event.double_rooms * 2)
+                    
+                    vendor_setup = VendorEventAccommodation(
+                        tenant_id=tenant_obj.id,
+                        vendor_accommodation_id=event.vendor_accommodation_id,
+                        event_id=event.id,
+                        event_name=event.title,
+                        single_rooms=event.single_rooms,
+                        double_rooms=event.double_rooms,
+                        total_capacity=total_capacity,
+                        current_occupants=0,
+                        is_active=True,
+                        created_by=current_user.email
+                    )
+                    
+                    db.add(vendor_setup)
+                    logger.info(f"✅ Auto-created vendor event accommodation setup for event: {event.title}")
+                    logger.info(f"📊 Room allocation: {event.single_rooms} single, {event.double_rooms} double rooms")
+                    
+                    # Refresh automatic room booking for any existing confirmed participants
+                    try:
+                        from app.services.automatic_room_booking_service import refresh_automatic_room_booking
+                        refresh_automatic_room_booking(db, event.id, tenant_obj.id)
+                    except Exception as booking_error:
+                        logger.warning(f"⚠️ Failed to refresh room booking during event creation: {str(booking_error)}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to create vendor event accommodation setup: {str(e)}")
+            import traceback
+            traceback.print_exc()
         
         db.commit()
         
@@ -423,9 +468,12 @@ def update_event(
     *,
     db: Session = Depends(get_db),
     event_id: int,
-    event_update: schemas.EventUpdate
+    event_update: schemas.EventUpdate,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Update event."""
+    import logging
+    logger = logging.getLogger(__name__)
     
     event = crud.event.get(db, id=event_id)
     if not event:
@@ -434,7 +482,118 @@ def update_event(
             detail="Event not found"
         )
     
+    logger.info(f"🔄 Updating event {event_id}: {event.title}")
+    
+    # Check if room allocation is being updated
+    room_allocation_changed = False
+    old_single_rooms = event.single_rooms
+    old_double_rooms = event.double_rooms
+    old_vendor_id = event.vendor_accommodation_id
+    
+    # Get the update data
+    update_data = event_update.dict(exclude_unset=True)
+    new_single_rooms = update_data.get('single_rooms', old_single_rooms)
+    new_double_rooms = update_data.get('double_rooms', old_double_rooms)
+    new_vendor_id = update_data.get('vendor_accommodation_id', old_vendor_id)
+    
+    if (old_single_rooms != new_single_rooms or 
+        old_double_rooms != new_double_rooms or 
+        old_vendor_id != new_vendor_id):
+        room_allocation_changed = True
+        logger.info(f"🏨 Room allocation changed:")
+        logger.info(f"   Single rooms: {old_single_rooms} → {new_single_rooms}")
+        logger.info(f"   Double rooms: {old_double_rooms} → {new_double_rooms}")
+        logger.info(f"   Vendor ID: {old_vendor_id} → {new_vendor_id}")
+    
+    # Update the event
     updated_event = crud.event.update(db, db_obj=event, obj_in=event_update)
+    
+    # Refresh vendor event accommodation setup if room allocation changed
+    if room_allocation_changed and new_vendor_id:
+        try:
+            from app.models.guesthouse import VendorEventAccommodation
+            
+            logger.info(f"🔄 Refreshing vendor event accommodation setup...")
+            
+            # Find existing setup
+            existing_setup = db.query(VendorEventAccommodation).filter(
+                VendorEventAccommodation.event_id == event_id,
+                VendorEventAccommodation.tenant_id == updated_event.tenant_id
+            ).first()
+            
+            if existing_setup:
+                # Check if we can update (no current occupants or reducing capacity safely)
+                new_total_capacity = new_single_rooms + (new_double_rooms * 2)
+                
+                if existing_setup.current_occupants > new_total_capacity:
+                    logger.warning(f"⚠️ Cannot reduce capacity below current occupants ({existing_setup.current_occupants})")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cannot reduce room capacity below current occupants ({existing_setup.current_occupants}). Please reassign participants first."
+                    )
+                
+                # Update existing setup
+                existing_setup.vendor_accommodation_id = new_vendor_id
+                existing_setup.single_rooms = new_single_rooms
+                existing_setup.double_rooms = new_double_rooms
+                existing_setup.total_capacity = new_total_capacity
+                existing_setup.event_name = updated_event.title
+                
+                logger.info(f"✅ Updated existing vendor event accommodation setup")
+                logger.info(f"📊 New allocation: {new_single_rooms} single, {new_double_rooms} double rooms")
+                
+            else:
+                # Create new setup if none exists
+                if new_single_rooms is not None and new_double_rooms is not None:
+                    total_capacity = new_single_rooms + (new_double_rooms * 2)
+                    
+                    vendor_setup = VendorEventAccommodation(
+                        tenant_id=updated_event.tenant_id,
+                        vendor_accommodation_id=new_vendor_id,
+                        event_id=event_id,
+                        event_name=updated_event.title,
+                        single_rooms=new_single_rooms,
+                        double_rooms=new_double_rooms,
+                        total_capacity=total_capacity,
+                        current_occupants=0,
+                        is_active=True,
+                        created_by=current_user.email
+                    )
+                    
+                    db.add(vendor_setup)
+                    logger.info(f"✅ Created new vendor event accommodation setup")
+                    logger.info(f"📊 Room allocation: {new_single_rooms} single, {new_double_rooms} double rooms")
+            
+            db.commit()
+            
+            # Refresh automatic room booking for confirmed participants
+            try:
+                from app.services.automatic_room_booking_service import refresh_automatic_room_booking
+                
+                logger.info(f"🔄 Refreshing automatic room assignments...")
+                success = refresh_automatic_room_booking(db, event_id, updated_event.tenant_id)
+                
+                if success:
+                    logger.info(f"✅ Automatic room booking refresh completed successfully")
+                else:
+                    logger.warning(f"⚠️ Automatic room booking refresh failed")
+                    
+            except Exception as e:
+                logger.error(f"💥 Error during automatic room booking refresh: {str(e)}")
+                # Don't fail the update if room reassignment fails
+                logger.warning(f"⚠️ Event updated but automatic room reassignment failed")
+            
+            logger.info(f"🔄 Room booking refresh completed for event {event_id}")
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"💥 Failed to refresh vendor event accommodation setup: {str(e)}")
+            # Don't fail the entire update if accommodation setup fails
+            logger.warning(f"⚠️ Event updated but accommodation setup refresh failed")
+            import traceback
+            traceback.print_exc()
+    
     return updated_event
 
 @router.delete("/{event_id}")
@@ -1111,3 +1270,63 @@ def test_simulate_selection(
         db.commit()
         db.refresh(new_participation)
         return {"message": f"Created new participation as selected", "participant_id": new_participation.id}
+
+@router.post("/{event_id}/refresh-room-booking")
+def refresh_event_room_booking(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Manually refresh automatic room booking for an event"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Check permissions
+    user_roles = db.query(UserRoleModel).filter(
+        UserRoleModel.user_id == current_user.id,
+        UserRoleModel.is_active == True
+    ).all()
+    
+    has_single_role_permission = can_create_events(current_user.role)
+    has_relationship_role_permission = can_create_events_by_relationship_roles(user_roles)
+    
+    if not has_single_role_permission and not has_relationship_role_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin roles can refresh room booking"
+        )
+    
+    # Get event
+    event = crud.event.get(db, id=event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    logger.info(f"🔄 Manual room booking refresh requested for event {event_id}: {event.title}")
+    
+    try:
+        from app.services.automatic_room_booking_service import refresh_automatic_room_booking
+        
+        success = refresh_automatic_room_booking(db, event_id, event.tenant_id)
+        
+        if success:
+            return {
+                "message": "Room booking refreshed successfully",
+                "event_id": event_id,
+                "event_title": event.title
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to refresh room booking"
+            )
+            
+    except Exception as e:
+        logger.error(f"💥 Error refreshing room booking for event {event_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error refreshing room booking: {str(e)}"
+        )
