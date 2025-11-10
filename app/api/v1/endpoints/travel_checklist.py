@@ -67,8 +67,14 @@ async def save_checklist_progress(
 ):
     """Save travel checklist progress for current user and event"""
     
-    print(f"💾 CHECKLIST SAVE: User={current_user.email}, Event={event_id}")
-    print(f"💾 CHECKLIST SAVE: Completed={progress_data.completed}, Items={progress_data.checklist_items}")
+    print(f"🔥 API DEBUG: === CHECKLIST SAVE REQUEST ===")
+    print(f"💾 API DEBUG: User={current_user.email}, Event={event_id}")
+    print(f"💾 API DEBUG: Completed={progress_data.completed}")
+    print(f"💾 API DEBUG: Items received: {progress_data.checklist_items}")
+    
+    # Analyze each item
+    for key, value in progress_data.checklist_items.items():
+        print(f"   📝 API DEBUG: {key} = {value} (type: {type(value)})")
     
     # Check if progress already exists
     existing_progress = db.query(TravelChecklistProgress).filter(
@@ -77,12 +83,16 @@ async def save_checklist_progress(
     ).first()
     
     if existing_progress:
-        print(f"💾 CHECKLIST SAVE: Updating existing progress record")
+        print(f"💾 API DEBUG: Updating existing progress record")
+        print(f"💾 API DEBUG: Old items: {existing_progress.checklist_items}")
+        print(f"💾 API DEBUG: Old completed: {existing_progress.completed}")
         # Update existing progress
         existing_progress.checklist_items = progress_data.checklist_items
         existing_progress.completed = progress_data.completed
+        print(f"💾 API DEBUG: New items: {existing_progress.checklist_items}")
+        print(f"💾 API DEBUG: New completed: {existing_progress.completed}")
     else:
-        print(f"💾 CHECKLIST SAVE: Creating new progress record")
+        print(f"💾 API DEBUG: Creating new progress record")
         # Create new progress record
         new_progress = TravelChecklistProgress(
             event_id=event_id,
@@ -91,9 +101,11 @@ async def save_checklist_progress(
             completed=progress_data.completed
         )
         db.add(new_progress)
+        print(f"💾 API DEBUG: Created new record with items: {new_progress.checklist_items}")
     
     db.commit()
-    print(f"✅ CHECKLIST SAVE SUCCESS: User={current_user.email}, Event={event_id}, Completed={progress_data.completed}")
+    print(f"✅ API DEBUG: CHECKLIST SAVE SUCCESS: User={current_user.email}, Event={event_id}, Completed={progress_data.completed}")
+    print(f"🔥 API DEBUG: === END CHECKLIST SAVE ===")
     return {"message": "Progress saved successfully"}
 
 @router.get("/progress/{event_id}/{participant_email}")
@@ -105,6 +117,10 @@ async def get_participant_checklist_progress(
 ):
     """Get travel checklist progress for a specific participant (admin only)"""
     
+    print(f"🔍 PORTAL DEBUG: === CHECKLIST GET REQUEST ===")
+    print(f"💾 PORTAL DEBUG: Requesting progress for participant={participant_email}, event={event_id}")
+    print(f"💾 PORTAL DEBUG: Requested by admin={current_user.email}")
+    
     # Check if current user has admin permissions for this event
     # For now, allow any authenticated user to view progress
     
@@ -114,7 +130,19 @@ async def get_participant_checklist_progress(
     ).first()
     
     if not progress:
+        print(f"❌ PORTAL DEBUG: No progress found for participant={participant_email}, event={event_id}")
         return {"checklist_items": {}, "completed": False}
+    
+    print(f"✅ PORTAL DEBUG: Found progress for participant={participant_email}")
+    print(f"💾 PORTAL DEBUG: Completed={progress.completed}")
+    print(f"💾 PORTAL DEBUG: Items: {progress.checklist_items}")
+    print(f"💾 PORTAL DEBUG: Updated at: {progress.updated_at}")
+    
+    # Analyze each item
+    for key, value in (progress.checklist_items or {}).items():
+        print(f"   📝 PORTAL DEBUG: {key} = {value} (type: {type(value)})")
+    
+    print(f"🔥 PORTAL DEBUG: === END CHECKLIST GET ===")
     
     return {
         "checklist_items": progress.checklist_items,
