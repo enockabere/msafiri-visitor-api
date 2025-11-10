@@ -310,9 +310,9 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         print(f"NOTIFICATION STATS: User {user_id}, Tenant {tenant_id}, Total: {total}, Unread: {unread}, Urgent: {urgent}")
         
         return {
-            "total_count": total,
-            "unread_count": unread,
-            "urgent_count": urgent
+            "total": total,
+            "unread": unread,
+            "urgent": urgent
         }
     
     def _send_notification(self, db: Session, notification: Notification):
