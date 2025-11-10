@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, or_
 from app.models.news_update import NewsUpdate
 from app.schemas.news_update import NewsUpdateCreate, NewsUpdateUpdate
-from datetime import datetime
+from datetime import datetime, timezone
 
 def create_news_update(
     db: Session, 
@@ -15,7 +15,7 @@ def create_news_update(
     
     # Set published_at if publishing immediately
     if news_data.get('is_published', False):
-        news_data['published_at'] = datetime.utcnow()
+        news_data['published_at'] = datetime.now(timezone.utc)
     
     db_news_update = NewsUpdate(
         **news_data,
@@ -86,7 +86,7 @@ def update_news_update(
     # Handle publishing logic
     if 'is_published' in update_data and update_data['is_published']:
         if not db_news_update.published_at:
-            update_data['published_at'] = datetime.utcnow()
+            update_data['published_at'] = datetime.now(timezone.utc)
     elif 'is_published' in update_data and not update_data['is_published']:
         update_data['published_at'] = None
     
@@ -109,7 +109,7 @@ def publish_news_update(
     
     db_news_update.is_published = is_published
     if is_published and not db_news_update.published_at:
-        db_news_update.published_at = datetime.utcnow()
+        db_news_update.published_at = datetime.now(timezone.utc)
     elif not is_published:
         db_news_update.published_at = None
     
