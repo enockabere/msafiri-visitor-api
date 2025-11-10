@@ -51,17 +51,26 @@ async def get_participant_loi(
             'Accept': 'application/json',
         }
         
-        response = requests.get(API_URL, headers=headers, timeout=30)
+        payload = {"passport_id": passport_record.record_id}
+        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
         
         if response.status_code == 200:
-            loi_data = response.json()
-            return {
-                "participant_email": participant_email,
-                "participant_name": participant.full_name,
-                "event_id": event_id,
-                "record_id": passport_record.record_id,
-                "loi_data": loi_data
-            }
+            response_data = response.json()
+            # Extract data from JSON-RPC response structure
+            if response_data.get('result', {}).get('status') == 'success':
+                loi_data = response_data['result']['data']
+                return {
+                    "participant_email": participant_email,
+                    "participant_name": participant.full_name,
+                    "event_id": event_id,
+                    "record_id": passport_record.record_id,
+                    "loi_data": loi_data
+                }
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to fetch LOI data from external API"
+                )
         else:
             raise HTTPException(
                 status_code=response.status_code,
@@ -88,10 +97,19 @@ async def get_loi_by_record_id(record_id: int):
             'Accept': 'application/json',
         }
         
-        response = requests.get(API_URL, headers=headers, timeout=30)
+        payload = {"passport_id": record_id}
+        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
         
         if response.status_code == 200:
-            return response.json()
+            response_data = response.json()
+            # Extract data from JSON-RPC response structure
+            if response_data.get('result', {}).get('status') == 'success':
+                return response_data['result']['data']
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to fetch LOI data from external API"
+                )
         else:
             raise HTTPException(
                 status_code=response.status_code,
