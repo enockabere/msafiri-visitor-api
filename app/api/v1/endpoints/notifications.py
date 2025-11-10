@@ -43,7 +43,7 @@ class BroadcastRequest(BaseModel):
     action_url: Optional[str] = None
 
 class RegistrationEmailRequest(BaseModel):
-    to_email: str
+    to_email: str  # Can be comma-separated emails
     cc_emails: Optional[List[str]] = []
     subject: str
     message: str
@@ -582,8 +582,9 @@ def send_registration_email(
         Médecins Sans Frontières (MSF)
         """
         
-        # Prepare recipient list
-        recipients = [email_data.to_email]
+        # Prepare recipient list - handle comma-separated to_email
+        to_emails = [email.strip() for email in email_data.to_email.split(',') if email.strip()]
+        recipients = to_emails
         if email_data.cc_emails:
             recipients.extend(email_data.cc_emails)
         
