@@ -9,7 +9,7 @@ from app.models.event import Event
 from app.models.user_roles import UserRole
 from app.models.role import Role
 from app.schemas.user import UserCreate
-from app.crud.user import create_user, get_user_by_email
+from app.crud.user import get_user_by_email
 from app.crud.role import get_role_by_name
 from app.crud.user_roles import create_user_role
 from pydantic import BaseModel, EmailStr
@@ -65,13 +65,18 @@ async def create_voucher_scanner(
         
         if not existing_user:
             # Create new user with scanner role
-            user_create = UserCreate(
+            from app.models.user import User
+            from app.core.security import get_password_hash
+            
+            new_user = User(
                 email=scanner_data.email,
                 full_name=scanner_data.name or scanner_data.email,
-                password="TempPassword123!",  # Temporary password
+                hashed_password=get_password_hash("TempPassword123!"),
                 is_active=True
             )
-            new_user = create_user(db, user_create)
+            db.add(new_user)
+            db.commit()
+            db.refresh(new_user)
             user_id = new_user.id
             
             # Get or create voucher_scanner role
