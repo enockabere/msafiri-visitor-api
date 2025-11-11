@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List, Optional
 from app.db.database import get_db
 from app.models.user import User
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
-from app.models.event_allocation import EventAllocation
+from app.models.allocation import EventAllocation
 from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
 from app.models.user_roles import UserRole, RoleType
 from pydantic import BaseModel
@@ -54,43 +55,48 @@ async def get_scanner_events(
         if not scanner_role:
             return []
         
-        # Get all events with allocations (voucher events)
+        # Get all events with voucher allocations
         events_with_allocations = db.query(Event).join(
             EventAllocation, Event.id == EventAllocation.event_id
         ).filter(
-            EventAllocation.allocation_type == "voucher"
+            EventAllocation.drink_vouchers_per_participant > 0
         ).distinct().all()
         
         scanner_events = []
         
         for event in events_with_allocations:
-            # Get all participants for this event with voucher allocations
-            participants_query = db.query(
-                EventParticipant,
-                EventAllocation
-            ).join(
-                EventAllocation, 
-                EventParticipant.id == EventAllocation.participant_id
-            ).filter(
-                EventAllocation.event_id == event.id,
-                EventAllocation.allocation_type == "voucher"
+            # Get voucher allocation for this event
+            voucher_allocation = db.query(EventAllocation).filter(
+                EventAllocation.event_id == event.id
+            ).first()
+            
+            if not voucher_allocation:
+                continue
+                
+            vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
+            
+            # Get all participants for this event
+            participants = db.query(EventParticipant).filter(
+                EventParticipant.event_id == event.id,
+                EventParticipant.status.in_(["registered", "selected", "attended"])
             ).all()
             
             participants_info = []
             
-            for participant, allocation in participants_query:
+            for participant in participants:
                 # Get total redeemed vouchers for this participant
-                total_redeemed = db.query(ParticipantVoucherRedemption).filter(
-                    ParticipantVoucherRedemption.allocation_id == allocation.id
-                ).count()
+                total_redeemed = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
+                    ParticipantVoucherRedemption.event_id == event.id,
+                    ParticipantVoucherRedemption.participant_id == participant.id
+                ).scalar() or 0
                 
-                remaining = max(0, allocation.quantity - total_redeemed)
+                remaining = max(0, vouchers_per_participant - total_redeemed)
                 
                 participant_info = ParticipantVoucherInfo(
                     participant_id=participant.id,
                     participant_name=participant.full_name,
                     participant_email=participant.email,
-                    allocated_vouchers=allocation.quantity,
+                    allocated_vouchers=vouchers_per_participant,
                     redeemed_vouchers=total_redeemed,
                     remaining_vouchers=remaining
                 )
@@ -144,32 +150,43 @@ async def redeem_voucher_scan(
         if not participant:
             raise HTTPException(status_code=404, detail="Participant not found")
         
-        # Get participant's voucher allocation
+        # Get event from participant
+        event = db.query(Event).filter(Event.id == participant.event_id).first()
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        
+        # Get voucher allocation for this event
         allocation = db.query(EventAllocation).filter(
-            EventAllocation.participant_id == participant_id,
-            EventAllocation.allocation_type == "voucher"
+            EventAllocation.event_id == event.id
         ).first()
         
         if not allocation:
-            raise HTTPException(status_code=404, detail="No voucher allocation found for participant")
+            raise HTTPException(status_code=404, detail="No voucher allocation found for event")
+        
+        vouchers_per_participant = allocation.drink_vouchers_per_participant or 0
         
         # Check remaining vouchers
-        total_redeemed = db.query(ParticipantVoucherRedemption).filter(
-            ParticipantVoucherRedemption.allocation_id == allocation.id
-        ).count()
+        total_redeemed = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
+            ParticipantVoucherRedemption.event_id == event.id,
+            ParticipantVoucherRedemption.participant_id == participant_id
+        ).scalar() or 0
         
-        remaining = allocation.quantity - total_redeemed
+        remaining = vouchers_per_participant - total_redeemed
         
         if remaining <= 0:
             raise HTTPException(status_code=400, detail="No vouchers remaining for this participant")
         
+        # Get scanner user ID
+        scanner_user = db.query(User).filter(User.email == scanner_email).first()
+        if not scanner_user:
+            raise HTTPException(status_code=404, detail="Scanner user not found")
+        
         # Create redemption record
         redemption = ParticipantVoucherRedemption(
-            allocation_id=allocation.id,
+            event_id=event.id,
             participant_id=participant_id,
-            quantity=1,  # Redeem one voucher at a time
+            redeemed_by=scanner_user.id,
             redeemed_at=datetime.utcnow(),
-            redeemed_by=scanner_email,
             notes=notes
         )
         
@@ -179,13 +196,13 @@ async def redeem_voucher_scan(
         
         # Return updated voucher info
         new_total_redeemed = total_redeemed + 1
-        new_remaining = allocation.quantity - new_total_redeemed
+        new_remaining = vouchers_per_participant - new_total_redeemed
         
         return {
             "success": True,
             "message": "Voucher redeemed successfully",
             "participant_name": participant.full_name,
-            "allocated_vouchers": allocation.quantity,
+            "allocated_vouchers": vouchers_per_participant,
             "redeemed_vouchers": new_total_redeemed,
             "remaining_vouchers": new_remaining,
             "redemption_id": redemption.id
