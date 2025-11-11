@@ -9,9 +9,7 @@ from app.models.event import Event
 from app.models.user_roles import UserRole
 from app.models.role import Role
 from app.schemas.user import UserCreate
-from app.crud.user import get_user_by_email
-from app.crud.role import get_role_by_name
-from app.crud.user_roles import create_user_role
+# Direct database operations - no CRUD imports needed
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 import logging
@@ -61,7 +59,7 @@ async def create_voucher_scanner(
             raise HTTPException(status_code=404, detail="Event not found")
         
         # Check if user exists
-        existing_user = get_user_by_email(db, scanner_data.email)
+        existing_user = db.query(User).filter(User.email == scanner_data.email).first()
         
         if not existing_user:
             # Create new user with scanner role
@@ -79,26 +77,23 @@ async def create_voucher_scanner(
             db.refresh(new_user)
             user_id = new_user.id
             
-            # Get or create voucher_scanner role
-            scanner_role = get_role_by_name(db, "voucher_scanner")
-            if not scanner_role:
-                scanner_role = Role(
-                    name="voucher_scanner",
-                    description="Can scan and redeem vouchers",
+            # Get voucher_scanner role
+            scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
+            if scanner_role:
+                # Assign scanner role to user for this tenant
+                user_role = UserRole(
+                    user_id=user_id,
+                    role_id=scanner_role.id,
                     tenant_id=tenant_id
                 )
-                db.add(scanner_role)
+                db.add(user_role)
                 db.commit()
-                db.refresh(scanner_role)
-            
-            # Assign scanner role to user for this tenant
-            user_role = create_user_role(db, user_id, scanner_role.id, tenant_id)
             
         else:
             user_id = existing_user.id
             
             # Check if user already has scanner role for this tenant
-            scanner_role = get_role_by_name(db, "voucher_scanner")
+            scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
             if scanner_role:
                 existing_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
@@ -108,7 +103,13 @@ async def create_voucher_scanner(
                 
                 if not existing_role:
                     # Assign scanner role
-                    user_role = create_user_role(db, user_id, scanner_role.id, tenant_id)
+                    user_role = UserRole(
+                        user_id=user_id,
+                        role_id=scanner_role.id,
+                        tenant_id=tenant_id
+                    )
+                    db.add(user_role)
+                    db.commit()
         
         # Create scanner record (we'll use a simple approach with user_roles table)
         # For now, we'll return the user info as scanner info
@@ -146,7 +147,7 @@ async def get_event_scanners(
             raise HTTPException(status_code=404, detail="Event not found")
         
         # Get voucher_scanner role
-        scanner_role = get_role_by_name(db, "voucher_scanner")
+        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
         if not scanner_role:
             return []
         
@@ -216,7 +217,7 @@ async def delete_scanner(
             raise HTTPException(status_code=404, detail="Scanner not found")
         
         # Get voucher_scanner role
-        scanner_role = get_role_by_name(db, "voucher_scanner")
+        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
         if scanner_role:
             # Remove scanner role from user
             user_role = db.query(UserRole).filter(
