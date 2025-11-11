@@ -59,14 +59,12 @@ async def get_participant_redemptions(
         
         # Get all participants for this event
         participants_query = db.query(
-            EventParticipant.user_id,
-            User.full_name,
-            User.email
-        ).join(
-            User, EventParticipant.user_id == User.id
+            EventParticipant.id,
+            EventParticipant.full_name,
+            EventParticipant.email
         ).filter(
             EventParticipant.event_id == event_id,
-            EventParticipant.status == "confirmed"
+            EventParticipant.status.in_(["registered", "selected", "attended"])
         )
         
         participants = participants_query.all()
@@ -78,19 +76,19 @@ async def get_participant_redemptions(
             # Count total redemptions for this participant
             redemption_count = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
                 ParticipantVoucherRedemption.event_id == event_id,
-                ParticipantVoucherRedemption.participant_id == participant.user_id
+                ParticipantVoucherRedemption.participant_id == participant.id
             ).scalar() or 0
             
             # Get last redemption date
             last_redemption = db.query(ParticipantVoucherRedemption).filter(
                 ParticipantVoucherRedemption.event_id == event_id,
-                ParticipantVoucherRedemption.participant_id == participant.user_id
+                ParticipantVoucherRedemption.participant_id == participant.id
             ).order_by(desc(ParticipantVoucherRedemption.redeemed_at)).first()
             
             last_redemption_date = last_redemption.redeemed_at if last_redemption else None
             
             participant_data = ParticipantRedemptionResponse(
-                user_id=participant.user_id,
+                user_id=participant.id,
                 participant_name=participant.full_name or "Unknown",
                 participant_email=participant.email,
                 allocated_count=vouchers_per_participant,
@@ -130,8 +128,8 @@ async def redeem_voucher(
         # Verify participant exists and is registered for event
         participant = db.query(EventParticipant).filter(
             EventParticipant.event_id == event_id,
-            EventParticipant.user_id == redemption_data.participant_id,
-            EventParticipant.status == "confirmed"
+            EventParticipant.id == redemption_data.participant_id,
+            EventParticipant.status.in_(["registered", "selected", "attended"])
         ).first()
         if not participant:
             raise HTTPException(status_code=404, detail="Participant not found or not confirmed for this event")

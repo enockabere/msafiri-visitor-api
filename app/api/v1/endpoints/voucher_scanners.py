@@ -95,19 +95,20 @@ async def create_voucher_scanners_bulk(
                     user_name = existing_user.full_name
                     is_new_user = False
                 
-                # Check if user already has scanner role for this tenant
+                # Check if user already has scanner role
                 existing_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
-                    UserRole.role_id == scanner_role.id,
-                    UserRole.tenant_id == tenant_id
+                    UserRole.role == "voucher_scanner"
                 ).first()
                 
                 if not existing_role:
                     # Assign scanner role (additional role for existing users)
+                    from datetime import datetime
                     user_role = UserRole(
                         user_id=user_id,
-                        role_id=scanner_role.id,
-                        tenant_id=tenant_id
+                        role="voucher_scanner",
+                        granted_by=created_by,
+                        granted_at=datetime.utcnow()
                     )
                     db.add(user_role)
                     db.commit()
@@ -235,23 +236,22 @@ async def get_event_scanners(
             return []
         
         # Get all users with scanner role for this tenant
-        scanner_users = db.query(User, UserRole).join(
+        scanner_users = db.query(User).join(
             UserRole, User.id == UserRole.user_id
         ).filter(
-            UserRole.role_id == scanner_role.id,
-            UserRole.tenant_id == tenant_id,
+            UserRole.role == "voucher_scanner",
             User.is_active == True
         ).all()
         
         scanners = []
-        for user, user_role in scanner_users:
+        for user in scanner_users:
             scanner = VoucherScannerResponse(
                 id=user.id,
                 email=user.email,
                 name=user.full_name,
                 is_active=user.is_active,
-                created_at=user_role.created_at or datetime.utcnow(),
-                created_by="admin",  # We don't track this in user_roles
+                created_at=user.created_at or datetime.utcnow(),
+                created_by="admin",
                 event_id=event_id
             )
             scanners.append(scanner)
