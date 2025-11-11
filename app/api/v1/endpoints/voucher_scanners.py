@@ -6,7 +6,7 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.event import Event
-from app.models.user_roles import UserRole
+from app.models.user_roles import UserRole, RoleType
 from app.models.role import Role
 from app.schemas.user import UserCreate
 # Direct database operations - no CRUD imports needed
@@ -98,7 +98,7 @@ async def create_voucher_scanners_bulk(
                 # Check if user already has scanner role
                 existing_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
-                    UserRole.role == "voucher_scanner"
+                    UserRole.role == RoleType.VOUCHER_SCANNER
                 ).first()
                 
                 if not existing_role:
@@ -106,7 +106,7 @@ async def create_voucher_scanners_bulk(
                     from datetime import datetime
                     user_role = UserRole(
                         user_id=user_id,
-                        role="voucher_scanner",
+                        role=RoleType.VOUCHER_SCANNER,
                         granted_by=created_by,
                         granted_at=datetime.utcnow()
                     )
@@ -239,7 +239,7 @@ async def get_event_scanners(
         scanner_users = db.query(User).join(
             UserRole, User.id == UserRole.user_id
         ).filter(
-            UserRole.role == "voucher_scanner",
+            UserRole.role == RoleType.VOUCHER_SCANNER,
             User.is_active == True
         ).all()
         
