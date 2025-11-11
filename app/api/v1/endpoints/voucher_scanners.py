@@ -20,6 +20,10 @@ router = APIRouter()
 
 class VoucherScannerCreate(BaseModel):
     event_id: int
+    emails: List[EmailStr]  # Support multiple emails
+    
+class SingleScannerCreate(BaseModel):
+    event_id: int
     email: EmailStr
     name: Optional[str] = None
 
@@ -35,15 +39,15 @@ class VoucherScannerResponse(BaseModel):
 class VoucherScannerStatusUpdate(BaseModel):
     is_active: bool
 
-@router.post("/voucher-scanners", response_model=VoucherScannerResponse)
-async def create_voucher_scanner(
+@router.post("/voucher-scanners/bulk", response_model=List[VoucherScannerResponse])
+async def create_voucher_scanners_bulk(
     scanner_data: VoucherScannerCreate,
     tenant_id: int = Query(...),
     created_by: str = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a voucher scanner for an event"""
+    """Create multiple voucher scanners for an event"""
     try:
         # Verify tenant exists
         tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -58,43 +62,41 @@ async def create_voucher_scanner(
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Check if user exists
-        existing_user = db.query(User).filter(User.email == scanner_data.email).first()
+        # Get voucher_scanner role
+        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
+        if not scanner_role:
+            raise HTTPException(status_code=404, detail="Scanner role not found")
         
-        if not existing_user:
-            # Create new user with scanner role
-            from app.models.user import User
-            from app.core.security import get_password_hash
-            
-            new_user = User(
-                email=scanner_data.email,
-                full_name=scanner_data.name or scanner_data.email,
-                hashed_password=get_password_hash("TempPassword123!"),
-                is_active=True
-            )
-            db.add(new_user)
-            db.commit()
-            db.refresh(new_user)
-            user_id = new_user.id
-            
-            # Get voucher_scanner role
-            scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
-            if scanner_role:
-                # Assign scanner role to user for this tenant
-                user_role = UserRole(
-                    user_id=user_id,
-                    role_id=scanner_role.id,
-                    tenant_id=tenant_id
-                )
-                db.add(user_role)
-                db.commit()
-            
-        else:
-            user_id = existing_user.id
-            
-            # Check if user already has scanner role for this tenant
-            scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
-            if scanner_role:
+        created_scanners = []
+        
+        for email in scanner_data.emails:
+            try:
+                # Check if user exists
+                existing_user = db.query(User).filter(User.email == email).first()
+                
+                if not existing_user:
+                    # Create new user with scanner role
+                    from app.models.user import User
+                    from app.core.security import get_password_hash
+                    
+                    new_user = User(
+                        email=email,
+                        full_name=email.split('@')[0],  # Use email prefix as name
+                        hashed_password=get_password_hash("TempPassword123!"),
+                        is_active=True
+                    )
+                    db.add(new_user)
+                    db.commit()
+                    db.refresh(new_user)
+                    user_id = new_user.id
+                    user_name = new_user.full_name
+                    is_new_user = True
+                else:
+                    user_id = existing_user.id
+                    user_name = existing_user.full_name
+                    is_new_user = False
+                
+                # Check if user already has scanner role for this tenant
                 existing_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
                     UserRole.role_id == scanner_role.id,
@@ -102,7 +104,7 @@ async def create_voucher_scanner(
                 ).first()
                 
                 if not existing_role:
-                    # Assign scanner role
+                    # Assign scanner role (additional role for existing users)
                     user_role = UserRole(
                         user_id=user_id,
                         role_id=scanner_role.id,
@@ -110,25 +112,21 @@ async def create_voucher_scanner(
                     )
                     db.add(user_role)
                     db.commit()
-        
-        # Send email notification to scanner
-        try:
-            from app.core.email_service import email_service
-            
-            # Get tenant info for scanner URL
-            scanner_url = f"http://41.90.97.253:3000/scanner?event_id={scanner_data.event_id}&tenant_id={tenant_id}"
-            
-            email_service.send_notification_email(
-                to_email=scanner_data.email,
-                user_name=scanner_data.name or scanner_data.email,
-                title="MSafiri Voucher Scanner Access",
-                message=f"""
-Hello {scanner_data.name or scanner_data.email},
+                
+                # Send email notification
+                try:
+                    from app.core.email_service import email_service
+                    
+                    scanner_url = f"http://41.90.97.253:3000/scanner?event_id={scanner_data.event_id}&tenant_id={tenant_id}"
+                    
+                    if is_new_user:
+                        message = f"""
+Hello {user_name},
 
 You have been assigned as a voucher scanner for an MSF event.
 
 Your scanner credentials:
-• Email: {scanner_data.email}
+• Email: {email}
 • Temporary Password: TempPassword123!
 
 To start scanning vouchers:
@@ -140,30 +138,82 @@ Please change your password after first login for security.
 
 Best regards,
 MSF Kenya Team
-                """
-            )
-            logger.info(f"Scanner notification email sent to {scanner_data.email}")
-        except Exception as e:
-            logger.error(f"Failed to send scanner notification email: {str(e)}")
-            # Don't fail the request if email fails
+                        """
+                    else:
+                        message = f"""
+Hello {user_name},
+
+You have been assigned as a voucher scanner for an MSF event.
+
+You can now access the voucher scanner with your existing account:
+• Email: {email}
+• Use your current password
+
+To start scanning vouchers:
+1. Visit: {scanner_url}
+2. Login with your existing credentials
+3. Start scanning participant vouchers
+
+Best regards,
+MSF Kenya Team
+                        """
+                    
+                    email_service.send_notification_email(
+                        to_email=email,
+                        user_name=user_name,
+                        title="MSafiri Voucher Scanner Access",
+                        message=message
+                    )
+                    logger.info(f"Scanner notification email sent to {email}")
+                except Exception as e:
+                    logger.error(f"Failed to send scanner notification email to {email}: {str(e)}")
+                
+                # Add to response list
+                scanner_response = VoucherScannerResponse(
+                    id=user_id,
+                    email=email,
+                    name=user_name,
+                    is_active=True,
+                    created_at=datetime.utcnow(),
+                    created_by=created_by,
+                    event_id=scanner_data.event_id
+                )
+                created_scanners.append(scanner_response)
+                
+            except Exception as e:
+                logger.error(f"Error processing scanner {email}: {str(e)}")
+                # Continue with other emails
+                continue
         
-        # Create scanner record (we'll use a simple approach with user_roles table)
-        # For now, we'll return the user info as scanner info
-        scanner_response = VoucherScannerResponse(
-            id=user_id,
-            email=scanner_data.email,
-            name=scanner_data.name,
-            is_active=True,
-            created_at=datetime.utcnow(),
-            created_by=created_by,
-            event_id=scanner_data.event_id
-        )
-        
-        return scanner_response
+        return created_scanners
         
     except Exception as e:
-        logger.error(f"Error creating voucher scanner: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create scanner: {str(e)}")
+        logger.error(f"Error creating voucher scanners: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create scanners: {str(e)}")
+
+@router.post("/voucher-scanners", response_model=VoucherScannerResponse)
+async def create_voucher_scanner(
+    scanner_data: SingleScannerCreate,
+    tenant_id: int = Query(...),
+    created_by: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a single voucher scanner for an event"""
+    # Use bulk endpoint with single email
+    bulk_data = VoucherScannerCreate(
+        event_id=scanner_data.event_id,
+        emails=[scanner_data.email]
+    )
+    
+    result = await create_voucher_scanners_bulk(
+        bulk_data, tenant_id, created_by, db, current_user
+    )
+    
+    if not result:
+        raise HTTPException(status_code=500, detail="Failed to create scanner")
+    
+    return result[0]
 
 @router.get("/voucher-scanners/event/{event_id}", response_model=List[VoucherScannerResponse])
 async def get_event_scanners(
