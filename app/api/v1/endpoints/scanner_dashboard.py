@@ -89,6 +89,8 @@ async def get_scanner_events(
                 EventParticipant.status.in_(["registered", "selected", "attended"])
             ).all()
             
+            logger.info(f"Event {event.id} ({event.name}): Found {len(participants)} participants")
+            
             participants_info = []
             
             for participant in participants:
@@ -120,6 +122,9 @@ async def get_scanner_events(
                     participants=participants_info
                 )
                 scanner_events.append(event_info)
+                logger.info(f"Added event {event.id} with {len(participants_info)} participants")
+            else:
+                logger.info(f"Skipped event {event.id} - no participants found")
         
         return scanner_events
         
