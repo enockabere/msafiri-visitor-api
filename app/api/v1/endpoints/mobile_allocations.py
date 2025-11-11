@@ -36,55 +36,87 @@ def get_participant_allocations(
 ):
     """Get allocations for current participant"""
     
-    # Get participant records for current user
-    participants = db.query(EventParticipant).filter(
-        EventParticipant.email == current_user.email
-    ).all()
-    
-    if not participants:
-        return {"allocations": []}
-    
-    all_allocations = []
-    
-    for participant in participants:
-        # Get event details
-        event = db.query(Event).filter(Event.id == participant.event_id).first()
-        if not event:
-            continue
-            
-        # Get voucher allocations for this event
-        voucher_allocations = db.query(EventAllocation).filter(
-            EventAllocation.event_id == participant.event_id,
-            EventAllocation.drink_vouchers_per_participant > 0
+    try:
+        print(f"🔍 ALLOCATIONS DEBUG: Starting allocation fetch for user: {current_user.email}")
+        
+        # Get participant records for current user
+        participants = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email
         ).all()
         
-        for allocation in voucher_allocations:
-            # Calculate remaining vouchers for this participant
-            from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+        print(f"🔍 ALLOCATIONS DEBUG: Found {len(participants)} participants for user {current_user.email}")
+        
+        if not participants:
+            print(f"🔍 ALLOCATIONS DEBUG: No participants found, returning empty allocations")
+            return {"allocations": []}
+        
+        all_allocations = []
+        
+        for participant in participants:
+            print(f"🔍 ALLOCATIONS DEBUG: Processing participant {participant.id} for event {participant.event_id}")
             
-            redemptions = db.query(ParticipantVoucherRedemption).filter(
-                ParticipantVoucherRedemption.allocation_id == allocation.id,
-                ParticipantVoucherRedemption.participant_id == participant.id
+            # Get event details
+            event = db.query(Event).filter(Event.id == participant.event_id).first()
+            if not event:
+                print(f"🔍 ALLOCATIONS DEBUG: No event found for event_id {participant.event_id}")
+                continue
+                
+            print(f"🔍 ALLOCATIONS DEBUG: Found event: {event.title}")
+                
+            # Get voucher allocations for this event
+            voucher_allocations = db.query(EventAllocation).filter(
+                EventAllocation.event_id == participant.event_id,
+                EventAllocation.drink_vouchers_per_participant > 0
             ).all()
             
-            total_redeemed = sum(r.quantity for r in redemptions)
-            remaining = allocation.drink_vouchers_per_participant - total_redeemed
+            print(f"🔍 ALLOCATIONS DEBUG: Found {len(voucher_allocations)} voucher allocations for event {participant.event_id}")
             
-            all_allocations.append({
-                "id": allocation.id,
-                "participant_id": participant.id,
-                "event_id": event.id,
-                "event_title": event.title,
-                "event_location": event.location,
-                "allocation_type": "drink_vouchers",
-                "total_quantity": allocation.drink_vouchers_per_participant,
-                "remaining_quantity": remaining,
-                "redeemed_quantity": max(0, total_redeemed),
-                "status": allocation.status,
-                "created_at": allocation.created_at.isoformat() if allocation.created_at else None
-            })
-    
-    return {"allocations": all_allocations}
+            for allocation in voucher_allocations:
+                print(f"🔍 ALLOCATIONS DEBUG: Processing allocation {allocation.id} with {allocation.drink_vouchers_per_participant} vouchers")
+                
+                # Calculate remaining vouchers for this participant
+                try:
+                    from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+                    
+                    redemptions = db.query(ParticipantVoucherRedemption).filter(
+                        ParticipantVoucherRedemption.allocation_id == allocation.id,
+                        ParticipantVoucherRedemption.participant_id == participant.id
+                    ).all()
+                    
+                    total_redeemed = sum(r.quantity for r in redemptions)
+                except Exception as redemption_error:
+                    print(f"🔍 ALLOCATIONS DEBUG: Error querying redemptions (table may not exist): {redemption_error}")
+                    total_redeemed = 0
+                
+                remaining = allocation.drink_vouchers_per_participant - total_redeemed
+                
+                print(f"🔍 ALLOCATIONS DEBUG: Allocation {allocation.id} - Total: {allocation.drink_vouchers_per_participant}, Redeemed: {total_redeemed}, Remaining: {remaining}")
+                
+                allocation_data = {
+                    "id": allocation.id,
+                    "participant_id": participant.id,
+                    "event_id": event.id,
+                    "event_title": event.title,
+                    "event_location": event.location,
+                    "allocation_type": "drink_vouchers",
+                    "total_quantity": allocation.drink_vouchers_per_participant,
+                    "remaining_quantity": remaining,
+                    "redeemed_quantity": max(0, total_redeemed),
+                    "status": allocation.status,
+                    "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+                }
+                
+                all_allocations.append(allocation_data)
+                print(f"🔍 ALLOCATIONS DEBUG: Added allocation to list: {allocation_data}")
+        
+        print(f"🔍 ALLOCATIONS DEBUG: Returning {len(all_allocations)} total allocations")
+        return {"allocations": all_allocations}
+        
+    except Exception as e:
+        print(f"❌ ALLOCATIONS ERROR: {str(e)}")
+        import traceback
+        print(f"❌ ALLOCATIONS TRACEBACK: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error fetching allocations: {str(e)}")
 
 @router.post("/participant/voucher-redemption/initiate")
 def initiate_voucher_redemption(

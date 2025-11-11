@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Script to create participant_voucher_redemptions table
+Server script to create participant_voucher_redemptions table
+Run this on the server where the database is hosted
 """
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from sqlalchemy import create_engine, text
 from app.core.config import settings
@@ -13,7 +14,7 @@ from app.core.config import settings
 def create_table():
     """Create the participant_voucher_redemptions table"""
     
-    # Create database engine
+    print(f"Connecting to database: {settings.DATABASE_URL}")
     engine = create_engine(settings.DATABASE_URL)
     
     # SQL to create the table
@@ -44,7 +45,7 @@ def create_table():
             # Execute the SQL
             connection.execute(text(create_table_sql))
             connection.commit()
-            print("Successfully created participant_voucher_redemptions table and indexes")
+            print("✅ Successfully created participant_voucher_redemptions table and indexes")
             
             # Verify table exists
             result = connection.execute(text("""
@@ -54,7 +55,7 @@ def create_table():
             """))
             
             if result.fetchone():
-                print("Table verification successful")
+                print("✅ Table verification successful")
                 
                 # Show table structure
                 result = connection.execute(text("""
@@ -64,27 +65,29 @@ def create_table():
                     ORDER BY ordinal_position
                 """))
                 
-                print("\nTable structure:")
+                print("\n📋 Table structure:")
                 for row in result:
                     nullable = "NULL" if row[2] == "YES" else "NOT NULL"
                     default = f" DEFAULT {row[3]}" if row[3] else ""
                     print(f"  {row[0]}: {row[1]} {nullable}{default}")
                     
             else:
-                print("Table verification failed")
+                print("❌ Table verification failed")
+                return False
                 
     except Exception as e:
-        print(f"Error creating table: {e}")
+        print(f"❌ Error creating table: {e}")
         return False
         
     return True
 
 if __name__ == "__main__":
-    print("Creating participant_voucher_redemptions table...")
+    print("🚀 Creating participant_voucher_redemptions table...")
     success = create_table()
     
     if success:
-        print("\nMigration completed successfully!")
+        print("\n✅ Migration completed successfully!")
+        print("📱 The allocations API should now work properly.")
     else:
-        print("\nMigration failed!")
+        print("\n❌ Migration failed!")
         sys.exit(1)
