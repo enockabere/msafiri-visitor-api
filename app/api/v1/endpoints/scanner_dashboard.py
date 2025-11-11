@@ -43,7 +43,10 @@ async def get_scanner_events(
         # Get user
         user = db.query(User).filter(User.email == user_email).first()
         if not user:
+            logger.error(f"User not found: {user_email}")
             raise HTTPException(status_code=404, detail="User not found")
+        
+        logger.info(f"Found user: {user.id} - {user.email}")
         
         # Check if user has voucher scanner role
         scanner_role = db.query(UserRole).filter(
@@ -52,7 +55,10 @@ async def get_scanner_events(
             UserRole.is_active == True
         ).first()
         
+        logger.info(f"Scanner role check: {scanner_role is not None}")
+        
         if not scanner_role:
+            logger.warning(f"User {user_email} does not have voucher scanner role")
             return []
         
         # Get all events with voucher allocations
@@ -61,6 +67,8 @@ async def get_scanner_events(
         ).filter(
             EventAllocation.drink_vouchers_per_participant > 0
         ).distinct().all()
+        
+        logger.info(f"Found {len(events_with_allocations)} events with voucher allocations")
         
         scanner_events = []
         
