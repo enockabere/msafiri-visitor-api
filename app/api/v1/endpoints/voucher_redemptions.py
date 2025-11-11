@@ -9,7 +9,7 @@ from app.models.tenant import Tenant
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-from app.models.event_allocation import EventAllocation
+from app.models.allocation import EventAllocation
 from pydantic import BaseModel
 from datetime import datetime
 import logging
@@ -51,13 +51,12 @@ async def get_participant_redemptions(
         
         # Get voucher allocation for this event
         voucher_allocation = db.query(EventAllocation).filter(
-            EventAllocation.event_id == event_id,
-            EventAllocation.allocation_type == "vouchers"
+            EventAllocation.event_id == event_id
         ).first()
         
         vouchers_per_participant = 0
-        if voucher_allocation and voucher_allocation.details:
-            vouchers_per_participant = voucher_allocation.details.get("drink_vouchers_per_participant", 0)
+        if voucher_allocation:
+            vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
         
         # Get all participants for this event
         participants_query = db.query(
@@ -140,14 +139,13 @@ async def redeem_voucher(
         
         # Get voucher allocation
         voucher_allocation = db.query(EventAllocation).filter(
-            EventAllocation.event_id == event_id,
-            EventAllocation.allocation_type == "vouchers"
+            EventAllocation.event_id == event_id
         ).first()
         
         if not voucher_allocation:
             raise HTTPException(status_code=404, detail="No voucher allocation found for this event")
         
-        vouchers_per_participant = voucher_allocation.details.get("drink_vouchers_per_participant", 0)
+        vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
         
         # Check current redemption count
         current_redemptions = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
@@ -212,13 +210,12 @@ async def get_participant_voucher_balance(
         
         # Get voucher allocation
         voucher_allocation = db.query(EventAllocation).filter(
-            EventAllocation.event_id == event_id,
-            EventAllocation.allocation_type == "vouchers"
+            EventAllocation.event_id == event_id
         ).first()
         
         vouchers_per_participant = 0
-        if voucher_allocation and voucher_allocation.details:
-            vouchers_per_participant = voucher_allocation.details.get("drink_vouchers_per_participant", 0)
+        if voucher_allocation:
+            vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
         
         # Count redemptions
         redemption_count = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
