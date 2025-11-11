@@ -83,13 +83,23 @@ async def get_scanner_events(
                 
             vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
             
-            # Get all participants for this event
-            participants = db.query(EventParticipant).filter(
-                EventParticipant.event_id == event.id,
-                EventParticipant.status.in_(["registered", "selected", "attended"])
+            # Get all participants for this event (check all statuses first)
+            all_participants = db.query(EventParticipant).filter(
+                EventParticipant.event_id == event.id
             ).all()
             
-            logger.info(f"Event {event.id} ({event.title}): Found {len(participants)} participants")
+            # Log all participant statuses for debugging
+            if all_participants:
+                statuses = [p.status for p in all_participants]
+                logger.info(f"Event {event.id}: All participant statuses: {set(statuses)}")
+            
+            # Get participants with common statuses including confirmed
+            participants = db.query(EventParticipant).filter(
+                EventParticipant.event_id == event.id,
+                EventParticipant.status.in_(["registered", "selected", "attended", "confirmed"])
+            ).all()
+            
+            logger.info(f"Event {event.id} ({event.title}): Found {len(participants)} participants (out of {len(all_participants)} total)")
             
             participants_info = []
             
