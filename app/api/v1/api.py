@@ -498,19 +498,20 @@ api_router.include_router(
     tags=["mobile-allocations"]
 )
 
-from app.api.v1.endpoints import voucher_scanners
-api_router.include_router(
-    voucher_scanners.router,
-    prefix="",
-    tags=["voucher-scanners"]
-)
+# Voucher endpoints temporarily disabled due to import issues
+# from app.api.v1.endpoints import voucher_scanners
+# api_router.include_router(
+#     voucher_scanners.router,
+#     prefix="",
+#     tags=["voucher-scanners"]
+# )
 
-from app.api.v1.endpoints import voucher_redemptions
-api_router.include_router(
-    voucher_redemptions.router,
-    prefix="",
-    tags=["voucher-redemptions"]
-)
+# from app.api.v1.endpoints import voucher_redemptions
+# api_router.include_router(
+#     voucher_redemptions.router,
+#     prefix="",
+#     tags=["voucher-redemptions"]
+# )
 
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
