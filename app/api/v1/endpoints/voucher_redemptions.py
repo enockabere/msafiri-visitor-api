@@ -36,8 +36,7 @@ class VoucherRedemptionCreate(BaseModel):
 async def get_participant_redemptions(
     event_id: int,
     tenant_id: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Get voucher redemption data for all participants in an event"""
     try:
@@ -115,8 +114,8 @@ async def redeem_voucher(
     redemption_data: VoucherRedemptionCreate,
     event_id: int = Query(...),
     tenant_id: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    redeemed_by: int = Query(...),
+    db: Session = Depends(get_db)
 ):
     """Redeem voucher for a participant (used by scanner app)"""
     try:
@@ -162,7 +161,7 @@ async def redeem_voucher(
             voucher_redemption = ParticipantVoucherRedemption(
                 event_id=event_id,
                 participant_id=redemption_data.participant_id,
-                redeemed_by=current_user.id,
+                redeemed_by=redeemed_by,
                 redeemed_at=datetime.utcnow(),
                 location=redemption_data.location,
                 notes=redemption_data.notes
@@ -195,8 +194,7 @@ async def get_participant_voucher_balance(
     participant_id: int,
     event_id: int = Query(...),
     tenant_id: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Get voucher balance for a specific participant"""
     try:

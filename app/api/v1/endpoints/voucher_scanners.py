@@ -44,8 +44,7 @@ async def create_voucher_scanners_bulk(
     scanner_data: VoucherScannerCreate,
     tenant_id: int = Query(...),
     created_by: str = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Create multiple voucher scanners for an event"""
     try:
@@ -196,8 +195,7 @@ async def create_voucher_scanner(
     scanner_data: SingleScannerCreate,
     tenant_id: int = Query(...),
     created_by: str = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Create a single voucher scanner for an event"""
     # Use bulk endpoint with single email
@@ -207,7 +205,7 @@ async def create_voucher_scanner(
     )
     
     result = await create_voucher_scanners_bulk(
-        bulk_data, tenant_id, created_by, db, current_user
+        bulk_data, tenant_id, created_by, db
     )
     
     if not result:
@@ -219,8 +217,7 @@ async def create_voucher_scanner(
 async def get_event_scanners(
     event_id: int,
     tenant_id: int = Query(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Get all voucher scanners for an event"""
     try:
@@ -269,8 +266,7 @@ async def get_event_scanners(
 async def toggle_scanner_status(
     scanner_id: int,
     status_update: VoucherScannerStatusUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Toggle scanner active status"""
     try:
@@ -292,8 +288,7 @@ async def toggle_scanner_status(
 @router.delete("/voucher-scanners/{scanner_id}")
 async def delete_scanner(
     scanner_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Delete a voucher scanner"""
     try:
