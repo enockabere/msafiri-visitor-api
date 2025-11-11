@@ -75,7 +75,6 @@ async def create_voucher_scanners_bulk(
                 
                 if not existing_user:
                     # Create new user with scanner role
-                    from app.models.user import User
                     from app.core.security import get_password_hash
                     
                     new_user = User(
