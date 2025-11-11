@@ -136,11 +136,27 @@ def create_voucher_scanner_tables():
             """))
             
             if not role_result.fetchone():
-                connection.execute(text("""
-                    INSERT INTO roles (name, description, created_at, updated_at)
-                    VALUES ('voucher_scanner', 'Can scan and redeem vouchers', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-                """))
-                print("Created voucher_scanner role")
+                # Try to create role with tenant_id as null (global role)
+                try:
+                    connection.execute(text("""
+                        INSERT INTO roles (name, description, tenant_id, created_at, updated_at)
+                        VALUES ('voucher_scanner', 'Can scan and redeem vouchers', NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+                    """))
+                    print("Created voucher_scanner role as global role")
+                except Exception as e:
+                    # If that fails, get the first tenant and use its ID
+                    tenant_result = connection.execute(text("""
+                        SELECT id FROM tenants ORDER BY id LIMIT 1;
+                    """))
+                    tenant_row = tenant_result.fetchone()
+                    if tenant_row:
+                        connection.execute(text("""
+                            INSERT INTO roles (name, description, tenant_id, created_at, updated_at)
+                            VALUES ('voucher_scanner', 'Can scan and redeem vouchers', :tenant_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+                        """), {"tenant_id": tenant_row[0]})
+                        print(f"Created voucher_scanner role for tenant {tenant_row[0]}")
+                    else:
+                        print("Warning: Could not create voucher_scanner role - no tenants found")
             else:
                 print("voucher_scanner role already exists")
             
