@@ -5,13 +5,14 @@ from app.models.base import BaseModel
 class ParticipantVoucherRedemption(BaseModel):
     __tablename__ = "participant_voucher_redemptions"
     
-    allocation_id = Column(Integer, ForeignKey("event_allocations.id"), nullable=False)
-    participant_id = Column(Integer, ForeignKey("event_participants.id"), nullable=False)
-    quantity = Column(Integer, nullable=False)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
+    participant_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Direct user reference
+    redeemed_by = Column(Integer, ForeignKey("users.id"), nullable=False)  # Scanner user ID
     redeemed_at = Column(DateTime, nullable=False)
-    redeemed_by = Column(String(255), nullable=True)  # Admin who confirmed redemption
+    location = Column(String(255), nullable=True)  # Where voucher was redeemed
     notes = Column(Text, nullable=True)
     
     # Relationships
-    allocation = relationship("EventAllocation")
-    participant = relationship("EventParticipant")
+    event = relationship("Event")
+    participant = relationship("User", foreign_keys=[participant_id])
+    scanner = relationship("User", foreign_keys=[redeemed_by])
