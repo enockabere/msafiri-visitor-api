@@ -104,9 +104,9 @@ async def get_scanner_events(
             participants_info = []
             
             for participant in participants:
-                # Get total redeemed vouchers for this participant
+                # Get total redeemed vouchers for this participant via allocation_id
                 total_redeemed = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
-                    ParticipantVoucherRedemption.event_id == event.id,
+                    ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
                     ParticipantVoucherRedemption.participant_id == participant.id
                 ).scalar() or 0
                 
@@ -190,7 +190,7 @@ async def redeem_voucher_scan(
         
         # Check remaining vouchers
         total_redeemed = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
-            ParticipantVoucherRedemption.event_id == event.id,
+            ParticipantVoucherRedemption.allocation_id == allocation.id,
             ParticipantVoucherRedemption.participant_id == participant_id
         ).scalar() or 0
         
@@ -206,10 +206,11 @@ async def redeem_voucher_scan(
         
         # Create redemption record
         redemption = ParticipantVoucherRedemption(
-            event_id=event.id,
+            allocation_id=allocation.id,
             participant_id=participant_id,
-            redeemed_by=scanner_user.id,
+            quantity=1,
             redeemed_at=datetime.utcnow(),
+            redeemed_by=scanner_email,
             notes=notes
         )
         
