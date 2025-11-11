@@ -1,6 +1,6 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset
 
 # Create main API router
 api_router = APIRouter()
@@ -28,6 +28,12 @@ api_router.include_router(
     password.router, 
     prefix="/password", 
     tags=["password-management"]
+)
+
+api_router.include_router(
+    password_reset.router,
+    prefix="/password",
+    tags=["password-reset"]
 )
 
 api_router.include_router(

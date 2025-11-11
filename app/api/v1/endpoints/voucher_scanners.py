@@ -111,6 +111,42 @@ async def create_voucher_scanner(
                     db.add(user_role)
                     db.commit()
         
+        # Send email notification to scanner
+        try:
+            from app.core.email_service import email_service
+            
+            # Get tenant info for scanner URL
+            scanner_url = f"http://41.90.97.253:3000/scanner?event_id={scanner_data.event_id}&tenant_id={tenant_id}"
+            
+            email_service.send_notification_email(
+                to_email=scanner_data.email,
+                user_name=scanner_data.name or scanner_data.email,
+                title="MSafiri Voucher Scanner Access",
+                message=f"""
+Hello {scanner_data.name or scanner_data.email},
+
+You have been assigned as a voucher scanner for an MSF event.
+
+Your scanner credentials:
+• Email: {scanner_data.email}
+• Temporary Password: TempPassword123!
+
+To start scanning vouchers:
+1. Visit: {scanner_url}
+2. Login with your credentials
+3. Start scanning participant vouchers
+
+Please change your password after first login for security.
+
+Best regards,
+MSF Kenya Team
+                """
+            )
+            logger.info(f"Scanner notification email sent to {scanner_data.email}")
+        except Exception as e:
+            logger.error(f"Failed to send scanner notification email: {str(e)}")
+            # Don't fail the request if email fails
+        
         # Create scanner record (we'll use a simple approach with user_roles table)
         # For now, we'll return the user info as scanner info
         scanner_response = VoucherScannerResponse(
