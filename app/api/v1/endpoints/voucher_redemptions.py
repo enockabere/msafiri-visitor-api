@@ -18,6 +18,58 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get("/voucher-redemptions/debug/{event_id}")
+async def debug_voucher_data(
+    event_id: int,
+    tenant_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check voucher data"""
+    try:
+        # Get event allocation
+        allocation = db.query(EventAllocation).filter(
+            EventAllocation.event_id == event_id
+        ).first()
+        
+        # Get all participants for this event
+        participants = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id
+        ).all()
+        
+        # Get all redemptions for this allocation
+        redemptions = []
+        if allocation:
+            redemptions = db.query(ParticipantVoucherRedemption).filter(
+                ParticipantVoucherRedemption.allocation_id == allocation.id
+            ).all()
+        
+        return {
+            "event_id": event_id,
+            "allocation": {
+                "id": allocation.id if allocation else None,
+                "vouchers_per_participant": allocation.drink_vouchers_per_participant if allocation else None
+            } if allocation else None,
+            "participants": [
+                {
+                    "id": p.id,
+                    "name": p.full_name,
+                    "email": p.email,
+                    "status": p.status
+                } for p in participants
+            ],
+            "redemptions": [
+                {
+                    "id": r.id,
+                    "allocation_id": r.allocation_id,
+                    "participant_id": r.participant_id,
+                    "quantity": r.quantity,
+                    "redeemed_at": r.redeemed_at.isoformat() if r.redeemed_at else None
+                } for r in redemptions
+            ]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @router.get("/voucher-redemptions/test")
 async def test_voucher_endpoint():
     """Test endpoint to verify voucher redemptions router is working"""
