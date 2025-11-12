@@ -73,19 +73,23 @@ async def get_participant_redemptions(
         redemption_data = []
         
         for participant in participants:
-            # Count total redemptions for this participant
-            redemption_count = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
-                ParticipantVoucherRedemption.event_id == event_id,
-                ParticipantVoucherRedemption.participant_id == participant.id
-            ).scalar() or 0
+            # Count total redemptions for this participant using allocation_id
+            redemption_count = 0
+            last_redemption_date = None
             
-            # Get last redemption date
-            last_redemption = db.query(ParticipantVoucherRedemption).filter(
-                ParticipantVoucherRedemption.event_id == event_id,
-                ParticipantVoucherRedemption.participant_id == participant.id
-            ).order_by(desc(ParticipantVoucherRedemption.redeemed_at)).first()
-            
-            last_redemption_date = last_redemption.redeemed_at if last_redemption else None
+            if voucher_allocation:
+                redemption_count = db.query(func.sum(ParticipantVoucherRedemption.quantity)).filter(
+                    ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
+                    ParticipantVoucherRedemption.participant_id == participant.id
+                ).scalar() or 0
+                
+                # Get last redemption date
+                last_redemption = db.query(ParticipantVoucherRedemption).filter(
+                    ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
+                    ParticipantVoucherRedemption.participant_id == participant.id
+                ).order_by(desc(ParticipantVoucherRedemption.redeemed_at)).first()
+                
+                last_redemption_date = last_redemption.redeemed_at if last_redemption else None
             
             participant_data = ParticipantRedemptionResponse(
                 user_id=participant.id,
@@ -145,8 +149,8 @@ async def redeem_voucher(
         vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
         
         # Check current redemption count
-        current_redemptions = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
-            ParticipantVoucherRedemption.event_id == event_id,
+        current_redemptions = db.query(func.sum(ParticipantVoucherRedemption.quantity)).filter(
+            ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
             ParticipantVoucherRedemption.participant_id == redemption_data.participant_id
         ).scalar() or 0
         
@@ -157,12 +161,12 @@ async def redeem_voucher(
         # Create redemption record
         for _ in range(redemption_data.quantity):
             voucher_redemption = ParticipantVoucherRedemption(
-                event_id=event_id,
+                allocation_id=voucher_allocation.id,
                 participant_id=redemption_data.participant_id,
-                redeemed_by=redeemed_by,
+                quantity=1,
+                redeemed_by=str(redeemed_by),
                 redeemed_at=datetime.utcnow(),
-                location=redemption_data.location,
-                notes=redemption_data.notes
+                notes=f"Location: {redemption_data.location}. Notes: {redemption_data.notes or 'None'}"
             )
             db.add(voucher_redemption)
         
@@ -214,10 +218,12 @@ async def get_participant_voucher_balance(
             vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
         
         # Count redemptions
-        redemption_count = db.query(func.count(ParticipantVoucherRedemption.id)).filter(
-            ParticipantVoucherRedemption.event_id == event_id,
-            ParticipantVoucherRedemption.participant_id == participant_id
-        ).scalar() or 0
+        redemption_count = 0
+        if voucher_allocation:
+            redemption_count = db.query(func.sum(ParticipantVoucherRedemption.quantity)).filter(
+                ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
+                ParticipantVoucherRedemption.participant_id == participant_id
+            ).scalar() or 0
         
         # Get participant info
         participant = db.query(User).filter(User.id == participant_id).first()

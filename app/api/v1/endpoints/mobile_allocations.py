@@ -360,14 +360,17 @@ def complete_voucher_redemption(
             # Create redemption record
             from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
             
-            redemption = ParticipantVoucherRedemption(
-                allocation_id=allocation_id,
-                participant_id=participant.id,
-                quantity=quantity,
-                redeemed_at=datetime.utcnow(),
-                redeemed_by=scanner_email or "scanner",
-                notes=f"Scanned redemption via mobile app"
-            )
+            # Create individual redemption records for each voucher
+            for _ in range(quantity):
+                redemption = ParticipantVoucherRedemption(
+                    allocation_id=allocation_id,
+                    participant_id=participant.id,
+                    quantity=1,  # Each record represents 1 voucher
+                    redeemed_at=datetime.utcnow(),
+                    redeemed_by=scanner_email or "scanner",
+                    notes=f"Scanned redemption via mobile app"
+                )
+                db.add(redemption)
             
             db.add(redemption)
             db.commit()
