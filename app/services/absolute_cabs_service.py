@@ -128,6 +128,10 @@ class AbsoluteCabsService:
     def create_booking(self, booking_data: Dict) -> Dict:
         """Create a new booking"""
         try:
+            # Print the payload being sent
+            logger.info(f"🚗 ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
+            print(f"🚗 ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
+            
             response = self._make_request("POST", "/api/bookings", booking_data)
             logger.info(f"Successfully created booking: {response}")
             return response
