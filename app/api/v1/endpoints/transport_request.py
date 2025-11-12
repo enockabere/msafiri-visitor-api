@@ -434,8 +434,21 @@ def book_with_absolute_cabs(
         if (transport_request.pickup_latitude or transport_request.dropoff_latitude):
             db.commit()
         
+        # Map generic vehicle types to Absolute Cabs specific types
+        vehicle_type_mapping = {
+            "SUV": "Rav4",
+            "SALOON": "Premio",
+            "VAN": "14 Seater",
+            "BUS": "Bus",
+            "SEDAN": "Axio",
+            "HATCHBACK": "Fielder"
+        }
+        
+        requested_vehicle = transport_request.vehicle_type or "SUV"
+        absolute_vehicle_type = vehicle_type_mapping.get(requested_vehicle, "Rav4")
+        
         booking_data = {
-            "vehicle_type": transport_request.vehicle_type or "SALOON",
+            "vehicle_type": absolute_vehicle_type,
             "pickup_address": transport_request.pickup_address,
             "pickup_latitude": float(transport_request.pickup_latitude) if transport_request.pickup_latitude else -1.2921,
             "pickup_longitude": float(transport_request.pickup_longitude) if transport_request.pickup_longitude else 36.8219,
@@ -703,9 +716,21 @@ def create_pooled_booking(
             if req.flight_details:
                 flight_details.append(req.flight_details)
         
+        # Map generic vehicle types to Absolute Cabs specific types
+        vehicle_type_mapping = {
+            "SUV": "Rav4",
+            "SALOON": "Premio",
+            "VAN": "14 Seater",
+            "BUS": "Bus",
+            "SEDAN": "Axio",
+            "HATCHBACK": "Fielder"
+        }
+        
+        absolute_vehicle_type = vehicle_type_mapping.get(pooled_request.vehicle_type, "Rav4")
+        
         # Create pooled booking data
         booking_data = {
-            "vehicle_type": pooled_request.vehicle_type,
+            "vehicle_type": absolute_vehicle_type,
             "pickup_address": earliest_request.pickup_address,
             "pickup_latitude": float(earliest_request.pickup_latitude) if earliest_request.pickup_latitude else -1.2921,
             "pickup_longitude": float(earliest_request.pickup_longitude) if earliest_request.pickup_longitude else 36.8219,
