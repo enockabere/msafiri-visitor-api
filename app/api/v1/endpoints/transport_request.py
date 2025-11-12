@@ -437,27 +437,23 @@ def book_with_absolute_cabs(
         booking_data = {
             "vehicle_type": transport_request.vehicle_type or "SALOON",
             "pickup_address": transport_request.pickup_address,
+            "pickup_latitude": float(transport_request.pickup_latitude) if transport_request.pickup_latitude else -1.2921,
+            "pickup_longitude": float(transport_request.pickup_longitude) if transport_request.pickup_longitude else 36.8219,
             "dropoff_address": transport_request.dropoff_address,
+            "dropoff_latitude": float(transport_request.dropoff_latitude) if transport_request.dropoff_latitude else -1.3192,
+            "dropoff_longitude": float(transport_request.dropoff_longitude) if transport_request.dropoff_longitude else 36.9278,
             "pickup_time": pickup_datetime,
             "flightdetails": transport_request.flight_details or "",
             "notes": transport_request.notes or "MSF Event Transport",
             "passengers": [
                 {
                     "name": transport_request.passenger_name,
-                    "phone": transport_request.passenger_phone or "254700000000",  # Provide default phone
+                    "phone": transport_request.passenger_phone or "254700000000",
                     "email": transport_request.passenger_email or ""
                 }
-            ]
+            ],
+            "waypoints": []
         }
-        
-        # Add coordinates only if available
-        if transport_request.pickup_latitude and transport_request.pickup_longitude:
-            booking_data["pickup_latitude"] = float(transport_request.pickup_latitude)
-            booking_data["pickup_longitude"] = float(transport_request.pickup_longitude)
-        
-        if transport_request.dropoff_latitude and transport_request.dropoff_longitude:
-            booking_data["dropoff_latitude"] = float(transport_request.dropoff_latitude)
-            booking_data["dropoff_longitude"] = float(transport_request.dropoff_longitude)
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
@@ -711,21 +707,17 @@ def create_pooled_booking(
         booking_data = {
             "vehicle_type": pooled_request.vehicle_type,
             "pickup_address": earliest_request.pickup_address,
+            "pickup_latitude": float(earliest_request.pickup_latitude) if earliest_request.pickup_latitude else -1.2921,
+            "pickup_longitude": float(earliest_request.pickup_longitude) if earliest_request.pickup_longitude else 36.8219,
             "dropoff_address": earliest_request.dropoff_address,
+            "dropoff_latitude": float(earliest_request.dropoff_latitude) if earliest_request.dropoff_latitude else -1.3192,
+            "dropoff_longitude": float(earliest_request.dropoff_longitude) if earliest_request.dropoff_longitude else 36.9278,
             "pickup_time": pickup_datetime,
             "flightdetails": "; ".join(flight_details) if flight_details else "",
             "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip(),
-            "passengers": passengers
+            "passengers": passengers,
+            "waypoints": []
         }
-        
-        # Add coordinates only if available
-        if earliest_request.pickup_latitude and earliest_request.pickup_longitude:
-            booking_data["pickup_latitude"] = float(earliest_request.pickup_latitude)
-            booking_data["pickup_longitude"] = float(earliest_request.pickup_longitude)
-        
-        if earliest_request.dropoff_latitude and earliest_request.dropoff_longitude:
-            booking_data["dropoff_latitude"] = float(earliest_request.dropoff_latitude)
-            booking_data["dropoff_longitude"] = float(earliest_request.dropoff_longitude)
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
