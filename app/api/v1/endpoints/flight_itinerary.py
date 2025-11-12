@@ -16,6 +16,36 @@ import traceback
 
 router = APIRouter()
 
+def _get_coordinates_for_address(address: str):
+    """Get coordinates for an address using predefined locations"""
+    # Common locations in Nairobi with coordinates
+    locations = {
+        "jomo kenyatta international airport": (-1.3192, 36.9278),
+        "jkia": (-1.3192, 36.9278),
+        "nbo": (-1.3192, 36.9278),
+        "swiss-belinn nairobi": (-1.2921, 36.8219),
+        "event location": (-1.2921, 36.8219),  # Default event location
+        "nairobi": (-1.2921, 36.8219),
+        "westlands": (-1.2681, 36.8119),
+        "kilimani": (-1.3004, 36.7898),
+        "karen": (-1.3197, 36.7081),
+        "gigiri": (-1.2330, 36.8063)
+    }
+    
+    if not address:
+        return None
+        
+    address_lower = address.lower()
+    
+    # Check for exact matches or partial matches
+    for location, coords in locations.items():
+        if location in address_lower:
+            print(f"DEBUG: Found coordinates for '{address}': {coords}")
+            return coords
+    
+    print(f"DEBUG: No coordinates found for '{address}'")
+    return None
+
 class TicketUploadRequest(BaseModel):
     image_data: str  # base64 encoded image
     event_id: int
@@ -396,9 +426,17 @@ async def confirm_itineraries(
                 print(f"  - Time: {pickup_time}")
                 print(f"  - Passenger: {current_user.full_name}")
                 
+                # Get coordinates for addresses
+                pickup_coords = _get_coordinates_for_address(pickup_addr)
+                dropoff_coords = _get_coordinates_for_address(dropoff_addr)
+                
                 transport_request = TransportRequest(
                     pickup_address=pickup_addr,
+                    pickup_latitude=pickup_coords[0] if pickup_coords else None,
+                    pickup_longitude=pickup_coords[1] if pickup_coords else None,
                     dropoff_address=dropoff_addr,
+                    dropoff_latitude=dropoff_coords[0] if dropoff_coords else None,
+                    dropoff_longitude=dropoff_coords[1] if dropoff_coords else None,
                     pickup_time=pickup_time,
                     passenger_name=current_user.full_name,
                     passenger_phone=current_user.phone_number or "",
@@ -427,9 +465,17 @@ async def confirm_itineraries(
                 print(f"  - Time: {pickup_time}")
                 print(f"  - Passenger: {current_user.full_name}")
                 
+                # Get coordinates for addresses
+                pickup_coords = _get_coordinates_for_address(pickup_addr)
+                dropoff_coords = _get_coordinates_for_address(dropoff_addr)
+                
                 transport_request = TransportRequest(
                     pickup_address=pickup_addr,
+                    pickup_latitude=pickup_coords[0] if pickup_coords else None,
+                    pickup_longitude=pickup_coords[1] if pickup_coords else None,
                     dropoff_address=dropoff_addr,
+                    dropoff_latitude=dropoff_coords[0] if dropoff_coords else None,
+                    dropoff_longitude=dropoff_coords[1] if dropoff_coords else None,
                     pickup_time=pickup_time,
                     passenger_name=current_user.full_name,
                     passenger_phone=current_user.phone_number or "",
