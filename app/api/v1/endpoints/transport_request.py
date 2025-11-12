@@ -891,7 +891,12 @@ def get_pooling_suggestions(
         TransportRequest.status.in_(["pending", "created"])
     ).all()
     
+    print(f"🔍 POOLING SERVER DEBUG: Found {len(pending_requests)} pending requests")
+    for req in pending_requests:
+        print(f"🔍 REQUEST {req.id}: {req.passenger_name} | {req.pickup_address} → {req.dropoff_address} | {req.pickup_time} | Coords: ({req.pickup_latitude}, {req.pickup_longitude}) → ({req.dropoff_latitude}, {req.dropoff_longitude})")
+    
     if len(pending_requests) < 2:
+        print(f"🔍 POOLING SERVER DEBUG: Not enough requests for pooling ({len(pending_requests)} < 2)")
         return {"suggestions": []}
     
     # Ensure all requests have coordinates before pooling analysis
@@ -918,10 +923,14 @@ def get_pooling_suggestions(
     suggestions = []
     processed_requests = set()
     
+    print(f"🔍 POOLING SERVER DEBUG: Starting pooling analysis for {len(pending_requests)} requests")
+    
     for i, req1 in enumerate(pending_requests):
         if req1.id in processed_requests:
+            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} already processed, skipping")
             continue
         
+        print(f"🔍 POOLING SERVER DEBUG: Analyzing request {req1.id} as potential pool leader")
         pool_group = [req1]
         waypoints = []
         
@@ -929,10 +938,16 @@ def get_pooling_suggestions(
             if req2.id == req1.id or req2.id in processed_requests:
                 continue
             
+            print(f"🔍 POOLING SERVER DEBUG: Comparing req {req1.id} with req {req2.id}")
+            
             # Check time proximity (within 40 minutes)
             time_diff = abs((req1.pickup_time - req2.pickup_time).total_seconds() / 60)
+            print(f"🔍 TIME CHECK: {req1.pickup_time} vs {req2.pickup_time} = {time_diff:.1f} minutes")
             if time_diff > 40:
+                print(f"🔍 TIME CHECK: ❌ Too far apart ({time_diff:.1f} > 40 minutes)")
                 continue
+            else:
+                print(f"🔍 TIME CHECK: ✅ Within range ({time_diff:.1f} ≤ 40 minutes)")
             
             # Check pickup proximity (within 3km)
             pickup_distance = calculate_distance(
@@ -940,37 +955,42 @@ def get_pooling_suggestions(
                 req2.pickup_latitude, req2.pickup_longitude
             )
             
-            # Debug pooling analysis
-            print(f"🔍 POOLING DEBUG: Comparing requests {req1.id} and {req2.id}")
-            print(f"  - Time diff: {time_diff:.1f} minutes")
-            print(f"  - Pickup distance: {pickup_distance:.2f} km")
-            print(f"  - Req1 pickup coords: ({req1.pickup_latitude}, {req1.pickup_longitude})")
-            print(f"  - Req2 pickup coords: ({req2.pickup_latitude}, {req2.pickup_longitude})")
+            # Check pickup proximity (within 3km) - with detailed debugging
+            print(f"🔍 COORDS CHECK: Req {req1.id} pickup: ({req1.pickup_latitude}, {req1.pickup_longitude})")
+            print(f"🔍 COORDS CHECK: Req {req2.id} pickup: ({req2.pickup_latitude}, {req2.pickup_longitude})")
+            
+            pickup_distance = calculate_distance(
+                req1.pickup_latitude, req1.pickup_longitude,
+                req2.pickup_latitude, req2.pickup_longitude
+            )
+            
+            print(f"🔍 DISTANCE CHECK: Pickup distance = {pickup_distance:.4f} km")
             
             if pickup_distance > 3:
-                print(f"  - ❌ Pickup too far: {pickup_distance:.2f}km > 3km")
+                print(f"🔍 DISTANCE CHECK: ❌ Pickup too far ({pickup_distance:.4f} > 3km)")
                 continue
             else:
-                print(f"  - ✅ Pickup proximity OK: {pickup_distance:.2f}km")
+                print(f"🔍 DISTANCE CHECK: ✅ Pickup proximity OK ({pickup_distance:.4f} ≤ 3km)")
             
             # Check if going to same destination (within 1km)
+            print(f"🔍 COORDS CHECK: Req {req1.id} dropoff: ({req1.dropoff_latitude}, {req1.dropoff_longitude})")
+            print(f"🔍 COORDS CHECK: Req {req2.id} dropoff: ({req2.dropoff_latitude}, {req2.dropoff_longitude})")
+            
             dropoff_distance = calculate_distance(
                 req1.dropoff_latitude, req1.dropoff_longitude,
                 req2.dropoff_latitude, req2.dropoff_longitude
             )
             
-            print(f"  - Dropoff distance: {dropoff_distance:.2f} km")
-            print(f"  - Req1 dropoff coords: ({req1.dropoff_latitude}, {req1.dropoff_longitude})")
-            print(f"  - Req2 dropoff coords: ({req2.dropoff_latitude}, {req2.dropoff_longitude})")
+            print(f"🔍 DROPOFF CHECK: Dropoff distance = {dropoff_distance:.4f} km")
             
             if dropoff_distance <= 1:
                 # Same destination - perfect for pooling
-                print(f"  - ✅ SAME DESTINATION - Adding to pool group")
+                print(f"🔍 DROPOFF CHECK: ✅ SAME DESTINATION ({dropoff_distance:.4f} ≤ 1km) - Adding to pool group")
                 pool_group.append(req2)
                 processed_requests.add(req2.id)
             elif is_same_direction(req1, req2) and can_be_waypoint(req1, req2):
                 # Same direction and can be waypoint
-                print(f"  - ✅ SAME DIRECTION - Adding as waypoint")
+                print(f"🔍 DIRECTION CHECK: ✅ SAME DIRECTION - Adding as waypoint")
                 pool_group.append(req2)
                 waypoints.append({
                     "address": req2.dropoff_address,
@@ -980,7 +1000,7 @@ def get_pooling_suggestions(
                 })
                 processed_requests.add(req2.id)
             else:
-                print(f"  - ❌ Different destinations and directions")
+                print(f"🔍 FINAL CHECK: ❌ Different destinations and directions (dropoff: {dropoff_distance:.4f}km)")
         
         # Only suggest if we have 2+ requests in the group
         if len(pool_group) >= 2:
@@ -991,6 +1011,8 @@ def get_pooling_suggestions(
             # Mark all requests in this group as processed
             for req in pool_group:
                 processed_requests.add(req.id)
+        else:
+            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} has no pooling partners (group size: {len(pool_group)})")
             
             suggestions.append({
                 "group_id": f"pool_{req1.id}",
@@ -1011,6 +1033,10 @@ def get_pooling_suggestions(
                 "pickup_distance_km": round(pickup_distance, 1),
                 "time_diff_minutes": round(time_diff, 0)
             })
+    
+    print(f"🔍 POOLING SERVER DEBUG: Final result - {len(suggestions)} pooling suggestions found")
+    for i, suggestion in enumerate(suggestions):
+        print(f"  Suggestion {i+1}: {suggestion['passenger_count']} passengers, {len(suggestion['requests'])} requests")
     
     return {"suggestions": suggestions}
 
