@@ -18,6 +18,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get("/voucher-redemptions/test")
+async def test_voucher_endpoint():
+    """Test endpoint to verify voucher redemptions router is working"""
+    logger.info("🚨 VOUCHER TEST ENDPOINT HIT")
+    print("🚨 VOUCHER TEST ENDPOINT HIT")
+    return {"message": "Voucher redemptions router is working", "status": "ok"}
+
 class ParticipantRedemptionResponse(BaseModel):
     user_id: int
     participant_name: str
@@ -39,6 +46,8 @@ async def get_participant_redemptions(
     db: Session = Depends(get_db)
 ):
     """Get voucher redemption data for all participants in an event"""
+    logger.info(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}")
+    print(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}")
     try:
         print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Starting fetch for event_id={event_id}, tenant_id={tenant_id}")
         
@@ -128,7 +137,8 @@ async def get_participant_redemptions(
         return redemption_data
         
     except Exception as e:
-        logger.error(f"Error fetching participant redemptions: {str(e)}")
+        logger.error(f"❌ VOUCHER REDEMPTIONS ERROR: {str(e)}")
+        print(f"❌ VOUCHER REDEMPTIONS ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch redemption data: {str(e)}")
 
 @router.post("/voucher-redemptions/redeem")
