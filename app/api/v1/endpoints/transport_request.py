@@ -979,9 +979,15 @@ def get_booking_details(
 ):
     """Fetch booking details from transport provider"""
     from app.services.absolute_cabs_service import get_absolute_cabs_service
+    from app.models.tenant import Tenant
+    
+    # Get tenant ID from current user's tenant slug
+    tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     # Get Absolute Cabs service
-    abs_service = get_absolute_cabs_service(current_user.tenant_id, db)
+    abs_service = get_absolute_cabs_service(tenant.id, db)
     if not abs_service:
         raise HTTPException(status_code=404, detail="Transport provider not configured")
     
