@@ -728,6 +728,19 @@ def create_pooled_booking(
         
         absolute_vehicle_type = vehicle_type_mapping.get(pooled_request.vehicle_type, "Rav4")
         
+        # Create waypoints from other dropoff locations
+        waypoints = []
+        main_dropoff = earliest_request.dropoff_address
+        
+        for req in transport_requests[1:]:  # Skip the first request (main route)
+            if (req.dropoff_address != main_dropoff and 
+                req.dropoff_latitude and req.dropoff_longitude):
+                waypoints.append({
+                    "address": req.dropoff_address,
+                    "lat": float(req.dropoff_latitude),
+                    "lng": float(req.dropoff_longitude)
+                })
+        
         # Create pooled booking data
         booking_data = {
             "vehicle_type": absolute_vehicle_type,
@@ -741,7 +754,7 @@ def create_pooled_booking(
             "flightdetails": "; ".join(flight_details) if flight_details else "",
             "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip(),
             "passengers": passengers,
-            "waypoints": []
+            "waypoints": waypoints
         }
         
         # Create booking with Absolute Cabs
@@ -785,9 +798,85 @@ def get_pooling_suggestions(
     tenant_id: int,
     db: Session = Depends(get_db)
 ):
-    """Get suggestions for pooling transport requests"""
+    """Get intelligent pooling suggestions based on time, location, and direction"""
     from app.models.event import Event
-    from geopy.distance import geodesic
+    import math
+    
+    def calculate_distance(lat1, lon1, lat2, lon2):
+        """Calculate distance between two points using Haversine formula"""
+        if not all([lat1, lon1, lat2, lon2]):
+            return float('inf')
+        
+        R = 6371  # Earth's radius in kilometers
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+        return R * 2 * math.asin(math.sqrt(a))
+    
+    def calculate_bearing(lat1, lon1, lat2, lon2):
+        """Calculate bearing between two points"""
+        if not all([lat1, lon1, lat2, lon2]):
+            return None
+        
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlon = lon2 - lon1
+        y = math.sin(dlon) * math.cos(lat2)
+        x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+        return math.degrees(math.atan2(y, x))
+    
+    def is_same_direction(req1, req2, bearing_tolerance=45):
+        """Check if two requests are going in the same general direction"""
+        bearing1 = calculate_bearing(
+            req1.pickup_latitude, req1.pickup_longitude,
+            req1.dropoff_latitude, req1.dropoff_longitude
+        )
+        bearing2 = calculate_bearing(
+            req2.pickup_latitude, req2.pickup_longitude,
+            req2.dropoff_latitude, req2.dropoff_longitude
+        )
+        
+        if bearing1 is None or bearing2 is None:
+            return False
+        
+        # Normalize bearings to 0-360
+        bearing1 = (bearing1 + 360) % 360
+        bearing2 = (bearing2 + 360) % 360
+        
+        # Calculate difference
+        diff = abs(bearing1 - bearing2)
+        if diff > 180:
+            diff = 360 - diff
+        
+        return diff <= bearing_tolerance
+    
+    def can_be_waypoint(req1, req2):
+        """Check if req2 dropoff can be a waypoint for req1's route"""
+        if not all([req1.pickup_latitude, req1.pickup_longitude, 
+                   req1.dropoff_latitude, req1.dropoff_longitude,
+                   req2.dropoff_latitude, req2.dropoff_longitude]):
+            return False
+        
+        # Calculate direct distance from req1 pickup to dropoff
+        direct_distance = calculate_distance(
+            req1.pickup_latitude, req1.pickup_longitude,
+            req1.dropoff_latitude, req1.dropoff_longitude
+        )
+        
+        # Calculate distance via req2's dropoff
+        via_distance = (
+            calculate_distance(
+                req1.pickup_latitude, req1.pickup_longitude,
+                req2.dropoff_latitude, req2.dropoff_longitude
+            ) +
+            calculate_distance(
+                req2.dropoff_latitude, req2.dropoff_longitude,
+                req1.dropoff_latitude, req1.dropoff_longitude
+            )
+        )
+        
+        # Allow up to 30% detour
+        return via_distance <= direct_distance * 1.3
     
     # Get all events for this tenant
     events = db.query(Event).filter(Event.tenant_id == tenant_id).all()
@@ -811,47 +900,55 @@ def get_pooling_suggestions(
     for i, req1 in enumerate(pending_requests):
         if req1.id in processed_requests:
             continue
-            
-        pool_group = [req1]
-        processed_requests.add(req1.id)
         
-        for j, req2 in enumerate(pending_requests[i+1:], i+1):
-            if req2.id in processed_requests:
+        pool_group = [req1]
+        waypoints = []
+        
+        for j, req2 in enumerate(pending_requests):
+            if req2.id == req1.id or req2.id in processed_requests:
                 continue
-                
-            # Check time proximity (within 30 minutes)
+            
+            # Check time proximity (within 40 minutes)
             time_diff = abs((req1.pickup_time - req2.pickup_time).total_seconds() / 60)
-            if time_diff > 30:
+            if time_diff > 40:
                 continue
-                
-            # Check location proximity if coordinates available
-            if (req1.pickup_latitude and req1.pickup_longitude and 
-                req2.pickup_latitude and req2.pickup_longitude):
-                pickup_distance = geodesic(
-                    (req1.pickup_latitude, req1.pickup_longitude),
-                    (req2.pickup_latitude, req2.pickup_longitude)
-                ).kilometers
-                
-                if (req1.dropoff_latitude and req1.dropoff_longitude and 
-                    req2.dropoff_latitude and req2.dropoff_longitude):
-                    dropoff_distance = geodesic(
-                        (req1.dropoff_latitude, req1.dropoff_longitude),
-                        (req2.dropoff_latitude, req2.dropoff_longitude)
-                    ).kilometers
-                    
-                    # Pool if pickup within 2km and dropoff within 5km
-                    if pickup_distance <= 2 and dropoff_distance <= 5:
-                        pool_group.append(req2)
-                        processed_requests.add(req2.id)
-            else:
-                # Fallback to address similarity if no coordinates
-                if (req1.pickup_address.lower() in req2.pickup_address.lower() or
-                    req2.pickup_address.lower() in req1.pickup_address.lower()):
-                    pool_group.append(req2)
-                    processed_requests.add(req2.id)
+            
+            # Check pickup proximity (within 3km)
+            pickup_distance = calculate_distance(
+                req1.pickup_latitude, req1.pickup_longitude,
+                req2.pickup_latitude, req2.pickup_longitude
+            )
+            
+            if pickup_distance > 3:
+                continue
+            
+            # Check if going to same destination (within 1km)
+            dropoff_distance = calculate_distance(
+                req1.dropoff_latitude, req1.dropoff_longitude,
+                req2.dropoff_latitude, req2.dropoff_longitude
+            )
+            
+            if dropoff_distance <= 1:
+                # Same destination - perfect for pooling
+                pool_group.append(req2)
+                processed_requests.add(req2.id)
+            elif is_same_direction(req1, req2) and can_be_waypoint(req1, req2):
+                # Same direction and can be waypoint
+                pool_group.append(req2)
+                waypoints.append({
+                    "address": req2.dropoff_address,
+                    "lat": req2.dropoff_latitude,
+                    "lng": req2.dropoff_longitude,
+                    "passenger": req2.passenger_name
+                })
+                processed_requests.add(req2.id)
         
         # Only suggest if we have 2+ requests in the group
         if len(pool_group) >= 2:
+            # Mark all requests in this group as processed
+            for req in pool_group:
+                processed_requests.add(req.id)
+            
             suggestions.append({
                 "group_id": f"pool_{req1.id}",
                 "requests": [
@@ -864,9 +961,12 @@ def get_pooling_suggestions(
                         "flight_details": req.flight_details
                     } for req in pool_group
                 ],
+                "waypoints": waypoints,
                 "passenger_count": len(pool_group),
                 "time_window": f"{min(req.pickup_time for req in pool_group).strftime('%H:%M')} - {max(req.pickup_time for req in pool_group).strftime('%H:%M')}",
-                "suggested_vehicle": "Van" if len(pool_group) > 4 else "SUV"
+                "suggested_vehicle": "14 Seater" if len(pool_group) > 6 else "Rav4" if len(pool_group) > 4 else "Premio",
+                "pickup_distance_km": round(pickup_distance, 1),
+                "time_diff_minutes": round(time_diff, 0)
             })
     
     return {"suggestions": suggestions}
