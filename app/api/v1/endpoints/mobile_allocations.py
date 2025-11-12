@@ -323,6 +323,122 @@ def confirm_voucher_redemption(
         "remaining_vouchers": remaining
     }
 
+@router.post("/participant/voucher-redemption/complete")
+def complete_voucher_redemption(
+    request: dict,
+    db: Session = Depends(get_db)
+):
+    """Complete voucher redemption from QR scanner"""
+    
+    try:
+        print(f"🔍 REDEMPTION DEBUG: Received request: {request}")
+        
+        # Handle comprehensive voucher data format
+        if 'allocation_id' in request and 'quantity' in request:
+            allocation_id = int(request['allocation_id'])
+            quantity = int(request['quantity'])
+            scanner_email = request.get('scanner_email')
+            
+            print(f"🔍 REDEMPTION DEBUG: Processing allocation {allocation_id}, quantity {quantity}")
+            
+            # Get allocation
+            allocation = db.query(EventAllocation).filter(
+                EventAllocation.id == allocation_id
+            ).first()
+            
+            if not allocation:
+                raise HTTPException(status_code=404, detail="Allocation not found")
+            
+            # Get participant from allocation's event
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.event_id == allocation.event_id
+            ).first()
+            
+            if not participant:
+                raise HTTPException(status_code=404, detail="Participant not found")
+            
+            # Create redemption record
+            from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+            
+            redemption = ParticipantVoucherRedemption(
+                allocation_id=allocation_id,
+                participant_id=participant.id,
+                quantity=quantity,
+                redeemed_at=datetime.utcnow(),
+                redeemed_by=scanner_email or "scanner",
+                notes=f"Scanned redemption via mobile app"
+            )
+            
+            db.add(redemption)
+            db.commit()
+            
+            print(f"🔍 REDEMPTION DEBUG: Successfully created redemption record")
+            
+            return {
+                "success": True,
+                "message": "Voucher redeemed successfully",
+                "participant_name": participant.full_name,
+                "quantity": quantity
+            }
+        
+        # Handle token-based redemption (fallback)
+        elif 'qr_token' in request:
+            token = request['qr_token']
+            scanner_email = request.get('scanner_email')
+            
+            print(f"🔍 REDEMPTION DEBUG: Processing token {token}")
+            
+            from app.models.pending_voucher_redemption import PendingVoucherRedemption
+            
+            pending = db.query(PendingVoucherRedemption).filter(
+                PendingVoucherRedemption.token == token,
+                PendingVoucherRedemption.status == "pending"
+            ).first()
+            
+            if not pending:
+                raise HTTPException(status_code=404, detail="Redemption token not found or already processed")
+            
+            # Create actual redemption record
+            from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+            
+            redemption = ParticipantVoucherRedemption(
+                allocation_id=pending.allocation_id,
+                participant_id=pending.participant_id,
+                quantity=pending.quantity,
+                redeemed_at=datetime.utcnow(),
+                redeemed_by=scanner_email or "scanner",
+                notes=pending.notes
+            )
+            
+            db.add(redemption)
+            
+            # Mark pending as completed
+            pending.status = "completed"
+            pending.processed_at = datetime.utcnow()
+            pending.processed_by = scanner_email or "scanner"
+            
+            db.commit()
+            
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.id == pending.participant_id
+            ).first()
+            
+            return {
+                "success": True,
+                "message": "Voucher redeemed successfully",
+                "participant_name": participant.full_name if participant else "Unknown",
+                "quantity": pending.quantity
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Invalid request format")
+            
+    except Exception as e:
+        print(f"❌ REDEMPTION ERROR: {str(e)}")
+        import traceback
+        print(f"❌ REDEMPTION TRACEBACK: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error processing redemption: {str(e)}")
+
 @router.get("/admin/pending-redemptions")
 def get_pending_redemptions(
     event_id: Optional[int] = Query(None),
