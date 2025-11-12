@@ -568,17 +568,31 @@ async def get_voucher_stats(
     ).all()
     
     total_participants = len(participants)
-    total_allocated = sum(alloc.drink_vouchers_per_participant for alloc in voucher_allocations) * total_participants
+    vouchers_per_participant = sum(alloc.drink_vouchers_per_participant for alloc in voucher_allocations)
+    total_allocated_vouchers = vouchers_per_participant * total_participants
     
-    # Mock redeemed data - in real implementation, this would come from a redemption tracking system
-    total_redeemed = 0
-    over_allocated = []
+    # Calculate actual redeemed vouchers from redemption records
+    total_redeemed_vouchers = 0
+    if voucher_allocations:
+        try:
+            from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+            from sqlalchemy import func
+            
+            # Sum all redemptions for all allocations in this event
+            for allocation in voucher_allocations:
+                redeemed_sum = db.query(func.sum(ParticipantVoucherRedemption.quantity)).filter(
+                    ParticipantVoucherRedemption.allocation_id == allocation.id
+                ).scalar() or 0
+                total_redeemed_vouchers += redeemed_sum
+                
+        except Exception as e:
+            print(f"Error calculating redeemed vouchers: {e}")
+            total_redeemed_vouchers = 0
     
     return {
         "total_participants": total_participants,
-        "total_allocated": total_allocated,
-        "total_redeemed": total_redeemed,
-        "over_allocated": over_allocated
+        "total_allocated_vouchers": total_allocated_vouchers,
+        "total_redeemed_vouchers": total_redeemed_vouchers
     }
 
 @router.get("/pending/{tenant_slug}", response_model=List[dict])
