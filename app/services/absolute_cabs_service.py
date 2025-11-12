@@ -154,6 +154,47 @@ class AbsoluteCabsService:
         except Exception as e:
             logger.error(f"Failed to fetch booking {ref_no}: {str(e)}")
             raise
+    
+    def get_booking_details(self, ref_no: str) -> Dict:
+        """Fetch detailed booking information by reference number"""
+        try:
+            response = self._make_request("GET", f"/api/bookings/{ref_no}")
+            
+            # Extract booking data from response
+            if 'booking' in response:
+                booking = response['booking']
+            elif 'data' in response:
+                booking = response['data']
+            else:
+                booking = response
+            
+            # Format the response for frontend consumption
+            return {
+                "success": True,
+                "booking": {
+                    "ref_no": booking.get("ref_no"),
+                    "id": booking.get("id"),
+                    "pickup_date": booking.get("pickup_date"),
+                    "pickup_time": booking.get("pickup_time"),
+                    "vehicle_type": booking.get("vehicle_type"),
+                    "status": booking.get("status", "Pending"),
+                    "pickup_address": booking.get("pickup_address"),
+                    "pickup_latitude": booking.get("pickup_latitude"),
+                    "pickup_longitude": booking.get("pickup_longitude"),
+                    "dropoff_address": booking.get("dropoff_address"),
+                    "dropoff_latitude": booking.get("dropoff_latitude"),
+                    "dropoff_longitude": booking.get("dropoff_longitude"),
+                    "flightdetails": booking.get("flightdetails"),
+                    "notes": booking.get("notes"),
+                    "passengers": booking.get("passengers", []),
+                    "drivers": booking.get("drivers", []),
+                    "vehicles": booking.get("vehicles", []),
+                    "waypoints": booking.get("waypoints", [])
+                }
+            }
+        except Exception as e:
+            logger.error(f"Failed to fetch booking details {ref_no}: {str(e)}")
+            raise
 
 def get_absolute_cabs_service(tenant_id: int, db: Session) -> Optional[AbsoluteCabsService]:
     """Get configured Absolute Cabs service for a tenant"""

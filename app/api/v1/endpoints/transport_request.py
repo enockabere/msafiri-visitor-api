@@ -970,3 +970,23 @@ def get_pooling_suggestions(
             })
     
     return {"suggestions": suggestions}
+
+@router.get("/booking-details/{ref_no}")
+def get_booking_details(
+    ref_no: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Fetch booking details from transport provider"""
+    from app.services.absolute_cabs_service import get_absolute_cabs_service
+    
+    # Get Absolute Cabs service
+    abs_service = get_absolute_cabs_service(current_user.tenant_id, db)
+    if not abs_service:
+        raise HTTPException(status_code=404, detail="Transport provider not configured")
+    
+    try:
+        booking_details = abs_service.get_booking_details(ref_no)
+        return booking_details
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch booking details: {str(e)}")
