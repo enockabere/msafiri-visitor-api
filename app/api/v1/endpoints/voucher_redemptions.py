@@ -46,10 +46,22 @@ async def get_participant_redemptions(
     db: Session = Depends(get_db)
 ):
     """Get voucher redemption data for all participants in an event"""
+    # Force logging to appear in gunicorn logs
+    import sys
+    sys.stdout.flush()
+    sys.stderr.flush()
+    
     logger.info(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}")
-    print(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}")
+    print(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}", flush=True)
+    
+    # Also write to stderr to ensure it appears
+    import sys
+    sys.stderr.write(f"🚨 VOUCHER REDEMPTIONS ENDPOINT HIT: event_id={event_id}, tenant_id={tenant_id}\n")
+    sys.stderr.flush()
     try:
-        print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Starting fetch for event_id={event_id}, tenant_id={tenant_id}")
+        print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Starting fetch for event_id={event_id}, tenant_id={tenant_id}", flush=True)
+        sys.stderr.write(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Starting fetch for event_id={event_id}, tenant_id={tenant_id}\n")
+        sys.stderr.flush()
         
         # Verify event exists and belongs to tenant
         event = db.query(Event).filter(
