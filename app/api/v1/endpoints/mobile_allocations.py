@@ -17,7 +17,9 @@ import secrets
 router = APIRouter()
 
 class VoucherRedemptionRequest(BaseModel):
+    allocation_id: int
     quantity: int
+    participant_email: str
     notes: Optional[str] = None
 
 class QRCodeResponse(BaseModel):
@@ -121,7 +123,6 @@ def get_participant_allocations(
 @router.post("/participant/voucher-redemption/initiate")
 def initiate_voucher_redemption(
     request: VoucherRedemptionRequest,
-    allocation_id: int = Query(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -137,7 +138,7 @@ def initiate_voucher_redemption(
     
     # Get allocation
     allocation = db.query(EventAllocation).filter(
-        EventAllocation.id == allocation_id
+        EventAllocation.id == request.allocation_id
     ).first()
     
     if not allocation:
@@ -147,7 +148,7 @@ def initiate_voucher_redemption(
     from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
     
     redemptions = db.query(ParticipantVoucherRedemption).filter(
-        ParticipantVoucherRedemption.allocation_id == allocation_id,
+        ParticipantVoucherRedemption.allocation_id == request.allocation_id,
         ParticipantVoucherRedemption.participant_id == participant.id
     ).all()
     
@@ -167,7 +168,7 @@ def initiate_voucher_redemption(
     
     pending_redemption = PendingVoucherRedemption(
         token=redemption_token,
-        allocation_id=allocation_id,
+        allocation_id=request.allocation_id,
         participant_id=participant.id,
         quantity=request.quantity,
         notes=request.notes,
@@ -183,7 +184,7 @@ def initiate_voucher_redemption(
         "type": "voucher_redemption",
         "token": redemption_token,
         "participant_id": participant.id,
-        "allocation_id": allocation_id,
+        "allocation_id": request.allocation_id,
         "quantity": request.quantity,
         "participant_name": participant.full_name,
         "event_id": allocation.event_id
@@ -348,10 +349,23 @@ def complete_voucher_redemption(
             if not allocation:
                 raise HTTPException(status_code=404, detail="Allocation not found")
             
-            # Get participant from allocation's event
-            participant = db.query(EventParticipant).filter(
-                EventParticipant.event_id == allocation.event_id
-            ).first()
+            # For comprehensive voucher data format, we need to find the participant
+            # The QR code should contain participant info, but for now we'll use a workaround
+            # We'll find the participant based on the allocation and assume it's the first one
+            # This is a temporary solution - ideally we need participant_id in the QR code
+            
+            # Try to get participant_email from request if provided
+            participant_email = request.get('participant_email')
+            if participant_email:
+                participant = db.query(EventParticipant).filter(
+                    EventParticipant.event_id == allocation.event_id,
+                    EventParticipant.email == participant_email
+                ).first()
+            else:
+                # Fallback: get any participant from this event (not ideal)
+                participant = db.query(EventParticipant).filter(
+                    EventParticipant.event_id == allocation.event_id
+                ).first()
             
             if not participant:
                 raise HTTPException(status_code=404, detail="Participant not found")
@@ -359,18 +373,15 @@ def complete_voucher_redemption(
             # Create redemption record
             from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
             
-            # Create individual redemption records for each voucher
-            for _ in range(quantity):
-                redemption = ParticipantVoucherRedemption(
-                    allocation_id=allocation_id,
-                    participant_id=participant.id,
-                    quantity=1,  # Each record represents 1 voucher
-                    redeemed_at=datetime.utcnow(),
-                    redeemed_by=scanner_email or "scanner",
-                    notes=f"Scanned redemption via mobile app"
-                )
-                db.add(redemption)
-            
+            # Create single redemption record for the total quantity
+            redemption = ParticipantVoucherRedemption(
+                allocation_id=allocation_id,
+                participant_id=participant.id,
+                quantity=quantity,
+                redeemed_at=datetime.utcnow(),
+                redeemed_by=scanner_email or "scanner",
+                notes=f"Scanned redemption via mobile app"
+            )
             db.add(redemption)
             db.commit()
             
