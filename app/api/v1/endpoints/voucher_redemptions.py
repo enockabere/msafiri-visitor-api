@@ -40,13 +40,18 @@ async def get_participant_redemptions(
 ):
     """Get voucher redemption data for all participants in an event"""
     try:
+        print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Starting fetch for event_id={event_id}, tenant_id={tenant_id}")
+        
         # Verify event exists and belongs to tenant
         event = db.query(Event).filter(
             Event.id == event_id,
             Event.tenant_id == tenant_id
         ).first()
         if not event:
+            print(f"❌ PARTICIPANT REDEMPTIONS DEBUG: Event not found for event_id={event_id}, tenant_id={tenant_id}")
             raise HTTPException(status_code=404, detail="Event not found")
+        
+        print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Found event: {event.title}")
         
         # Get voucher allocation for this event
         voucher_allocation = db.query(EventAllocation).filter(
@@ -56,6 +61,9 @@ async def get_participant_redemptions(
         vouchers_per_participant = 0
         if voucher_allocation:
             vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
+            print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Found voucher allocation ID={voucher_allocation.id}, vouchers_per_participant={vouchers_per_participant}")
+        else:
+            print(f"❌ PARTICIPANT REDEMPTIONS DEBUG: No voucher allocation found for event_id={event_id}")
         
         # Get all participants for this event
         participants_query = db.query(
@@ -68,11 +76,14 @@ async def get_participant_redemptions(
         )
         
         participants = participants_query.all()
+        print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Found {len(participants)} participants")
         
         # Get redemption data for each participant
         redemption_data = []
         
         for participant in participants:
+            print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Processing participant {participant.id} - {participant.full_name}")
+            
             # Count total redemptions for this participant using allocation_id
             redemption_count = 0
             last_redemption_date = None
@@ -83,6 +94,8 @@ async def get_participant_redemptions(
                     ParticipantVoucherRedemption.participant_id == participant.id
                 ).scalar() or 0
                 
+                print(f"📊 PARTICIPANT REDEMPTIONS DEBUG: Participant {participant.id} has redeemed {redemption_count} vouchers")
+                
                 # Get last redemption date
                 last_redemption = db.query(ParticipantVoucherRedemption).filter(
                     ParticipantVoucherRedemption.allocation_id == voucher_allocation.id,
@@ -90,6 +103,8 @@ async def get_participant_redemptions(
                 ).order_by(desc(ParticipantVoucherRedemption.redeemed_at)).first()
                 
                 last_redemption_date = last_redemption.redeemed_at if last_redemption else None
+                if last_redemption_date:
+                    print(f"📅 PARTICIPANT REDEMPTIONS DEBUG: Last redemption for participant {participant.id}: {last_redemption_date}")
             
             participant_data = ParticipantRedemptionResponse(
                 user_id=participant.id,
@@ -100,10 +115,15 @@ async def get_participant_redemptions(
                 last_redemption_date=last_redemption_date
             )
             
+            print(f"➕ PARTICIPANT REDEMPTIONS DEBUG: Added participant data: {participant_data.dict()}")
             redemption_data.append(participant_data)
         
         # Sort by redeemed count (highest first) to show over-redemptions at top
         redemption_data.sort(key=lambda x: x.redeemed_count, reverse=True)
+        
+        print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Returning {len(redemption_data)} participant redemption records")
+        for data in redemption_data:
+            print(f"📄 PARTICIPANT REDEMPTIONS DEBUG: {data.participant_name} - Allocated: {data.allocated_count}, Redeemed: {data.redeemed_count}")
         
         return redemption_data
         
