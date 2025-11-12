@@ -377,6 +377,14 @@ def book_with_absolute_cabs(
         # Prepare booking data for Absolute Cabs API
         pickup_datetime = transport_request.pickup_time.strftime("%Y-%m-%d %H:%M")
         
+        # Debug: Print transport request data
+        print(f"🚛 TRANSPORT REQUEST DEBUG:")
+        print(f"  - ID: {transport_request.id}")
+        print(f"  - Pickup Lat/Lng: {transport_request.pickup_latitude}, {transport_request.pickup_longitude}")
+        print(f"  - Dropoff Lat/Lng: {transport_request.dropoff_latitude}, {transport_request.dropoff_longitude}")
+        print(f"  - Passenger Phone: '{transport_request.passenger_phone}'")
+        print(f"  - Passenger Name: '{transport_request.passenger_name}'")
+        
         booking_data = {
             "vehicle_type": transport_request.vehicle_type or "SALOON",
             "pickup_address": transport_request.pickup_address,
@@ -387,7 +395,7 @@ def book_with_absolute_cabs(
             "passengers": [
                 {
                     "name": transport_request.passenger_name,
-                    "phone": transport_request.passenger_phone,
+                    "phone": transport_request.passenger_phone or "254700000000",  # Provide default phone
                     "email": transport_request.passenger_email or ""
                 }
             ]
