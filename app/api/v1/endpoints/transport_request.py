@@ -380,21 +380,21 @@ def book_with_absolute_cabs(
         booking_data = {
             "vehicle_type": transport_request.vehicle_type or "SALOON",
             "pickup_address": transport_request.pickup_address,
-            "pickup_latitude": transport_request.pickup_latitude or 0,
-            "pickup_longitude": transport_request.pickup_longitude or 0,
+            "pickup_latitude": float(transport_request.pickup_latitude or -1.2921),
+            "pickup_longitude": float(transport_request.pickup_longitude or 36.8219),
             "dropoff_address": transport_request.dropoff_address,
-            "dropoff_latitude": transport_request.dropoff_latitude or 0,
-            "dropoff_longitude": transport_request.dropoff_longitude or 0,
+            "dropoff_latitude": float(transport_request.dropoff_latitude or -1.2674),
+            "dropoff_longitude": float(transport_request.dropoff_longitude or 36.8112),
             "pickup_time": pickup_datetime,
             "flightdetails": transport_request.flight_details or "",
+            "notes": transport_request.notes or "MSF Event Transport",
             "passengers": [
                 {
                     "name": transport_request.passenger_name,
-                    "telephone": transport_request.passenger_phone,
+                    "phone": transport_request.passenger_phone,
                     "email": transport_request.passenger_email or ""
                 }
-            ],
-            "notes": transport_request.notes or "MSF Event Transport"
+            ]
         }
         
         # Create booking with Absolute Cabs
@@ -639,7 +639,7 @@ def create_pooled_booking(
         for req in transport_requests:
             passengers.append({
                 "name": req.passenger_name,
-                "telephone": req.passenger_phone,
+                "phone": req.passenger_phone,
                 "email": req.passenger_email or ""
             })
             if req.flight_details:
@@ -649,15 +649,15 @@ def create_pooled_booking(
         booking_data = {
             "vehicle_type": pooled_request.vehicle_type,
             "pickup_address": earliest_request.pickup_address,
-            "pickup_latitude": earliest_request.pickup_latitude or 0,
-            "pickup_longitude": earliest_request.pickup_longitude or 0,
+            "pickup_latitude": float(earliest_request.pickup_latitude or -1.2921),
+            "pickup_longitude": float(earliest_request.pickup_longitude or 36.8219),
             "dropoff_address": earliest_request.dropoff_address,
-            "dropoff_latitude": earliest_request.dropoff_latitude or 0,
-            "dropoff_longitude": earliest_request.dropoff_longitude or 0,
+            "dropoff_latitude": float(earliest_request.dropoff_latitude or -1.2674),
+            "dropoff_longitude": float(earliest_request.dropoff_longitude or 36.8112),
             "pickup_time": pickup_datetime,
             "flightdetails": "; ".join(flight_details) if flight_details else "",
-            "passengers": passengers,
-            "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip()
+            "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip(),
+            "passengers": passengers
         }
         
         # Create booking with Absolute Cabs
