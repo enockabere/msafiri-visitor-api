@@ -13,6 +13,36 @@ from typing import List, Optional
 
 router = APIRouter()
 
+def _get_coordinates_for_address(address: str):
+    """Get coordinates for an address using predefined locations"""
+    # Common locations in Nairobi with coordinates
+    locations = {
+        "jomo kenyatta international airport": (-1.3192, 36.9278),
+        "jkia": (-1.3192, 36.9278),
+        "nbo": (-1.3192, 36.9278),
+        "swiss-belinn nairobi": (-1.2921, 36.8219),
+        "event location": (-1.2921, 36.8219),  # Default event location
+        "nairobi": (-1.2921, 36.8219),
+        "westlands": (-1.2681, 36.8119),
+        "kilimani": (-1.3004, 36.7898),
+        "karen": (-1.3197, 36.7081),
+        "gigiri": (-1.2330, 36.8063)
+    }
+    
+    if not address:
+        return None
+        
+    address_lower = address.lower()
+    
+    # Check for exact matches or partial matches
+    for location, coords in locations.items():
+        if location in address_lower:
+            print(f"DEBUG: Found coordinates for '{address}': {coords}")
+            return coords
+    
+    print(f"DEBUG: No coordinates found for '{address}'")
+    return None
+
 class TransportRequestCreate(BaseModel):
     pickup_address: str
     pickup_latitude: float = None
@@ -384,6 +414,25 @@ def book_with_absolute_cabs(
         print(f"  - Dropoff Lat/Lng: {transport_request.dropoff_latitude}, {transport_request.dropoff_longitude}")
         print(f"  - Passenger Phone: '{transport_request.passenger_phone}'")
         print(f"  - Passenger Name: '{transport_request.passenger_name}'")
+        
+        # Add coordinates if missing
+        if not transport_request.pickup_latitude or not transport_request.pickup_longitude:
+            pickup_coords = _get_coordinates_for_address(transport_request.pickup_address)
+            if pickup_coords:
+                transport_request.pickup_latitude = pickup_coords[0]
+                transport_request.pickup_longitude = pickup_coords[1]
+                print(f"  - Added pickup coordinates: {pickup_coords}")
+        
+        if not transport_request.dropoff_latitude or not transport_request.dropoff_longitude:
+            dropoff_coords = _get_coordinates_for_address(transport_request.dropoff_address)
+            if dropoff_coords:
+                transport_request.dropoff_latitude = dropoff_coords[0]
+                transport_request.dropoff_longitude = dropoff_coords[1]
+                print(f"  - Added dropoff coordinates: {dropoff_coords}")
+        
+        # Save coordinates if we added them
+        if (transport_request.pickup_latitude or transport_request.dropoff_latitude):
+            db.commit()
         
         booking_data = {
             "vehicle_type": transport_request.vehicle_type or "SALOON",
