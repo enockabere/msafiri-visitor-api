@@ -86,14 +86,14 @@ async def get_participant_redemptions(
         else:
             print(f"❌ PARTICIPANT REDEMPTIONS DEBUG: No voucher allocation found for event_id={event_id}")
         
-        # Get all participants for this event
+        # Get all participants for this event - UPDATED STATUS FILTER
         participants_query = db.query(
             EventParticipant.id,
             EventParticipant.full_name,
             EventParticipant.email
         ).filter(
             EventParticipant.event_id == event_id,
-            EventParticipant.status.in_(["registered", "selected", "attended"])
+            EventParticipant.status.in_(["confirmed", "registered", "selected", "attended"])
         )
         
         participants = participants_query.all()
@@ -103,7 +103,7 @@ async def get_participant_redemptions(
         redemption_data = []
         
         for participant in participants:
-            print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Processing participant {participant.id} - {participant.full_name}")
+            print(f"🔍 PARTICIPANT REDEMPTIONS DEBUG: Processing participant {participant.id} - {participant.full_name}", flush=True)
             
             # Count total redemptions for this participant using allocation_id
             redemption_count = 0
@@ -115,7 +115,7 @@ async def get_participant_redemptions(
                     ParticipantVoucherRedemption.participant_id == participant.id
                 ).scalar() or 0
                 
-                print(f"📊 PARTICIPANT REDEMPTIONS DEBUG: Participant {participant.id} has redeemed {redemption_count} vouchers")
+                print(f"📊 PARTICIPANT REDEMPTIONS DEBUG: Participant {participant.id} has redeemed {redemption_count} vouchers", flush=True)
                 
                 # Get last redemption date
                 last_redemption = db.query(ParticipantVoucherRedemption).filter(
@@ -125,26 +125,30 @@ async def get_participant_redemptions(
                 
                 last_redemption_date = last_redemption.redeemed_at if last_redemption else None
                 if last_redemption_date:
-                    print(f"📅 PARTICIPANT REDEMPTIONS DEBUG: Last redemption for participant {participant.id}: {last_redemption_date}")
+                    print(f"📅 PARTICIPANT REDEMPTIONS DEBUG: Last redemption for participant {participant.id}: {last_redemption_date}", flush=True)
             
-            participant_data = ParticipantRedemptionResponse(
-                user_id=participant.id,
-                participant_name=participant.full_name or "Unknown",
-                participant_email=participant.email,
-                allocated_count=vouchers_per_participant,
-                redeemed_count=redemption_count,
-                last_redemption_date=last_redemption_date
-            )
-            
-            print(f"➕ PARTICIPANT REDEMPTIONS DEBUG: Added participant data: {participant_data.dict()}")
-            redemption_data.append(participant_data)
+            # ONLY INCLUDE PARTICIPANTS WITH REDEMPTIONS
+            if redemption_count > 0:
+                participant_data = ParticipantRedemptionResponse(
+                    user_id=participant.id,
+                    participant_name=participant.full_name or "Unknown",
+                    participant_email=participant.email,
+                    allocated_count=vouchers_per_participant,
+                    redeemed_count=redemption_count,
+                    last_redemption_date=last_redemption_date
+                )
+                
+                print(f"➕ PARTICIPANT REDEMPTIONS DEBUG: Added participant data: {participant_data.dict()}", flush=True)
+                redemption_data.append(participant_data)
+            else:
+                print(f"⏭️ PARTICIPANT REDEMPTIONS DEBUG: Skipped participant {participant.id} - no redemptions", flush=True)
         
         # Sort by redeemed count (highest first) to show over-redemptions at top
         redemption_data.sort(key=lambda x: x.redeemed_count, reverse=True)
         
-        print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Returning {len(redemption_data)} participant redemption records")
+        print(f"✅ PARTICIPANT REDEMPTIONS DEBUG: Returning {len(redemption_data)} participant redemption records", flush=True)
         for data in redemption_data:
-            print(f"📄 PARTICIPANT REDEMPTIONS DEBUG: {data.participant_name} - Allocated: {data.allocated_count}, Redeemed: {data.redeemed_count}")
+            print(f"📄 PARTICIPANT REDEMPTIONS DEBUG: {data.participant_name} - Allocated: {data.allocated_count}, Redeemed: {data.redeemed_count}", flush=True)
         
         return redemption_data
         
