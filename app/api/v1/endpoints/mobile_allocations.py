@@ -143,7 +143,7 @@ def initiate_voucher_redemption(
     if not allocation:
         raise HTTPException(status_code=404, detail="Allocation not found")
     
-    # Check remaining vouchers
+    # Check remaining vouchers (allow over-redemption)
     from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
     
     redemptions = db.query(ParticipantVoucherRedemption).filter(
@@ -154,11 +154,10 @@ def initiate_voucher_redemption(
     total_redeemed = sum(r.quantity for r in redemptions)
     remaining = allocation.drink_vouchers_per_participant - total_redeemed
     
-    if request.quantity > remaining:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Cannot redeem {request.quantity} vouchers. Only {remaining} remaining."
-        )
+    # Allow over-redemption but log it
+    is_over_redemption = request.quantity > remaining
+    if is_over_redemption:
+        print(f"WARNING: Over-redemption detected - Participant {participant.id} requesting {request.quantity} vouchers but only {remaining} remaining")
     
     # Generate redemption token
     redemption_token = secrets.token_urlsafe(32)
