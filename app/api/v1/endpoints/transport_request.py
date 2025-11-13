@@ -949,12 +949,6 @@ def get_pooling_suggestions(
             else:
                 print(f"🔍 TIME CHECK: ✅ Within range ({time_diff:.1f} ≤ 40 minutes)")
             
-            # Check pickup proximity (within 3km)
-            pickup_distance = calculate_distance(
-                req1.pickup_latitude, req1.pickup_longitude,
-                req2.pickup_latitude, req2.pickup_longitude
-            )
-            
             # Check pickup proximity (within 3km) - with detailed debugging
             print(f"🔍 COORDS CHECK: Req {req1.id} pickup: ({req1.pickup_latitude}, {req1.pickup_longitude})")
             print(f"🔍 COORDS CHECK: Req {req2.id} pickup: ({req2.pickup_latitude}, {req2.pickup_longitude})")
@@ -966,7 +960,7 @@ def get_pooling_suggestions(
             
             print(f"🔍 DISTANCE CHECK: Pickup distance = {pickup_distance:.4f} km")
             
-            if pickup_distance > 3:
+            if pickup_distance == float('inf') or pickup_distance > 3:
                 print(f"🔍 DISTANCE CHECK: ❌ Pickup too far ({pickup_distance:.4f} > 3km)")
                 continue
             else:
@@ -1008,11 +1002,17 @@ def get_pooling_suggestions(
             for req in pool_group:
                 print(f"  - {req.passenger_name}: {req.pickup_address} → {req.dropoff_address}")
             
-            # Mark all requests in this group as processed
-            for req in pool_group:
-                processed_requests.add(req.id)
-        else:
-            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} has no pooling partners (group size: {len(pool_group)})")
+            # Calculate final metrics for the group
+            final_pickup_distance = 0.0
+            final_time_diff = 0.0
+            if len(pool_group) > 1:
+                # Use the last comparison values
+                calculated_distance = calculate_distance(
+                    pool_group[0].pickup_latitude, pool_group[0].pickup_longitude,
+                    pool_group[-1].pickup_latitude, pool_group[-1].pickup_longitude
+                )
+                final_pickup_distance = calculated_distance if calculated_distance != float('inf') else 0.0
+                final_time_diff = abs((pool_group[0].pickup_time - pool_group[-1].pickup_time).total_seconds() / 60)
             
             suggestions.append({
                 "group_id": f"pool_{req1.id}",
@@ -1030,9 +1030,15 @@ def get_pooling_suggestions(
                 "passenger_count": len(pool_group),
                 "time_window": f"{min(req.pickup_time for req in pool_group).strftime('%H:%M')} - {max(req.pickup_time for req in pool_group).strftime('%H:%M')}",
                 "suggested_vehicle": "14 Seater" if len(pool_group) > 6 else "Rav4" if len(pool_group) > 4 else "Premio",
-                "pickup_distance_km": round(pickup_distance, 1),
-                "time_diff_minutes": round(time_diff, 0)
+                "pickup_distance_km": round(final_pickup_distance, 1),
+                "time_diff_minutes": round(final_time_diff, 0)
             })
+            
+            # Mark all requests in this group as processed
+            for req in pool_group:
+                processed_requests.add(req.id)
+        else:
+            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} has no pooling partners (group size: {len(pool_group)})")
     
     print(f"🔍 POOLING SERVER DEBUG: Final result - {len(suggestions)} pooling suggestions found")
     for i, suggestion in enumerate(suggestions):
