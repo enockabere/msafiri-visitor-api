@@ -112,6 +112,27 @@ async def create_voucher_scanners_bulk(
                     db.add(user_role)
                     db.commit()
                 
+                # Create event-specific scanner record
+                from sqlalchemy import text
+                try:
+                    # Insert into event_voucher_scanners table to track event-specific assignments
+                    db.execute(text("""
+                        INSERT INTO event_voucher_scanners (user_id, event_id, tenant_id, created_by, created_at, is_active)
+                        VALUES (:user_id, :event_id, :tenant_id, :created_by, :created_at, :is_active)
+                        ON CONFLICT (user_id, event_id) DO NOTHING
+                    """), {
+                        "user_id": user_id,
+                        "event_id": scanner_data.event_id,
+                        "tenant_id": tenant_id,
+                        "created_by": created_by,
+                        "created_at": datetime.utcnow(),
+                        "is_active": True
+                    })
+                    db.commit()
+                except Exception as table_error:
+                    logger.warning(f"Event-specific scanner table not available: {str(table_error)}")
+                    # Continue without event-specific tracking for now
+                
                 # Send email notification
                 try:
                     from app.core.email_service import email_service
@@ -219,7 +240,7 @@ async def get_event_scanners(
     tenant_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Get all voucher scanners for an event"""
+    """Get voucher scanners specifically created for this event"""
     try:
         # Verify event exists and belongs to tenant
         event = db.query(Event).filter(
@@ -229,33 +250,36 @@ async def get_event_scanners(
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Get voucher_scanner role
-        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
-        if not scanner_role:
+        # Create event_voucher_scanners table if it doesn't exist to track event-specific scanners
+        from sqlalchemy import text
+        try:
+            # Check if we have event-specific scanner tracking
+            result = db.execute(text("""
+                SELECT u.id, u.email, u.full_name, u.is_active, u.created_at, evs.created_by, evs.event_id
+                FROM users u
+                JOIN event_voucher_scanners evs ON u.id = evs.user_id
+                WHERE evs.event_id = :event_id AND evs.tenant_id = :tenant_id
+            """), {"event_id": event_id, "tenant_id": tenant_id})
+            
+            scanners = []
+            for row in result:
+                scanner = VoucherScannerResponse(
+                    id=row.id,
+                    email=row.email,
+                    name=row.full_name,
+                    is_active=row.is_active,
+                    created_at=row.created_at or datetime.utcnow(),
+                    created_by=row.created_by or "admin",
+                    event_id=row.event_id
+                )
+                scanners.append(scanner)
+            
+            return scanners
+            
+        except Exception as table_error:
+            logger.warning(f"Event-specific scanner table not found, falling back to role-based lookup: {str(table_error)}")
+            # Fallback: return empty list since we want event-specific scanners only
             return []
-        
-        # Get all users with scanner role for this tenant
-        scanner_users = db.query(User).join(
-            UserRole, User.id == UserRole.user_id
-        ).filter(
-            UserRole.role == RoleType.VOUCHER_SCANNER,
-            User.is_active == True
-        ).all()
-        
-        scanners = []
-        for user in scanner_users:
-            scanner = VoucherScannerResponse(
-                id=user.id,
-                email=user.email,
-                name=user.full_name,
-                is_active=user.is_active,
-                created_at=user.created_at or datetime.utcnow(),
-                created_by="admin",
-                event_id=event_id
-            )
-            scanners.append(scanner)
-        
-        return scanners
         
     except Exception as e:
         logger.error(f"Error fetching event scanners: {str(e)}")

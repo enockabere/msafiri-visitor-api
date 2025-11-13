@@ -290,13 +290,20 @@ async def get_event_voucher_allocations(
     tenant_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Get voucher allocations for an event"""
+    """Get voucher allocations specifically for this event only"""
     
+    print(f"DEBUG VOUCHER GET: Looking for event_id={event_id}, tenant_id={tenant_id}")
+    
+    # Only get allocations that are specifically for this event AND have vouchers
     allocations = db.query(EventAllocation).filter(
         EventAllocation.event_id == event_id,
         EventAllocation.tenant_id == tenant_id,
         EventAllocation.drink_vouchers_per_participant > 0
     ).all()
+    
+    print(f"DEBUG VOUCHER GET: Found {len(allocations)} voucher allocations for event {event_id}")
+    for alloc in allocations:
+        print(f"DEBUG VOUCHER GET: Allocation ID={alloc.id}, Event={alloc.event_id}, Vouchers={alloc.drink_vouchers_per_participant}")
     
     # Convert to voucher allocation format
     voucher_allocations = []
