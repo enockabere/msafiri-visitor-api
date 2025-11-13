@@ -1115,33 +1115,53 @@ def get_booking_details(
     print(f"\n=== BOOKING DETAILS API CALLED ===")
     print(f"STEP 1: Endpoint hit - ref_no: {ref_no}")
     print(f"STEP 2: Current user: {current_user.email}")
-    print(f"STEP 3: User tenant_id: {current_user.tenant_id}")
     
-    # Get tenant ID from current user's tenant slug
-    tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+    # Find the transport request to get the event and tenant
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.booking_reference == ref_no,
+        TransportRequest.user_email == current_user.email
+    ).first()
+    
+    if not transport_request:
+        print(f"STEP 3: ERROR - Transport request not found for ref_no: {ref_no} and user: {current_user.email}")
+        raise HTTPException(status_code=404, detail=f"Transport request not found for booking reference: {ref_no}")
+    
+    print(f"STEP 3: Found transport request ID: {transport_request.id}, event_id: {transport_request.event_id}")
+    
+    # Get the event to find the tenant
+    from app.models.event import Event
+    event = db.query(Event).filter(Event.id == transport_request.event_id).first()
+    if not event:
+        print(f"STEP 4: ERROR - Event not found for ID: {transport_request.event_id}")
+        raise HTTPException(status_code=404, detail=f"Event not found for transport request")
+    
+    print(f"STEP 4: Found event: {event.title} (ID: {event.id}), tenant_id: {event.tenant_id}")
+    
+    # Get the tenant from the event
+    tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
     if not tenant:
-        print(f"STEP 4: ERROR - Tenant not found for slug: {current_user.tenant_id}")
-        raise HTTPException(status_code=404, detail=f"Tenant not found for slug: {current_user.tenant_id}")
+        print(f"STEP 5: ERROR - Tenant not found for ID: {event.tenant_id}")
+        raise HTTPException(status_code=404, detail=f"Tenant not found for event")
     
-    print(f"STEP 4: Found tenant: {tenant.name} (ID: {tenant.id})")
+    print(f"STEP 5: Found tenant: {tenant.name} (ID: {tenant.id})")
     
     # Get Absolute Cabs service
     abs_service = get_absolute_cabs_service(tenant.id, db)
     if not abs_service:
-        print(f"STEP 5: ERROR - Transport provider not configured for tenant {tenant.id}")
+        print(f"STEP 6: ERROR - Transport provider not configured for tenant {tenant.id}")
         raise HTTPException(status_code=404, detail=f"Transport provider not configured for tenant {tenant.name}")
     
-    print(f"STEP 5: Found Absolute Cabs service for tenant {tenant.id}")
+    print(f"STEP 6: Found Absolute Cabs service for tenant {tenant.id}")
     
     try:
-        print(f"STEP 6: Calling abs_service.get_booking_details({ref_no})")
+        print(f"STEP 7: Calling abs_service.get_booking_details({ref_no})")
         booking_details = abs_service.get_booking_details(ref_no)
-        print(f"STEP 7: Raw response from Absolute Cabs: {booking_details}")
+        print(f"STEP 8: Raw response from Absolute Cabs: {booking_details}")
         
         # Extract the correct format for mobile app
         if "booking" in booking_details:
             booking = booking_details["booking"]
-            print(f"STEP 8: Extracted booking data: {booking}")
+            print(f"STEP 9: Extracted booking data: {booking}")
             
             # Extract driver and vehicle details
             driver_name = None
@@ -1153,13 +1173,13 @@ def get_booking_details(
                 driver = booking["drivers"][0]
                 driver_name = driver.get("name")
                 driver_phone = driver.get("telephone")
-                print(f"STEP 9: Extracted driver - Name: {driver_name}, Phone: {driver_phone}")
+                print(f"STEP 10: Extracted driver - Name: {driver_name}, Phone: {driver_phone}")
             
             if "vehicles" in booking and booking["vehicles"]:
                 vehicle = booking["vehicles"][0]
                 vehicle_number = vehicle.get("registration")
                 vehicle_type = vehicle.get("name")
-                print(f"STEP 10: Extracted vehicle - Plate: {vehicle_number}, Type: {vehicle_type}")
+                print(f"STEP 11: Extracted vehicle - Plate: {vehicle_number}, Type: {vehicle_type}")
             
             # Return formatted response for mobile app
             response = {
@@ -1176,11 +1196,11 @@ def get_booking_details(
                 "flight_details": booking.get("flightdetails"),
                 "notes": booking.get("notes")
             }
-            print(f"STEP 11: Final response: {response}")
+            print(f"STEP 12: Final response: {response}")
             print(f"=== BOOKING DETAILS API SUCCESS ===\n")
             return response
         else:
-            print(f"STEP 8: No 'booking' key in response, returning raw: {booking_details}")
+            print(f"STEP 9: No 'booking' key in response, returning raw: {booking_details}")
             print(f"=== BOOKING DETAILS API SUCCESS (RAW) ===\n")
             return booking_details
             
