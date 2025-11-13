@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Test Pooled Booking for Absolute Cabs
-Tests the exact payload that's failing in your logs with fixes
+Fetch Absolute Cabs Booking by Reference Number
+Usage: python fetch_booking_by_ref.py <ref_no>
+Example: python fetch_booking_by_ref.py BK11-34716-2BF4
 """
 
 import requests
@@ -11,6 +12,7 @@ import base64
 import json
 import time
 import secrets
+import sys
 
 # Configuration
 CLIENT_ID = "f5741192-e755-41d5-934a-80b279e08347"
@@ -46,22 +48,24 @@ def generate_signature(method, path, timestamp, body, nonce):
     return base64.b64encode(signature).decode()
 
 
-def create_pooled_booking(payload):
-    """Create a pooled booking"""
+def fetch_booking(ref_no, verbose=False):
+    """Fetch booking by reference number"""
     
     # Get token
-    print("🔑 Obtaining access token...")
+    if verbose:
+        print(f"Obtaining access token...")
     token = get_access_token()
-    print("✓ Token obtained\n")
+    if verbose:
+        print(f"Token obtained\n")
     
     # Prepare request
-    path = "/api/bookings"
+    path = f"/api/bookings/{ref_no}"
     timestamp = int(time.time())
     nonce = secrets.token_hex(16)
-    body = json.dumps(payload)
+    body = ""
     
     # Generate signature
-    signature = generate_signature("POST", path, timestamp, body, nonce)
+    signature = generate_signature("GET", path, timestamp, body, nonce)
     
     # Make request
     headers = {
@@ -74,194 +78,125 @@ def create_pooled_booking(payload):
         "Accept": "application/json"
     }
     
-    print("📡 Creating pooled booking...")
-    print(f"URL: {BASE_URL}{path}\n")
-    print("Payload:")
-    print(json.dumps(payload, indent=2))
+    if verbose:
+        print(f"Fetching booking: {ref_no}")
+        print(f"   URL: {BASE_URL}{path}\n")
+    
+    response = requests.get(f"{BASE_URL}{path}", headers=headers)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch booking: {response.status_code} - {response.text}")
+    
+    return response.json()
+
+
+def display_booking(booking_data):
+    """Display booking details in a formatted way"""
+    
+    # Handle different response structures
+    if 'data' in booking_data:
+        booking = booking_data['data']
+    elif 'booking' in booking_data:
+        booking = booking_data['booking']
+    else:
+        booking = booking_data
+    
+    print("="*80)
+    print("BOOKING DETAILS")
+    print("="*80)
+    
+    # Basic Info
+    print(f"\nReference Number: {booking.get('ref_no')}")
+    print(f"Booking ID: {booking.get('id')}")
+    print(f"Date: {booking.get('pickup_date')}")
+    print(f"Time: {booking.get('pickup_time')}")
+    print(f"Vehicle: {booking.get('vehicle_type')}")
+    print(f"Status: {booking.get('status') or 'Pending'}")
+    
+    # Locations
+    print(f"\nPICKUP:")
+    print(f"   {booking.get('pickup_address')}")
+    print(f"   Coordinates: ({booking.get('pickup_latitude')}, {booking.get('pickup_longitude')})")
+    
+    print(f"\nDROPOFF:")
+    print(f"   {booking.get('dropoff_address')}")
+    print(f"   Coordinates: ({booking.get('dropoff_latitude')}, {booking.get('dropoff_longitude')})")
+    
+    # Additional Info
+    if booking.get('flightdetails'):
+        print(f"\nFlight: {booking.get('flightdetails')}")
+    
+    if booking.get('notes'):
+        print(f"Notes: {booking.get('notes')}")
+    
+    # Passengers
+    passengers = booking.get('passengers', [])
+    if passengers:
+        print(f"\nPASSENGERS ({len(passengers)}):")
+        for i, passenger in enumerate(passengers, 1):
+            print(f"   {i}. {passenger.get('name')}")
+            print(f"      Phone: {passenger.get('telephone')}")
+            print(f"      Email: {passenger.get('email')}")
+    
+    # Assignment Status
+    drivers = booking.get('drivers', [])
+    vehicles = booking.get('vehicles', [])
+    waypoints = booking.get('waypoints', [])
+    
+    print(f"\nASSIGNMENT STATUS:")
+    print(f"   Drivers: {len(drivers)} assigned")
+    if drivers:
+        for driver in drivers:
+            print(f"      - {driver}")
+    
+    print(f"   Vehicles: {len(vehicles)} assigned")
+    if vehicles:
+        for vehicle in vehicles:
+            print(f"      - {vehicle}")
+    
+    if waypoints:
+        print(f"\nWAYPOINTS ({len(waypoints)}):")
+        for i, wp in enumerate(waypoints, 1):
+            print(f"   {i}. {wp.get('address')}")
+            if wp.get('lat') and wp.get('lng'):
+                print(f"      ({wp.get('lat')}, {wp.get('lng')})")
+    
     print("\n" + "="*80)
-    
-    response = requests.post(f"{BASE_URL}{path}", headers=headers, json=payload)
-    
-    return response
 
 
 def main():
-    """Main function to test pooled bookings"""
+    """Main function"""
     
-    print("="*80)
-    print("🚕 ABSOLUTE CABS POOLED BOOKING TEST")
-    print("="*80)
-    print("\nTesting pooled booking for 2 passengers")
-    print("Route: JKIA → Swiss-Belinn Nairobi")
-    print("="*80)
+    # Get ref_no from command line or use default
+    if len(sys.argv) > 1:
+        ref_no = sys.argv[1]
+    else:
+        # Your most recent booking
+        ref_no = "BK11-34716-2BF4"
+        print(f"No ref_no provided, using: {ref_no}")
+        print(f"Usage: python {sys.argv[0]} <ref_no>\n")
     
-    # Test 1: Your original failing payload (with empty phone numbers)
-    print("\n\n" + "#"*80)
-    print("TEST 1: ORIGINAL PAYLOAD (Will Fail - Empty Phone)")
-    print("#"*80)
-    
-    original_payload = {
-        "vehicle_type": "Rav4",
-        "pickup_address": "JKIA (NBO), Embakasi, Nairobi, Kenya",
-        "pickup_latitude": -1.3192,
-        "pickup_longitude": 36.9278,
-        "dropoff_address": "Swiss-Belinn Nairobi, Kandara Road, Nairobi, Kenya",
-        "dropoff_latitude": -1.2921,
-        "dropoff_longitude": 36.8219,
-        "pickup_time": "2025-11-12 19:06",
-        "flightdetails": "KLM 744u48; TESY 7577",
-        "notes": "Pooled booking for 2 passengers. Pooled booking from admin portal",
-        "passengers": [
-            {
-                "name": "Leonard Kiprop",
-                "phone": "",  # ❌ EMPTY - This causes the 422 error
-                "email": "leonard.kiprop@oca.msf.org"
-            },
-            {
-                "name": "kenya-visitor-msf-oca",
-                "phone": "",  # ❌ EMPTY - This causes the 422 error
-                "email": "kenya-visitor@oca.msf.org"
-            }
-        ],
-        "waypoints": []
-    }
-    
-    response1 = create_pooled_booking(original_payload)
-    
-    print(f"Response Status: {response1.status_code}")
     try:
-        response_data = response1.json()
-        print(f"Response Body:")
-        print(json.dumps(response_data, indent=2))
+        # Fetch booking
+        print(f"Fetching booking {ref_no}...\n")
+        booking_data = fetch_booking(ref_no, verbose=True)
         
-        if response1.status_code == 422:
-            print("\n❌ FAILED - As expected (empty phone numbers)")
-            print("\n🔍 Validation Errors:")
-            if 'errors' in response_data:
-                print(json.dumps(response_data['errors'], indent=2))
-    except:
-        print(response1.text)
-    
-    # Test 2: Fixed payload with valid phone numbers
-    print("\n\n" + "#"*80)
-    print("TEST 2: FIXED PAYLOAD (With Valid Phone Numbers)")
-    print("#"*80)
-    
-    fixed_payload = {
-        "vehicle_type": "Rav4",
-        "pickup_address": "JKIA (NBO), Embakasi, Nairobi, Kenya",
-        "pickup_latitude": -1.3192,
-        "pickup_longitude": 36.9278,
-        "dropoff_address": "Swiss-Belinn Nairobi, Kandara Road, Nairobi, Kenya",
-        "dropoff_latitude": -1.2921,
-        "dropoff_longitude": 36.8219,
-        "pickup_time": "2025-11-12 19:06",
-        "flightdetails": "KLM 744u48; TESY 7577",
-        "notes": "Pooled booking for 2 passengers. Pooled booking from admin portal",
-        "passengers": [
-            {
-                "name": "Leonard Kiprop",
-                "phone": "254712345678",  # ✅ VALID PHONE
-                "email": "leonard.kiprop@oca.msf.org"
-            },
-            {
-                "name": "kenya-visitor-msf-oca",
-                "phone": "254712345679",  # ✅ VALID PHONE
-                "email": "kenya-visitor@oca.msf.org"
-            }
-        ],
-        "waypoints": []
-    }
-    
-    response2 = create_pooled_booking(fixed_payload)
-    
-    print(f"Response Status: {response2.status_code}")
-    try:
-        response_data = response2.json()
-        print(f"Response Body:")
-        print(json.dumps(response_data, indent=2))
+        # Display formatted output
+        display_booking(booking_data)
         
-        if response2.status_code in [200, 201]:
-            print("\n✅ SUCCESS - Pooled booking created!")
-            
-            # Extract booking details
-            if 'booking' in response_data:
-                booking = response_data['booking']
-                print(f"\n📋 Booking Details:")
-                print(f"   Ref No: {booking.get('ref_no')}")
-                print(f"   ID: {booking.get('id')}")
-                print(f"   Vehicle: {booking.get('vehicle_type')}")
-                print(f"   Passengers: {len(booking.get('passengers', []))}")
-                print(f"   Pickup: {booking.get('pickup_time')}")
-        else:
-            print("\n❌ FAILED")
-            if 'errors' in response_data:
-                print("\n🔍 Validation Errors:")
-                print(json.dumps(response_data['errors'], indent=2))
-    except:
-        print(response2.text)
-    
-    # Test 3: Alternative - Use placeholder phone if actual phones not available
-    print("\n\n" + "#"*80)
-    print("TEST 3: ALTERNATIVE - Placeholder Phone Numbers")
-    print("#"*80)
-    
-    placeholder_payload = {
-        "vehicle_type": "Rav4",
-        "pickup_address": "JKIA (NBO), Embakasi, Nairobi, Kenya",
-        "pickup_latitude": -1.3192,
-        "pickup_longitude": 36.9278,
-        "dropoff_address": "Swiss-Belinn Nairobi, Kandara Road, Nairobi, Kenya",
-        "dropoff_latitude": -1.2921,
-        "dropoff_longitude": 36.8219,
-        "pickup_time": "2025-11-12 19:06",
-        "flightdetails": "KLM 744u48; TESY 7577",
-        "notes": "Pooled booking for 2 passengers. Pooled booking from admin portal",
-        "passengers": [
-            {
-                "name": "Leonard Kiprop",
-                "phone": "254700000001",  # Placeholder format
-                "email": "leonard.kiprop@oca.msf.org"
-            },
-            {
-                "name": "kenya-visitor-msf-oca",
-                "phone": "254700000002",  # Placeholder format
-                "email": "kenya-visitor@oca.msf.org"
-            }
-        ],
-        "waypoints": []
-    }
-    
-    response3 = create_pooled_booking(placeholder_payload)
-    
-    print(f"Response Status: {response3.status_code}")
-    try:
-        response_data = response3.json()
-        print(f"Response Body:")
-        print(json.dumps(response_data, indent=2))
+        # Also show raw JSON
+        print("\nRAW JSON RESPONSE:")
+        print("="*80)
+        print(json.dumps(booking_data, indent=2))
+        print("="*80)
         
-        if response3.status_code in [200, 201]:
-            print("\n✅ SUCCESS - Booking created with placeholder phones!")
-        else:
-            print("\n❌ FAILED")
-            if 'errors' in response_data:
-                print("\n🔍 Validation Errors:")
-                print(json.dumps(response_data['errors'], indent=2))
-    except:
-        print(response3.text)
-    
-    # Summary
-    print("\n\n" + "="*80)
-    print("📊 TEST SUMMARY")
-    print("="*80)
-    print("\n1. Original Payload (Empty Phones): ❌ Expected to fail")
-    print("2. Fixed Payload (Valid Phones): ✅ Should succeed")
-    print("3. Placeholder Phones: ⚠️ Alternative option")
-    print("\n💡 FIX: Always provide valid phone numbers for all passengers!")
-    print("   - Cannot be empty strings")
-    print("   - Must be in format: 254XXXXXXXXX (12 digits)")
-    print("   - Use real numbers or placeholder numbers like 254700000001")
-    print("="*80)
+        print("\nSUCCESS - Booking fetched successfully!")
+        
+    except Exception as e:
+        print(f"\nERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

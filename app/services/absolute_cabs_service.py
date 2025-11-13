@@ -171,7 +171,9 @@ class AbsoluteCabsService:
     def get_booking_details(self, ref_no: str) -> Dict:
         """Fetch detailed booking information by reference number"""
         try:
+            print(f"DEBUG: Making API request for booking {ref_no}")
             response = self._make_request("GET", f"/api/bookings/{ref_no}")
+            print(f"DEBUG: Raw API response: {response}")
             
             # Extract booking data from response
             if 'booking' in response:
@@ -181,8 +183,10 @@ class AbsoluteCabsService:
             else:
                 booking = response
             
+            print(f"DEBUG: Extracted booking data: {booking}")
+            
             # Format the response for frontend consumption
-            return {
+            formatted_response = {
                 "success": True,
                 "booking": {
                     "ref_no": booking.get("ref_no"),
@@ -205,12 +209,17 @@ class AbsoluteCabsService:
                     "waypoints": booking.get("waypoints", [])
                 }
             }
+            print(f"DEBUG: Formatted response: {formatted_response}")
+            return formatted_response
         except Exception as e:
+            print(f"DEBUG: Exception in get_booking_details: {str(e)}")
             logger.error(f"Failed to fetch booking details {ref_no}: {str(e)}")
             raise
 
 def get_absolute_cabs_service(tenant_id: int, db: Session) -> Optional[AbsoluteCabsService]:
     """Get configured Absolute Cabs service for a tenant"""
+    print(f"DEBUG: Looking for Absolute Cabs provider for tenant {tenant_id}")
+    
     provider = db.query(TransportProvider).filter(
         TransportProvider.tenant_id == tenant_id,
         TransportProvider.provider_name == "absolute_cabs",
@@ -218,10 +227,20 @@ def get_absolute_cabs_service(tenant_id: int, db: Session) -> Optional[AbsoluteC
     ).first()
     
     if not provider:
+        print(f"DEBUG: No enabled Absolute Cabs provider found for tenant {tenant_id}")
+        # Check if there are any providers at all for this tenant
+        all_providers = db.query(TransportProvider).filter(
+            TransportProvider.tenant_id == tenant_id
+        ).all()
+        print(f"DEBUG: All providers for tenant {tenant_id}: {[(p.provider_name, p.is_enabled) for p in all_providers]}")
         return None
+    
+    print(f"DEBUG: Found provider: {provider.provider_name}, enabled: {provider.is_enabled}")
     
     if not all([provider.client_id, provider.client_secret, provider.hmac_secret]):
-        logger.error(f"Incomplete Absolute Cabs configuration for tenant {tenant_id}")
+        print(f"DEBUG: Incomplete Absolute Cabs configuration for tenant {tenant_id}")
+        print(f"DEBUG: Missing: client_id={bool(provider.client_id)}, client_secret={bool(provider.client_secret)}, hmac_secret={bool(provider.hmac_secret)}")
         return None
     
+    print(f"DEBUG: Successfully created Absolute Cabs service for tenant {tenant_id}")
     return AbsoluteCabsService(provider)

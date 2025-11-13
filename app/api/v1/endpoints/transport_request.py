@@ -6,6 +6,7 @@ from app.models.transport_request import TransportRequest
 from app.models.flight_itinerary import FlightItinerary
 from app.models.user import User
 from app.models.notification import Notification, NotificationType, NotificationPriority
+from app.models.transport_provider import TransportProvider
 from app.core.deps import get_current_user
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -1064,18 +1065,29 @@ def get_booking_details(
     from app.services.absolute_cabs_service import get_absolute_cabs_service
     from app.models.tenant import Tenant
     
+    print(f"DEBUG: Fetching booking details for ref_no: {ref_no}")
+    print(f"DEBUG: Current user: {current_user.email}, tenant_id: {current_user.tenant_id}")
+    
     # Get tenant ID from current user's tenant slug
     tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
+        print(f"DEBUG: Tenant not found for slug: {current_user.tenant_id}")
+        raise HTTPException(status_code=404, detail=f"Tenant not found for slug: {current_user.tenant_id}")
+    
+    print(f"DEBUG: Found tenant: {tenant.name} (ID: {tenant.id})")
     
     # Get Absolute Cabs service
     abs_service = get_absolute_cabs_service(tenant.id, db)
     if not abs_service:
-        raise HTTPException(status_code=404, detail="Transport provider not configured")
+        print(f"DEBUG: Transport provider not configured for tenant {tenant.id}")
+        raise HTTPException(status_code=404, detail=f"Transport provider not configured for tenant {tenant.name}")
+    
+    print(f"DEBUG: Found Absolute Cabs service for tenant {tenant.id}")
     
     try:
         booking_details = abs_service.get_booking_details(ref_no)
+        print(f"DEBUG: Successfully fetched booking details: {booking_details}")
         return booking_details
     except Exception as e:
+        print(f"DEBUG: Failed to fetch booking details: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch booking details: {str(e)}")
