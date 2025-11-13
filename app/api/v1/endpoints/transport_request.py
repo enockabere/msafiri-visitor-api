@@ -1097,7 +1097,7 @@ def get_pooling_suggestions(
 def get_transport_feature_flags():
     """Get transport feature flags for mobile app"""
     return {
-        "show_booked_section": True,  # Show now that API is fixed
+        "show_booked_section": False,  # Hide until correct data format is confirmed
         "show_pending_section": True,
         "show_create_request": True
     }
