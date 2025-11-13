@@ -37,7 +37,7 @@ def _get_coordinates_for_address(address: str):
     # Check for exact matches or partial matches
     for location, coords in locations.items():
         if location in address_lower:
-    return coords
+            return coords
     
     return None
 
