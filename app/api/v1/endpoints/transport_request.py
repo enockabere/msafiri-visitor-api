@@ -1093,6 +1093,15 @@ def get_pooling_suggestions(
     
     return {"suggestions": suggestions}
 
+@router.get("/transport-feature-flags")
+def get_transport_feature_flags():
+    """Get transport feature flags for mobile app"""
+    return {
+        "show_booked_section": False,  # Hide until booking details API is fixed
+        "show_pending_section": True,
+        "show_create_request": True
+    }
+
 @router.get("/booking-details/{ref_no}")
 def get_booking_details(
     ref_no: str,
