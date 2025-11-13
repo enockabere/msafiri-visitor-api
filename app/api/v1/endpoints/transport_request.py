@@ -111,8 +111,10 @@ def get_transport_requests_by_tenant(
     # Create a mapping of event_id to event for quick lookup
     events_map = {event.id: event for event in events}
     
-    return [
-        {
+    # Enrich requests with booking details if they have booking references
+    enriched_requests = []
+    for req in requests:
+        request_data = {
             "id": req.id,
             "pickup_address": req.pickup_address,
             "pickup_latitude": req.pickup_latitude,
@@ -143,8 +145,50 @@ def get_transport_requests_by_tenant(
                 "title": events_map[req.event_id].title,
                 "tenant_id": events_map[req.event_id].tenant_id
             } if req.event_id in events_map else None
-        } for req in requests
-    ]
+        }
+        
+        # If request has booking reference but missing driver/vehicle data, fetch from booking details
+        if (req.booking_reference and req.status == "booked" and 
+            (not req.driver_name or not req.vehicle_number)):
+            try:
+                from app.services.absolute_cabs_service import get_absolute_cabs_service
+                
+                abs_service = get_absolute_cabs_service(tenant_id, db)
+                if abs_service:
+                    booking_details = abs_service.get_booking_details(req.booking_reference)
+                    
+                    if "booking" in booking_details:
+                        booking = booking_details["booking"]
+                        
+                        # Extract driver details
+                        if "drivers" in booking and booking["drivers"]:
+                            driver = booking["drivers"][0]
+                            request_data["driver_name"] = driver.get("name")
+                            request_data["driver_phone"] = driver.get("telephone")
+                            
+                            # Update the database record
+                            req.driver_name = driver.get("name")
+                            req.driver_phone = driver.get("telephone")
+                        
+                        # Extract vehicle details
+                        if "vehicles" in booking and booking["vehicles"]:
+                            vehicle = booking["vehicles"][0]
+                            request_data["vehicle_number"] = vehicle.get("registration")
+                            request_data["vehicle_type"] = vehicle.get("name")
+                            
+                            # Update the database record
+                            req.vehicle_number = vehicle.get("registration")
+                            req.vehicle_type = vehicle.get("name")
+                        
+                        # Commit updates to database
+                        db.commit()
+                        
+            except Exception as e:
+                print(f"DEBUG: Failed to enrich transport request {req.id} with booking details: {str(e)}")
+        
+        enriched_requests.append(request_data)
+    
+    return enriched_requests
 
 @router.get("/transport-requests/event/{event_id}")
 def get_transport_requests_by_event(
@@ -157,8 +201,10 @@ def get_transport_requests_by_event(
         TransportRequest.user_email == current_user.email
     ).all()
     
-    return {"transport_requests": [
-        {
+    # Enrich requests with booking details if they have booking references
+    enriched_requests = []
+    for req in requests:
+        request_data = {
             "id": req.id,
             "pickup_address": req.pickup_address,
             "dropoff_address": req.dropoff_address,
@@ -179,8 +225,54 @@ def get_transport_requests_by_event(
             "vehicle_color": req.vehicle_color,
             "booking_reference": req.booking_reference,
             "created_at": req.created_at.isoformat() if req.created_at else None
-        } for req in requests
-    ]}
+        }
+        
+        # If request has booking reference but missing driver/vehicle data, fetch from booking details
+        if (req.booking_reference and req.status == "booked" and 
+            (not req.driver_name or not req.vehicle_number)):
+            try:
+                from app.services.absolute_cabs_service import get_absolute_cabs_service
+                from app.models.event import Event
+                
+                # Get event to find tenant
+                event = db.query(Event).filter(Event.id == req.event_id).first()
+                if event:
+                    abs_service = get_absolute_cabs_service(event.tenant_id, db)
+                    if abs_service:
+                        booking_details = abs_service.get_booking_details(req.booking_reference)
+                        
+                        if "booking" in booking_details:
+                            booking = booking_details["booking"]
+                            
+                            # Extract driver details
+                            if "drivers" in booking and booking["drivers"]:
+                                driver = booking["drivers"][0]
+                                request_data["driver_name"] = driver.get("name")
+                                request_data["driver_phone"] = driver.get("telephone")
+                                
+                                # Update the database record
+                                req.driver_name = driver.get("name")
+                                req.driver_phone = driver.get("telephone")
+                            
+                            # Extract vehicle details
+                            if "vehicles" in booking and booking["vehicles"]:
+                                vehicle = booking["vehicles"][0]
+                                request_data["vehicle_number"] = vehicle.get("registration")
+                                request_data["vehicle_type"] = vehicle.get("name")
+                                
+                                # Update the database record
+                                req.vehicle_number = vehicle.get("registration")
+                                req.vehicle_type = vehicle.get("name")
+                            
+                            # Commit updates to database
+                            db.commit()
+                            
+            except Exception as e:
+                print(f"DEBUG: Failed to enrich transport request {req.id} with booking details: {str(e)}")
+        
+        enriched_requests.append(request_data)
+    
+    return {"transport_requests": enriched_requests}
 
 @router.post("/create-missing-transport-requests/{event_id}")
 def create_missing_transport_requests(
@@ -1180,6 +1272,25 @@ def get_booking_details(
                 vehicle_number = vehicle.get("registration")
                 vehicle_type = vehicle.get("name")
                 print(f"STEP 11: Extracted vehicle - Plate: {vehicle_number}, Type: {vehicle_type}")
+            
+            # Update the transport request with the latest data
+            if driver_name or vehicle_number:
+                print(f"STEP 11.5: Updating transport request {transport_request.id} with booking details")
+                if driver_name:
+                    transport_request.driver_name = driver_name
+                if driver_phone:
+                    transport_request.driver_phone = driver_phone
+                if vehicle_number:
+                    transport_request.vehicle_number = vehicle_number
+                if vehicle_type:
+                    transport_request.vehicle_type = vehicle_type
+                
+                try:
+                    db.commit()
+                    print(f"STEP 11.6: Successfully updated transport request in database")
+                except Exception as db_error:
+                    print(f"STEP 11.7: Failed to update transport request: {str(db_error)}")
+                    db.rollback()
             
             # Return formatted response for mobile app
             response = {
