@@ -148,10 +148,12 @@ def get_transport_requests_by_tenant(
 @router.get("/transport-requests/event/{event_id}")
 def get_transport_requests_by_event(
     event_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     requests = db.query(TransportRequest).filter(
-        TransportRequest.event_id == event_id
+        TransportRequest.event_id == event_id,
+        TransportRequest.user_email == current_user.email
     ).all()
     
     return {"transport_requests": [
