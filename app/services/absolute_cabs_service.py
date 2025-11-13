@@ -189,19 +189,31 @@ class AbsoluteCabsService:
     def get_booking_details(self, ref_no: str) -> Dict:
         """Fetch detailed booking information by reference number"""
         try:
-            print(f"DEBUG: Making API request for booking {ref_no}")
+            print(f"\n*** ABSOLUTE CABS SERVICE ***")
+            print(f"ABS STEP 1: Making API request for booking {ref_no}")
+            print(f"ABS STEP 2: Calling _make_request('GET', '/api/bookings/{ref_no}')")
+            
             response = self._make_request("GET", f"/api/bookings/{ref_no}")
-            print(f"DEBUG: Raw API response: {response}")
+            print(f"ABS STEP 3: Raw API response from Absolute Cabs: {response}")
             
             # Extract booking data from response
             if 'booking' in response:
                 booking = response['booking']
+                print(f"ABS STEP 4: Found 'booking' key in response")
             elif 'data' in response:
                 booking = response['data']
+                print(f"ABS STEP 4: Found 'data' key in response")
             else:
                 booking = response
+                print(f"ABS STEP 4: Using entire response as booking data")
             
-            print(f"DEBUG: Extracted booking data: {booking}")
+            print(f"ABS STEP 5: Extracted booking data: {booking}")
+            
+            # Check for drivers and vehicles
+            drivers = booking.get("drivers", [])
+            vehicles = booking.get("vehicles", [])
+            print(f"ABS STEP 6: Found {len(drivers)} drivers: {drivers}")
+            print(f"ABS STEP 7: Found {len(vehicles)} vehicles: {vehicles}")
             
             # Format the response for frontend consumption
             formatted_response = {
@@ -222,15 +234,19 @@ class AbsoluteCabsService:
                     "flightdetails": booking.get("flightdetails"),
                     "notes": booking.get("notes"),
                     "passengers": booking.get("passengers", []),
-                    "drivers": booking.get("drivers", []),
-                    "vehicles": booking.get("vehicles", []),
+                    "drivers": drivers,
+                    "vehicles": vehicles,
                     "waypoints": booking.get("waypoints", [])
                 }
             }
-            print(f"DEBUG: Formatted response: {formatted_response}")
+            print(f"ABS STEP 8: Formatted response: {formatted_response}")
+            print(f"*** ABSOLUTE CABS SERVICE SUCCESS ***\n")
             return formatted_response
         except Exception as e:
-            print(f"DEBUG: Exception in get_booking_details: {str(e)}")
+            print(f"ABS ERROR: Exception in get_booking_details: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print(f"*** ABSOLUTE CABS SERVICE FAILED ***\n")
             logger.error(f"Failed to fetch booking details {ref_no}: {str(e)}")
             raise
 
