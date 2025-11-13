@@ -891,9 +891,19 @@ def get_pooling_suggestions(
         TransportRequest.status.in_(["pending", "created"])
     ).all()
     
-    print(f"🔍 POOLING SERVER DEBUG: Found {len(pending_requests)} pending requests")
-    for req in pending_requests:
-        print(f"🔍 REQUEST {req.id}: {req.passenger_name} | {req.pickup_address} → {req.dropoff_address} | {req.pickup_time} | Coords: ({req.pickup_latitude}, {req.pickup_longitude}) → ({req.dropoff_latitude}, {req.dropoff_longitude})")
+    print(f"\n" + "="*100)
+    print(f"🔍 POOLING ANALYSIS: Found {len(pending_requests)} pending transport requests")
+    print(f"="*100)
+    
+    for i, req in enumerate(pending_requests, 1):
+        print(f"\n📋 REQUEST #{i} (ID: {req.id})")
+        print(f"   👤 Passenger: {req.passenger_name}")
+        print(f"   📍 Route: {req.pickup_address} → {req.dropoff_address}")
+        print(f"   ⏰ Pickup Time: {req.pickup_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"   🗺️  Pickup Coords: ({req.pickup_latitude}, {req.pickup_longitude})")
+        print(f"   🎯 Dropoff Coords: ({req.dropoff_latitude}, {req.dropoff_longitude})")
+        print(f"   ✈️  Flight: {req.flight_details or 'N/A'}")
+        print(f"   📝 Notes: {req.notes or 'N/A'}")
     
     if len(pending_requests) < 2:
         print(f"🔍 POOLING SERVER DEBUG: Not enough requests for pooling ({len(pending_requests)} < 2)")
@@ -923,7 +933,16 @@ def get_pooling_suggestions(
     suggestions = []
     processed_requests = set()
     
-    print(f"🔍 POOLING SERVER DEBUG: Starting pooling analysis for {len(pending_requests)} requests")
+    print(f"\n" + "="*100)
+    print(f"🔄 STARTING POOLING COMPATIBILITY ANALYSIS")
+    print(f"="*100)
+    print(f"📊 Analysis Parameters:")
+    print(f"   • Time Window: ±40 minutes")
+    print(f"   • Pickup Proximity: ≤3km")
+    print(f"   • Same Destination: ≤1km")
+    print(f"   • Waypoint Detour: ≤30% extra distance")
+    print(f"   • Direction Tolerance: ±45 degrees")
+    print(f"\n🔍 Starting pairwise analysis for {len(pending_requests)} requests...")
     
     for i, req1 in enumerate(pending_requests):
         if req1.id in processed_requests:
@@ -938,16 +957,20 @@ def get_pooling_suggestions(
             if req2.id == req1.id or req2.id in processed_requests:
                 continue
             
-            print(f"🔍 POOLING SERVER DEBUG: Comparing req {req1.id} with req {req2.id}")
+            print(f"\n🔄 ANALYZING COMPATIBILITY: Request {req1.id} ↔ Request {req2.id}")
+            print(f"   👤 {req1.passenger_name} ↔ {req2.passenger_name}")
             
             # Check time proximity (within 40 minutes)
             time_diff = abs((req1.pickup_time - req2.pickup_time).total_seconds() / 60)
-            print(f"🔍 TIME CHECK: {req1.pickup_time} vs {req2.pickup_time} = {time_diff:.1f} minutes")
+            print(f"   ⏰ TIME ANALYSIS:")
+            print(f"      Req {req1.id}: {req1.pickup_time.strftime('%H:%M')}")
+            print(f"      Req {req2.id}: {req2.pickup_time.strftime('%H:%M')}")
+            print(f"      Difference: {time_diff:.1f} minutes")
             if time_diff > 40:
-                print(f"🔍 TIME CHECK: ❌ Too far apart ({time_diff:.1f} > 40 minutes)")
+                print(f"      ❌ REJECTED: Time gap too large ({time_diff:.1f} > 40 minutes)")
                 continue
             else:
-                print(f"🔍 TIME CHECK: ✅ Within range ({time_diff:.1f} ≤ 40 minutes)")
+                print(f"      ✅ PASSED: Within acceptable time window ({time_diff:.1f} ≤ 40 minutes)")
             
             # Check pickup proximity (within 3km) - with detailed debugging
             print(f"🔍 COORDS CHECK: Req {req1.id} pickup: ({req1.pickup_latitude}, {req1.pickup_longitude})")
