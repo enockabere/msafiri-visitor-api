@@ -33,18 +33,28 @@ class QRCodeResponse(BaseModel):
 
 @router.get("/participant/allocations")
 def get_participant_allocations(
+    event_id: int = Query(None, description="Filter allocations by specific event ID"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get allocations for current participant"""
+    """Get allocations for current participant, optionally filtered by event"""
     
     try:
         print(f"🔍 ALLOCATIONS DEBUG: Starting allocation fetch for user: {current_user.email}")
         
         # Get participant records for current user
-        participants = db.query(EventParticipant).filter(
+        participants_query = db.query(EventParticipant).filter(
             EventParticipant.email == current_user.email
-        ).all()
+        )
+        
+        # Filter by specific event if provided
+        if event_id:
+            participants_query = participants_query.filter(
+                EventParticipant.event_id == event_id
+            )
+            print(f"🔍 ALLOCATIONS DEBUG: Filtering by event_id: {event_id}")
+        
+        participants = participants_query.all()
         
         print(f"🔍 ALLOCATIONS DEBUG: Found {len(participants)} participants for user {current_user.email}")
         
