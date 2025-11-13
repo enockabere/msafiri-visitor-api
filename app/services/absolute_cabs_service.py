@@ -139,14 +139,32 @@ class AbsoluteCabsService:
             raise
 
     def create_booking(self, booking_data: Dict) -> Dict:
-        """Create a new booking"""
+        """Create a new booking and return complete details"""
         try:
             # Print the payload being sent
-            logger.info(f"🚗 ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
-            print(f"🚗 ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
+            logger.info(f"ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
+            print(f"ABSOLUTE CABS BOOKING PAYLOAD: {json.dumps(booking_data, indent=2)}")
             
             response = self._make_request("POST", "/api/bookings", booking_data)
             logger.info(f"Successfully created booking: {response}")
+            
+            # Extract booking reference and fetch complete details
+            booking_ref = None
+            if "booking" in response and "ref_no" in response["booking"]:
+                booking_ref = response["booking"]["ref_no"]
+            elif "ref_no" in response:
+                booking_ref = response["ref_no"]
+            
+            # If we have a booking reference, fetch complete details including driver/vehicle assignment
+            if booking_ref:
+                try:
+                    complete_details = self.get_booking_details(booking_ref)
+                    logger.info(f"Fetched complete booking details: {complete_details}")
+                    return complete_details
+                except Exception as e:
+                    logger.warning(f"Failed to fetch complete booking details, returning creation response: {str(e)}")
+                    return response
+            
             return response
         except Exception as e:
             logger.error(f"Failed to create booking: {str(e)}")

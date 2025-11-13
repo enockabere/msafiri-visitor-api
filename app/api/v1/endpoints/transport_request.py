@@ -458,19 +458,37 @@ def book_with_absolute_cabs(
         
 
         
-        # Create booking with Absolute Cabs
+        # Create booking with Absolute Cabs (now returns complete details)
         api_response = absolute_service.create_booking(booking_data)
         
-        # Extract booking reference
+        # Extract booking reference and details from complete response
         booking_ref = None
-        if "booking" in api_response and "ref_no" in api_response["booking"]:
-            booking_ref = api_response["booking"]["ref_no"]
+        booking_details = None
+        
+        if "booking" in api_response:
+            booking_details = api_response["booking"]
+            booking_ref = booking_details.get("ref_no")
         elif "ref_no" in api_response:
             booking_ref = api_response["ref_no"]
+            booking_details = api_response
         
-        # Update transport request
+        # Update transport request with complete booking details
         transport_request.status = "booked"
         transport_request.booking_reference = booking_ref or f"AC{transport_request.id:06d}"
+        
+        # Extract and store driver details from Absolute Cabs response
+        if booking_details and "drivers" in booking_details and booking_details["drivers"]:
+            driver = booking_details["drivers"][0]  # Get first assigned driver
+            transport_request.driver_name = driver.get("name")
+            transport_request.driver_phone = driver.get("telephone")
+            print(f"DEBUG: Stored driver details - Name: {transport_request.driver_name}, Phone: {transport_request.driver_phone}")
+        
+        # Extract and store vehicle details from Absolute Cabs response
+        if booking_details and "vehicles" in booking_details and booking_details["vehicles"]:
+            vehicle = booking_details["vehicles"][0]  # Get first assigned vehicle
+            transport_request.vehicle_number = vehicle.get("registration")
+            transport_request.vehicle_type = vehicle.get("name")  # Use actual vehicle name from Absolute Cabs
+            print(f"DEBUG: Stored vehicle details - Plate: {transport_request.vehicle_number}, Type: {transport_request.vehicle_type}")
         
         db.commit()
         
@@ -809,13 +827,33 @@ def create_pooled_booking(
         elif "ref_no" in api_response:
             booking_ref = api_response["ref_no"]
         
-        # Update all transport requests with same booking reference
+        # Extract booking details from complete response
+        booking_details = None
+        if "booking" in api_response:
+            booking_details = api_response["booking"]
+        elif "drivers" in api_response or "vehicles" in api_response:
+            booking_details = api_response
+        
+        # Update all transport requests with same booking reference and complete details
         shared_ref = booking_ref or f"POOL{earliest_request.id:06d}"
         for req in transport_requests:
             req.status = "booked"
             req.booking_reference = shared_ref
-            req.vehicle_type = auto_vehicle  # Use the auto-selected vehicle
             req.notes = f"Pooled booking - {req.notes or ''}".strip()
+            
+            # Extract and store driver details from Absolute Cabs response
+            if booking_details and "drivers" in booking_details and booking_details["drivers"]:
+                driver = booking_details["drivers"][0]  # Get first assigned driver
+                req.driver_name = driver.get("name")
+                req.driver_phone = driver.get("telephone")
+                print(f"DEBUG: Stored pooled driver details for request {req.id} - Name: {req.driver_name}, Phone: {req.driver_phone}")
+            
+            # Extract and store vehicle details from Absolute Cabs response
+            if booking_details and "vehicles" in booking_details and booking_details["vehicles"]:
+                vehicle = booking_details["vehicles"][0]  # Get first assigned vehicle
+                req.vehicle_number = vehicle.get("registration")
+                req.vehicle_type = vehicle.get("name")  # Use actual vehicle name from Absolute Cabs
+                print(f"DEBUG: Stored pooled vehicle details for request {req.id} - Plate: {req.vehicle_number}, Type: {req.vehicle_type}")
         
         db.commit()
         
