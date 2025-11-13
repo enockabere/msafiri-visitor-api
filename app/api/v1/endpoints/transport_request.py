@@ -1112,29 +1112,19 @@ def get_booking_details(
     from app.services.absolute_cabs_service import get_absolute_cabs_service
     from app.models.tenant import Tenant
     
-    print(f"DEBUG: Fetching booking details for ref_no: {ref_no}")
-    print(f"DEBUG: Current user: {current_user.email}, tenant_id: {current_user.tenant_id}")
-    
     # Get tenant ID from current user's tenant slug
     tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
     if not tenant:
-        print(f"DEBUG: Tenant not found for slug: {current_user.tenant_id}")
         raise HTTPException(status_code=404, detail=f"Tenant not found for slug: {current_user.tenant_id}")
-    
-    print(f"DEBUG: Found tenant: {tenant.name} (ID: {tenant.id})")
     
     # Get Absolute Cabs service
     abs_service = get_absolute_cabs_service(tenant.id, db)
     if not abs_service:
-        print(f"DEBUG: Transport provider not configured for tenant {tenant.id}")
         raise HTTPException(status_code=404, detail=f"Transport provider not configured for tenant {tenant.name}")
-    
-    print(f"DEBUG: Found Absolute Cabs service for tenant {tenant.id}")
     
     try:
         booking_details = abs_service.get_booking_details(ref_no)
-        print(f"DEBUG: Successfully fetched booking details from Absolute Cabs API")
-        print(f"DEBUG: Raw booking response: {booking_details}")
+        booking_details = abs_service.get_booking_details(ref_no)
         
         # Extract the correct format for mobile app
         if "booking" in booking_details:
@@ -1150,16 +1140,14 @@ def get_booking_details(
                 driver = booking["drivers"][0]
                 driver_name = driver.get("name")
                 driver_phone = driver.get("telephone")
-                print(f"DEBUG: Extracted driver - Name: {driver_name}, Phone: {driver_phone}")
             
             if "vehicles" in booking and booking["vehicles"]:
                 vehicle = booking["vehicles"][0]
                 vehicle_number = vehicle.get("registration")
                 vehicle_type = vehicle.get("name")
-                print(f"DEBUG: Extracted vehicle - Plate: {vehicle_number}, Type: {vehicle_type}")
             
             # Return formatted response for mobile app
-            response = {
+            return {
                 "success": True,
                 "booking_reference": booking.get("ref_no"),
                 "status": booking.get("status"),
@@ -1171,18 +1159,10 @@ def get_booking_details(
                 "pickup_address": booking.get("pickup_address"),
                 "dropoff_address": booking.get("dropoff_address"),
                 "flight_details": booking.get("flightdetails"),
-                "notes": booking.get("notes"),
-                "raw_booking_data": booking_details  # Include full response for debugging
+                "notes": booking.get("notes")
             }
-            
-            print(f"DEBUG: Formatted response for mobile: {response}")
-            return response
         else:
-            print(f"DEBUG: No booking data in response: {booking_details}")
             return booking_details
             
     except Exception as e:
-        print(f"DEBUG: Failed to fetch booking details: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch booking details: {str(e)}")
