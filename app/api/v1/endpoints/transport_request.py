@@ -963,10 +963,14 @@ def get_pooling_suggestions(
     if not event_ids:
         return {"suggestions": []}
     
-    # Get pending transport requests
+    # Get pending transport requests (exclude past dates)
+    from datetime import datetime
+    now = datetime.now()
+    
     pending_requests = db.query(TransportRequest).filter(
         TransportRequest.event_id.in_(event_ids),
-        TransportRequest.status.in_(["pending", "created"])
+        TransportRequest.status.in_(["pending", "created"]),
+        TransportRequest.pickup_time > now  # Only future requests
     ).all()
     
     print(f"\n" + "="*100)
