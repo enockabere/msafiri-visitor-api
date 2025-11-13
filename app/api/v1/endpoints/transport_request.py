@@ -412,8 +412,11 @@ def book_with_absolute_cabs(
         print(f"  - ID: {transport_request.id}")
         print(f"  - Pickup Lat/Lng: {transport_request.pickup_latitude}, {transport_request.pickup_longitude}")
         print(f"  - Dropoff Lat/Lng: {transport_request.dropoff_latitude}, {transport_request.dropoff_longitude}")
-        print(f"  - Passenger Phone: '{transport_request.passenger_phone}'")
+        print(f"  - Original Phone: '{transport_request.passenger_phone}'")
+        print(f"  - Final Phone: '{phone_number}'")
         print(f"  - Passenger Name: '{transport_request.passenger_name}'")
+        print(f"  - User Email: '{transport_request.user_email}'")
+        print(f"  - Passenger Email: '{transport_request.passenger_email}'")
         
         # Add coordinates if missing
         if not transport_request.pickup_latitude or not transport_request.pickup_longitude:
@@ -447,6 +450,17 @@ def book_with_absolute_cabs(
         requested_vehicle = transport_request.vehicle_type or "SUV"
         absolute_vehicle_type = vehicle_type_mapping.get(requested_vehicle, "Rav4")
         
+        # Get proper phone number for passenger
+        phone_number = transport_request.passenger_phone
+        if not phone_number or phone_number.strip() == "":
+            from app.models.user import User
+            user = db.query(User).filter(User.email == transport_request.user_email).first()
+            if user and user.phone_number:
+                phone_number = user.phone_number
+            else:
+                # Use placeholder phone number with request ID for uniqueness
+                phone_number = f"254700{transport_request.id:06d}"[-12:]  # Ensure 12 digits max
+        
         booking_data = {
             "vehicle_type": absolute_vehicle_type,
             "pickup_address": transport_request.pickup_address,
@@ -461,12 +475,18 @@ def book_with_absolute_cabs(
             "passengers": [
                 {
                     "name": transport_request.passenger_name,
-                    "phone": transport_request.passenger_phone or "254700000000",
-                    "email": transport_request.passenger_email or ""
+                    "phone": phone_number,
+                    "email": transport_request.passenger_email or transport_request.user_email or ""
                 }
             ],
             "waypoints": []
         }
+        
+        print(f"🚗 INDIVIDUAL BOOKING DEBUG:")
+        print(f"  - Vehicle: {absolute_vehicle_type}")
+        print(f"  - Passenger: {transport_request.passenger_name} ({phone_number})")
+        print(f"  - Route: {transport_request.pickup_address} → {transport_request.dropoff_address}")
+        print(f"  - Time: {pickup_datetime}")
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
@@ -649,7 +669,7 @@ def get_vehicle_types(
 
 class PooledBookingRequest(BaseModel):
     request_ids: List[int]
-    vehicle_type: str
+    vehicle_type: Optional[str] = None  # Auto-selected if not provided
     notes: Optional[str] = None
 
 @router.post("/transport-requests/pool-booking")
@@ -660,6 +680,7 @@ def create_pooled_booking(
     """Create a pooled booking for multiple transport requests"""
     from app.services.absolute_cabs_service import get_absolute_cabs_service
     from app.models.event import Event
+    from app.models.user import User
     
     if len(pooled_request.request_ids) < 2:
         raise HTTPException(
@@ -704,29 +725,62 @@ def create_pooled_booking(
         earliest_request = min(transport_requests, key=lambda x: x.pickup_time)
         pickup_datetime = earliest_request.pickup_time.strftime("%Y-%m-%d %H:%M")
         
-        # Collect all passengers
+        # Collect all passengers with proper phone numbers
         passengers = []
         flight_details = []
+        pickup_times = []
+        
         for req in transport_requests:
+            # Get user phone number if transport request phone is empty
+            phone_number = req.passenger_phone
+            if not phone_number or phone_number.strip() == "":
+                user = db.query(User).filter(User.email == req.user_email).first()
+                if user and user.phone_number:
+                    phone_number = user.phone_number
+                else:
+                    # Use placeholder phone number with request ID for uniqueness
+                    phone_number = f"254700{req.id:06d}"[-12:]  # Ensure 12 digits max
+            
             passengers.append({
                 "name": req.passenger_name,
-                "phone": req.passenger_phone,
-                "email": req.passenger_email or ""
+                "phone": phone_number,
+                "email": req.passenger_email or req.user_email or ""
             })
+            
             if req.flight_details:
                 flight_details.append(req.flight_details)
+            
+            # Collect pickup times for notes
+            pickup_times.append({
+                "passenger": req.passenger_name,
+                "time": req.pickup_time.strftime("%H:%M")
+            })
         
-        # Map generic vehicle types to Absolute Cabs specific types
-        vehicle_type_mapping = {
-            "SUV": "Rav4",
-            "SALOON": "Premio",
-            "VAN": "14 Seater",
-            "BUS": "Bus",
-            "SEDAN": "Axio",
-            "HATCHBACK": "Fielder"
-        }
-        
-        absolute_vehicle_type = vehicle_type_mapping.get(pooled_request.vehicle_type, "Rav4")
+        # Auto-select vehicle type based on passenger count (but allow override)
+        if not pooled_request.vehicle_type:
+            passenger_count = len(passengers)
+            if passenger_count <= 4:
+                auto_vehicle = "Premio"  # Sedan for 1-4 passengers
+            elif passenger_count <= 6:
+                auto_vehicle = "Rav4"    # SUV for 5-6 passengers
+            elif passenger_count <= 14:
+                auto_vehicle = "14 Seater"  # Van for 7-14 passengers
+            else:
+                auto_vehicle = "Bus"     # Bus for 15+ passengers
+        else:
+            # Map generic vehicle types to Absolute Cabs specific types
+            vehicle_type_mapping = {
+                "SUV": "Rav4",
+                "SALOON": "Premio",
+                "VAN": "14 Seater",
+                "BUS": "Bus",
+                "SEDAN": "Axio",
+                "HATCHBACK": "Fielder",
+                "Premio": "Premio",
+                "Rav4": "Rav4",
+                "14 Seater": "14 Seater"
+            }
+            auto_vehicle = vehicle_type_mapping.get(pooled_request.vehicle_type, "Rav4")
         
         # Create waypoints from other dropoff locations
         waypoints = []
@@ -741,9 +795,25 @@ def create_pooled_booking(
                     "lng": float(req.dropoff_longitude)
                 })
         
+        # Build comprehensive notes with pickup times
+        notes_parts = [f"Pooled booking for {len(passengers)} passengers"]
+        
+        # Add pickup times if they differ
+        unique_times = list(set(pt["time"] for pt in pickup_times))
+        if len(unique_times) > 1:
+            notes_parts.append("Pickup times:")
+            for pt in pickup_times:
+                notes_parts.append(f"- {pt['passenger']}: {pt['time']}")
+        
+        # Add custom notes
+        if pooled_request.notes:
+            notes_parts.append(pooled_request.notes)
+        
+        notes_parts.append("Pooled booking from admin portal")
+        
         # Create pooled booking data
         booking_data = {
-            "vehicle_type": absolute_vehicle_type,
+            "vehicle_type": auto_vehicle,
             "pickup_address": earliest_request.pickup_address,
             "pickup_latitude": float(earliest_request.pickup_latitude) if earliest_request.pickup_latitude else -1.2921,
             "pickup_longitude": float(earliest_request.pickup_longitude) if earliest_request.pickup_longitude else 36.8219,
@@ -752,10 +822,16 @@ def create_pooled_booking(
             "dropoff_longitude": float(earliest_request.dropoff_longitude) if earliest_request.dropoff_longitude else 36.9278,
             "pickup_time": pickup_datetime,
             "flightdetails": "; ".join(flight_details) if flight_details else "",
-            "notes": f"Pooled booking for {len(passengers)} passengers. {pooled_request.notes or ''}".strip(),
+            "notes": "; ".join(notes_parts),
             "passengers": passengers,
             "waypoints": waypoints
         }
+        
+        print(f"🚗 POOLED BOOKING DEBUG:")
+        print(f"  - Auto-selected vehicle: {auto_vehicle} (for {len(passengers)} passengers)")
+        print(f"  - Passengers with phones: {[p['name'] + ': ' + p['phone'] for p in passengers]}")
+        print(f"  - Pickup times: {[pt['passenger'] + ': ' + pt['time'] for pt in pickup_times]}")
+        print(f"  - Notes: {booking_data['notes']}")
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
@@ -772,7 +848,7 @@ def create_pooled_booking(
         for req in transport_requests:
             req.status = "booked"
             req.booking_reference = shared_ref
-            req.vehicle_type = pooled_request.vehicle_type
+            req.vehicle_type = auto_vehicle  # Use the auto-selected vehicle
             req.notes = f"Pooled booking - {req.notes or ''}".strip()
         
         db.commit()
@@ -782,7 +858,9 @@ def create_pooled_booking(
             "booking_reference": shared_ref,
             "pooled_requests": len(transport_requests),
             "passengers": len(passengers),
-            "message": f"Successfully created pooled booking for {len(passengers)} passengers",
+            "vehicle_type": auto_vehicle,
+            "pickup_times": pickup_times,
+            "message": f"Successfully created pooled booking for {len(passengers)} passengers with {auto_vehicle}",
             "api_response": api_response
         }
         
