@@ -184,7 +184,7 @@ def get_transport_requests_by_tenant(
                         db.commit()
                         
             except Exception as e:
-                print(f"DEBUG: Failed to enrich transport request {req.id} with booking details: {str(e)}")
+                pass  # Silently continue if booking details can't be fetched
         
         enriched_requests.append(request_data)
     
@@ -268,7 +268,7 @@ def get_transport_requests_by_event(
                             db.commit()
                             
             except Exception as e:
-                print(f"DEBUG: Failed to enrich transport request {req.id} with booking details: {str(e)}")
+                pass  # Silently continue if booking details can't be fetched
         
         enriched_requests.append(request_data)
     
@@ -573,14 +573,14 @@ def book_with_absolute_cabs(
             driver = booking_details["drivers"][0]  # Get first assigned driver
             transport_request.driver_name = driver.get("name")
             transport_request.driver_phone = driver.get("telephone")
-            print(f"DEBUG: Stored driver details - Name: {transport_request.driver_name}, Phone: {transport_request.driver_phone}")
+            # Driver details stored successfully
         
         # Extract and store vehicle details from Absolute Cabs response
         if booking_details and "vehicles" in booking_details and booking_details["vehicles"]:
             vehicle = booking_details["vehicles"][0]  # Get first assigned vehicle
             transport_request.vehicle_number = vehicle.get("registration")
             transport_request.vehicle_type = vehicle.get("name")  # Use actual vehicle name from Absolute Cabs
-            print(f"DEBUG: Stored vehicle details - Plate: {transport_request.vehicle_number}, Type: {transport_request.vehicle_type}")
+            # Vehicle details stored successfully
         
         db.commit()
         
@@ -938,14 +938,14 @@ def create_pooled_booking(
                 driver = booking_details["drivers"][0]  # Get first assigned driver
                 req.driver_name = driver.get("name")
                 req.driver_phone = driver.get("telephone")
-                print(f"DEBUG: Stored pooled driver details for request {req.id} - Name: {req.driver_name}, Phone: {req.driver_phone}")
+                # Pooled driver details stored successfully
             
             # Extract and store vehicle details from Absolute Cabs response
             if booking_details and "vehicles" in booking_details and booking_details["vehicles"]:
                 vehicle = booking_details["vehicles"][0]  # Get first assigned vehicle
                 req.vehicle_number = vehicle.get("registration")
                 req.vehicle_type = vehicle.get("name")  # Use actual vehicle name from Absolute Cabs
-                print(f"DEBUG: Stored pooled vehicle details for request {req.id} - Plate: {req.vehicle_number}, Type: {req.vehicle_type}")
+                # Pooled vehicle details stored successfully
         
         db.commit()
         
@@ -1204,10 +1204,6 @@ def get_booking_details(
     from app.services.absolute_cabs_service import get_absolute_cabs_service
     from app.models.tenant import Tenant
     
-    print(f"\n=== BOOKING DETAILS API CALLED ===")
-    print(f"STEP 1: Endpoint hit - ref_no: {ref_no}")
-    print(f"STEP 2: Current user: {current_user.email}")
-    
     # Find the transport request to get the event and tenant
     transport_request = db.query(TransportRequest).filter(
         TransportRequest.booking_reference == ref_no,
@@ -1215,45 +1211,30 @@ def get_booking_details(
     ).first()
     
     if not transport_request:
-        print(f"STEP 3: ERROR - Transport request not found for ref_no: {ref_no} and user: {current_user.email}")
         raise HTTPException(status_code=404, detail=f"Transport request not found for booking reference: {ref_no}")
-    
-    print(f"STEP 3: Found transport request ID: {transport_request.id}, event_id: {transport_request.event_id}")
     
     # Get the event to find the tenant
     from app.models.event import Event
     event = db.query(Event).filter(Event.id == transport_request.event_id).first()
     if not event:
-        print(f"STEP 4: ERROR - Event not found for ID: {transport_request.event_id}")
         raise HTTPException(status_code=404, detail=f"Event not found for transport request")
-    
-    print(f"STEP 4: Found event: {event.title} (ID: {event.id}), tenant_id: {event.tenant_id}")
     
     # Get the tenant from the event
     tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
     if not tenant:
-        print(f"STEP 5: ERROR - Tenant not found for ID: {event.tenant_id}")
         raise HTTPException(status_code=404, detail=f"Tenant not found for event")
-    
-    print(f"STEP 5: Found tenant: {tenant.name} (ID: {tenant.id})")
     
     # Get Absolute Cabs service
     abs_service = get_absolute_cabs_service(tenant.id, db)
     if not abs_service:
-        print(f"STEP 6: ERROR - Transport provider not configured for tenant {tenant.id}")
         raise HTTPException(status_code=404, detail=f"Transport provider not configured for tenant {tenant.name}")
     
-    print(f"STEP 6: Found Absolute Cabs service for tenant {tenant.id}")
-    
     try:
-        print(f"STEP 7: Calling abs_service.get_booking_details({ref_no})")
         booking_details = abs_service.get_booking_details(ref_no)
-        print(f"STEP 8: Raw response from Absolute Cabs: {booking_details}")
         
         # Extract the correct format for mobile app
         if "booking" in booking_details:
             booking = booking_details["booking"]
-            print(f"STEP 9: Extracted booking data: {booking}")
             
             # Extract driver and vehicle details
             driver_name = None
@@ -1265,17 +1246,14 @@ def get_booking_details(
                 driver = booking["drivers"][0]
                 driver_name = driver.get("name")
                 driver_phone = driver.get("telephone")
-                print(f"STEP 10: Extracted driver - Name: {driver_name}, Phone: {driver_phone}")
             
             if "vehicles" in booking and booking["vehicles"]:
                 vehicle = booking["vehicles"][0]
                 vehicle_number = vehicle.get("registration")
                 vehicle_type = vehicle.get("name")
-                print(f"STEP 11: Extracted vehicle - Plate: {vehicle_number}, Type: {vehicle_type}")
             
             # Update the transport request with the latest data
             if driver_name or vehicle_number:
-                print(f"STEP 11.5: Updating transport request {transport_request.id} with booking details")
                 if driver_name:
                     transport_request.driver_name = driver_name
                 if driver_phone:
@@ -1287,9 +1265,7 @@ def get_booking_details(
                 
                 try:
                     db.commit()
-                    print(f"STEP 11.6: Successfully updated transport request in database")
-                except Exception as db_error:
-                    print(f"STEP 11.7: Failed to update transport request: {str(db_error)}")
+                except Exception:
                     db.rollback()
             
             # Return formatted response for mobile app
@@ -1307,17 +1283,9 @@ def get_booking_details(
                 "flight_details": booking.get("flightdetails"),
                 "notes": booking.get("notes")
             }
-            print(f"STEP 12: Final response: {response}")
-            print(f"=== BOOKING DETAILS API SUCCESS ===\n")
             return response
         else:
-            print(f"STEP 9: No 'booking' key in response, returning raw: {booking_details}")
-            print(f"=== BOOKING DETAILS API SUCCESS (RAW) ===\n")
             return booking_details
             
     except Exception as e:
-        print(f"STEP ERROR: Exception occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        print(f"=== BOOKING DETAILS API FAILED ===\n")
         raise HTTPException(status_code=500, detail=f"Failed to fetch booking details: {str(e)}")
