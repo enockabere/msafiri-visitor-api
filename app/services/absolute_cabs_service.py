@@ -112,6 +112,19 @@ class AbsoluteCabsService:
             response.raise_for_status()
             return response.json()
             
+        except requests.exceptions.HTTPError as e:
+            # Log detailed error response for debugging
+            error_details = "Unknown error"
+            try:
+                error_response = response.json()
+                error_details = json.dumps(error_response, indent=2)
+                logger.error(f"API request failed: {method} {endpoint} - Status: {response.status_code}")
+                logger.error(f"Error response body: {error_details}")
+            except:
+                error_details = response.text
+                logger.error(f"API request failed: {method} {endpoint} - Status: {response.status_code}")
+                logger.error(f"Error response text: {error_details}")
+            raise Exception(f"API Error {response.status_code}: {error_details}")
         except Exception as e:
             logger.error(f"API request failed: {method} {endpoint} - {str(e)}")
             raise
