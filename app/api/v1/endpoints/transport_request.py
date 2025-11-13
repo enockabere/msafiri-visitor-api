@@ -37,10 +37,8 @@ def _get_coordinates_for_address(address: str):
     # Check for exact matches or partial matches
     for location, coords in locations.items():
         if location in address_lower:
-            print(f"DEBUG: Found coordinates for '{address}': {coords}")
-            return coords
+    return coords
     
-    print(f"DEBUG: No coordinates found for '{address}'")
     return None
 
 class TransportRequestCreate(BaseModel):
@@ -152,15 +150,9 @@ def get_transport_requests_by_event(
     event_id: int,
     db: Session = Depends(get_db)
 ):
-    print(f"DEBUG API: Getting transport requests for event {event_id}")
-    
     requests = db.query(TransportRequest).filter(
         TransportRequest.event_id == event_id
     ).all()
-    
-    print(f"DEBUG API: Found {len(requests)} transport requests")
-    for req in requests:
-        print(f"DEBUG API: Request {req.id}: {req.pickup_address} -> {req.dropoff_address}, Status: {req.status}, Notes: {req.notes}")
     
     return {"transport_requests": [
         {
@@ -195,16 +187,12 @@ def create_missing_transport_requests(
 ):
     """Create transport requests for confirmed itineraries that don't have them"""
     
-    print(f"DEBUG API: Creating missing transport requests for event {event_id}, user {current_user.email}")
-    
     # Get confirmed itineraries without transport requests
     confirmed_itineraries = db.query(FlightItinerary).filter(
         FlightItinerary.event_id == event_id,
         FlightItinerary.user_email == current_user.email,
         FlightItinerary.confirmed == True
     ).all()
-    
-    print(f"DEBUG API: Found {len(confirmed_itineraries)} confirmed itineraries")
     
     transport_requests_created = []
     
@@ -216,10 +204,7 @@ def create_missing_transport_requests(
         ).first()
         
         if existing_request:
-            print(f"DEBUG API: Transport request already exists for itinerary {itinerary.id}")
             continue
-            
-        print(f"DEBUG API: Creating transport request for {itinerary.itinerary_type} itinerary {itinerary.id}")
         
         if itinerary.itinerary_type == "arrival":
             pickup_addr = itinerary.arrival_airport or itinerary.departure_airport
@@ -253,7 +238,6 @@ def create_missing_transport_requests(
         
         db.add(transport_request)
         transport_requests_created.append(itinerary.itinerary_type)
-        print(f"DEBUG API: Added {itinerary.itinerary_type} transport request")
         
         # Create pickup confirmation notification for same day or next day pickups
         pickup_date = pickup_time.date()
@@ -276,9 +260,7 @@ def create_missing_transport_requests(
     
     try:
         db.commit()
-        print(f"DEBUG API: Successfully created {len(transport_requests_created)} transport requests")
     except Exception as e:
-        print(f"DEBUG API: Error creating transport requests: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -407,16 +389,7 @@ def book_with_absolute_cabs(
         # Prepare booking data for Absolute Cabs API
         pickup_datetime = transport_request.pickup_time.strftime("%Y-%m-%d %H:%M")
         
-        # Debug: Print transport request data
-        print(f"🚛 TRANSPORT REQUEST DEBUG:")
-        print(f"  - ID: {transport_request.id}")
-        print(f"  - Pickup Lat/Lng: {transport_request.pickup_latitude}, {transport_request.pickup_longitude}")
-        print(f"  - Dropoff Lat/Lng: {transport_request.dropoff_latitude}, {transport_request.dropoff_longitude}")
-        print(f"  - Original Phone: '{transport_request.passenger_phone}'")
-        print(f"  - Final Phone: '{phone_number}'")
-        print(f"  - Passenger Name: '{transport_request.passenger_name}'")
-        print(f"  - User Email: '{transport_request.user_email}'")
-        print(f"  - Passenger Email: '{transport_request.passenger_email}'")
+
         
         # Add coordinates if missing
         if not transport_request.pickup_latitude or not transport_request.pickup_longitude:
@@ -424,14 +397,12 @@ def book_with_absolute_cabs(
             if pickup_coords:
                 transport_request.pickup_latitude = pickup_coords[0]
                 transport_request.pickup_longitude = pickup_coords[1]
-                print(f"  - Added pickup coordinates: {pickup_coords}")
         
         if not transport_request.dropoff_latitude or not transport_request.dropoff_longitude:
             dropoff_coords = _get_coordinates_for_address(transport_request.dropoff_address)
             if dropoff_coords:
                 transport_request.dropoff_latitude = dropoff_coords[0]
                 transport_request.dropoff_longitude = dropoff_coords[1]
-                print(f"  - Added dropoff coordinates: {dropoff_coords}")
         
         # Save coordinates if we added them
         if (transport_request.pickup_latitude or transport_request.dropoff_latitude):
@@ -482,11 +453,7 @@ def book_with_absolute_cabs(
             "waypoints": []
         }
         
-        print(f"🚗 INDIVIDUAL BOOKING DEBUG:")
-        print(f"  - Vehicle: {absolute_vehicle_type}")
-        print(f"  - Passenger: {transport_request.passenger_name} ({phone_number})")
-        print(f"  - Route: {transport_request.pickup_address} → {transport_request.dropoff_address}")
-        print(f"  - Time: {pickup_datetime}")
+
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
@@ -827,11 +794,7 @@ def create_pooled_booking(
             "waypoints": waypoints
         }
         
-        print(f"🚗 POOLED BOOKING DEBUG:")
-        print(f"  - Auto-selected vehicle: {auto_vehicle} (for {len(passengers)} passengers)")
-        print(f"  - Passengers with phones: {[p['name'] + ': ' + p['phone'] for p in passengers]}")
-        print(f"  - Pickup times: {[pt['passenger'] + ': ' + pt['time'] for pt in pickup_times]}")
-        print(f"  - Notes: {booking_data['notes']}")
+
         
         # Create booking with Absolute Cabs
         api_response = absolute_service.create_booking(booking_data)
@@ -973,22 +936,9 @@ def get_pooling_suggestions(
         TransportRequest.pickup_time > now  # Only future requests
     ).all()
     
-    print(f"\n" + "="*100)
-    print(f"🔍 POOLING ANALYSIS: Found {len(pending_requests)} pending transport requests")
-    print(f"="*100)
-    
-    for i, req in enumerate(pending_requests, 1):
-        print(f"\n📋 REQUEST #{i} (ID: {req.id})")
-        print(f"   👤 Passenger: {req.passenger_name}")
-        print(f"   📍 Route: {req.pickup_address} → {req.dropoff_address}")
-        print(f"   ⏰ Pickup Time: {req.pickup_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"   🗺️  Pickup Coords: ({req.pickup_latitude}, {req.pickup_longitude})")
-        print(f"   🎯 Dropoff Coords: ({req.dropoff_latitude}, {req.dropoff_longitude})")
-        print(f"   ✈️  Flight: {req.flight_details or 'N/A'}")
-        print(f"   📝 Notes: {req.notes or 'N/A'}")
+
     
     if len(pending_requests) < 2:
-        print(f"🔍 POOLING SERVER DEBUG: Not enough requests for pooling ({len(pending_requests)} < 2)")
         return {"suggestions": []}
     
     # Ensure all requests have coordinates before pooling analysis
@@ -1009,29 +959,16 @@ def get_pooling_suggestions(
     try:
         db.commit()
     except Exception as e:
-        print(f"Warning: Could not update coordinates: {e}")
         db.rollback()
     
     suggestions = []
     processed_requests = set()
     
-    print(f"\n" + "="*100)
-    print(f"🔄 STARTING POOLING COMPATIBILITY ANALYSIS")
-    print(f"="*100)
-    print(f"📊 Analysis Parameters:")
-    print(f"   • Time Window: ±40 minutes")
-    print(f"   • Pickup Proximity: ≤3km")
-    print(f"   • Same Destination: ≤1km")
-    print(f"   • Waypoint Detour: ≤30% extra distance")
-    print(f"   • Direction Tolerance: ±45 degrees")
-    print(f"\n🔍 Starting pairwise analysis for {len(pending_requests)} requests...")
+
     
     for i, req1 in enumerate(pending_requests):
         if req1.id in processed_requests:
-            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} already processed, skipping")
             continue
-        
-        print(f"🔍 POOLING SERVER DEBUG: Analyzing request {req1.id} as potential pool leader")
         pool_group = [req1]
         waypoints = []
         
@@ -1039,57 +976,32 @@ def get_pooling_suggestions(
             if req2.id == req1.id or req2.id in processed_requests:
                 continue
             
-            print(f"\n🔄 ANALYZING COMPATIBILITY: Request {req1.id} ↔ Request {req2.id}")
-            print(f"   👤 {req1.passenger_name} ↔ {req2.passenger_name}")
-            
             # Check time proximity (within 40 minutes)
             time_diff = abs((req1.pickup_time - req2.pickup_time).total_seconds() / 60)
-            print(f"   ⏰ TIME ANALYSIS:")
-            print(f"      Req {req1.id}: {req1.pickup_time.strftime('%H:%M')}")
-            print(f"      Req {req2.id}: {req2.pickup_time.strftime('%H:%M')}")
-            print(f"      Difference: {time_diff:.1f} minutes")
             if time_diff > 40:
-                print(f"      ❌ REJECTED: Time gap too large ({time_diff:.1f} > 40 minutes)")
                 continue
-            else:
-                print(f"      ✅ PASSED: Within acceptable time window ({time_diff:.1f} ≤ 40 minutes)")
             
-            # Check pickup proximity (within 3km) - with detailed debugging
-            print(f"🔍 COORDS CHECK: Req {req1.id} pickup: ({req1.pickup_latitude}, {req1.pickup_longitude})")
-            print(f"🔍 COORDS CHECK: Req {req2.id} pickup: ({req2.pickup_latitude}, {req2.pickup_longitude})")
-            
+            # Check pickup proximity (within 3km)
             pickup_distance = calculate_distance(
                 req1.pickup_latitude, req1.pickup_longitude,
                 req2.pickup_latitude, req2.pickup_longitude
             )
             
-            print(f"🔍 DISTANCE CHECK: Pickup distance = {pickup_distance:.4f} km")
-            
             if pickup_distance == float('inf') or pickup_distance > 3:
-                print(f"🔍 DISTANCE CHECK: ❌ Pickup too far ({pickup_distance:.4f} > 3km)")
                 continue
-            else:
-                print(f"🔍 DISTANCE CHECK: ✅ Pickup proximity OK ({pickup_distance:.4f} ≤ 3km)")
             
             # Check if going to same destination (within 1km)
-            print(f"🔍 COORDS CHECK: Req {req1.id} dropoff: ({req1.dropoff_latitude}, {req1.dropoff_longitude})")
-            print(f"🔍 COORDS CHECK: Req {req2.id} dropoff: ({req2.dropoff_latitude}, {req2.dropoff_longitude})")
-            
             dropoff_distance = calculate_distance(
                 req1.dropoff_latitude, req1.dropoff_longitude,
                 req2.dropoff_latitude, req2.dropoff_longitude
             )
             
-            print(f"🔍 DROPOFF CHECK: Dropoff distance = {dropoff_distance:.4f} km")
-            
             if dropoff_distance <= 1:
                 # Same destination - perfect for pooling
-                print(f"🔍 DROPOFF CHECK: ✅ SAME DESTINATION ({dropoff_distance:.4f} ≤ 1km) - Adding to pool group")
                 pool_group.append(req2)
                 processed_requests.add(req2.id)
             elif is_same_direction(req1, req2) and can_be_waypoint(req1, req2):
                 # Same direction and can be waypoint
-                print(f"🔍 DIRECTION CHECK: ✅ SAME DIRECTION - Adding as waypoint")
                 pool_group.append(req2)
                 waypoints.append({
                     "address": req2.dropoff_address,
@@ -1098,14 +1010,9 @@ def get_pooling_suggestions(
                     "passenger": req2.passenger_name
                 })
                 processed_requests.add(req2.id)
-            else:
-                print(f"🔍 FINAL CHECK: ❌ Different destinations and directions (dropoff: {dropoff_distance:.4f}km)")
         
         # Only suggest if we have 2+ requests in the group
         if len(pool_group) >= 2:
-            print(f"🎯 POOLING SUGGESTION: Found group of {len(pool_group)} requests")
-            for req in pool_group:
-                print(f"  - {req.passenger_name}: {req.pickup_address} → {req.dropoff_address}")
             
             # Calculate final metrics for the group
             final_pickup_distance = 0.0
@@ -1142,12 +1049,6 @@ def get_pooling_suggestions(
             # Mark all requests in this group as processed
             for req in pool_group:
                 processed_requests.add(req.id)
-        else:
-            print(f"🔍 POOLING SERVER DEBUG: Request {req1.id} has no pooling partners (group size: {len(pool_group)})")
-    
-    print(f"🔍 POOLING SERVER DEBUG: Final result - {len(suggestions)} pooling suggestions found")
-    for i, suggestion in enumerate(suggestions):
-        print(f"  Suggestion {i+1}: {suggestion['passenger_count']} passengers, {len(suggestion['requests'])} requests")
     
     return {"suggestions": suggestions}
 
