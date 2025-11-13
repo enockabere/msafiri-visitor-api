@@ -805,8 +805,8 @@ def create_pooled_booking(
             for pt in pickup_times:
                 notes_parts.append(f"- {pt['passenger']}: {pt['time']}")
         
-        # Add custom notes
-        if pooled_request.notes:
+        # Add custom notes (but avoid duplicate "Pooled booking from admin portal")
+        if pooled_request.notes and "Pooled booking from admin portal" not in pooled_request.notes:
             notes_parts.append(pooled_request.notes)
         
         notes_parts.append("Pooled booking from admin portal")
