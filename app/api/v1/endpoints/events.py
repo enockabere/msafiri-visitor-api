@@ -670,6 +670,7 @@ def delete_event(
         from app.models.chat import ChatRoom
         from app.models.guesthouse import AccommodationAllocation
         from app.models.event_participant import EventParticipant
+        from app.models.flight_itinerary import FlightItinerary
         
         # 1. Delete accommodation allocations first (they reference event_participants)
         allocations = db.query(AccommodationAllocation).filter(
@@ -679,13 +680,21 @@ def delete_event(
             db.delete(allocation)
         logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
         
-        # 2. Delete chat rooms
+        # 2. Delete flight itineraries
+        flight_itineraries = db.query(FlightItinerary).filter(
+            FlightItinerary.event_id == event_id
+        ).all()
+        for itinerary in flight_itineraries:
+            db.delete(itinerary)
+        logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
+        
+        # 3. Delete chat rooms
         chat_rooms = db.query(ChatRoom).filter(ChatRoom.event_id == event_id).all()
         for chat_room in chat_rooms:
             db.delete(chat_room)
         logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
         
-        # 3. Delete event participants
+        # 4. Delete event participants
         participants = db.query(EventParticipant).filter(
             EventParticipant.event_id == event_id
         ).all()
@@ -693,7 +702,7 @@ def delete_event(
             db.delete(participant)
         logger.info(f"🗑️ Deleted {len(participants)} participants for event {event_id}")
         
-        # 4. Finally delete the event
+        # 5. Finally delete the event
         logger.info(f"✅ Deleting draft event: {event_id}")
         db.delete(event)
         db.commit()
