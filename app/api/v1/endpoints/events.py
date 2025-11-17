@@ -681,7 +681,16 @@ def delete_event(
             db.delete(request)
         logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
         
-        # 2. Delete accommodation allocations (they reference event_participants)
+        # 2. Delete participant QR codes (they reference event_participants)
+        from app.models.participant_qr import ParticipantQR
+        qr_codes = db.query(ParticipantQR).join(
+            EventParticipant, ParticipantQR.participant_id == EventParticipant.id
+        ).filter(EventParticipant.event_id == event_id).all()
+        for qr_code in qr_codes:
+            db.delete(qr_code)
+        logger.info(f"🗑️ Deleted {len(qr_codes)} participant QR codes for event {event_id}")
+        
+        # 3. Delete accommodation allocations (they reference event_participants)
         allocations = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.event_id == event_id
         ).all()
@@ -689,7 +698,7 @@ def delete_event(
             db.delete(allocation)
         logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
         
-        # 3. Delete flight itineraries
+        # 4. Delete flight itineraries
         flight_itineraries = db.query(FlightItinerary).filter(
             FlightItinerary.event_id == event_id
         ).all()
@@ -697,13 +706,13 @@ def delete_event(
             db.delete(itinerary)
         logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
         
-        # 4. Delete chat rooms
+        # 5. Delete chat rooms
         chat_rooms = db.query(ChatRoom).filter(ChatRoom.event_id == event_id).all()
         for chat_room in chat_rooms:
             db.delete(chat_room)
         logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
         
-        # 5. Delete event participants
+        # 6. Delete event participants
         participants = db.query(EventParticipant).filter(
             EventParticipant.event_id == event_id
         ).all()
