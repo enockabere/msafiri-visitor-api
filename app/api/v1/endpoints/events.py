@@ -665,21 +665,48 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
-    # Delete associated chat rooms first to avoid foreign key constraint
+    # Delete related records in proper order to avoid foreign key constraints
     try:
         from app.models.chat import ChatRoom
+        from app.models.guesthouse import AccommodationAllocation
+        from app.models.event_participant import EventParticipant
+        
+        # 1. Delete accommodation allocations first (they reference event_participants)
+        allocations = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.event_id == event_id
+        ).all()
+        for allocation in allocations:
+            db.delete(allocation)
+        logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
+        
+        # 2. Delete chat rooms
         chat_rooms = db.query(ChatRoom).filter(ChatRoom.event_id == event_id).all()
         for chat_room in chat_rooms:
             db.delete(chat_room)
         logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
+        
+        # 3. Delete event participants
+        participants = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id
+        ).all()
+        for participant in participants:
+            db.delete(participant)
+        logger.info(f"🗑️ Deleted {len(participants)} participants for event {event_id}")
+        
+        # 4. Finally delete the event
+        logger.info(f"✅ Deleting draft event: {event_id}")
+        db.delete(event)
+        db.commit()
+        logger.info(f"🎉 Event deleted successfully: {event_id}")
+        
     except Exception as e:
-        logger.warning(f"⚠️ Failed to delete chat rooms: {str(e)}")
+        logger.error(f"💥 Error during event deletion: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete event: {str(e)}"
+        )
     
-    # Hard delete for draft events (since they haven't been published)
-    logger.info(f"✅ Deleting draft event: {event_id}")
-    db.delete(event)
-    db.commit()
-    logger.info(f"🎉 Event deleted successfully: {event_id}")
     return {"message": "Draft event deleted successfully"}
 
 @router.put("/{event_id}/status")
