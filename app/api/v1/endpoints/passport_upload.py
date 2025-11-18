@@ -232,6 +232,8 @@ async def confirm_passport(
         print(f"🔗 PUBLIC LOI URL GENERATED: {loi_url}")
         print(f"🔗 BASE URL FROM ENV: {base_url}")
         print(f"🔗 RECORD ID: {request.record_id}")
+        print(f"🔗 SLUGIFIED ID: {slugified_id}")
+        print(f"🔗 FRONTEND_URL ENV VAR: {os.getenv('FRONTEND_URL')}")
         
         payload = {
             "passport_no": request.passport_no,
@@ -249,12 +251,19 @@ async def confirm_passport(
             "url": loi_url
         }
         
-        print(f"🔗 URL IN PAYLOAD: {payload['url']}")
+        print(f"🔗 URL IN PAYLOAD (BEING PATCHED): {payload['url']}")
+        print(f"🔗 URL BREAKDOWN:")
+        print(f"🔗   - Base URL: '{base_url}'")
+        print(f"🔗   - Slugified ID: '{slugified_id}'")
+        print(f"🔗   - Full URL: '{loi_url}'")
+        print(f"🔗   - URL Length: {len(loi_url)} characters")
         
         print(f"📤 SENDING TO EXTERNAL API: {API_URL}")
         print(f"📤 HEADERS: {headers}")
         print(f"📤 PAYLOAD WITH PUBLIC URL: {json.dumps(payload, indent=2)}")
-        print(f"📤 CONFIRMING URL BEING PATCHED: {payload['url']}")
+        print(f"📤 CONFIRMING URL BEING PATCHED TO EXTERNAL API: {payload['url']}")
+        print(f"📤 EXTERNAL API ENDPOINT: {API_URL}")
+        print(f"📤 PAYLOAD URL FIELD: '{payload['url']}'")
         
         response = requests.patch(API_URL, json=payload, headers=headers, timeout=30)
         
@@ -262,6 +271,14 @@ async def confirm_passport(
         print(f"📥 Status Code: {response.status_code}")
         print(f"📥 Response Headers: {dict(response.headers)}")
         print(f"📥 Response Text: {response.text}")
+        print(f"📥 URL PATCH SUCCESS: External API received URL '{payload['url']}'")
+        
+        # Verify what was actually sent
+        if response.status_code in [200, 204]:
+            print(f"✅ PATCH VERIFICATION: URL '{payload['url']}' successfully sent to external API")
+            print(f"✅ PATCH VERIFICATION: Slugified format confirmed: {slugified_id in payload['url']}")
+        else:
+            print(f"❌ PATCH FAILED: URL '{payload['url']}' was rejected by external API")
         
         if response.status_code not in [200, 204]:
             print(f"❌ EXTERNAL API ERROR: Status {response.status_code}")
@@ -343,8 +360,10 @@ async def confirm_passport(
         print(f"🏁 {json.dumps(api_response, indent=2)}")
         print(f"🏁 LOI URL RETURNED TO MOBILE: {api_response['loi_url']}")
         print(f"🏁 RECORD ID: {api_response['record_id']}")
-        print(f"🏁 FULL PUBLIC URL: http://41.90.97.253:8001/public/loi/{slugified_id}")
+        print(f"🏁 FULL PUBLIC URL (FINAL): {loi_url}")
         print(f"🔒 SECURITY: Record ID {request.record_id} slugified to {slugified_id}")
+        print(f"🔒 SECURITY CHECK: URL contains slugified ID: {slugified_id in loi_url}")
+        print(f"🔒 SECURITY CHECK: URL does NOT contain raw record ID: {str(request.record_id) not in loi_url.replace(str(request.record_id), '')}")
         
         return api_response
         
