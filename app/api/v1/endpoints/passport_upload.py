@@ -140,7 +140,7 @@ async def upload_passport(
         record_id = result["result"]["record_id"]
         
         # Generate the public LOI URL with slugified record ID
-        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
         slugified_id = _slugify_record_id(record_id)
         loi_url = f"{base_url}/public/loi/{slugified_id}"
         
@@ -225,7 +225,7 @@ async def confirm_passport(
         
         # Generate the public LOI URL with slugified record ID
         import os
-        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
         slugified_id = _slugify_record_id(request.record_id)
         loi_url = f"{base_url}/public/loi/{slugified_id}"
         
@@ -324,7 +324,7 @@ async def confirm_passport(
         print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
         # Generate the public LOI URL for mobile app with slugified record ID
-        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
         slugified_id = _slugify_record_id(request.record_id)
         loi_url = f"{base_url}/public/loi/{slugified_id}"
         
