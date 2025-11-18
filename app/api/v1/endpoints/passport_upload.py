@@ -10,8 +10,40 @@ import base64
 from typing import Dict, Any
 from pydantic import BaseModel
 import json
+import hashlib
+import os
 
 router = APIRouter()
+
+def _slugify_record_id(record_id: int) -> str:
+    """Create a secure slug from record ID to prevent enumeration attacks"""
+    # Use a secret salt from environment or default
+    salt = os.getenv('LOI_SALT', 'msf-loi-secure-salt-2024')
+    
+    # Create a hash using record_id + salt
+    hash_input = f"{record_id}-{salt}"
+    hash_digest = hashlib.sha256(hash_input.encode()).hexdigest()
+    
+    # Take first 12 characters and append record_id for uniqueness
+    # This makes it hard to guess but still allows reverse lookup
+    slugified = f"{hash_digest[:12]}-{record_id}"
+    
+    return slugified
+
+def _extract_record_id_from_slug(slug: str) -> int:
+    """Extract original record ID from slugified version"""
+    try:
+        # Split by last dash and get the record_id part
+        parts = slug.split('-')
+        if len(parts) >= 2:
+            return int(parts[-1])
+        else:
+            raise ValueError("Invalid slug format")
+    except (ValueError, IndexError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid LOI reference format"
+        )
 
 class PassportUploadRequest(BaseModel):
     image_data: str  # base64 encoded image
@@ -107,9 +139,10 @@ async def upload_passport(
         # Get the record ID but don't save it yet - only save after confirmation
         record_id = result["result"]["record_id"]
         
-        # Generate the public LOI URL
+        # Generate the public LOI URL with slugified record ID
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-        loi_url = f"{base_url}/public/loi/{record_id}"
+        slugified_id = _slugify_record_id(record_id)
+        loi_url = f"{base_url}/public/loi/{slugified_id}"
         
         print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
         
@@ -190,10 +223,11 @@ async def confirm_passport(
             "x-api-key": API_KEY
         }
         
-        # Generate the public LOI URL
+        # Generate the public LOI URL with slugified record ID
         import os
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-        loi_url = f"{base_url}/public/loi/{request.record_id}"
+        slugified_id = _slugify_record_id(request.record_id)
+        loi_url = f"{base_url}/public/loi/{slugified_id}"
         
         print(f"🔗 PUBLIC LOI URL GENERATED: {loi_url}")
         print(f"🔗 BASE URL FROM ENV: {base_url}")
@@ -289,9 +323,10 @@ async def confirm_passport(
         final_status = final_participant.passport_document if final_participant else False
         print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
-        # Generate the public LOI URL for mobile app
+        # Generate the public LOI URL for mobile app with slugified record ID
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-        loi_url = f"{base_url}/public/loi/{request.record_id}"
+        slugified_id = _slugify_record_id(request.record_id)
+        loi_url = f"{base_url}/public/loi/{slugified_id}"
         
         print(f"📱 MOBILE APP LOI URL: {loi_url}")
         
@@ -308,7 +343,8 @@ async def confirm_passport(
         print(f"🏁 {json.dumps(api_response, indent=2)}")
         print(f"🏁 LOI URL RETURNED TO MOBILE: {api_response['loi_url']}")
         print(f"🏁 RECORD ID: {api_response['record_id']}")
-        print(f"🏁 FULL PUBLIC URL: http://41.90.97.253:8001/public/loi/{api_response['record_id']}")
+        print(f"🏁 FULL PUBLIC URL: http://41.90.97.253:8001/public/loi/{slugified_id}")
+        print(f"🔒 SECURITY: Record ID {request.record_id} slugified to {slugified_id}")
         
         return api_response
         
@@ -394,5 +430,61 @@ async def get_passport_record(
     
     return {
         "record_id": passport_record.record_id,
+        "slugified_id": _slugify_record_id(passport_record.record_id),
         "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None
     }
+
+@router.get("/loi/{slug}")
+async def get_loi_by_slug(
+    slug: str,
+    db: Session = Depends(get_db)
+):
+    """Get LOI document by slugified record ID (public endpoint)"""
+    
+    try:
+        # Extract the original record_id from the slug
+        record_id = _extract_record_id_from_slug(slug)
+        
+        # Verify the slug is valid by re-generating it
+        expected_slug = _slugify_record_id(record_id)
+        if slug != expected_slug:
+            raise HTTPException(
+                status_code=404,
+                detail="Invalid LOI reference"
+            )
+        
+        # Forward to external API to get the actual LOI document
+        import os
+        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/loi/{record_id}"
+        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
+        
+        headers = {
+            "x-api-key": API_KEY
+        }
+        
+        response = requests.get(API_URL, headers=headers, timeout=30)
+        
+        if response.status_code == 404:
+            raise HTTPException(
+                status_code=404,
+                detail="LOI document not found"
+            )
+        elif response.status_code != 200:
+            raise HTTPException(
+                status_code=500,
+                detail="Error retrieving LOI document"
+            )
+        
+        # Return the LOI document content
+        return response.json()
+        
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid LOI reference format"
+        )
+    except requests.RequestException:
+        raise HTTPException(
+            status_code=500,
+            detail="Error connecting to LOI service"
+        )
