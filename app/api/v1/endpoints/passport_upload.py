@@ -139,10 +139,10 @@ async def upload_passport(
         # Get the record ID but don't save it yet - only save after confirmation
         record_id = result["result"]["record_id"]
         
-        # Generate the public LOI URL with slugified record ID
+        # For upload, we don't have a database record yet, so we'll use a placeholder
+        # The actual LOI URL will be generated in the confirm endpoint
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-        slugified_id = _slugify_record_id(record_id)
-        loi_url = f"{base_url}/public/loi/{slugified_id}"
+        loi_url = f"{base_url}/public/loi/pending-{record_id}"
         
         print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
         
@@ -303,6 +303,9 @@ async def confirm_passport(
             # Generate slug if it doesn't exist
             if not existing_record.slug:
                 existing_record.generate_slug()
+            db.commit()
+            db.refresh(existing_record)
+            actual_slug = existing_record.slug
         else:
             # Create new record
             passport_record = PassportRecord(
@@ -313,6 +316,9 @@ async def confirm_passport(
             # Generate slug for new record
             passport_record.generate_slug()
             db.add(passport_record)
+            db.commit()
+            db.refresh(passport_record)
+            actual_slug = passport_record.slug
         print(f"📋 PASSPORT CONFIRMATION: Found event_id: {event_id}")
         
         # Update participant passport status for the specific event - no sensitive data stored
@@ -345,10 +351,9 @@ async def confirm_passport(
         final_status = final_participant.passport_document if final_participant else False
         print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
         
-        # Generate the public LOI URL for mobile app with slugified record ID
+        # Generate the public LOI URL for mobile app using actual database slug
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-        slugified_id = _slugify_record_id(request.record_id)
-        loi_url = f"{base_url}/public/loi/{slugified_id}"
+        loi_url = f"{base_url}/public/loi/{actual_slug}"
         
         print(f"📱 MOBILE APP LOI URL: {loi_url}")
         
@@ -454,7 +459,7 @@ async def get_passport_record(
     
     return {
         "record_id": passport_record.record_id,
-        "slugified_id": _slugify_record_id(passport_record.record_id),
+        "slugified_id": passport_record.slug,
         "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None
     }
 
@@ -497,24 +502,22 @@ async def get_loi_by_slug(
     print(f"🔍 LOI FETCH START: Slug={slug}")
     
     try:
-        # Extract the original record_id from the slug
-        record_id = _extract_record_id_from_slug(slug)
-        print(f"🔍 EXTRACTED RECORD ID: {record_id}")
+        # First try to find the passport record by slug in database
+        passport_record = db.query(PassportRecord).filter(
+            PassportRecord.slug == slug
+        ).first()
         
-        # Verify the slug is valid by re-generating it
-        expected_slug = _slugify_record_id(record_id)
-        print(f"🔍 EXPECTED SLUG: {expected_slug}")
-        print(f"🔍 PROVIDED SLUG: {slug}")
-        print(f"🔍 SLUG MATCH: {slug == expected_slug}")
-        
-        if slug != expected_slug:
-            print(f"❌ SLUG MISMATCH: Expected '{expected_slug}', got '{slug}'")
+        if not passport_record:
+            print(f"❌ PASSPORT RECORD NOT FOUND: No record with slug '{slug}'")
             raise HTTPException(
                 status_code=404,
                 detail="Invalid LOI reference"
             )
         
-        # Try to get passport data from external API (same as mobile app does)
+        record_id = passport_record.record_id
+        print(f"🔍 FOUND RECORD ID: {record_id} for slug: {slug}")
+        
+        # Get passport data from external API using the record_id
         import os
         API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{record_id}"
         API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
