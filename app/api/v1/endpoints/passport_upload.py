@@ -460,50 +460,84 @@ async def get_loi_by_slug(
 ):
     """Get LOI document by slugified record ID (public endpoint)"""
     
+    print(f"🔍 LOI FETCH START: Slug={slug}")
+    
     try:
         # Extract the original record_id from the slug
         record_id = _extract_record_id_from_slug(slug)
+        print(f"🔍 EXTRACTED RECORD ID: {record_id}")
         
         # Verify the slug is valid by re-generating it
         expected_slug = _slugify_record_id(record_id)
+        print(f"🔍 EXPECTED SLUG: {expected_slug}")
+        print(f"🔍 PROVIDED SLUG: {slug}")
+        print(f"🔍 SLUG MATCH: {slug == expected_slug}")
+        
         if slug != expected_slug:
+            print(f"❌ SLUG MISMATCH: Expected '{expected_slug}', got '{slug}'")
             raise HTTPException(
                 status_code=404,
                 detail="Invalid LOI reference"
             )
         
-        # Forward to external API to get the actual LOI document
+        # Try to get passport data from external API (same as mobile app does)
         import os
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/loi/{record_id}"
+        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{record_id}"
         API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
         
+        print(f"🔍 CALLING EXTERNAL API: {API_URL}")
+        
         headers = {
-            "x-api-key": API_KEY
+            "x-api-key": API_KEY,
+            "Content-Type": "application/json",
+            "Accept": "application/json"
         }
         
-        response = requests.get(API_URL, headers=headers, timeout=30)
+        # Use the same format as the working Python script
+        payload = {"passport_id": record_id}
+        
+        print(f"🔍 REQUEST HEADERS: {headers}")
+        print(f"🔍 REQUEST PAYLOAD: {payload}")
+        
+        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
+        
+        print(f"🔍 EXTERNAL API RESPONSE:")
+        print(f"🔍 Status Code: {response.status_code}")
+        print(f"🔍 Response Headers: {dict(response.headers)}")
+        print(f"🔍 Response Text: {response.text[:500]}..." if len(response.text) > 500 else response.text)
         
         if response.status_code == 404:
+            print(f"❌ LOI DOCUMENT NOT FOUND: Record ID {record_id}")
             raise HTTPException(
                 status_code=404,
                 detail="LOI document not found"
             )
         elif response.status_code != 200:
+            print(f"❌ EXTERNAL API ERROR: Status {response.status_code}, Response: {response.text}")
             raise HTTPException(
                 status_code=500,
-                detail="Error retrieving LOI document"
+                detail=f"Error retrieving LOI document: {response.text}"
             )
         
+        print(f"✅ LOI DOCUMENT RETRIEVED SUCCESSFULLY")
         # Return the LOI document content
         return response.json()
         
-    except ValueError:
+    except ValueError as e:
+        print(f"❌ SLUG PARSING ERROR: {e}")
         raise HTTPException(
             status_code=400,
             detail="Invalid LOI reference format"
         )
-    except requests.RequestException:
+    except requests.RequestException as e:
+        print(f"❌ REQUEST ERROR: {e}")
         raise HTTPException(
             status_code=500,
-            detail="Error connecting to LOI service"
+            detail=f"Error connecting to LOI service: {str(e)}"
+        )
+    except Exception as e:
+        print(f"❌ UNEXPECTED ERROR: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unexpected error: {str(e)}"
         )
