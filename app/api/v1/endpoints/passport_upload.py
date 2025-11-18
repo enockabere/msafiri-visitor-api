@@ -453,6 +453,35 @@ async def get_passport_record(
         "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None
     }
 
+@router.get("/loi/record/{record_id}")
+async def redirect_to_loi_by_record_id(
+    record_id: int,
+    db: Session = Depends(get_db)
+):
+    """Redirect from raw record ID to slugified LOI URL"""
+    from fastapi.responses import RedirectResponse
+    import os
+    
+    try:
+        # Generate slugified ID
+        slugified_id = _slugify_record_id(record_id)
+        
+        # Get base URL for redirect
+        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
+        redirect_url = f"{base_url}/public/loi/{slugified_id}"
+        
+        print(f"🔄 LOI REDIRECT: Raw ID {record_id} -> Slugified {slugified_id}")
+        print(f"🔄 REDIRECT URL: {redirect_url}")
+        
+        return RedirectResponse(url=redirect_url, status_code=302)
+        
+    except Exception as e:
+        print(f"❌ LOI REDIRECT ERROR: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid record ID: {record_id}"
+        )
+
 @router.get("/loi/{slug}")
 async def get_loi_by_slug(
     slug: str,
