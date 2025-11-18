@@ -300,6 +300,9 @@ async def confirm_passport(
         if existing_record:
             # Update existing record
             existing_record.record_id = request.record_id
+            # Generate slug if it doesn't exist
+            if not existing_record.slug:
+                existing_record.generate_slug()
         else:
             # Create new record
             passport_record = PassportRecord(
@@ -307,6 +310,8 @@ async def confirm_passport(
                 event_id=event_id,
                 record_id=request.record_id
             )
+            # Generate slug for new record
+            passport_record.generate_slug()
             db.add(passport_record)
         print(f"📋 PASSPORT CONFIRMATION: Found event_id: {event_id}")
         
