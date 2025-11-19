@@ -93,6 +93,13 @@ async def get_scanner_events(
             end_date = event_row[4]
             
             # Get voucher allocation for this event
+            all_allocations = db.query(EventAllocation).filter(
+                EventAllocation.event_id == event_id
+            ).all()
+            logger.info(f"📊 Event {event_id} has {len(all_allocations)} total allocations")
+            for alloc in all_allocations:
+                logger.info(f"📊 Allocation {alloc.id}: drink_vouchers={alloc.drink_vouchers_per_participant}, status={alloc.status}")
+            
             voucher_allocation = db.query(EventAllocation).filter(
                 EventAllocation.event_id == event_id
             ).first()
@@ -101,6 +108,7 @@ async def get_scanner_events(
             if voucher_allocation:
                 vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
                 logger.info(f"🍻 Event {event_id} allocation: {vouchers_per_participant} vouchers per participant (allocation_id: {voucher_allocation.id})")
+                logger.info(f"🔍 Allocation details: status={voucher_allocation.status}, created_at={voucher_allocation.created_at}, drink_vouchers={voucher_allocation.drink_vouchers_per_participant}")
             else:
                 logger.warning(f"⚠️ No voucher allocation found for event {event_id}")
             
