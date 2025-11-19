@@ -47,10 +47,10 @@ def auto_book_all_participants(
     
     # Get event with accommodation setup
     event_query = text("""
-        SELECT e.id, e.title, e.vendor_accommodation_id, e.accommodation_setup_id, e.start_date, e.end_date,
-               vea.single_rooms, vea.double_rooms
+        SELECT e.id, e.title, e.vendor_accommodation_id, e.start_date, e.end_date,
+               vea.id as accommodation_setup_id, vea.single_rooms, vea.double_rooms
         FROM events e 
-        LEFT JOIN vendor_event_accommodations vea ON e.accommodation_setup_id = vea.id
+        LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
@@ -80,24 +80,17 @@ def auto_book_all_participants(
     female_visitors = []
     other_visitors = []
     
-    print(f"DEBUG: Processing {len(participants)} participants for grouping")
     for p in participants:
-        print(f"DEBUG: Participant {p.full_name} - role: {p.role}, gender_identity: {p.gender_identity}")
         if p.role.lower() in ['facilitator', 'organizer']:
             facilitators.append(p)
-            print(f"DEBUG: Added {p.full_name} to facilitators")
         else:
             gender = _normalize_gender(p.gender_identity)
-            print(f"DEBUG: Normalized gender for {p.full_name}: {gender}")
             if gender == 'male':
                 male_visitors.append(p)
-                print(f"DEBUG: Added {p.full_name} to male_visitors")
             elif gender == 'female':
                 female_visitors.append(p)
-                print(f"DEBUG: Added {p.full_name} to female_visitors")
             else:
                 other_visitors.append(p)
-                print(f"DEBUG: Added {p.full_name} to other_visitors")
     
     results = []
     
@@ -111,22 +104,12 @@ def auto_book_all_participants(
     
     # Book visitors - use individual booking logic that handles pairing automatically
     all_visitors = male_visitors + female_visitors
-    print(f"DEBUG: Final grouping results:")
-    print(f"DEBUG: Facilitators: {[f.full_name for f in facilitators]}")
-    print(f"DEBUG: Male visitors: {[v.full_name for v in male_visitors]}")
-    print(f"DEBUG: Female visitors: {[v.full_name for v in female_visitors]}")
-    print(f"DEBUG: Other visitors: {[v.full_name for v in other_visitors]}")
-    print(f"DEBUG: Total visitors to book: {len(all_visitors)}")
-    
     for visitor in all_visitors:
         try:
             gender = _normalize_gender(visitor.gender_identity)
-            print(f"DEBUG: Booking {visitor.full_name} (gender: {gender})")
             result = _book_visitor_room(db, event, visitor, gender, tenant_id, current_user.id)
-            print(f"DEBUG: Result for {visitor.full_name}: {result}")
             results.append({"participant_id": visitor.id, "participant_name": visitor.full_name, "status": "success", "result": result})
         except Exception as e:
-            print(f"DEBUG: Error booking {visitor.full_name}: {str(e)}")
             results.append({"participant_id": visitor.id, "participant_name": visitor.full_name, "status": "error", "error": str(e)})
     
     # Book other gender visitors in single rooms
@@ -162,36 +145,27 @@ def _auto_book_participant_internal(
     # Get event with accommodation setup
     event_query = text("""
         SELECT e.id, e.title, e.start_date, e.end_date, e.vendor_accommodation_id,
-               e.accommodation_setup_id, vea.single_rooms, vea.double_rooms
+               vea.id as accommodation_setup_id, vea.single_rooms, vea.double_rooms
         FROM events e 
-        LEFT JOIN vendor_event_accommodations vea ON e.accommodation_setup_id = vea.id
+        LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
     
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"DEBUG: Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
-    logger.info(f"DEBUG: Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
-    
-    # Show all vendor accommodation setups for debugging
-    all_setups_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
-    all_setups = db.execute(all_setups_query, {"event_id": event_id}).fetchall()
-    logger.info(f"DEBUG: All vendor accommodation setups for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
+    logger.info(f"Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
+    logger.info(f"Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
     
     if not event:
-        logger.info(f"DEBUG: No event found for event_id {event_id} and tenant_id {tenant_id}")
+        logger.info(f"No event found for event_id {event_id} and tenant_id {tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
     
     if not event.accommodation_setup_id:
-        logger.info(f"DEBUG: No accommodation_setup_id found for event {event_id}")
-        # Check if there are any vendor event accommodations for this event
-        check_query = text("SELECT * FROM vendor_event_accommodations WHERE event_id = :event_id")
-        all_setups = db.execute(check_query, {"event_id": event_id}).fetchall()
-        logger.info(f"DEBUG: All vendor event accommodations for event {event_id}: {[dict(s._mapping) for s in all_setups]}")
+        logger.info(f"No accommodation_setup_id found for event {event_id}")
         
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -241,19 +215,14 @@ def _auto_book_participant_internal(
 
 def _normalize_gender(gender_identity):
     """Convert registration gender to standard format"""
-    print(f"DEBUG: _normalize_gender input: '{gender_identity}'")
     if not gender_identity:
-        print(f"DEBUG: _normalize_gender output: 'other' (no gender_identity)")
         return 'other'
     gender = gender_identity.lower()
     if gender in ['man', 'male']:
-        print(f"DEBUG: _normalize_gender output: 'male'")
         return 'male'
     elif gender in ['woman', 'female']:
-        print(f"DEBUG: _normalize_gender output: 'female'")
         return 'female'
     else:
-        print(f"DEBUG: _normalize_gender output: 'other' (unrecognized: '{gender}')")
         return 'other'
 
 def _book_single_room(db, event, participant, tenant_id, user_id):
@@ -309,7 +278,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"DEBUG: Looking for match for {participant.full_name} (gender: {gender})")
+    logger.info(f"Looking for match for {participant.full_name} (gender: {gender})")
     
     # Look for unmatched visitor of same gender in single rooms (exclude facilitators/organizers)
     unmatched_query = text("""
@@ -328,7 +297,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     """)
     
     gender_values = (['man', 'male'] if gender == 'male' else ['woman', 'female'])
-    logger.info(f"DEBUG: Searching for gender values: {gender_values}")
+    logger.info(f"Searching for gender values: {gender_values}")
     
     unmatched = db.execute(unmatched_query, {
         "event_id": event.id,
@@ -337,11 +306,11 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     }).fetchone()
     
     if unmatched:
-        logger.info(f"DEBUG: Found visitor match: {unmatched.full_name} (allocation_id: {unmatched.id})")
+        logger.info(f"Found visitor match: {unmatched.full_name} (allocation_id: {unmatched.id})")
         # Merge with existing single room allocation to create double room
         return _merge_to_double_room(db, event, participant, unmatched, tenant_id, user_id)
     else:
-        logger.info(f"DEBUG: No visitor match found for {participant.full_name}, booking single room")
+        logger.info(f"No visitor match found for {participant.full_name}, booking single room")
         # No match found, book single room temporarily
         return _book_single_room_temp(db, event, participant, tenant_id, user_id)
 
@@ -350,7 +319,7 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
     
-    print(f"DEBUG: Merging {new_participant.full_name} with {existing_allocation.full_name}")
+
     
     # Update existing allocation to double room
     db.execute(text("""
@@ -359,7 +328,7 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
         WHERE id = :allocation_id
     """), {"allocation_id": existing_allocation.id})
     
-    print(f"DEBUG: Updated existing allocation {existing_allocation.id} to double room")
+
     
     # Create new allocation for second person
     allocation_data = AccommodationAllocationCreate(
@@ -379,7 +348,7 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
     
-    print(f"DEBUG: Created new allocation {new_allocation.id} for {new_participant.full_name}")
+
     
     # Update room counts (return 1 single, take 1 double)
     db.execute(text("""
@@ -388,7 +357,7 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
         WHERE id = :accommodation_setup_id
     """), {"accommodation_setup_id": event.accommodation_setup_id})
     
-    print(f"DEBUG: Updated room counts: +1 single, -1 double")
+
     
     db.commit()
     return {
