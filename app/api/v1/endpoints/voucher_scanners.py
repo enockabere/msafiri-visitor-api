@@ -278,8 +278,32 @@ async def get_event_scanners(
             
         except Exception as table_error:
             logger.warning(f"Event-specific scanner table not found, falling back to role-based lookup: {str(table_error)}")
-            # Fallback: return empty list since we want event-specific scanners only
-            return []
+            # Fallback: return all users with voucher_scanner role
+            try:
+                result = db.execute(text("""
+                    SELECT u.id, u.email, u.full_name, u.is_active, u.created_at
+                    FROM users u
+                    JOIN user_roles ur ON u.id = ur.user_id
+                    WHERE ur.role = 'voucher_scanner'
+                """))
+                
+                scanners = []
+                for row in result:
+                    scanner = VoucherScannerResponse(
+                        id=row.id,
+                        email=row.email,
+                        name=row.full_name,
+                        is_active=row.is_active,
+                        created_at=row.created_at or datetime.utcnow(),
+                        created_by="admin",
+                        event_id=event_id
+                    )
+                    scanners.append(scanner)
+                
+                return scanners
+            except Exception as fallback_error:
+                logger.error(f"Fallback scanner lookup failed: {str(fallback_error)}")
+                return []
         
     except Exception as e:
         logger.error(f"Error fetching event scanners: {str(e)}")
