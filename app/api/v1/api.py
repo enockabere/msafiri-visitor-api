@@ -526,6 +526,13 @@ api_router.include_router(
     tags=["scanner-dashboard"]
 )
 
+from app.api.v1.endpoints import scanner
+api_router.include_router(
+    scanner.router,
+    prefix="",
+    tags=["scanner"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
