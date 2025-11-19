@@ -128,7 +128,7 @@ async def get_scanner_events(
                 
                 remaining_vouchers = max(0, vouchers_per_participant - redemption_count)
                 
-                    logger.info(f"📊 Participant {participant.full_name} (ID: {participant.id}, Email: {participant.email}): allocated={vouchers_per_participant}, redeemed={redemption_count}, remaining={remaining_vouchers}")
+                logger.info(f"📊 Participant {participant.full_name} (ID: {participant.id}, Email: {participant.email}): allocated={vouchers_per_participant}, redeemed={redemption_count}, remaining={remaining_vouchers}")
                 
                 participant_info = ParticipantVoucherInfo(
                     participant_id=participant.id,
