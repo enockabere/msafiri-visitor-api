@@ -45,7 +45,7 @@ async def get_scanner_events(
 ):
     """Get events where user is assigned as voucher scanner"""
     try:
-        logger.info(f"🔍 GET SCANNER EVENTS for user: {user_email}")
+
         
         # Get user
         user = db.query(User).filter(User.email == user_email).first()
@@ -59,7 +59,7 @@ async def get_scanner_events(
         ).first()
         
         if not has_scanner_role:
-            logger.info(f"❌ User {user_email} does not have voucher scanner role")
+    
             return []
         
         # Get events where user is assigned as scanner
@@ -73,10 +73,10 @@ async def get_scanner_events(
             """), {"user_id": user.id})
             
             event_rows = result.fetchall()
-            logger.info(f"📊 Found {len(event_rows)} events with specific scanner assignments")
+
             
         except Exception as table_error:
-            logger.warning(f"Event-specific scanner table not available: {str(table_error)}")
+
             # Fallback: get all events from user's tenant
             event_rows = db.query(Event).filter(
                 Event.tenant_id == user.tenant_id if hasattr(user, 'tenant_id') else True
@@ -93,12 +93,7 @@ async def get_scanner_events(
             end_date = event_row[4]
             
             # Get voucher allocation for this event
-            all_allocations = db.query(EventAllocation).filter(
-                EventAllocation.event_id == event_id
-            ).all()
-            logger.info(f"📊 Event {event_id} has {len(all_allocations)} total allocations")
-            for alloc in all_allocations:
-                logger.info(f"📊 Allocation {alloc.id}: drink_vouchers={alloc.drink_vouchers_per_participant}, status={alloc.status}")
+
             
             voucher_allocation = db.query(EventAllocation).filter(
                 EventAllocation.event_id == event_id,
@@ -108,10 +103,9 @@ async def get_scanner_events(
             vouchers_per_participant = 0
             if voucher_allocation:
                 vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
-                logger.info(f"🍻 Event {event_id} allocation: {vouchers_per_participant} vouchers per participant (allocation_id: {voucher_allocation.id})")
-                logger.info(f"🔍 Allocation details: status={voucher_allocation.status}, created_at={voucher_allocation.created_at}, drink_vouchers={voucher_allocation.drink_vouchers_per_participant}")
+
             else:
-                logger.warning(f"⚠️ No voucher allocation found for event {event_id}")
+
             
             # Get participants with voucher data
             participants_query = db.query(
@@ -137,7 +131,7 @@ async def get_scanner_events(
                 
                 remaining_vouchers = max(0, vouchers_per_participant - redemption_count)
                 
-                logger.info(f"📊 Participant {participant.full_name} (ID: {participant.id}, Email: {participant.email}): allocated={vouchers_per_participant}, redeemed={redemption_count}, remaining={remaining_vouchers}")
+
                 
                 participant_info = ParticipantVoucherInfo(
                     participant_id=participant.id,
@@ -161,11 +155,11 @@ async def get_scanner_events(
                 )
                 scanner_events.append(scanner_event)
         
-        logger.info(f"✅ Returning {len(scanner_events)} scanner events")
+
         return scanner_events
         
     except Exception as e:
-        logger.error(f"Error fetching scanner events: {str(e)}")
+
         raise HTTPException(status_code=500, detail=f"Failed to fetch scanner events: {str(e)}")
 
 @router.post("/scanner/redeem-voucher")
@@ -175,7 +169,7 @@ async def redeem_voucher_scan(
 ):
     """Redeem voucher via scanner (mobile app)"""
     try:
-        logger.info(f"🎫 REDEEM VOUCHER: participant_id={request.participant_id}, scanner={request.scanner_email}")
+
         
         # Get scanner user
         scanner_user = db.query(User).filter(User.email == request.scanner_email).first()
@@ -222,7 +216,7 @@ async def redeem_voucher_scan(
         db.add(voucher_redemption)
         db.commit()
         
-        logger.info(f"✅ Voucher redeemed successfully for participant {request.participant_id}")
+
         
         return {
             "success": True,
@@ -234,5 +228,5 @@ async def redeem_voucher_scan(
         }
         
     except Exception as e:
-        logger.error(f"Error redeeming voucher: {str(e)}")
+
         raise HTTPException(status_code=500, detail=f"Failed to redeem voucher: {str(e)}")

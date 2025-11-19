@@ -57,20 +57,14 @@ def update_participant_role(
         )
     
     old_role = participation.role
-    print(f"DEBUG ROLE UPDATE: Participant: {participation.full_name}, Old: {old_role}, New: {new_role}")
-    logger.info(f"🔄 Role change - Participant: {participation.full_name}, Old: {old_role}, New: {new_role}")
     
     # Update both role fields to ensure consistency
     participation.role = new_role
     participation.participant_role = new_role
     db.commit()
-    print(f"DEBUG ROLE UPDATE: Database updated successfully")
     
     # Force accommodation reallocation for confirmed participants
-    print(f"DEBUG ROLE UPDATE: Participant status: {participation.status}")
     if participation.status == 'confirmed':
-        print(f"DEBUG ROLE UPDATE: Starting accommodation reallocation for confirmed participant")
-        logger.info(f"Starting accommodation reallocation for confirmed participant")
         
         from app.models.guesthouse import AccommodationAllocation
         from sqlalchemy import text
@@ -82,8 +76,6 @@ def update_participant_role(
         ).all()
         
         for allocation in existing_allocations:
-            print(f"DEBUG ROLE UPDATE: Deleting allocation {allocation.id} for {allocation.guest_name} (room_type: {allocation.room_type})")
-            logger.info(f"Deleting allocation {allocation.id} for {allocation.guest_name}")
             
             # Restore room counts to vendor_event_accommodations
             if allocation.vendor_accommodation_id:
@@ -95,14 +87,12 @@ def update_participant_role(
                 
                 if setup_result and setup_result[0]:
                     if allocation.room_type == 'single':
-                        print(f"DEBUG ROLE UPDATE: Restoring 1 single room to setup {setup_result[0]}")
                         db.execute(text("""
                             UPDATE vendor_event_accommodations 
                             SET single_rooms = single_rooms + 1 
                             WHERE id = :setup_id
                         """), {"setup_id": setup_result[0]})
                     elif allocation.room_type == 'double':
-                        print(f"DEBUG ROLE UPDATE: Restoring 1 double room to setup {setup_result[0]}")
                         db.execute(text("""
                             UPDATE vendor_event_accommodations 
                             SET double_rooms = double_rooms + 1 
@@ -112,16 +102,12 @@ def update_participant_role(
             db.delete(allocation)
         
         db.commit()
-        print(f"DEBUG ROLE UPDATE: Deleted {len(existing_allocations)} existing allocations")
-        logger.info(f"Deleted {len(existing_allocations)} existing allocations")
         
         # Trigger auto-booking with new role
         try:
             from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
             
-            tenant_context = current_user.tenant_id or "default"
-            print(f"DEBUG ROLE UPDATE: Triggering auto booking with role: {new_role}, tenant_context: {tenant_context}")
-            logger.info(f"Triggering auto booking with role: {new_role}")
+            tenant_context = str(current_user.tenant_id) if current_user.tenant_id else "default"
             
             booking_result = _auto_book_participant_internal(
                 event_id=event_id,
@@ -130,17 +116,11 @@ def update_participant_role(
                 current_user=current_user,
                 tenant_context=tenant_context
             )
-            print(f"DEBUG ROLE UPDATE: Auto booking completed: {booking_result}")
-            logger.info(f"Auto booking completed: {booking_result}")
             
         except Exception as e:
-            print(f"DEBUG ROLE UPDATE: Auto booking failed: {str(e)}")
-            logger.error(f"Auto booking failed: {str(e)}")
-            import traceback
-            print(f"DEBUG ROLE UPDATE: Traceback: {traceback.format_exc()}")
-            logger.error(traceback.format_exc())
+            pass  # Continue even if auto-booking fails
     
-    print(f"DEBUG ROLE UPDATE: Process completed successfully")
+
     return {
         "message": f"Role updated from {old_role} to {new_role}",
         "old_role": old_role,
