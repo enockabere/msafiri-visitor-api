@@ -100,6 +100,9 @@ async def get_scanner_events(
             vouchers_per_participant = 0
             if voucher_allocation:
                 vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
+                logger.info(f"🍻 Event {event_id} allocation: {vouchers_per_participant} vouchers per participant (allocation_id: {voucher_allocation.id})")
+            else:
+                logger.warning(f"⚠️ No voucher allocation found for event {event_id}")
             
             # Get participants with voucher data
             participants_query = db.query(
@@ -124,6 +127,8 @@ async def get_scanner_events(
                     ).scalar() or 0
                 
                 remaining_vouchers = max(0, vouchers_per_participant - redemption_count)
+                
+                    logger.info(f"📊 Participant {participant.full_name} (ID: {participant.id}, Email: {participant.email}): allocated={vouchers_per_participant}, redeemed={redemption_count}, remaining={remaining_vouchers}")
                 
                 participant_info = ParticipantVoucherInfo(
                     participant_id=participant.id,
