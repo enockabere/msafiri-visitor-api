@@ -242,12 +242,15 @@ async def get_event_scanners(
 ):
     """Get voucher scanners specifically created for this event"""
     try:
+        logger.info(f"🔍 GET EVENT SCANNERS: event_id={event_id}, tenant_id={tenant_id}")
+        
         # Verify event exists and belongs to tenant
         event = db.query(Event).filter(
             Event.id == event_id,
             Event.tenant_id == tenant_id
         ).first()
         if not event:
+            logger.error(f"❌ Event not found: event_id={event_id}, tenant_id={tenant_id}")
             raise HTTPException(status_code=404, detail="Event not found")
         
         # Create event_voucher_scanners table if it doesn't exist to track event-specific scanners
@@ -280,6 +283,7 @@ async def get_event_scanners(
             logger.warning(f"Event-specific scanner table not found, falling back to role-based lookup: {str(table_error)}")
             # Fallback: return all users with voucher_scanner role
             try:
+                logger.info("🔄 Trying fallback query for voucher scanners")
                 result = db.execute(text("""
                     SELECT u.id, u.email, u.full_name, u.is_active, u.created_at
                     FROM users u
@@ -287,8 +291,12 @@ async def get_event_scanners(
                     WHERE ur.role = 'VOUCHER_SCANNER'
                 """))
                 
+                rows = result.fetchall()
+                logger.info(f"📊 Found {len(rows)} users with VOUCHER_SCANNER role")
+                
                 scanners = []
-                for row in result:
+                for row in rows:
+                    logger.info(f"👤 Scanner: {row.email} (ID: {row.id})")
                     scanner = VoucherScannerResponse(
                         id=row.id,
                         email=row.email,
@@ -300,6 +308,7 @@ async def get_event_scanners(
                     )
                     scanners.append(scanner)
                 
+                logger.info(f"✅ Returning {len(scanners)} scanners")
                 return scanners
             except Exception as fallback_error:
                 logger.error(f"Fallback scanner lookup failed: {str(fallback_error)}")
