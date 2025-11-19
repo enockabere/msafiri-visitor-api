@@ -9,6 +9,21 @@ from app.models.user import UserRole
 
 router = APIRouter()
 
+# Test endpoint to verify routing
+@router.get("/{event_id}/participants/{participant_id}/role-test")
+def test_role_endpoint(
+    event_id: int,
+    participant_id: int
+):
+    """Test endpoint to verify routing works"""
+    print(f"🧪 TEST ENDPOINT HIT - Event: {event_id}, Participant: {participant_id}")
+    return {
+        "message": "Role endpoint routing works",
+        "event_id": event_id,
+        "participant_id": participant_id,
+        "timestamp": str(__import__('datetime').datetime.now())
+    }
+
 @router.put("/{event_id}/participants/{participant_id}/role")
 def update_participant_role(
     *,
@@ -153,7 +168,9 @@ def update_participant_role(
             import traceback
             print(f"⚠️ Traceback: {traceback.format_exc()}")
             pass  # Continue even if auto-booking fails
-    
+    else:
+        print(f"🏨 Participant status is {participation.status}, skipping accommodation reallocation")
+        print(f"🏨 Only 'confirmed' participants get automatic accommodation reallocation")
 
     print(f"🎉 Role update process completed successfully")
     print(f"🎉 Final result: {old_role} -> {new_role}")
