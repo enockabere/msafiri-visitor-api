@@ -280,47 +280,11 @@ async def get_event_scanners(
                 )
                 scanners.append(scanner)
             
-            if len(scanners) > 0:
-                logger.info(f"✅ Returning {len(scanners)} event-specific scanners")
-                return scanners
-            else:
-                logger.info("🔄 No event-specific scanners found, trying fallback")
-                # Fall through to the fallback query
+            logger.info(f"✅ Returning {len(scanners)} event-specific scanners")
+            return scanners
             
         except Exception as table_error:
-            logger.warning(f"Event-specific scanner table not found, falling back to role-based lookup: {str(table_error)}")
-            
-        # Fallback: return all users with voucher_scanner role
-        try:
-            logger.info("🔄 Trying fallback query for voucher scanners")
-            result = db.execute(text("""
-                SELECT u.id, u.email, u.full_name, u.is_active, u.created_at
-                FROM users u
-                JOIN user_roles ur ON u.id = ur.user_id
-                WHERE ur.role = 'VOUCHER_SCANNER'
-            """))
-            
-            rows = result.fetchall()
-            logger.info(f"📊 Found {len(rows)} users with VOUCHER_SCANNER role")
-            
-            scanners = []
-            for row in rows:
-                logger.info(f"👤 Scanner: {row.email} (ID: {row.id})")
-                scanner = VoucherScannerResponse(
-                    id=row.id,
-                    email=row.email,
-                    name=row.full_name,
-                    is_active=row.is_active,
-                    created_at=row.created_at or datetime.utcnow(),
-                    created_by="admin",
-                    event_id=event_id
-                )
-                scanners.append(scanner)
-            
-            logger.info(f"✅ Returning {len(scanners)} scanners")
-            return scanners
-        except Exception as fallback_error:
-            logger.error(f"Fallback scanner lookup failed: {str(fallback_error)}")
+            logger.warning(f"Event-specific scanner table not found: {str(table_error)}")
             return []
         
     except Exception as e:
