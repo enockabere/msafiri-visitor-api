@@ -253,10 +253,10 @@ async def get_event_scanners(
             logger.error(f"❌ Event not found: event_id={event_id}, tenant_id={tenant_id}")
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Create event_voucher_scanners table if it doesn't exist to track event-specific scanners
+        # Try event-specific scanner tracking first
         from sqlalchemy import text
         try:
-            # Check if we have event-specific scanner tracking
+            logger.info("🔍 Trying event-specific scanner table query")
             result = db.execute(text("""
                 SELECT u.id, u.email, u.full_name, u.is_active, u.created_at, evs.created_by, evs.event_id
                 FROM users u
@@ -264,8 +264,11 @@ async def get_event_scanners(
                 WHERE evs.event_id = :event_id AND evs.tenant_id = :tenant_id
             """), {"event_id": event_id, "tenant_id": tenant_id})
             
+            rows = result.fetchall()
+            logger.info(f"📊 Event-specific query found {len(rows)} scanners")
+            
             scanners = []
-            for row in result:
+            for row in rows:
                 scanner = VoucherScannerResponse(
                     id=row.id,
                     email=row.email,
@@ -277,6 +280,7 @@ async def get_event_scanners(
                 )
                 scanners.append(scanner)
             
+            logger.info(f"✅ Returning {len(scanners)} event-specific scanners")
             return scanners
             
         except Exception as table_error:
