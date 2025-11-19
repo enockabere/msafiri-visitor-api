@@ -154,11 +154,7 @@ def update_participant_role(
         except Exception as e:
             import traceback
             pass  # Continue even if auto-booking fails
-    else:
 
-
-
-    
     return {
         "message": f"Role updated from {old_role} to {new_role}",
         "old_role": old_role,

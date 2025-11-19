@@ -414,14 +414,8 @@ async def update_participant_role_simple(
             
             # Use the same automatic room booking service that's used for event updates
             success = refresh_automatic_room_booking(db, participant.event_id, event.tenant_id)
-            
-            if success:
 
-            else:
-
-                
         except Exception as e:
-
             # Don't fail the role update if room reassignment fails
             import traceback
             traceback.print_exc()
