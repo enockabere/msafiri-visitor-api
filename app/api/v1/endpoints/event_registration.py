@@ -382,6 +382,77 @@ async def get_participant_details(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@router.put("/participant/{participant_id}/role")
+async def update_participant_role_simple(
+    participant_id: int,
+    role_data: dict,
+    db: Session = Depends(get_db)
+):
+    """Update participant role and trigger accommodation reallocation"""
+    print(f"🔥🔥🔥 SIMPLE ROLE UPDATE ENDPOINT HIT - Participant: {participant_id} 🔥🔥🔥")
+    print(f"📝 Role data: {role_data}")
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    new_role = role_data.get("role")
+    if not new_role:
+        raise HTTPException(status_code=400, detail="Role is required")
+    
+    old_role = participant.participant_role
+    participant.participant_role = new_role
+    participant.role = new_role
+    
+    # Trigger automatic room booking refresh for confirmed participants when role changes
+    if participant.status == 'confirmed' and old_role != new_role:
+        print(f"🏨 Role changed for confirmed participant: {old_role} -> {new_role}")
+        print(f"🏨 Triggering automatic room booking refresh...")
+        
+        try:
+            from app.services.automatic_room_booking_service import refresh_automatic_room_booking
+            from app.models.event import Event
+            
+            # Get event details
+            event = db.query(Event).filter(Event.id == participant.event_id).first()
+            if not event:
+                print(f"❌ Event not found: {participant.event_id}")
+                raise Exception(f"Event {participant.event_id} not found")
+            
+            print(f"🏨 Event found: {event.title} (Tenant: {event.tenant_id})")
+            
+            # Use the same automatic room booking service that's used for event updates
+            success = refresh_automatic_room_booking(db, participant.event_id, event.tenant_id)
+            
+            if success:
+                print(f"✅ Automatic room booking refresh completed successfully")
+            else:
+                print(f"⚠️ Automatic room booking refresh failed")
+                
+        except Exception as e:
+            print(f"⚠️ Error during automatic room booking refresh: {str(e)}")
+            # Don't fail the role update if room reassignment fails
+            import traceback
+            traceback.print_exc()
+    
+    try:
+        db.commit()
+        print(f"✅ Role update committed successfully")
+    except Exception as e:
+        print(f"❌ Database commit failed: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update role: {str(e)}")
+    
+    return {
+        "message": f"Role updated from {old_role} to {new_role}. Accommodation automatically reallocated.",
+        "old_role": old_role,
+        "new_role": new_role,
+        "accommodation_refreshed": old_role != new_role and participant.status == 'confirmed'
+    }
+
 @router.put("/participant/{participant_id}/status")
 async def update_participant_status(
     participant_id: int,
