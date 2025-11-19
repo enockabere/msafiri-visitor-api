@@ -284,7 +284,7 @@ async def get_event_scanners(
                     SELECT u.id, u.email, u.full_name, u.is_active, u.created_at
                     FROM users u
                     JOIN user_roles ur ON u.id = ur.user_id
-                    WHERE ur.role = 'voucher_scanner'
+                    WHERE ur.role = 'VOUCHER_SCANNER'
                 """))
                 
                 scanners = []
