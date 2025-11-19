@@ -280,8 +280,12 @@ async def get_event_scanners(
                 )
                 scanners.append(scanner)
             
-            logger.info(f"✅ Returning {len(scanners)} event-specific scanners")
-            return scanners
+            if len(scanners) > 0:
+                logger.info(f"✅ Returning {len(scanners)} event-specific scanners")
+                return scanners
+            else:
+                logger.info("🔄 No event-specific scanners found, trying fallback")
+                # Fall through to the fallback query
             
         except Exception as table_error:
             logger.warning(f"Event-specific scanner table not found, falling back to role-based lookup: {str(table_error)}")
