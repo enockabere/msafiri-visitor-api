@@ -66,7 +66,7 @@ async def get_scanner_events(
         try:
             # Try event-specific scanner assignments first
             result = db.execute(text("""
-                SELECT DISTINCT e.id, e.name, e.description, e.start_date, e.end_date, e.tenant_id
+                SELECT DISTINCT e.id, e.title, e.description, e.start_date, e.end_date, e.tenant_id
                 FROM events e
                 JOIN event_voucher_scanners evs ON e.id = evs.event_id
                 WHERE evs.user_id = :user_id AND evs.is_active = true
@@ -81,7 +81,7 @@ async def get_scanner_events(
             event_rows = db.query(Event).filter(
                 Event.tenant_id == user.tenant_id if hasattr(user, 'tenant_id') else True
             ).all()
-            event_rows = [(e.id, e.name, e.description, e.start_date, e.end_date, e.tenant_id) for e in event_rows]
+            event_rows = [(e.id, e.title, e.description, e.start_date, e.end_date, e.tenant_id) for e in event_rows]
         
         scanner_events = []
         
