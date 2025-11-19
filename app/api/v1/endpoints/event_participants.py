@@ -181,10 +181,7 @@ async def update_participant_role(
         
         # Trigger auto-booking if participant is confirmed
         if participant.status == 'confirmed':
-
             await trigger_auto_booking_after_role_change(event_id, participant_id, db)
-        else:
-
         
         # Send role change notification email
         if old_role != new_role:
