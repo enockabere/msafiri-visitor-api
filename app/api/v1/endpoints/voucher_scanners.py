@@ -102,7 +102,6 @@ async def create_voucher_scanners_bulk(
                 
                 if not existing_role:
                     # Assign scanner role (additional role for existing users)
-                    from datetime import datetime
                     user_role = UserRole(
                         user_id=user_id,
                         role=RoleType.VOUCHER_SCANNER,
