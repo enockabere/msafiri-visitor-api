@@ -101,7 +101,8 @@ async def get_scanner_events(
                 logger.info(f"📊 Allocation {alloc.id}: drink_vouchers={alloc.drink_vouchers_per_participant}, status={alloc.status}")
             
             voucher_allocation = db.query(EventAllocation).filter(
-                EventAllocation.event_id == event_id
+                EventAllocation.event_id == event_id,
+                EventAllocation.drink_vouchers_per_participant > 0
             ).first()
             
             vouchers_per_participant = 0
