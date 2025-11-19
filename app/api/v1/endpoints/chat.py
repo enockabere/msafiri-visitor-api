@@ -705,7 +705,7 @@ def get_conversations(
     current_user: User = Depends(get_current_user)
 ):
     """Get list of users with whom current user has conversations"""
-    print(f"DEBUG CONV: Getting conversations for user {current_user.email}")
+
     
     # Get unique conversation partners - allow cross-tenant conversations
     sent_to = db.query(DirectMessage.recipient_email, DirectMessage.recipient_name).filter(
@@ -738,7 +738,7 @@ def get_conversations(
                 )
             ).count()
             
-            print(f"DEBUG CONV: Sent to {email}, unread_count: {unread_count}, last_msg: {last_msg.message if last_msg else None}")
+
             
             conversations.append({
                 "email": email,
@@ -768,7 +768,7 @@ def get_conversations(
                 )
             ).count()
             
-            print(f"DEBUG CONV: Received from {email}, unread_count: {unread_count}, last_msg: {last_msg.message if last_msg else None}")
+
             
             conversations.append({
                 "email": email,
@@ -781,9 +781,7 @@ def get_conversations(
     # Sort by last message time
     conversations.sort(key=lambda x: x["last_message_time"] or datetime.min, reverse=True)
     
-    print(f"DEBUG CONV: Returning {len(conversations)} conversations")
-    for conv in conversations:
-        print(f"DEBUG CONV: {conv['email']} - unread: {conv['unread_count']}, last: {conv['last_message']}")
+
     
     return conversations
 

@@ -307,7 +307,7 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         except:
             urgent = 0
         
-        print(f"NOTIFICATION STATS: User {user_id}, Tenant {tenant_id}, Total: {total}, Unread: {unread}, Urgent: {urgent}")
+
         
         return {
             "total": total,

@@ -22,7 +22,7 @@ class EventRegistrationRequest(BaseModel):
     
     def dict(self, **kwargs):
         data = super().dict(**kwargs)
-        print(f"📝 API: EventRegistrationRequest validation passed: {data}")
+
         return data
 
 class ParticipantStatusUpdate(BaseModel):
@@ -36,24 +36,19 @@ async def register_for_event(
 ):
     """Allow users to register for events"""
     
-    print(f"🎯 API: Received registration request")
-    print(f"   Event ID: {registration.event_id}")
-    print(f"   Email: {registration.user_email}")
-    print(f"   Name: {registration.full_name}")
-    print(f"   Role: {registration.role}")
-    print(f"🎯 Full request data: {registration.dict()}")
+
     
     # Check if event exists
     event = db.query(Event).filter(Event.id == registration.event_id).first()
     if not event:
-        print(f"❌ Event {registration.event_id} not found")
+
         raise HTTPException(status_code=404, detail="Event not found")
     
-    print(f"📅 Event found: {event.title} (Status: {event.status})")
+
     
     # Allow facilitator registration regardless of event status, but restrict attendee registration
     if registration.role != "facilitator" and event.status != "Published":
-        print(f"❌ Event not published for attendee registration. Role: {registration.role}, Status: {event.status}")
+
         raise HTTPException(status_code=400, detail="Registration is only allowed for published events")
     
     # Check if user already registered with same role
@@ -64,13 +59,13 @@ async def register_for_event(
     ).first()
     
     if existing:
-        print(f"❌ User {registration.user_email} already registered as {registration.role} for event {registration.event_id}")
+
         raise HTTPException(status_code=400, detail=f"Already registered as {registration.role} for this event")
     
     # Get user if exists
     user = db.query(User).filter(User.email == registration.user_email).first()
     
-    print(f"✅ Creating participant for {registration.full_name} as {registration.role}")
+
     
     try:
         # Create registration with default status as 'registered' and participant_role as 'visitor'
@@ -88,17 +83,17 @@ async def register_for_event(
         db.commit()
         db.refresh(participant)
         
-        print(f"✅ Participant created successfully with ID: {participant.id}")
+
         
         # Send facilitator notification email
         if registration.role == "facilitator":
-            print(f"📧 Sending facilitator notification email to {registration.user_email}")
+
             await send_facilitator_notification(participant, db)
         
         return {"message": "Successfully registered for event", "participant_id": participant.id}
         
     except Exception as e:
-        print(f"❌ Error creating participant: {str(e)}")
+
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to register participant: {str(e)}")
 
@@ -109,8 +104,7 @@ async def get_event_registrations(
     db: Session = Depends(get_db)
 ):
     """Get all registrations for an event with detailed registration data"""
-    print(f"\n🔥🔥🔥 EVENT REGISTRATIONS ENDPOINT HIT - EVENT ID: {event_id} 🔥🔥🔥")
-    print(f"📊 Status filter: {status_filter}")
+
     from sqlalchemy import text
     
     # Query participants with detailed registration data
@@ -142,11 +136,7 @@ async def get_event_registrations(
     result = db.execute(text(query), params)
     participants = result.fetchall()
     
-    print(f"📊 Found {len(participants)} participants for event {event_id}")
-    for i, p in enumerate(participants[:3]):  # Print first 3 participants
-        print(f"👤 Participant {i+1}: ID={p.id}, Name={p.full_name}, Email={p.email}, Status={p.status}, Role={p.role}")
-    if len(participants) > 3:
-        print(f"👥 ... and {len(participants) - 3} more participants")
+
     
     result = []
     for p in participants:
@@ -389,8 +379,7 @@ async def update_participant_role_simple(
     db: Session = Depends(get_db)
 ):
     """Update participant role and trigger accommodation reallocation"""
-    print(f"🔥🔥🔥 SIMPLE ROLE UPDATE ENDPOINT HIT - Participant: {participant_id} 🔥🔥🔥")
-    print(f"📝 Role data: {role_data}")
+    print(f"Simple role update endpoint - Participant: {participant_id}")
     
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id
@@ -409,8 +398,7 @@ async def update_participant_role_simple(
     
     # Trigger automatic room booking refresh for confirmed participants when role changes
     if participant.status == 'confirmed' and old_role != new_role:
-        print(f"🏨 Role changed for confirmed participant: {old_role} -> {new_role}")
-        print(f"🏨 Triggering automatic room booking refresh...")
+
         
         try:
             from app.services.automatic_room_booking_service import refresh_automatic_room_booking
@@ -422,27 +410,27 @@ async def update_participant_role_simple(
                 print(f"❌ Event not found: {participant.event_id}")
                 raise Exception(f"Event {participant.event_id} not found")
             
-            print(f"🏨 Event found: {event.title} (Tenant: {event.tenant_id})")
+
             
             # Use the same automatic room booking service that's used for event updates
             success = refresh_automatic_room_booking(db, participant.event_id, event.tenant_id)
             
             if success:
-                print(f"✅ Automatic room booking refresh completed successfully")
+
             else:
-                print(f"⚠️ Automatic room booking refresh failed")
+
                 
         except Exception as e:
-            print(f"⚠️ Error during automatic room booking refresh: {str(e)}")
+
             # Don't fail the role update if room reassignment fails
             import traceback
             traceback.print_exc()
     
     try:
         db.commit()
-        print(f"✅ Role update committed successfully")
+
     except Exception as e:
-        print(f"❌ Database commit failed: {e}")
+
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update role: {str(e)}")
     

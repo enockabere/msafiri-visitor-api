@@ -148,8 +148,7 @@ async def update_participant_role(
 ) -> Any:
     """Update participant role with auto-booking"""
     
-    print(f"DEBUG ROLE UPDATE: Starting role update for participant {participant_id} in event {event_id}")
-    print(f"DEBUG ROLE UPDATE: Role data: {role_data}")
+
     
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id,
@@ -159,7 +158,7 @@ async def update_participant_role(
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
     
-    print(f"DEBUG ROLE UPDATE: Found participant: {participant.full_name}")
+
     
     # Validate role
     valid_roles = ['visitor', 'facilitator', 'organizer']
@@ -168,7 +167,7 @@ async def update_participant_role(
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
     
     old_role = getattr(participant, 'participant_role', 'visitor')
-    print(f"DEBUG ROLE UPDATE: Role change - Old: {old_role}, New: {new_role}")
+
     
     # Update both role fields for consistency
     try:
@@ -178,31 +177,31 @@ async def update_participant_role(
             {"role": new_role, "id": participant_id}
         )
         db.commit()
-        print(f"DEBUG ROLE UPDATE: Database updated successfully")
+
         
         # Trigger auto-booking if participant is confirmed
         if participant.status == 'confirmed':
-            print(f"DEBUG ROLE UPDATE: Triggering auto-booking for confirmed participant")
+
             await trigger_auto_booking_after_role_change(event_id, participant_id, db)
         else:
-            print(f"DEBUG ROLE UPDATE: Participant status is {participant.status}, skipping auto-booking")
+
         
         # Send role change notification email
         if old_role != new_role:
             await send_role_change_notification(participant, old_role, new_role, db)
         
-        print(f"DEBUG ROLE UPDATE: Process completed successfully")
+
         return {"message": "Role updated successfully", "new_role": new_role}
         
     except Exception as e:
         db.rollback()
-        print(f"DEBUG ROLE UPDATE: Error updating participant role: {e}")
+
         raise HTTPException(status_code=500, detail="Failed to update role")
 
 async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
     """Trigger auto-booking after role change"""
     try:
-        print(f"DEBUG ROLE UPDATE: Starting accommodation reallocation")
+
         
         # Delete ALL existing allocations for this event to prevent duplicates
         from app.models.guesthouse import AccommodationAllocation
@@ -221,22 +220,21 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
             AccommodationAllocation.status.in_(["booked", "checked_in"])
         ).all()
         
-        print(f"DEBUG ROLE UPDATE: Found {len(existing_allocations)} existing allocations to delete for ALL participants in event {event_id}")
+
         
         for allocation in existing_allocations:
-            print(f"DEBUG ROLE UPDATE: Deleting allocation {allocation.id} (room_type: {allocation.room_type})")
+
             
             # Restore room counts
             if allocation.vendor_accommodation_id:
                 if allocation.room_type == 'single':
-                    print(f"DEBUG ROLE UPDATE: Restoring 1 single room")
+
                     db.execute(text("""
                         UPDATE vendor_accommodations 
                         SET single_rooms = single_rooms + 1 
                         WHERE id = :vendor_id
                     """), {"vendor_id": allocation.vendor_accommodation_id})
                 elif allocation.room_type == 'double':
-                    print(f"DEBUG ROLE UPDATE: Restoring 1 double room")
                     db.execute(text("""
                         UPDATE vendor_accommodations 
                         SET double_rooms = double_rooms + 1 
@@ -246,7 +244,7 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
             db.delete(allocation)
         
         db.commit()
-        print(f"DEBUG ROLE UPDATE: Deleted {len(existing_allocations)} existing allocations")
+
         
         # Trigger mass auto-booking for all participants
         from app.api.v1.endpoints.auto_booking import auto_book_all_participants
@@ -259,7 +257,7 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
         
         mock_user = MockUser()
         tenant_context = "msf-oca"
-        print(f"DEBUG ROLE UPDATE: Triggering MASS auto-booking for all participants with tenant_context: {tenant_context}")
+
         
         # Call the mass auto-booking function directly
         booking_result = auto_book_all_participants(
@@ -269,12 +267,10 @@ async def trigger_auto_booking_after_role_change(event_id, participant_id, db):
             tenant_context=tenant_context
         )
         
-        print(f"DEBUG ROLE UPDATE: Mass auto-booking completed: {booking_result}")
+
         
     except Exception as e:
-        print(f"DEBUG ROLE UPDATE: Mass auto-booking failed: {str(e)}")
         import traceback
-        print(f"DEBUG ROLE UPDATE: Traceback: {traceback.format_exc()}")
 
 async def handle_participant_decline_reallocation(event_id, participant_id, db):
     """Handle room reallocation when a participant declines"""
