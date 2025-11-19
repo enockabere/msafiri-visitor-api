@@ -105,7 +105,7 @@ async def get_scanner_events(
                 vouchers_per_participant = voucher_allocation.drink_vouchers_per_participant or 0
 
             else:
-
+                pass
             
             # Get participants with voucher data
             participants_query = db.query(
