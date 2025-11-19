@@ -22,7 +22,10 @@ def update_participant_role(
     import logging
     logger = logging.getLogger(__name__)
     
+    print(f"🔥🔥🔥 ROLE UPDATE ENDPOINT HIT - Event: {event_id}, Participant: {participant_id} 🔥🔥🔥")
     logger.info(f"🔥 ROLE UPDATE ENDPOINT HIT - Event: {event_id}, Participant: {participant_id}")
+    print(f"👤 Current user: {current_user.email}, Role: {current_user.role}")
+    print(f"📝 Role update data: {role_update}")
     logger.info(f"👤 Current user: {current_user.email}, Role: {current_user.role}")
     logger.info(f"📝 Role update data: {role_update}")
     
