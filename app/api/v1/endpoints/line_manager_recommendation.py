@@ -89,7 +89,7 @@ async def submit_recommendation(
     
     db.commit()
     
-    logger.info(f"✅ Recommendation submitted for token {token}")
+    logger.info(f"Recommendation submitted for token {token}")
     
     return {"message": "Recommendation submitted successfully"}
 
@@ -284,16 +284,7 @@ async def get_recommendation_by_participant(
 ):
     """Get line manager recommendation by participant ID and event ID"""
     
-    print(f"=== DEBUG: Fetching recommendation for participant ID: {participant_id}, event ID: {event_id} ===")
-    
-    # First check if any recommendations exist at all
-    all_recs = db.execute(
-        text("SELECT id, registration_id, event_id, participant_email, line_manager_email, submitted_at FROM line_manager_recommendations ORDER BY created_at DESC")
-    ).fetchall()
-    
-    print(f"DEBUG: Total recommendations in database: {len(all_recs)}")
-    for rec in all_recs:
-        print(f"DEBUG: Rec ID {rec[0]}, Registration ID: {rec[1]}, Event ID: {rec[2]}, Email: {rec[3]}, Manager: {rec[4]}, Submitted: {rec[5]}")
+
     
     # Get participant email from event_participants table
     participant_info = db.execute(
@@ -302,11 +293,9 @@ async def get_recommendation_by_participant(
     ).fetchone()
     
     if not participant_info:
-        print(f"DEBUG: Participant {participant_id} not found in event_participants")
         raise HTTPException(status_code=404, detail="Participant not found")
     
     participant_email = participant_info[0]
-    print(f"DEBUG: Found participant email: {participant_email}")
     
     # Try to find recommendation by participant email and event_id
     result = db.execute(
@@ -320,13 +309,8 @@ async def get_recommendation_by_participant(
         {"email": participant_email, "event_id": event_id}
     ).fetchone()
     
-    print(f"DEBUG: Email match result for {participant_email}: {result}")
-    
     if not result:
-        print(f"DEBUG: No recommendation found for participant {participant_id} ({participant_email}) in event {event_id}")
         raise HTTPException(status_code=404, detail="No recommendation found for this participant")
-    
-    print(f"DEBUG: Returning recommendation data: {result}")
     return {
         "id": result[0],
         "line_manager_email": result[1],
