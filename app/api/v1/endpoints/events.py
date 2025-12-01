@@ -665,13 +665,13 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
-    # Delete related records in proper order to avoid foreign key constraints
+    # Delete related records that don't have proper cascade relationships
     try:
-        from app.models.chat import ChatRoom
         from app.models.guesthouse import AccommodationAllocation
-        from app.models.event_participant import EventParticipant
         from app.models.flight_itinerary import FlightItinerary
         from app.models.transport_request import TransportRequest
+        from app.models.participant_qr import ParticipantQR
+        from app.models.event_participant import EventParticipant
         
         # 1. Delete transport requests first (they reference flight_itineraries)
         transport_requests = db.query(TransportRequest).filter(
@@ -682,7 +682,6 @@ def delete_event(
         logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
         
         # 2. Delete participant QR codes (they reference event_participants)
-        from app.models.participant_qr import ParticipantQR
         qr_codes = db.query(ParticipantQR).join(
             EventParticipant, ParticipantQR.participant_id == EventParticipant.id
         ).filter(EventParticipant.event_id == event_id).all()
@@ -706,21 +705,7 @@ def delete_event(
             db.delete(itinerary)
         logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
         
-        # 5. Delete chat rooms
-        chat_rooms = db.query(ChatRoom).filter(ChatRoom.event_id == event_id).all()
-        for chat_room in chat_rooms:
-            db.delete(chat_room)
-        logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
-        
-        # 6. Delete event participants
-        participants = db.query(EventParticipant).filter(
-            EventParticipant.event_id == event_id
-        ).all()
-        for participant in participants:
-            db.delete(participant)
-        logger.info(f"🗑️ Deleted {len(participants)} participants for event {event_id}")
-        
-        # 6. Finally delete the event
+        # 5. Delete the event (cascade relationships will handle participants, attachments, passport_records, and chat_rooms)
         logger.info(f"✅ Deleting draft event: {event_id}")
         db.delete(event)
         db.commit()
@@ -728,6 +713,7 @@ def delete_event(
         
     except Exception as e:
         logger.error(f"💥 Error during event deletion: {str(e)}")
+        logger.exception("Full traceback:")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

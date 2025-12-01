@@ -21,8 +21,8 @@ class ChatRoom(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    event = relationship("Event")
-    messages = relationship("ChatMessage", back_populates="chat_room")
+    event = relationship("Event", back_populates="chat_rooms")
+    messages = relationship("ChatMessage", back_populates="chat_room", cascade="all, delete-orphan")
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
