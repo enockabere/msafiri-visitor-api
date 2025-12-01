@@ -62,7 +62,17 @@ async def save_checklist_progress(
 ):
     """Save travel checklist progress for current user and event"""
     
-
+    # Server-side validation of completion status
+    # Don't trust the client's completed flag - calculate it ourselves
+    checklist_items = progress_data.checklist_items
+    
+    # Calculate actual completion based on all items being true
+    server_calculated_completed = all(checklist_items.values()) if checklist_items else False
+    
+    print(f"🔍 API DEBUG: Saving checklist progress for event {event_id}, user {current_user.email}")
+    print(f"🔍 API DEBUG: Client sent completed: {progress_data.completed}")
+    print(f"🔍 API DEBUG: Server calculated completed: {server_calculated_completed}")
+    print(f"🔍 API DEBUG: Checklist items: {checklist_items}")
     
     # Check if progress already exists
     existing_progress = db.query(TravelChecklistProgress).filter(
@@ -71,21 +81,28 @@ async def save_checklist_progress(
     ).first()
     
     if existing_progress:
-        # Update existing progress
-        existing_progress.checklist_items = progress_data.checklist_items
-        existing_progress.completed = progress_data.completed
+        # Update existing progress with server-calculated completion
+        existing_progress.checklist_items = checklist_items
+        existing_progress.completed = server_calculated_completed
+        print(f"🔍 API DEBUG: Updated existing progress - completed: {server_calculated_completed}")
     else:
-        # Create new progress record
+        # Create new progress record with server-calculated completion
         new_progress = TravelChecklistProgress(
             event_id=event_id,
             user_email=current_user.email,
-            checklist_items=progress_data.checklist_items,
-            completed=progress_data.completed
+            checklist_items=checklist_items,
+            completed=server_calculated_completed
         )
         db.add(new_progress)
+        print(f"🔍 API DEBUG: Created new progress - completed: {server_calculated_completed}")
     
     db.commit()
-    return {"message": "Progress saved successfully"}
+    return {
+        "message": "Progress saved successfully",
+        "completed": server_calculated_completed,
+        "items_count": len(checklist_items),
+        "completed_count": sum(1 for v in checklist_items.values() if v)
+    }
 
 @router.get("/progress/{event_id}/{participant_email}")
 async def get_participant_checklist_progress(
