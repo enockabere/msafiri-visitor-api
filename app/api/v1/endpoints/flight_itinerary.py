@@ -540,26 +540,49 @@ async def delete_itinerary(
             detail="Itinerary not found"
         )
     
-    # Check if trying to delete arrival itinerary when departure exists
-    if itinerary.itinerary_type == "arrival":
-        departure_exists = db.query(FlightItinerary).filter(
+    # Delete associated transport requests first to avoid foreign key constraint violation
+    transport_requests = db.query(TransportRequest).filter(
+        TransportRequest.flight_itinerary_id == itinerary_id,
+        TransportRequest.user_email == current_user.email
+    ).all()
+    
+    for transport_request in transport_requests:
+        db.delete(transport_request)
+    
+    # Update participant ticket status if this was the last confirmed itinerary
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.event_id == itinerary.event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if participant:
+        # Check remaining confirmed itineraries after deletion
+        remaining_confirmed = db.query(FlightItinerary).filter(
             FlightItinerary.event_id == itinerary.event_id,
             FlightItinerary.user_email == current_user.email,
-            FlightItinerary.itinerary_type == "departure"
-        ).first()
+            FlightItinerary.confirmed == True,
+            FlightItinerary.id != itinerary_id
+        ).count()
         
-        if departure_exists:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete arrival itinerary when departure itinerary exists. Delete departure first."
-            )
+        # If no confirmed itineraries will remain, mark ticket as incomplete
+        if remaining_confirmed == 0:
+            participant.ticket_document = False
     
+    # Now delete the itinerary
     db.delete(itinerary)
-    db.commit()
+    
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete itinerary: {str(e)}"
+        )
     
     return {
         "status": "success",
-        "message": "Itinerary deleted successfully"
+        "message": "Itinerary and associated transport requests deleted successfully"
     }
 
 @router.get("/participant/{participant_id}")
