@@ -573,7 +573,6 @@ async def update_participant_status(
     elif status_update.status == "declined":
         print(f"😔 PARTICIPANT DECLINED: {participant.full_name} ({participant.email})")
         # Set decline timestamp
-        from datetime import datetime
         participant.declined_at = datetime.utcnow()
         # Send push notification for decline
         try:
