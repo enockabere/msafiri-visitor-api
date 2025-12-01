@@ -456,6 +456,7 @@ async def update_participant_status(
         raise HTTPException(status_code=400, detail="Invalid status")
     
     participant.status = status_update.status
+    participant.updated_at = datetime.utcnow()
     # Notes field not available yet
     
     # If status is selected, send invitation email and push notification

@@ -655,6 +655,11 @@ async def startup_event():
         asyncio.create_task(agenda_scheduler.start())
         logger.info("📅 Agenda notification scheduler started")
         
+        # Start background tasks
+        from app.tasks.background_tasks import background_task_manager
+        await background_task_manager.start_background_tasks()
+        logger.info("🔄 Background tasks started")
+        
         logger.info("🎉 Application startup completed!")
         
     except Exception as e:
@@ -672,6 +677,11 @@ async def shutdown_event():
     from app.core.agenda_scheduler import agenda_scheduler
     agenda_scheduler.stop()
     logger.info("📅 Agenda notification scheduler stopped")
+    
+    # Stop background tasks
+    from app.tasks.background_tasks import background_task_manager
+    await background_task_manager.stop_background_tasks()
+    logger.info("🔄 Background tasks stopped")
     
     logger.info("👋 Application shutdown completed")
 

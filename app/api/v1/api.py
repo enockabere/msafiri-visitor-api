@@ -533,6 +533,13 @@ api_router.include_router(
     tags=["scanner"]
 )
 
+from app.api.v1.endpoints import admin_cleanup
+api_router.include_router(
+    admin_cleanup.router,
+    prefix="/admin",
+    tags=["admin-cleanup"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
