@@ -24,11 +24,14 @@ def get_tenant_id_from_context(db, tenant_context, current_user):
             print(f"🏠 TENANT: Found tenant by slug '{tenant_context}': ID {tenant.id}")
             return tenant.id
         else:
-            print(f"🏠 TENANT: Tenant not found for slug '{tenant_context}', using current_user.tenant_id: {current_user.tenant_id}")
-            # Ensure current_user.tenant_id is also an integer
-            if isinstance(current_user.tenant_id, str) and current_user.tenant_id.isdigit():
-                return int(current_user.tenant_id)
-            return current_user.tenant_id
+            # Try to look up by current_user.tenant_id (which might be a slug)
+            if isinstance(current_user.tenant_id, str):
+                tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+                if tenant:
+                    print(f"🏠 TENANT: Found tenant by user slug '{current_user.tenant_id}': ID {tenant.id}")
+                    return tenant.id
+            print(f"🏠 TENANT: Tenant not found, using fallback")
+            return 1  # Fallback to default tenant
 
 router = APIRouter()
 
