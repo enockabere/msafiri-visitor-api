@@ -12,6 +12,8 @@ def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, te
     1. Check for existing participants of same gender in same event
     2. If found and they have single room, convert to shared double room
     3. Otherwise assign single room
+    
+    🔥 CRITICAL: Uses the event's specifically selected hotel, not just any hotel
     """
     
     # Get participant details
@@ -19,15 +21,24 @@ def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, te
         EventParticipant.id == participant_id
     ).first()
     
+    # Get event details to ensure we use the correct hotel
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event or not event.vendor_accommodation_id:
+        logger.error(f"Event {event_id} not found or has no vendor accommodation selected")
+        return None
+    
+    logger.info(f"Assigning room for participant {participant_id} in event {event_id} using hotel ID {event.vendor_accommodation_id}")
+    
     if not participant or not participant.gender:
         logger.warning(f"Participant {participant_id} not found or missing gender")
         return create_single_room_allocation(db, participant_id, event_id, tenant_id)
     
-    # Find other participants of same gender in same event with single rooms
+    # 🔥 CRITICAL FIX: Find other participants of same gender in same event AND same hotel with single rooms
     same_gender_participants = db.query(AccommodationAllocation).join(
         EventParticipant, AccommodationAllocation.participant_id == EventParticipant.id
     ).filter(
         AccommodationAllocation.event_id == event_id,
+        AccommodationAllocation.vendor_accommodation_id == event.vendor_accommodation_id,  # 🔥 ENSURE SAME HOTEL
         AccommodationAllocation.status.in_(['booked', 'checked_in']),
         AccommodationAllocation.room_type == 'single',
         AccommodationAllocation.number_of_guests == 1,
@@ -80,12 +91,17 @@ def create_single_room_allocation(db: Session, participant_id: int, event_id: in
     
     event = db.query(Event).filter(Event.id == event_id).first()
     
-    vendor_accommodation = db.query(VendorAccommodation).filter(
-        VendorAccommodation.tenant_id == tenant_id
-    ).first()
+    # 🔥 CRITICAL FIX: Use the event's specific vendor accommodation, not just any vendor
+    vendor_accommodation = None
+    if event and event.vendor_accommodation_id:
+        vendor_accommodation = db.query(VendorAccommodation).filter(
+            VendorAccommodation.id == event.vendor_accommodation_id,
+            VendorAccommodation.tenant_id == tenant_id
+        ).first()
+        logger.info(f"Using event's selected hotel: {vendor_accommodation.vendor_name if vendor_accommodation else 'NOT FOUND'}")
     
     if not vendor_accommodation:
-        logger.error(f"No vendor accommodation found for tenant {tenant_id}")
+        logger.error(f"No vendor accommodation found for event {event_id}. Event vendor_accommodation_id: {event.vendor_accommodation_id if event else 'NO EVENT'}")
         return None
     
     new_allocation = AccommodationAllocation(
