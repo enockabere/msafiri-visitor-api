@@ -1,9 +1,13 @@
-from typing import Any
+from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import and_
 from app import schemas
 from app.api import deps
 from app.db.database import get_db
+from app.models.flight_itinerary import FlightItinerary
+from app.models.event_registration import EventRegistration
+from datetime import datetime
 
 router = APIRouter()
 
@@ -15,5 +19,91 @@ def get_participant_flight_itinerary(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Get flight itinerary for a participant"""
-    # For now, return empty array since flight itinerary feature might not be implemented
-    return []
+    # Get participant email from registration
+    registration = db.query(EventRegistration).filter(
+        EventRegistration.id == participant_id
+    ).first()
+    
+    if not registration:
+        return []
+    
+    # Get flight itineraries for this participant
+    itineraries = db.query(FlightItinerary).filter(
+        and_(
+            FlightItinerary.user_email == registration.user_email,
+            FlightItinerary.event_id == (event_id or registration.event_id)
+        )
+    ).all()
+    
+    return [{
+        "id": itinerary.id,
+        "departure_city": itinerary.departure_airport,
+        "arrival_city": itinerary.arrival_airport,
+        "departure_date": itinerary.departure_date.isoformat() if itinerary.departure_date else None,
+        "departure_time": itinerary.departure_date.strftime("%H:%M") if itinerary.departure_date else None,
+        "arrival_date": itinerary.arrival_date.isoformat() if itinerary.arrival_date else None,
+        "arrival_time": itinerary.arrival_date.strftime("%H:%M") if itinerary.arrival_date else None,
+        "airline": itinerary.airline,
+        "flight_number": itinerary.flight_number,
+        "ticket_type": itinerary.itinerary_type,
+        "status": "confirmed" if itinerary.confirmed else "pending",
+        "created_at": itinerary.created_at.isoformat() if itinerary.created_at else None
+    } for itinerary in itineraries]
+
+@router.post("/")
+def create_flight_itinerary(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    flight_data: dict
+) -> Any:
+    """Create a new flight itinerary"""
+    print(f"DEBUG: Received flight data: {flight_data}")
+    print(f"DEBUG: Current user: {current_user.email}")
+    
+    try:
+        # Parse datetime strings
+        departure_date = None
+        arrival_date = None
+        
+        if flight_data.get("departure_date"):
+            departure_date = datetime.fromisoformat(flight_data["departure_date"].replace('Z', '+00:00'))
+            print(f"DEBUG: Parsed departure_date: {departure_date}")
+        
+        if flight_data.get("arrival_date"):
+            arrival_date = datetime.fromisoformat(flight_data["arrival_date"].replace('Z', '+00:00'))
+            print(f"DEBUG: Parsed arrival_date: {arrival_date}")
+        
+        # Create flight itinerary
+        itinerary = FlightItinerary(
+            event_id=flight_data["event_id"],
+            user_email=current_user.email,
+            airline=flight_data.get("airline"),
+            flight_number=flight_data.get("flight_number"),
+            departure_airport=flight_data["departure_airport"],
+            arrival_airport=flight_data.get("arrival_airport"),
+            departure_date=departure_date,
+            arrival_date=arrival_date,
+            itinerary_type=flight_data.get("itinerary_type", "arrival"),
+            pickup_location=flight_data.get("pickup_location"),
+            destination=flight_data.get("destination"),
+            confirmed=flight_data.get("confirmed", False)
+        )
+        
+        print(f"DEBUG: Created itinerary object: {itinerary.__dict__}")
+        
+        db.add(itinerary)
+        db.commit()
+        db.refresh(itinerary)
+        
+        print(f"DEBUG: Successfully saved itinerary with ID: {itinerary.id}")
+        
+        return {"id": itinerary.id, "message": "Flight itinerary created successfully"}
+        
+    except Exception as e:
+        print(f"DEBUG: Error creating flight itinerary: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create flight itinerary: {str(e)}"
+        )
