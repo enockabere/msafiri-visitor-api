@@ -1,5 +1,5 @@
 from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from app import crud, schemas
@@ -1340,10 +1340,14 @@ def get_participant_accommodation(
     event_id: int = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(deps.get_current_user),
-    tenant_context: str = Depends(deps.get_tenant_context),
+    x_tenant_id: str = Header(None, alias="X-Tenant-ID"),
+    x_tenant_context: str = Header(None, alias="X-Tenant-Context"),
 ) -> Any:
     """Get accommodation details for a specific participant"""
+    # Determine tenant context from headers or user
+    tenant_context = x_tenant_context or x_tenant_id or current_user.tenant_id
     print(f"🏠 DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"🏠 DEBUG: Headers - X-Tenant-ID: {x_tenant_id}, X-Tenant-Context: {x_tenant_context}")
     
     from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
     from app.models.event_participant import EventParticipant
@@ -1362,8 +1366,12 @@ def get_participant_accommodation(
                 return []
         else:
             # If no event_id provided, try to get it from tenant context as fallback
-            tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-            print(f"🏠 DEBUG: Using fallback tenant_id: {tenant_id}")
+            if tenant_context:
+                tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+                print(f"🏠 DEBUG: Using fallback tenant_id: {tenant_id}")
+            else:
+                print(f"🏠 DEBUG: No tenant context available")
+                return []
         
         if not tenant_id:
             print(f"🏠 DEBUG: No tenant_id available")
