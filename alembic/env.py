@@ -15,22 +15,8 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 # FIXED: Import database and Base first
 from app.db.database import Base
 
-# FIXED: Import ALL models explicitly to ensure they're registered
-from app.models.base import BaseModel, TenantBaseModel
-from app.models.tenant import Tenant
-from app.models.user import User, UserRole, AuthProvider, UserStatus
-from app.models.notification import Notification, NotificationType, NotificationPriority
-from app.models.news_update import NewsUpdate
-from app.models.chat import ChatRoom, ChatMessage, DirectMessage
-from app.models.flight_itinerary import FlightItinerary
-from app.models.transport_request import TransportRequest
-from app.models.invitation import Invitation
-from app.models.passport_record import PassportRecord
-from app.models.app_feedback import AppFeedback
-from app.models.travel_checklist_progress import TravelChecklistProgress
-from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-from app.models.pending_voucher_redemption import PendingVoucherRedemption
-from app.models.travel_ticket import TravelTicket
+# FIXED: Import ALL models through centralized import
+import app.models  # This imports all models from __init__.py
 
 # this is the Alembic Config object
 config = context.config
