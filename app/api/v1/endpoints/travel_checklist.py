@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.travel_checklist_progress import TravelChecklistProgress
+from app.models.flight_itinerary import FlightItinerary
 from pydantic import BaseModel
 from datetime import datetime
 from app.core.email_service import email_service
@@ -21,6 +22,16 @@ class ChecklistProgressUpdate(BaseModel):
 class PostponeItineraryRequest(BaseModel):
     reminder_date: str
     user_email: str
+
+class FlightTicketData(BaseModel):
+    event_id: int
+    departure_airport: str
+    arrival_airport: str = None
+    departure_date: str = None
+    arrival_date: str = None
+    airline: str = None
+    flight_number: str = None
+    itinerary_type: str = "arrival"
 
 class ItineraryReminder(Base):
     __tablename__ = "itinerary_reminders"
@@ -61,6 +72,9 @@ async def save_checklist_progress(
     db: Session = Depends(get_db)
 ):
     """Save travel checklist progress for current user and event"""
+    
+    print(f"🔍 TRAVEL CHECKLIST DEBUG: Endpoint called for event {event_id}, user {current_user.email}")
+    print(f"🔍 TRAVEL CHECKLIST DEBUG: Raw progress data: {progress_data}")
     
     # Server-side validation of completion status
     # Don't trust the client's completed flag - calculate it ourselves
@@ -221,3 +235,137 @@ async def delete_reminder(
     db.commit()
     
     return {"message": "Reminder deleted successfully"}
+
+@router.post("/flight-ticket/{event_id}")
+async def save_flight_ticket(
+    event_id: int,
+    ticket_data: FlightTicketData,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Save flight ticket data from mobile app"""
+    
+    print(f"🛩️ FLIGHT TICKET DEBUG: Endpoint called for event {event_id}, user {current_user.email}")
+    print(f"🛩️ FLIGHT TICKET DEBUG: Ticket data received: {ticket_data.dict()}")
+    
+    try:
+        # Parse datetime strings
+        departure_date = None
+        arrival_date = None
+        
+        if ticket_data.departure_date:
+            departure_date = datetime.fromisoformat(ticket_data.departure_date.replace('Z', '+00:00'))
+            print(f"🛩️ FLIGHT TICKET DEBUG: Parsed departure_date: {departure_date}")
+        
+        if ticket_data.arrival_date:
+            arrival_date = datetime.fromisoformat(ticket_data.arrival_date.replace('Z', '+00:00'))
+            print(f"🛩️ FLIGHT TICKET DEBUG: Parsed arrival_date: {arrival_date}")
+        
+        # Check if flight itinerary already exists for this user/event
+        existing_itinerary = db.query(FlightItinerary).filter(
+            FlightItinerary.user_email == current_user.email,
+            FlightItinerary.event_id == event_id
+        ).first()
+        
+        if existing_itinerary:
+            # Update existing itinerary
+            existing_itinerary.airline = ticket_data.airline
+            existing_itinerary.flight_number = ticket_data.flight_number
+            existing_itinerary.departure_airport = ticket_data.departure_airport
+            existing_itinerary.arrival_airport = ticket_data.arrival_airport
+            existing_itinerary.departure_date = departure_date
+            existing_itinerary.arrival_date = arrival_date
+            existing_itinerary.itinerary_type = ticket_data.itinerary_type
+            print(f"🛩️ FLIGHT TICKET DEBUG: Updated existing itinerary ID: {existing_itinerary.id}")
+        else:
+            # Create new flight itinerary
+            itinerary = FlightItinerary(
+                event_id=event_id,
+                user_email=current_user.email,
+                airline=ticket_data.airline,
+                flight_number=ticket_data.flight_number,
+                departure_airport=ticket_data.departure_airport,
+                arrival_airport=ticket_data.arrival_airport,
+                departure_date=departure_date,
+                arrival_date=arrival_date,
+                itinerary_type=ticket_data.itinerary_type,
+                confirmed=True
+            )
+            
+            db.add(itinerary)
+            print(f"🛩️ FLIGHT TICKET DEBUG: Created new itinerary")
+        
+        db.commit()
+        print(f"🛩️ FLIGHT TICKET DEBUG: Successfully saved flight ticket data")
+        
+        return {"message": "Flight ticket saved successfully", "status": "success"}
+        
+    except Exception as e:
+        print(f"🛩️ FLIGHT TICKET DEBUG: Error saving flight ticket: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save flight ticket: {str(e)}")
+
+@router.post("/save-ticket-data/{event_id}")
+async def save_ticket_data_alternative(
+    event_id: int,
+    ticket_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Alternative endpoint for saving ticket data (in case mobile app uses different endpoint)"""
+    
+    print(f"🎟️ TICKET DATA DEBUG: Alternative endpoint called for event {event_id}, user {current_user.email}")
+    print(f"🎟️ TICKET DATA DEBUG: Raw ticket data: {ticket_data}")
+    
+    try:
+        # Parse datetime strings if they exist
+        departure_date = None
+        arrival_date = None
+        
+        if ticket_data.get("departure_date"):
+            departure_date = datetime.fromisoformat(ticket_data["departure_date"].replace('Z', '+00:00'))
+        
+        if ticket_data.get("arrival_date"):
+            arrival_date = datetime.fromisoformat(ticket_data["arrival_date"].replace('Z', '+00:00'))
+        
+        # Create or update flight itinerary
+        existing_itinerary = db.query(FlightItinerary).filter(
+            FlightItinerary.user_email == current_user.email,
+            FlightItinerary.event_id == event_id
+        ).first()
+        
+        if existing_itinerary:
+            # Update existing
+            existing_itinerary.airline = ticket_data.get("airline")
+            existing_itinerary.flight_number = ticket_data.get("flight_number")
+            existing_itinerary.departure_airport = ticket_data.get("departure_airport", ticket_data.get("from"))
+            existing_itinerary.arrival_airport = ticket_data.get("arrival_airport", ticket_data.get("to"))
+            existing_itinerary.departure_date = departure_date
+            existing_itinerary.arrival_date = arrival_date
+            print(f"🎟️ TICKET DATA DEBUG: Updated existing itinerary")
+        else:
+            # Create new
+            itinerary = FlightItinerary(
+                event_id=event_id,
+                user_email=current_user.email,
+                airline=ticket_data.get("airline"),
+                flight_number=ticket_data.get("flight_number"),
+                departure_airport=ticket_data.get("departure_airport", ticket_data.get("from")),
+                arrival_airport=ticket_data.get("arrival_airport", ticket_data.get("to")),
+                departure_date=departure_date,
+                arrival_date=arrival_date,
+                itinerary_type=ticket_data.get("itinerary_type", "arrival"),
+                confirmed=True
+            )
+            db.add(itinerary)
+            print(f"🎟️ TICKET DATA DEBUG: Created new itinerary")
+        
+        db.commit()
+        print(f"🎟️ TICKET DATA DEBUG: Successfully saved ticket data")
+        
+        return {"message": "Ticket data saved successfully", "status": "success"}
+        
+    except Exception as e:
+        print(f"🎟️ TICKET DATA DEBUG: Error: {str(e)}")
+        db.rollback()
+        return {"message": f"Error saving ticket data: {str(e)}", "status": "error"}
