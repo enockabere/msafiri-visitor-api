@@ -6,7 +6,7 @@ from app import schemas
 from app.api import deps
 from app.db.database import get_db
 from app.models.flight_itinerary import FlightItinerary
-from app.models.event_registration import EventRegistration
+from app.models.event_participant import EventParticipant
 from datetime import datetime
 
 router = APIRouter()
@@ -19,19 +19,19 @@ def get_participant_flight_itinerary(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Get flight itinerary for a participant"""
-    # Get participant email from registration
-    registration = db.query(EventRegistration).filter(
-        EventRegistration.id == participant_id
+    # Get participant email from event participant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
     ).first()
     
-    if not registration:
+    if not participant:
         return []
     
     # Get flight itineraries for this participant
     itineraries = db.query(FlightItinerary).filter(
         and_(
-            FlightItinerary.user_email == registration.user_email,
-            FlightItinerary.event_id == (event_id or registration.event_id)
+            FlightItinerary.user_email == participant.email,
+            FlightItinerary.event_id == (event_id or participant.event_id)
         )
     ).all()
     
