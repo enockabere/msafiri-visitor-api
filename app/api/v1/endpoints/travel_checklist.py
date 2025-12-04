@@ -369,3 +369,260 @@ async def save_ticket_data_alternative(
         print(f"🎟️ TICKET DATA DEBUG: Error: {str(e)}")
         db.rollback()
         return {"message": f"Error saving ticket data: {str(e)}", "status": "error"}
+
+@router.post("/upload-ticket/{event_id}")
+async def upload_ticket(
+    event_id: int,
+    ticket_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Handle ticket upload from mobile app"""
+    
+    print(f"📱 MOBILE TICKET UPLOAD: Event {event_id}, User {current_user.email}")
+    print(f"📱 MOBILE TICKET DATA: {ticket_data}")
+    
+    try:
+        # Save to flight itinerary table
+        departure_date = None
+        arrival_date = None
+        
+        if ticket_data.get("departure_date"):
+            departure_date = datetime.fromisoformat(ticket_data["departure_date"].replace('Z', '+00:00'))
+        
+        if ticket_data.get("arrival_date"):
+            arrival_date = datetime.fromisoformat(ticket_data["arrival_date"].replace('Z', '+00:00'))
+        
+        # Check for existing itinerary
+        existing = db.query(FlightItinerary).filter(
+            FlightItinerary.user_email == current_user.email,
+            FlightItinerary.event_id == event_id
+        ).first()
+        
+        if existing:
+            # Update existing
+            existing.airline = ticket_data.get("airline")
+            existing.flight_number = ticket_data.get("flight_number")
+            existing.departure_airport = ticket_data.get("departure_airport", ticket_data.get("from"))
+            existing.arrival_airport = ticket_data.get("arrival_airport", ticket_data.get("to"))
+            existing.departure_date = departure_date
+            existing.arrival_date = arrival_date
+            print(f"📱 UPDATED EXISTING ITINERARY: {existing.id}")
+        else:
+            # Create new
+            itinerary = FlightItinerary(
+                event_id=event_id,
+                user_email=current_user.email,
+                airline=ticket_data.get("airline"),
+                flight_number=ticket_data.get("flight_number"),
+                departure_airport=ticket_data.get("departure_airport", ticket_data.get("from")),
+                arrival_airport=ticket_data.get("arrival_airport", ticket_data.get("to")),
+                departure_date=departure_date,
+                arrival_date=arrival_date,
+                itinerary_type="arrival",
+                confirmed=True
+            )
+            db.add(itinerary)
+            print(f"📱 CREATED NEW ITINERARY")
+        
+        # Also update participant ticket_document status
+        from app.models.event_participant import EventParticipant
+        participant = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.event_id == event_id
+        ).first()
+        
+        if participant:
+            participant.ticket_document = True
+            print(f"📱 UPDATED PARTICIPANT TICKET STATUS: {participant.id}")
+        
+        db.commit()
+        print(f"📱 TICKET UPLOAD SUCCESS")
+        
+        return {"message": "Ticket uploaded successfully", "status": "success"}
+        
+    except Exception as e:
+        print(f"📱 TICKET UPLOAD ERROR: {str(e)}")
+        db.rollback()
+        return {"message": f"Error uploading ticket: {str(e)}", "status": "error"}
+
+@router.post("/create-itinerary/{event_id}")
+async def create_itinerary(
+    event_id: int,
+    itinerary_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create itinerary endpoint (mobile app might be calling this)"""
+    
+    print(f"🚀 CREATE ITINERARY CALLED: Event {event_id}, User {current_user.email}")
+    print(f"🚀 ITINERARY DATA: {itinerary_data}")
+    
+    try:
+        # Parse dates
+        departure_date = None
+        arrival_date = None
+        
+        if itinerary_data.get("departure_date"):
+            departure_date = datetime.fromisoformat(itinerary_data["departure_date"].replace('Z', '+00:00'))
+        
+        if itinerary_data.get("arrival_date"):
+            arrival_date = datetime.fromisoformat(itinerary_data["arrival_date"].replace('Z', '+00:00'))
+        
+        # Create flight itinerary
+        itinerary = FlightItinerary(
+            event_id=event_id,
+            user_email=current_user.email,
+            airline=itinerary_data.get("airline"),
+            flight_number=itinerary_data.get("flight_number"),
+            departure_airport=itinerary_data.get("departure_airport", itinerary_data.get("from")),
+            arrival_airport=itinerary_data.get("arrival_airport", itinerary_data.get("to")),
+            departure_date=departure_date,
+            arrival_date=arrival_date,
+            itinerary_type=itinerary_data.get("type", "arrival"),
+            confirmed=True
+        )
+        
+        db.add(itinerary)
+        db.commit()
+        db.refresh(itinerary)
+        
+        print(f"🚀 ITINERARY CREATED: ID {itinerary.id}")
+        
+        return {"id": itinerary.id, "message": "Itinerary created successfully", "status": "success"}
+        
+    except Exception as e:
+        print(f"🚀 CREATE ITINERARY ERROR: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to create itinerary: {str(e)}")
+
+@router.post("/extract-ticket-data/{event_id}")
+async def extract_ticket_data(
+    event_id: int,
+    ticket_image: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Extract ticket data from image and save to database"""
+    
+    print(f"🎫 TICKET EXTRACTION START: Event {event_id}, User {current_user.email}")
+    print(f"🎫 TICKET IMAGE DATA: {list(ticket_image.keys()) if ticket_image else 'None'}")
+    
+    try:
+        # Call external ticket extraction API
+        import requests
+        import os
+        
+        API_URL = "https://ko-hr.kenya.msf.org/api/v1/extract-ticket-data"
+        API_KEY = os.getenv('TICKET_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
+        
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": API_KEY
+        }
+        
+        # Forward the ticket image data to external API
+        response = requests.post(API_URL, json=ticket_image, headers=headers, timeout=30)
+        
+        print(f"🎫 EXTERNAL API RESPONSE: Status {response.status_code}")
+        print(f"🎫 EXTERNAL API RESPONSE: {response.text[:500]}..." if len(response.text) > 500 else response.text)
+        
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to extract ticket data: {response.text}"
+            )
+        
+        result = response.json()
+        
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=400,
+                detail="Ticket extraction failed"
+            )
+        
+        # Extract the ticket data
+        extracted_data = result.get("extracted_data", {})
+        print(f"🎫 EXTRACTED DATA: {extracted_data}")
+        
+        # Parse and save to flight itinerary
+        departure_date = None
+        arrival_date = None
+        
+        if extracted_data.get("departure_date"):
+            try:
+                departure_date = datetime.fromisoformat(extracted_data["departure_date"].replace('Z', '+00:00'))
+            except:
+                print(f"🎫 Could not parse departure_date: {extracted_data.get('departure_date')}")
+        
+        if extracted_data.get("arrival_date"):
+            try:
+                arrival_date = datetime.fromisoformat(extracted_data["arrival_date"].replace('Z', '+00:00'))
+            except:
+                print(f"🎫 Could not parse arrival_date: {extracted_data.get('arrival_date')}")
+        
+        # Check for existing itinerary
+        existing = db.query(FlightItinerary).filter(
+            FlightItinerary.user_email == current_user.email,
+            FlightItinerary.event_id == event_id
+        ).first()
+        
+        if existing:
+            # Update existing
+            existing.airline = extracted_data.get("airline")
+            existing.flight_number = extracted_data.get("flight_number")
+            existing.departure_airport = extracted_data.get("departure_airport", extracted_data.get("from"))
+            existing.arrival_airport = extracted_data.get("arrival_airport", extracted_data.get("to"))
+            existing.departure_date = departure_date
+            existing.arrival_date = arrival_date
+            print(f"🎫 UPDATED EXISTING ITINERARY: {existing.id}")
+        else:
+            # Create new
+            itinerary = FlightItinerary(
+                event_id=event_id,
+                user_email=current_user.email,
+                airline=extracted_data.get("airline"),
+                flight_number=extracted_data.get("flight_number"),
+                departure_airport=extracted_data.get("departure_airport", extracted_data.get("from")),
+                arrival_airport=extracted_data.get("arrival_airport", extracted_data.get("to")),
+                departure_date=departure_date,
+                arrival_date=arrival_date,
+                itinerary_type="arrival",
+                confirmed=True
+            )
+            db.add(itinerary)
+            print(f"🎫 CREATED NEW ITINERARY")
+        
+        # Update participant ticket status
+        from app.models.event_participant import EventParticipant
+        participant = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.event_id == event_id
+        ).first()
+        
+        if participant:
+            participant.ticket_document = True
+            print(f"🎫 UPDATED PARTICIPANT TICKET STATUS: {participant.id}")
+        
+        db.commit()
+        print(f"🎫 TICKET EXTRACTION AND SAVE SUCCESS")
+        
+        return {
+            "status": "success",
+            "message": "Ticket data extracted and saved successfully",
+            "extracted_data": extracted_data
+        }
+        
+    except requests.RequestException as e:
+        print(f"🎫 EXTERNAL API ERROR: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"External API error: {str(e)}"
+        )
+    except Exception as e:
+        print(f"🎫 TICKET EXTRACTION ERROR: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process ticket: {str(e)}"
+        )
