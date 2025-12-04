@@ -34,24 +34,22 @@ def create_super_admin():
                 print(f"✅ User is already SUPER_ADMIN")
             return
         
-        # Create new super admin user
-        user_data = UserCreate(
+        # Create new super admin user directly
+        from app.models.user import User
+        
+        user = User(
             email=email,
-            password=password,
+            hashed_password=get_password_hash(password),
             full_name="Super Admin",
-            role=UserRole.SUPER_ADMIN
-        )
-        
-        # Create user with hashed password
-        hashed_password = get_password_hash(password)
-        
-        user = crud.user.create_with_password(
-            db=db,
-            obj_in=user_data,
-            hashed_password=hashed_password,
+            role=UserRole.SUPER_ADMIN,
             auth_provider=AuthProvider.LOCAL,
-            status=UserStatus.ACTIVE
+            status=UserStatus.ACTIVE,
+            is_active=True
         )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
         
         print(f"✅ Super admin created successfully!")
         print(f"   Email: {user.email}")
