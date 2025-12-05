@@ -25,7 +25,6 @@ class GuestHouseBase(BaseModel):
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
-    description: Optional[str] = None
     is_active: bool = True
 
 class GuestHouseCreate(GuestHouseBase):
@@ -36,7 +35,6 @@ class GuestHouseUpdate(BaseModel):
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
-    description: Optional[str] = None
     is_active: Optional[bool] = None
 
 class GuestHouse(GuestHouseBase):

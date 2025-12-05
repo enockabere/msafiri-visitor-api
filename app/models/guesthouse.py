@@ -13,7 +13,6 @@ class GuestHouse(Base):
     location = Column(String(500), nullable=True)
     latitude = Column(String(20), nullable=True)
     longitude = Column(String(20), nullable=True)
-    description = Column(Text, nullable=True)
     contact_person = Column(String(200), nullable=True)
     phone = Column(String(20), nullable=True)
     email = Column(String(100), nullable=True)
