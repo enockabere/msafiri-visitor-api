@@ -58,7 +58,6 @@ class VendorAccommodation(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, nullable=False, index=True)
     vendor_name = Column(String(200), nullable=False)
-    accommodation_type = Column(String(100), nullable=False)
     location = Column(String(500), nullable=True)
     latitude = Column(String(20), nullable=True)
     longitude = Column(String(20), nullable=True)

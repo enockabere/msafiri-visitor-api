@@ -85,7 +85,6 @@ class Room(RoomBase):
 # Vendor accommodation schemas
 class VendorAccommodationBase(BaseModel):
     vendor_name: str = Field(..., min_length=1, max_length=200)
-    accommodation_type: str = Field(..., min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
@@ -98,7 +97,6 @@ class VendorAccommodationCreate(VendorAccommodationBase):
 
 class VendorAccommodationUpdate(BaseModel):
     vendor_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    accommodation_type: Optional[str] = Field(None, min_length=1, max_length=100)
     location: Optional[str] = Field(None, max_length=500)
     latitude: Optional[str] = None
     longitude: Optional[str] = None
