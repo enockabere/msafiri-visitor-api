@@ -1,7 +1,7 @@
 """Remove description column from guesthouses
 
-Revision ID: remove_description_guesthouses
-Revises: remove_accommodation_type_from_vendor_accommodations
+Revision ID: remove_description_guesthouses_fix
+Revises: simple_add_app_feedback_enum
 Create Date: 2024-12-19 10:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'remove_description_guesthouses'
-down_revision = 'remove_accommodation_type_from_vendor_accommodations'
+revision = 'remove_description_guesthouses_fix'
+down_revision = 'simple_add_app_feedback_enum'
 branch_labels = None
 depends_on = None
 
