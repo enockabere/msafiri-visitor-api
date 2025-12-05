@@ -274,45 +274,111 @@ def send_super_admin_invitation_email(email: str, token: str, invited_by: str, u
         from app.core.config import settings
         magic_link = f"{settings.frontend_url}/accept-invitation?token={token}"
         
-        subject = "You've been invited as a Super Administrator"
-        
+        subject = "🎉 Super Administrator Invitation - MSF Msafiri"
+
         html_content = f"""
+        <!DOCTYPE html>
         <html>
-        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #007bff;">Super Administrator Invitation</h1>
-            
-            <p>Hello,</p>
-            
-            <p>You have been invited by <strong>{invited_by}</strong> to become a Super Administrator in the MSF Msafiri system.</p>
-            
-            <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                <h3 style="margin-top: 0;">What this means:</h3>
-                <ul>
-                    <li>You can manage all organizations and users</li>
-                    <li>You can invite other super administrators</li>
-                </ul>
-            </div>
-            
-            {f"<p><strong>Note:</strong> Since you already have an account, clicking the link below will upgrade your existing account to Super Administrator.</p>" if user_existed else f"<div style='background: #e7f3ff; padding: 20px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #007bff;'><h3 style='margin-top: 0; color: #007bff;'>Temporary Login Details:</h3><p><strong>Email:</strong> {email}<br><strong>Password:</strong> <code style='background: #f8f9fa; padding: 4px 8px; border-radius: 3px; font-family: monospace;'>{default_password}</code></p><p style='color: #dc3545; font-weight: bold;'>Important: You must change this password on first login.</p></div>"}
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{magic_link}" 
-                   style="background: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                    Accept Invitation
-                </a>
-            </div>
-            
-            {'' if user_existed else '<p style="background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 20px 0;"><strong>First Login Process:</strong><br>1. Click "Accept Invitation" above<br>2. Login with the temporary credentials provided<br>3. You will be prompted to change your password immediately</p>'}
-            
-            <p><strong>Important:</strong> This invitation will expire in 24 hours.</p>
-            
-            <p>If you did not expect this invitation, please ignore this email.</p>
-            
-            <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-            
-            <p style="color: #666; font-size: 14px;">
-                This is an automated notification from the MSF Msafiri System.
-            </p>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+                <tr>
+                    <td align="center">
+                        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                            <!-- Header with MSF Red Gradient -->
+                            <tr>
+                                <td style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 40px 30px; text-align: center;">
+                                    <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                        👑 Super Administrator Invitation
+                                    </h1>
+                                    <p style="color: #fee2e2; margin: 10px 0 0 0; font-size: 16px;">
+                                        MSF Msafiri System
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <!-- Content -->
+                            <tr>
+                                <td style="padding: 40px 30px;">
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 25px 0;">
+                                        Hello! 👋
+                                    </p>
+
+                                    <p style="font-size: 16px; color: #374151; margin: 0 0 25px 0; line-height: 1.8;">
+                                        You have been invited by <strong style="color: #dc2626;">{invited_by}</strong> to become a <strong>Super Administrator</strong> in the MSF Msafiri system.
+                                    </p>
+
+                                    <!-- Permissions Card -->
+                                    <div style="background: linear-gradient(to bottom, #fef2f2 0%, #ffffff 100%); border-left: 4px solid #dc2626; padding: 25px; border-radius: 8px; margin: 25px 0;">
+                                        <h2 style="color: #dc2626; font-size: 18px; margin: 0 0 15px 0; font-weight: 600;">
+                                            🔐 What This Means
+                                        </h2>
+                                        <table width="100%" cellpadding="8" cellspacing="0">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #374151; line-height: 1.6;">
+                                                    ✓ Manage all MSF tenants and organizations
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #374151; line-height: 1.6;">
+                                                    ✓ Control user access and permissions
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #374151; line-height: 1.6;">
+                                                    ✓ Invite and manage other super administrators
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #374151; line-height: 1.6;">
+                                                    ✓ Full system configuration and oversight
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+
+                                    {f'<div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 25px 0;"><p style="margin: 0; color: #1e40af; font-size: 15px;"><strong>ℹ️ Account Upgrade:</strong><br>Since you already have an account, clicking the button below will upgrade your existing account to Super Administrator privileges.</p></div>' if user_existed else f'<div style="background: linear-gradient(to bottom, #fef3c7 0%, #ffffff 100%); border-left: 4px solid #f59e0b; padding: 25px; border-radius: 8px; margin: 25px 0;"><h3 style="color: #d97706; font-size: 18px; margin: 0 0 15px 0; font-weight: 600;">🔑 Temporary Login Credentials</h3><table width="100%" cellpadding="8" cellspacing="0" style="border-collapse: collapse;"><tr><td style="padding: 10px 0; border-bottom: 1px solid #fef3c7; width: 30%;"><span style="color: #6b7280; font-weight: 500;">Email:</span></td><td style="padding: 10px 0; border-bottom: 1px solid #fef3c7;"><a href="mailto:{email}" style="color: #dc2626; text-decoration: none; font-weight: 500;">{email}</a></td></tr><tr><td style="padding: 10px 0; vertical-align: top;"><span style="color: #6b7280; font-weight: 500;">Password:</span></td><td style="padding: 10px 0;"><code style="background-color: #f3f4f6; padding: 8px 12px; border-radius: 6px; font-family: \'Courier New\', monospace; color: #dc2626; font-size: 15px; font-weight: 600; display: inline-block;">{default_password}</code></td></tr></table><div style="background-color: #fef2f2; border-left: 3px solid #dc2626; padding: 15px; margin-top: 20px; border-radius: 4px;"><p style="margin: 0; color: #991b1b; font-weight: 600; font-size: 14px;">⚠️ Important: You MUST change this password on first login!</p></div></div>'}
+
+                                    <!-- Accept Button -->
+                                    <div style="text-align: center; margin: 35px 0;">
+                                        <a href="{magic_link}"
+                                           style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); transition: all 0.3s;">
+                                            🚀 Accept Invitation
+                                        </a>
+                                    </div>
+
+                                    {'' if user_existed else '<div style="background: linear-gradient(to right, #fef3c7 0%, #fef9c3 100%); border: 2px solid #fde047; padding: 20px; border-radius: 8px; margin: 25px 0;"><h3 style="color: #854d0e; font-size: 16px; margin: 0 0 12px 0; font-weight: 600;">📋 First Login Steps</h3><table width="100%" cellpadding="6" cellspacing="0"><tr><td style="vertical-align: top; width: 30px;"><span style="color: #854d0e; font-weight: 600; background-color: #fef9c3; border-radius: 50%; width: 24px; height: 24px; display: inline-block; text-align: center; line-height: 24px;">1</span></td><td style="color: #854d0e; padding-bottom: 8px;">Click <strong>"Accept Invitation"</strong> button above</td></tr><tr><td style="vertical-align: top;"><span style="color: #854d0e; font-weight: 600; background-color: #fef9c3; border-radius: 50%; width: 24px; height: 24px; display: inline-block; text-align: center; line-height: 24px;">2</span></td><td style="color: #854d0e; padding-bottom: 8px;">Login with the temporary credentials provided</td></tr><tr><td style="vertical-align: top;"><span style="color: #854d0e; font-weight: 600; background-color: #fef9c3; border-radius: 50%; width: 24px; height: 24px; display: inline-block; text-align: center; line-height: 24px;">3</span></td><td style="color: #854d0e;">You will be prompted to create a secure password</td></tr></table></div>'}
+
+                                    <!-- Warning Box -->
+                                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #dc2626; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                                        <p style="margin: 0; color: #991b1b; font-size: 14px; line-height: 1.6;">
+                                            <strong style="font-size: 15px;">⏰ Time Sensitive:</strong><br>
+                                            This invitation will expire in <strong>24 hours</strong>. Please accept it promptly to gain access.
+                                        </p>
+                                    </div>
+
+                                    <p style="font-size: 14px; color: #6b7280; margin: 25px 0 0 0; line-height: 1.6;">
+                                        If you did not expect this invitation or have any questions, please contact your system administrator or ignore this email.
+                                    </p>
+                                </td>
+                            </tr>
+
+                            <!-- Footer -->
+                            <tr>
+                                <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+                                    <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.5;">
+                                        This is an automated notification from the <strong style="color: #6b7280;">Msafiri System</strong><br>
+                                        MSF Traveller Management • Médecins Sans Frontières
+                                    </p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
         </body>
         </html>
         """

@@ -418,37 +418,114 @@ def send_tenant_creation_notifications(db: Session, tenant, created_by: str):
         if admin_emails:
             from app.core.email_service import email_service
             
-            subject = f"New Organization Created: {tenant.name}"
-            
+            subject = f"New MSF Tenant Created: {tenant.name}"
+
             for email in admin_emails:
                 try:
                     html_content = f"""
+                    <!DOCTYPE html>
                     <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                        <h1 style="color: #007bff;">New Organization Created</h1>
-                        
-                        <p>A new organization has been created in the Msafiri system:</p>
-                        
-                        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                            <h3 style="margin-top: 0;">Organization Details:</h3>
-                            <ul>
-                                <li><strong>Name:</strong> {tenant.name}</li>
-                                <li><strong>Slug:</strong> {tenant.slug}</li>
-                                <li><strong>Contact Email:</strong> {tenant.contact_email}</li>
-                                <li><strong>Created By:</strong> {created_by}</li>
-                                <li><strong>Description:</strong> {tenant.description or 'Not provided'}</li>
-                            </ul>
-                        </div>
-                        
-                        <p>You are receiving this email because you are listed as an administrator for this organization.</p>
-                        
-                        <p>If you have any questions, please contact the system administrator.</p>
-                        
-                        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-                        
-                        <p style="color: #666; font-size: 14px;">
-                            This is an automated notification from the Msafiri System.
-                        </p>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+                            <tr>
+                                <td align="center">
+                                    <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                                        <!-- Header with MSF Red -->
+                                        <tr>
+                                            <td style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 40px 30px; text-align: center;">
+                                                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                                    🏢 New MSF Tenant Created
+                                                </h1>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Content -->
+                                        <tr>
+                                            <td style="padding: 40px 30px;">
+                                                <p style="font-size: 16px; color: #374151; margin: 0 0 25px 0;">
+                                                    Great news! A new MSF tenant has been successfully created in the <strong>Msafiri system</strong>.
+                                                </p>
+
+                                                <!-- Tenant Details Card -->
+                                                <div style="background: linear-gradient(to bottom, #fef2f2 0%, #ffffff 100%); border-left: 4px solid #dc2626; padding: 25px; border-radius: 8px; margin: 25px 0;">
+                                                    <h2 style="color: #dc2626; font-size: 20px; margin: 0 0 20px 0; font-weight: 600;">
+                                                        📋 Tenant Details
+                                                    </h2>
+                                                    <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse: collapse;">
+                                                        <tr>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2; width: 40%;">
+                                                                <span style="color: #6b7280; font-weight: 500;">Tenant Name:</span>
+                                                            </td>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <strong style="color: #111827; font-size: 15px;">{tenant.name}</strong>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <span style="color: #6b7280; font-weight: 500;">Tenant Slug:</span>
+                                                            </td>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <code style="background-color: #f3f4f6; padding: 4px 8px; border-radius: 4px; font-family: 'Courier New', monospace; color: #dc2626; font-size: 14px;">{tenant.slug}</code>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <span style="color: #6b7280; font-weight: 500;">Contact Email:</span>
+                                                            </td>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <a href="mailto:{tenant.contact_email}" style="color: #dc2626; text-decoration: none; font-weight: 500;">{tenant.contact_email}</a>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <span style="color: #6b7280; font-weight: 500;">Created By:</span>
+                                                            </td>
+                                                            <td style="padding: 10px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <span style="color: #111827;">{created_by}</span>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding: 10px 0; vertical-align: top;">
+                                                                <span style="color: #6b7280; font-weight: 500;">Description:</span>
+                                                            </td>
+                                                            <td style="padding: 10px 0;">
+                                                                <span style="color: #4b5563; line-height: 1.6;">{tenant.description or '<em style="color: #9ca3af;">No description provided</em>'}</span>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+
+                                                <!-- Info Box -->
+                                                <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                                                    <p style="margin: 0; color: #1e40af; font-size: 14px;">
+                                                        <strong>ℹ️ Administrator Notice:</strong><br>
+                                                        You are receiving this email because you are listed as an administrator for this MSF tenant. You can now access the tenant dashboard and manage users, events, and resources.
+                                                    </p>
+                                                </div>
+
+                                                <p style="font-size: 15px; color: #6b7280; margin: 25px 0 0 0;">
+                                                    If you have any questions or need assistance, please contact the system administrator.
+                                                </p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Footer -->
+                                        <tr>
+                                            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+                                                <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.5;">
+                                                    This is an automated notification from the <strong style="color: #6b7280;">Msafiri System</strong><br>
+                                                    MSF Traveller Management • Médecins Sans Frontières
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
                     </body>
                     </html>
                     """
@@ -500,34 +577,83 @@ def send_tenant_update_notifications(db: Session, tenant, original_values: dict,
         if admin_emails:
             from app.core.email_service import email_service
             
-            subject = f"Organization Updated: {tenant.name}"
-            
-            changes_html = "<ul>" + "".join([f"<li>{change}</li>" for change in changes]) + "</ul>"
-            
+            subject = f"MSF Tenant Updated: {tenant.name}"
+
+            changes_html = "".join([f"""
+                                                        <tr>
+                                                            <td style="padding: 8px 0; border-bottom: 1px solid #fee2e2;">
+                                                                <span style="color: #4b5563;">• {change}</span>
+                                                            </td>
+                                                        </tr>""" for change in changes])
+
             for email in admin_emails:
                 try:
                     html_content = f"""
+                    <!DOCTYPE html>
                     <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                        <h1 style="color: #fd7e14;">Organization Updated</h1>
-                        
-                        <p>The organization <strong>{tenant.name}</strong> has been updated:</p>
-                        
-                        <div style="background: #fff3cd; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                            <h3 style="margin-top: 0;">Changes Made:</h3>
-                            {changes_html}
-                            
-                            <p><strong>Reason:</strong> {reason}</p>
-                            <p><strong>Updated By:</strong> {updated_by}</p>
-                        </div>
-                        
-                        <p>If you have any questions about these changes, please contact the system administrator.</p>
-                        
-                        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-                        
-                        <p style="color: #666; font-size: 14px;">
-                            This is an automated notification from the Msafiri System.
-                        </p>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+                            <tr>
+                                <td align="center">
+                                    <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                                        <!-- Header with MSF Red -->
+                                        <tr>
+                                            <td style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center;">
+                                                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                                    ✏️ MSF Tenant Updated
+                                                </h1>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Content -->
+                                        <tr>
+                                            <td style="padding: 40px 30px;">
+                                                <p style="font-size: 16px; color: #374151; margin: 0 0 25px 0;">
+                                                    The MSF tenant <strong style="color: #dc2626;">{tenant.name}</strong> has been updated with the following changes:
+                                                </p>
+
+                                                <!-- Changes Card -->
+                                                <div style="background: linear-gradient(to bottom, #fffbeb 0%, #ffffff 100%); border-left: 4px solid #f59e0b; padding: 25px; border-radius: 8px; margin: 25px 0;">
+                                                    <h2 style="color: #d97706; font-size: 20px; margin: 0 0 20px 0; font-weight: 600;">
+                                                        📝 Changes Made
+                                                    </h2>
+                                                    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+                                                        {changes_html}
+                                                    </table>
+
+                                                    <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #fef3c7;">
+                                                        <p style="margin: 5px 0; color: #6b7280;">
+                                                            <strong style="color: #111827;">Reason:</strong> {reason}
+                                                        </p>
+                                                        <p style="margin: 5px 0; color: #6b7280;">
+                                                            <strong style="color: #111827;">Updated By:</strong> {updated_by}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <p style="font-size: 15px; color: #6b7280; margin: 25px 0 0 0;">
+                                                    If you have any questions about these changes, please contact the system administrator.
+                                                </p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Footer -->
+                                        <tr>
+                                            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+                                                <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.5;">
+                                                    This is an automated notification from the <strong style="color: #6b7280;">Msafiri System</strong><br>
+                                                    MSF Traveller Management • Médecins Sans Frontières
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
                     </body>
                     </html>
                     """
@@ -562,32 +688,73 @@ def send_tenant_status_change_notifications(db: Session, tenant, action: str, ch
         if admin_emails:
             from app.core.email_service import email_service
             
-            color = "#28a745" if action == "activated" else "#dc3545"
-            subject = f"Organization {action.title()}: {tenant.name}"
-            
+            color = "#10b981" if action == "activated" else "#dc2626"
+            gradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)" if action == "activated" else "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"
+            bg_color = "#ecfdf5" if action == "activated" else "#fef2f2"
+            border_color = "#10b981" if action == "activated" else "#dc2626"
+            icon = "✅" if action == "activated" else "⛔"
+            subject = f"MSF Tenant {action.title()}: {tenant.name}"
+
             for email in admin_emails:
                 try:
                     html_content = f"""
+                    <!DOCTYPE html>
                     <html>
-                    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                        <h1 style="color: {color};">Organization {action.title()}</h1>
-                        
-                        <p>The organization <strong>{tenant.name}</strong> has been <strong>{action}</strong> by {changed_by}.</p>
-                        
-                        <div style="background: {'#d4edda' if action == 'activated' else '#f8d7da'}; padding: 20px; border-radius: 5px; margin: 20px 0;">
-                            <p style="margin: 0;">
-                                {'Your organization is now active and users can access the system.' if action == 'activated' 
-                                 else 'Your organization has been temporarily deactivated. Users will not be able to access the system.'}
-                            </p>
-                        </div>
-                        
-                        <p>If you have questions about this change, please contact the system administrator.</p>
-                        
-                        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-                        
-                        <p style="color: #666; font-size: 14px;">
-                            This is an automated notification from the Msafiri System.
-                        </p>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    </head>
+                    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 40px 20px;">
+                            <tr>
+                                <td align="center">
+                                    <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+                                        <!-- Header -->
+                                        <tr>
+                                            <td style="background: {gradient}; padding: 40px 30px; text-align: center;">
+                                                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                                    {icon} MSF Tenant {action.title()}
+                                                </h1>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Content -->
+                                        <tr>
+                                            <td style="padding: 40px 30px;">
+                                                <p style="font-size: 16px; color: #374151; margin: 0 0 25px 0;">
+                                                    The MSF tenant <strong style="color: #dc2626;">{tenant.name}</strong> has been <strong>{action}</strong> by <strong>{changed_by}</strong>.
+                                                </p>
+
+                                                <!-- Status Card -->
+                                                <div style="background: {bg_color}; border-left: 4px solid {border_color}; padding: 25px; border-radius: 8px; margin: 25px 0;">
+                                                    <h2 style="color: {color}; font-size: 18px; margin: 0 0 15px 0; font-weight: 600;">
+                                                        {'🎉 Tenant is Now Active' if action == 'activated' else '⚠️ Tenant Deactivated'}
+                                                    </h2>
+                                                    <p style="margin: 0; color: #374151; line-height: 1.6;">
+                                                        {'Your MSF tenant is now active! All administrators and users can access the system, manage resources, and utilize all features of the Msafiri platform.' if action == 'activated'
+                                                         else 'Your MSF tenant has been temporarily deactivated. Users will not be able to access the system until it is reactivated by a system administrator.'}
+                                                    </p>
+                                                </div>
+
+                                                <p style="font-size: 15px; color: #6b7280; margin: 25px 0 0 0;">
+                                                    If you have questions about this change, please contact the system administrator.
+                                                </p>
+                                            </td>
+                                        </tr>
+
+                                        <!-- Footer -->
+                                        <tr>
+                                            <td style="background-color: #f9fafb; padding: 25px 30px; border-top: 1px solid #e5e7eb;">
+                                                <p style="margin: 0; color: #9ca3af; font-size: 13px; text-align: center; line-height: 1.5;">
+                                                    This is an automated notification from the <strong style="color: #6b7280;">Msafiri System</strong><br>
+                                                    MSF Traveller Management • Médecins Sans Frontières
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
                     </body>
                     </html>
                     """
