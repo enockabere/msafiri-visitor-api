@@ -13,7 +13,6 @@ class GuestHouseCreate(BaseModel):
     location: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    description: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
     house_rules: Optional[str] = None
     tenant_id: str
@@ -24,7 +23,6 @@ class GuestHouseUpdate(BaseModel):
     location: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
-    description: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
     house_rules: Optional[str] = None
 
@@ -84,7 +82,7 @@ async def get_guest_houses(
                 "address": gh.address or "",
                 "latitude": gh.latitude,
                 "longitude": gh.longitude,
-                "description": gh.description,
+
                 "contact_person": gh.contact_person,
                 "phone": gh.phone,
                 "email": gh.email,
@@ -173,7 +171,7 @@ async def create_guest_house(
             address="",  # Not used in simplified form
             latitude=guest_house_data.latitude,
             longitude=guest_house_data.longitude,
-            description=guest_house_data.description,
+
             tenant_id=tenant.id,  # Use tenant ID instead of slug
             created_by="system",
             is_active=True
@@ -216,8 +214,7 @@ async def update_guest_house(
             guest_house.latitude = guest_house_data.latitude
         if guest_house_data.longitude is not None:
             guest_house.longitude = guest_house_data.longitude
-        if guest_house_data.description is not None:
-            guest_house.description = guest_house_data.description
+
         if guest_house_data.facilities is not None:
             guest_house.facilities = guest_house_data.facilities
         if guest_house_data.house_rules is not None:
