@@ -31,7 +31,6 @@ class RoomCreate(BaseModel):
     room_name: Optional[str] = None
     capacity: int
     room_type: Optional[str] = None
-    description: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
 
 class RoomUpdate(BaseModel):
@@ -39,7 +38,6 @@ class RoomUpdate(BaseModel):
     room_name: Optional[str] = None
     capacity: Optional[int] = None
     room_type: Optional[str] = None
-    description: Optional[str] = None
     facilities: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
 
@@ -134,7 +132,6 @@ async def get_guest_houses(
                     "room_number": room.room_number,
                     "capacity": room.capacity,
                     "room_type": room.room_type,
-                    "description": room.description,
                     "is_active": room.is_active,
                     "current_occupants": current_occupants,
                     "occupant_genders": occupant_genders
@@ -278,7 +275,6 @@ async def get_rooms(
                 "room_number": room.room_number,
                 "capacity": room.capacity,
                 "room_type": room.room_type,
-                "description": room.description,
                 "facilities": facilities,
                 "is_active": room.is_active
             })
@@ -306,7 +302,6 @@ async def create_room(
             room_number=room_data.room_number,
             capacity=room_data.capacity,
             room_type=room_data.room_type or "single",
-            description=room_data.description,
             amenities=json.dumps(room_data.facilities) if room_data.facilities else None,
             is_active=True
         )
@@ -344,8 +339,7 @@ async def update_room(
             room.capacity = room_data.capacity
         if room_data.room_type is not None:
             room.room_type = room_data.room_type
-        if room_data.description is not None:
-            room.description = room_data.description
+
         if room_data.facilities is not None:
             room.amenities = json.dumps(room_data.facilities)
         if room_data.is_active is not None:

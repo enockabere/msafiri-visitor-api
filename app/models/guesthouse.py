@@ -39,7 +39,6 @@ class Room(Base):
     room_number = Column(String(50), nullable=False)
     room_type = Column(String(20), nullable=False)  # single, double, suite
     capacity = Column(Integer, nullable=False)
-    description = Column(Text, nullable=True)
     amenities = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     is_occupied = Column(Boolean, default=False)
