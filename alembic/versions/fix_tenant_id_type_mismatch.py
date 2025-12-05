@@ -1,7 +1,7 @@
 """Fix accommodation tables tenant_id type mismatch
 
 Revision ID: fix_tenant_id_type_mismatch
-Revises: add_decline_tracking_fields
+Revises: fix_chat_messages_cascade_delete
 Create Date: 2024-12-04 13:30:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'fix_tenant_id_type_mismatch'
-down_revision = 'add_decline_tracking_fields'
+down_revision = 'fix_chat_messages_cascade_delete'
 branch_labels = None
 depends_on = None
 
