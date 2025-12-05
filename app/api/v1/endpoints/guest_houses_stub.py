@@ -168,7 +168,8 @@ async def create_guest_house(
             address="",  # Not used in simplified form
             latitude=guest_house_data.latitude,
             longitude=guest_house_data.longitude,
-
+            facilities=json.dumps(guest_house_data.facilities) if guest_house_data.facilities else None,
+            house_rules=guest_house_data.house_rules,
             tenant_id=tenant.id,  # Use tenant ID instead of slug
             created_by="system",
             is_active=True
@@ -213,7 +214,7 @@ async def update_guest_house(
             guest_house.longitude = guest_house_data.longitude
 
         if guest_house_data.facilities is not None:
-            guest_house.facilities = guest_house_data.facilities
+            guest_house.facilities = json.dumps(guest_house_data.facilities)
         if guest_house_data.house_rules is not None:
             guest_house.house_rules = guest_house_data.house_rules
         
