@@ -682,8 +682,9 @@ def delete_event(
                 db.delete(request)
             logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
         except Exception as e:
-            # Table might not exist yet, skip this step
+            # Table might not exist yet, rollback and continue
             logger.warning(f"⚠️ Could not delete transport requests (table may not exist): {str(e)}")
+            db.rollback()  # Rollback the failed transaction to continue with other deletions
         
         # 2. Delete participant QR codes (they reference event_participants)
         qr_codes = db.query(ParticipantQR).join(
