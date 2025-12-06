@@ -773,9 +773,10 @@ def delete_event(
             logger.warning(f"⚠️ Could not delete event attachments: {str(e)}")
             db.rollback()
 
-        # 9. Finally delete the event itself
+        # 9. Finally delete the event itself using direct query to avoid cascade loading
         logger.info(f"✅ Deleting draft event: {event_id}")
-        db.delete(event)
+        from app.models.event import Event
+        db.query(Event).filter(Event.id == event_id).delete(synchronize_session=False)
         db.commit()
         logger.info(f"🎉 Event deleted successfully: {event_id}")
         
