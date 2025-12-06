@@ -21,8 +21,20 @@ def get_tenant_travel_requirements(
     current_user: User = Depends(deps.get_current_user)
 ):
     """Get all travel requirements for a tenant"""
-    requirements = country_travel_requirement.get_by_tenant(db, tenant_id=tenant_id)
-    return requirements
+    try:
+        print(f"🔍 Fetching travel requirements for tenant_id: {tenant_id}")
+        print(f"👤 Current user: {current_user.email}, role: {current_user.role}")
+        requirements = country_travel_requirement.get_by_tenant(db, tenant_id=tenant_id)
+        print(f"✅ Found {len(requirements)} travel requirements")
+        return requirements
+    except Exception as e:
+        print(f"❌ Error fetching travel requirements: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching travel requirements: {str(e)}"
+        )
 
 @router.get("/tenant/{tenant_id}/country/{country}", response_model=CountryTravelRequirement)
 def get_country_travel_requirement(
