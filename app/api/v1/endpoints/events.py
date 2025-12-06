@@ -2,6 +2,7 @@
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app import crud, schemas
 from app.api import deps
 from app.db.database import get_db
@@ -773,23 +774,21 @@ def delete_event(
             logger.warning(f"⚠️ Could not delete event attachments: {str(e)}")
             db.rollback()
 
-        # 9. Delete vendor event accommodations
+        # 9. Delete vendor event accommodations using raw SQL
         try:
-            from app.models.guesthouse import VendorEventAccommodation
-            vendor_accommodations = db.query(VendorEventAccommodation).filter(
-                VendorEventAccommodation.event_id == event_id
-            ).all()
-            for vendor_accommodation in vendor_accommodations:
-                db.delete(vendor_accommodation)
-            logger.info(f"🗑️ Deleted {len(vendor_accommodations)} vendor event accommodations for event {event_id}")
+            result = db.execute(
+                text("DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            db.commit()
+            logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations for event {event_id}")
         except Exception as e:
             logger.warning(f"⚠️ Could not delete vendor event accommodations: {str(e)}")
             db.rollback()
 
-        # 10. Finally delete the event itself using direct query to avoid cascade loading
+        # 10. Finally delete the event itself using raw SQL to avoid cascade loading
         logger.info(f"✅ Deleting draft event: {event_id}")
-        from app.models.event import Event
-        db.query(Event).filter(Event.id == event_id).delete(synchronize_session=False)
+        db.execute(text("DELETE FROM events WHERE id = :event_id"), {"event_id": event_id})
         db.commit()
         logger.info(f"🎉 Event deleted successfully: {event_id}")
         
