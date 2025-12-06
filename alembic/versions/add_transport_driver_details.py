@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_transport_driver_details'
-down_revision = '960676794f01'
+down_revision = 'create_transport_requests'
 branch_labels = None
 depends_on = None
 
