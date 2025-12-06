@@ -722,7 +722,58 @@ def delete_event(
             logger.warning(f"⚠️ Could not delete flight itineraries (table may not exist): {str(e)}")
             db.rollback()
         
-        # 5. Delete the event (cascade relationships will handle participants, attachments, passport_records, and chat_rooms)
+        # 5. Delete passport records manually (table may not exist)
+        try:
+            from app.models.passport_record import PassportRecord
+            passport_records = db.query(PassportRecord).filter(
+                PassportRecord.event_id == event_id
+            ).all()
+            for record in passport_records:
+                db.delete(record)
+            logger.info(f"🗑️ Deleted {len(passport_records)} passport records for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete passport records (table may not exist): {str(e)}")
+            db.rollback()
+
+        # 6. Delete chat rooms manually (table may not exist)
+        try:
+            from app.models.chat import ChatRoom
+            chat_rooms = db.query(ChatRoom).filter(
+                ChatRoom.event_id == event_id
+            ).all()
+            for room in chat_rooms:
+                db.delete(room)
+            logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete chat rooms (table may not exist): {str(e)}")
+            db.rollback()
+
+        # 7. Delete event participants manually (should exist)
+        try:
+            participants = db.query(EventParticipant).filter(
+                EventParticipant.event_id == event_id
+            ).all()
+            for participant in participants:
+                db.delete(participant)
+            logger.info(f"🗑️ Deleted {len(participants)} event participants for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete event participants: {str(e)}")
+            db.rollback()
+
+        # 8. Delete event attachments manually (should exist)
+        try:
+            from app.models.event_attachment import EventAttachment
+            attachments = db.query(EventAttachment).filter(
+                EventAttachment.event_id == event_id
+            ).all()
+            for attachment in attachments:
+                db.delete(attachment)
+            logger.info(f"🗑️ Deleted {len(attachments)} event attachments for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete event attachments: {str(e)}")
+            db.rollback()
+
+        # 9. Finally delete the event itself
         logger.info(f"✅ Deleting draft event: {event_id}")
         db.delete(event)
         db.commit()
