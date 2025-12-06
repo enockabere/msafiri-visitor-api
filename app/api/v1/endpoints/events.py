@@ -773,7 +773,20 @@ def delete_event(
             logger.warning(f"⚠️ Could not delete event attachments: {str(e)}")
             db.rollback()
 
-        # 9. Finally delete the event itself using direct query to avoid cascade loading
+        # 9. Delete vendor event accommodations
+        try:
+            from app.models.guesthouse import VendorEventAccommodation
+            vendor_accommodations = db.query(VendorEventAccommodation).filter(
+                VendorEventAccommodation.event_id == event_id
+            ).all()
+            for vendor_accommodation in vendor_accommodations:
+                db.delete(vendor_accommodation)
+            logger.info(f"🗑️ Deleted {len(vendor_accommodations)} vendor event accommodations for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete vendor event accommodations: {str(e)}")
+            db.rollback()
+
+        # 10. Finally delete the event itself using direct query to avoid cascade loading
         logger.info(f"✅ Deleting draft event: {event_id}")
         from app.models.event import Event
         db.query(Event).filter(Event.id == event_id).delete(synchronize_session=False)
