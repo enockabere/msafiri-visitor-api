@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'create_event_voucher_scanners'
-down_revision = None  # Update this to the latest revision ID
+down_revision = 'simple_add_app_feedback'
 branch_labels = None
 depends_on = None
 

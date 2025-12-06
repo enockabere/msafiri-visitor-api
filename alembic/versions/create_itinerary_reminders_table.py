@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 
 # revision identifiers, used by Alembic.
 revision = 'create_itinerary_reminders'
-down_revision = 'f1895cdab0c6'
+down_revision = 'create_event_voucher_scanners'
 branch_labels = None
 depends_on = None
 
