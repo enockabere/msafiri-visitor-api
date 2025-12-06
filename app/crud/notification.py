@@ -267,53 +267,64 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
     
     def get_notification_stats(self, db: Session, *, user_id: int, tenant_id: Optional[str]) -> Dict[str, Any]:
         """Get notification statistics for a user - includes chat notifications"""
-        
-        # Base query - get notifications for this user OR broadcast notifications
-        base_query = db.query(Notification).filter(
-            or_(
-                Notification.user_id == user_id,
-                Notification.user_id.is_(None)  # Broadcast notifications
-            )
-        )
-        
-        # For mobile users, don't filter by tenant to include all their notifications
-        # For admin users, filter by tenant
-        if tenant_id is not None and tenant_id != "system":
-            # Regular users: see notifications for their tenant AND system notifications
-            base_query = base_query.filter(
-                or_(
-                    Notification.tenant_id == tenant_id,
-                    Notification.tenant_id == "system",
-                    Notification.tenant_id.is_(None)
-                )
-            )
-        # Super admins and mobile users: see notifications from all tenants
-        
-        total = base_query.count()
-        
-        unread = base_query.filter(Notification.is_read == False).count()
-        
-        # Handle priority filtering safely
-        try:
-            urgent = base_query.filter(
-                and_(
-                    or_(
-                        Notification.priority == NotificationPriority.URGENT,
-                        Notification.priority == 'URGENT'
-                    ),
-                    Notification.is_read == False
-                )
-            ).count()
-        except:
-            urgent = 0
-        
 
-        
-        return {
-            "total": total,
-            "unread": unread,
-            "urgent": urgent
-        }
+        try:
+            # Base query - get notifications for this user OR broadcast notifications
+            base_query = db.query(Notification).filter(
+                or_(
+                    Notification.user_id == user_id,
+                    Notification.user_id.is_(None)  # Broadcast notifications
+                )
+            )
+
+            # For mobile users, don't filter by tenant to include all their notifications
+            # For admin users, filter by tenant
+            if tenant_id is not None and tenant_id != "system":
+                # Regular users: see notifications for their tenant AND system notifications
+                base_query = base_query.filter(
+                    or_(
+                        Notification.tenant_id == tenant_id,
+                        Notification.tenant_id == "system",
+                        Notification.tenant_id.is_(None)
+                    )
+                )
+            # Super admins and mobile users: see notifications from all tenants
+
+            total = base_query.count()
+
+            unread = base_query.filter(Notification.is_read == False).count()
+
+            # Handle priority filtering safely
+            try:
+                urgent = base_query.filter(
+                    and_(
+                        or_(
+                            Notification.priority == NotificationPriority.URGENT,
+                            Notification.priority == 'URGENT'
+                        ),
+                        Notification.is_read == False
+                    )
+                ).count()
+            except Exception as priority_error:
+                print(f"⚠️ Warning: Failed to count urgent notifications: {str(priority_error)}")
+                urgent = 0
+
+            return {
+                "total": total,
+                "unread": unread,
+                "urgent": urgent
+            }
+        except Exception as e:
+            print(f"❌ Error in get_notification_stats: {str(e)}")
+            print(f"📊 Parameters - user_id: {user_id}, tenant_id: {tenant_id}")
+            import traceback
+            traceback.print_exc()
+            # Return safe defaults instead of crashing
+            return {
+                "total": 0,
+                "unread": 0,
+                "urgent": 0
+            }
     
     def _send_notification(self, db: Session, notification: Notification):
         """Internal method to trigger notification sending"""

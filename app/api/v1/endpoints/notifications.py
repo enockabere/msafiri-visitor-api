@@ -170,12 +170,22 @@ def get_notification_stats(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Get notification statistics"""
-    stats = crud.notification.get_notification_stats(
-        db,
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id
-    )
-    return stats
+    try:
+        stats = crud.notification.get_notification_stats(
+            db,
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id
+        )
+        return stats
+    except Exception as e:
+        print(f"❌ Error getting notification stats for user {current_user.id}: {str(e)}")
+        print(f"📊 User details - ID: {current_user.id}, Email: {current_user.email}, Tenant: {current_user.tenant_id}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch notification stats: {str(e)}"
+        )
 
 @router.post("/send-to-user", response_model=schemas.Notification)
 def send_notification_to_user(
