@@ -43,6 +43,35 @@ def create_inventory_item(
     
     return item
 
+@router.get("/categories", operation_id="get_inventory_categories")
+def get_inventory_categories(
+    *,
+    db: Session = Depends(get_db),
+    tenant: str = None
+) -> Any:
+    """Get all distinct categories for inventory items"""
+
+    try:
+        query = db.query(Inventory.category).filter(Inventory.is_active == True).distinct()
+
+        if tenant:
+            # Convert tenant slug to tenant ID if needed
+            tenant_id = tenant
+            if not tenant.isdigit():
+                from app.models.tenant import Tenant
+                tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
+                if tenant_obj:
+                    tenant_id = tenant_obj.id
+            query = query.filter(Inventory.tenant_id == str(tenant_id))
+
+        categories = [row[0] for row in query.all() if row[0]]
+        return {"categories": sorted(categories)}
+    except Exception as e:
+        print(f"ERROR fetching categories: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching categories: {str(e)}")
+
 @router.get("/", response_model=List[InventorySchema], operation_id="get_inventory_items")
 def get_inventory_items(
     *,
