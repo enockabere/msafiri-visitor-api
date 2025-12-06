@@ -669,17 +669,21 @@ def delete_event(
     try:
         from app.models.guesthouse import AccommodationAllocation
         from app.models.flight_itinerary import FlightItinerary
-        from app.models.transport_request import TransportRequest
         from app.models.participant_qr import ParticipantQR
         from app.models.event_participant import EventParticipant
-        
-        # 1. Delete transport requests first (they reference flight_itineraries)
-        transport_requests = db.query(TransportRequest).filter(
-            TransportRequest.event_id == event_id
-        ).all()
-        for request in transport_requests:
-            db.delete(request)
-        logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
+
+        # 1. Delete transport requests first (they reference flight_itineraries) - if table exists
+        try:
+            from app.models.transport_request import TransportRequest
+            transport_requests = db.query(TransportRequest).filter(
+                TransportRequest.event_id == event_id
+            ).all()
+            for request in transport_requests:
+                db.delete(request)
+            logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
+        except Exception as e:
+            # Table might not exist yet, skip this step
+            logger.warning(f"⚠️ Could not delete transport requests (table may not exist): {str(e)}")
         
         # 2. Delete participant QR codes (they reference event_participants)
         qr_codes = db.query(ParticipantQR).join(
