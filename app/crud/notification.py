@@ -294,14 +294,11 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
 
             unread = base_query.filter(Notification.is_read == False).count()
 
-            # Handle priority filtering safely
+            # Handle priority filtering safely - use string comparison only
             try:
                 urgent = base_query.filter(
                     and_(
-                        or_(
-                            Notification.priority == NotificationPriority.URGENT,
-                            Notification.priority == 'URGENT'
-                        ),
+                        Notification.priority == 'URGENT',
                         Notification.is_read == False
                     )
                 ).count()
