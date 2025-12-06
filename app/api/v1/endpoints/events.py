@@ -687,28 +687,40 @@ def delete_event(
             db.rollback()  # Rollback the failed transaction to continue with other deletions
         
         # 2. Delete participant QR codes (they reference event_participants)
-        qr_codes = db.query(ParticipantQR).join(
-            EventParticipant, ParticipantQR.participant_id == EventParticipant.id
-        ).filter(EventParticipant.event_id == event_id).all()
-        for qr_code in qr_codes:
-            db.delete(qr_code)
-        logger.info(f"🗑️ Deleted {len(qr_codes)} participant QR codes for event {event_id}")
-        
+        try:
+            qr_codes = db.query(ParticipantQR).join(
+                EventParticipant, ParticipantQR.participant_id == EventParticipant.id
+            ).filter(EventParticipant.event_id == event_id).all()
+            for qr_code in qr_codes:
+                db.delete(qr_code)
+            logger.info(f"🗑️ Deleted {len(qr_codes)} participant QR codes for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete participant QR codes (table may not exist): {str(e)}")
+            db.rollback()
+
         # 3. Delete accommodation allocations (they reference event_participants)
-        allocations = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.event_id == event_id
-        ).all()
-        for allocation in allocations:
-            db.delete(allocation)
-        logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
-        
+        try:
+            allocations = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.event_id == event_id
+            ).all()
+            for allocation in allocations:
+                db.delete(allocation)
+            logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete accommodation allocations (table may not exist): {str(e)}")
+            db.rollback()
+
         # 4. Delete flight itineraries
-        flight_itineraries = db.query(FlightItinerary).filter(
-            FlightItinerary.event_id == event_id
-        ).all()
-        for itinerary in flight_itineraries:
-            db.delete(itinerary)
-        logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
+        try:
+            flight_itineraries = db.query(FlightItinerary).filter(
+                FlightItinerary.event_id == event_id
+            ).all()
+            for itinerary in flight_itineraries:
+                db.delete(itinerary)
+            logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete flight itineraries (table may not exist): {str(e)}")
+            db.rollback()
         
         # 5. Delete the event (cascade relationships will handle participants, attachments, passport_records, and chat_rooms)
         logger.info(f"✅ Deleting draft event: {event_id}")
