@@ -29,7 +29,7 @@ class Event(BaseModel):
     perdiem_rate = Column(Numeric(10,2))
     
     # Registration
-    registration_deadline = Column(Date)
+    registration_deadline = Column(Date, nullable=False)
     
     # Venue
     vendor_accommodation_id = Column(Integer, ForeignKey("vendor_accommodations.id"), nullable=True)

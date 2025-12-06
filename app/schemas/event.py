@@ -11,6 +11,7 @@ class EventBase(BaseModel):
     status: Optional[str] = "Draft"
     start_date: date
     end_date: date
+    registration_deadline: date  # Required field
     location: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
@@ -33,6 +34,7 @@ class EventUpdate(BaseModel):
     status: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    registration_deadline: Optional[date] = None
     location: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
