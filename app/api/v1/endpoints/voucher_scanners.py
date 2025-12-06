@@ -135,48 +135,76 @@ async def create_voucher_scanners_bulk(
                 # Send email notification
                 try:
                     from app.core.email_service import email_service
-                    
+
                     scanner_url = f"http://41.90.97.253:3000/scanner?event_id={scanner_data.event_id}&tenant_id={tenant_id}"
-                    
+
                     if is_new_user:
                         message = f"""
-Hello {user_name},
+<p>Hello <strong>{user_name}</strong>,</p>
 
-You have been assigned as a voucher scanner for an MSF event.
+<p>You have been assigned as a <strong>Voucher Scanner</strong> for an MSF event: <strong>{event.title}</strong></p>
 
-Your scanner credentials:
-• Email: {email}
-• Temporary Password: TempPassword123!
+<div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #92400e;">🔐 Your Scanner Credentials</h3>
+    <p style="margin: 8px 0;"><strong>Email:</strong> {email}</p>
+    <p style="margin: 8px 0;"><strong>Temporary Password:</strong> <code style="background-color: #fde68a; padding: 4px 8px; border-radius: 4px; font-family: monospace;">TempPassword123!</code></p>
+</div>
 
-To start scanning vouchers:
-1. Visit: {scanner_url}
-2. Login with your credentials
-3. Start scanning participant vouchers
+<div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #1e40af;">📋 Getting Started</h3>
+    <ol style="margin: 10px 0; padding-left: 20px;">
+        <li style="margin: 8px 0;">Click the button below to access the scanner portal</li>
+        <li style="margin: 8px 0;">Login with your email and temporary password</li>
+        <li style="margin: 8px 0;">Start scanning participant vouchers</li>
+    </ol>
+</div>
 
-Please change your password after first login for security.
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{scanner_url}" style="display: inline-block; background-color: #dc2626; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+        🔍 Access Voucher Scanner
+    </a>
+</div>
 
-Best regards,
-MSF Kenya Team
+<div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 6px;">
+    <p style="margin: 0; color: #991b1b;"><strong>⚠️ Important:</strong> Please change your password after first login for security.</p>
+</div>
+
+<p>If you have any questions, please contact the event organizer.</p>
+
+<p style="margin-top: 30px;">Best regards,<br><strong>MSF Kenya Team</strong></p>
                         """
                     else:
                         message = f"""
-Hello {user_name},
+<p>Hello <strong>{user_name}</strong>,</p>
 
-You have been assigned as a voucher scanner for an MSF event.
+<p>You have been assigned as a <strong>Voucher Scanner</strong> for an MSF event: <strong>{event.title}</strong></p>
 
-You can now access the voucher scanner with your existing account:
-• Email: {email}
-• Use your current password
+<div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #1e40af;">👤 Your Access Details</h3>
+    <p style="margin: 8px 0;"><strong>Email:</strong> {email}</p>
+    <p style="margin: 8px 0;"><strong>Password:</strong> Use your existing account password</p>
+</div>
 
-To start scanning vouchers:
-1. Visit: {scanner_url}
-2. Login with your existing credentials
-3. Start scanning participant vouchers
+<div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 6px;">
+    <h3 style="margin-top: 0; color: #065f46;">📋 Getting Started</h3>
+    <ol style="margin: 10px 0; padding-left: 20px;">
+        <li style="margin: 8px 0;">Click the button below to access the scanner portal</li>
+        <li style="margin: 8px 0;">Login with your existing credentials</li>
+        <li style="margin: 8px 0;">Start scanning participant vouchers</li>
+    </ol>
+</div>
 
-Best regards,
-MSF Kenya Team
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{scanner_url}" style="display: inline-block; background-color: #dc2626; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+        🔍 Access Voucher Scanner
+    </a>
+</div>
+
+<p>If you have any questions, please contact the event organizer.</p>
+
+<p style="margin-top: 30px;">Best regards,<br><strong>MSF Kenya Team</strong></p>
                         """
-                    
+
                     email_service.send_notification_email(
                         to_email=email,
                         user_name=user_name,
