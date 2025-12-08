@@ -106,42 +106,85 @@ async def get_event_registrations(
     """Get all registrations for an event with detailed registration data"""
 
     from sqlalchemy import text
-    
+
     # Query participants with detailed registration data
-    # Try to get column info first to check if oc column exists
+    # Check if public_registrations table exists and what columns it has
     try:
-        check_column = db.execute(text("""
+        check_table = db.execute(text("""
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_name = 'public_registrations' AND column_name = 'oc'
-        """)).fetchone()
-        has_oc_column = check_column is not None
+            WHERE table_name = 'public_registrations'
+        """)).fetchall()
+
+        existing_columns = {row[0] for row in check_table} if check_table else set()
+        has_pr_table = len(existing_columns) > 0
     except:
-        has_oc_column = False
+        has_pr_table = False
+        existing_columns = set()
 
-    # Build query based on whether oc column exists
-    if has_oc_column:
-        oc_field = "pr.oc,"
+    # Build query based on whether public_registrations table exists
+    if has_pr_table:
+        # Build the column list dynamically based on what exists
+        pr_columns = []
+        column_mapping = {
+            'first_name': 'pr.first_name',
+            'last_name': 'pr.last_name',
+            'oc': 'pr.oc',
+            'contract_status': 'pr.contract_status',
+            'contract_type': 'pr.contract_type',
+            'gender_identity': 'pr.gender_identity',
+            'sex': 'pr.sex',
+            'pronouns': 'pr.pronouns',
+            'current_position': 'pr.current_position',
+            'country_of_work': 'pr.country_of_work',
+            'project_of_work': 'pr.project_of_work',
+            'personal_email': 'pr.personal_email',
+            'msf_email': 'pr.msf_email',
+            'hrco_email': 'pr.hrco_email',
+            'career_manager_email': 'pr.career_manager_email',
+            'line_manager_email': 'pr.line_manager_email',
+            'phone_number': 'pr.phone_number',
+            'dietary_requirements': 'pr.dietary_requirements',
+            'accommodation_needs': 'pr.accommodation_needs',
+            'certificate_name': 'pr.certificate_name',
+            'badge_name': 'pr.badge_name',
+            'motivation_letter': 'pr.motivation_letter',
+            'code_of_conduct_confirm': 'pr.code_of_conduct_confirm',
+            'travel_requirements_confirm': 'pr.travel_requirements_confirm',
+            'travelling_internationally': 'pr.travelling_internationally',
+            'travelling_from_country': 'pr.travelling_from_country',
+            'accommodation_type': 'pr.accommodation_type',
+            'daily_meals': 'pr.daily_meals'
+        }
+
+        for col_name, col_expr in column_mapping.items():
+            if col_name in existing_columns:
+                if col_name == 'travelling_from_country':
+                    pr_columns.append(f"{col_expr} as pr_travelling_from_country")
+                else:
+                    pr_columns.append(col_expr)
+
+        pr_select = ", " + ", ".join(pr_columns) if pr_columns else ""
+
+        query = f"""
+        SELECT
+            ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
+            ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
+            ep.decline_reason, ep.declined_at{pr_select}
+        FROM event_participants ep
+        LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+        WHERE ep.event_id = :event_id
+        """
     else:
-        oc_field = ""
-
-    query = f"""
-    SELECT
-        ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
-        ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
-        ep.decline_reason, ep.declined_at,
-        pr.first_name, pr.last_name, {oc_field} pr.contract_status, pr.contract_type,
-        pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
-        pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
-        pr.hrco_email, pr.career_manager_email, pr.line_manager_email, pr.phone_number,
-        pr.dietary_requirements, pr.accommodation_needs, pr.certificate_name,
-        pr.badge_name, pr.motivation_letter,
-        pr.code_of_conduct_confirm, pr.travel_requirements_confirm,
-        pr.travelling_internationally, pr.travelling_from_country as pr_travelling_from_country, pr.accommodation_type, pr.daily_meals
-    FROM event_participants ep
-    LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
-    WHERE ep.event_id = :event_id
-    """
+        # No public_registrations table, just query event_participants
+        query = """
+        SELECT
+            ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
+            ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
+            ep.decline_reason, ep.declined_at
+        FROM event_participants ep
+        WHERE ep.event_id = :event_id
+        """
     
     if status_filter:
         query += " AND ep.status = :status_filter"
