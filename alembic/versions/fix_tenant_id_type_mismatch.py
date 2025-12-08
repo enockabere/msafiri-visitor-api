@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'fix_tenant_id_type_mismatch'
-down_revision = 'create_inventory_table'
+down_revision = 'merge_heads_2024_12_08'
 branch_labels = None
 depends_on = None
 

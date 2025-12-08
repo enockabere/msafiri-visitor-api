@@ -1,7 +1,7 @@
 """create invitations table
 
 Revision ID: create_invitations_table
-Revises: add_transport_driver_details
+Revises: merge_transport_heads_001
 Create Date: 2024-11-07 14:20:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'create_invitations_table'
-down_revision = 'add_transport_driver_details'
+down_revision = 'merge_transport_heads_001'
 branch_labels = None
 depends_on = None
 
