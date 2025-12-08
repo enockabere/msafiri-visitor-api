@@ -131,8 +131,6 @@ async def create_voucher_scanners_bulk(
                 try:
                     from app.core.email_service import email_service
 
-                    scanner_url = f"http://41.90.97.253:3000/scanner?event_id={scanner_data.event_id}&tenant_id={tenant_id}"
-
                     if is_new_user:
                         message = f"""
 <p>Hello <strong>{user_name}</strong>,</p>
@@ -140,28 +138,23 @@ async def create_voucher_scanners_bulk(
 <p>You have been assigned as a <strong>Voucher Scanner</strong> for an MSF event: <strong>{event.title}</strong></p>
 
 <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px;">
-    <h3 style="margin-top: 0; color: #92400e;">🔐 Your Scanner Credentials</h3>
+    <h3 style="margin-top: 0; color: #92400e;">🔐 Your Login Credentials</h3>
     <p style="margin: 8px 0;"><strong>Email:</strong> {email}</p>
     <p style="margin: 8px 0;"><strong>Temporary Password:</strong> <code style="background-color: #fde68a; padding: 4px 8px; border-radius: 4px; font-family: monospace;">TempPassword123!</code></p>
 </div>
 
 <div style="background-color: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px;">
-    <h3 style="margin-top: 0; color: #1e40af;">📋 Getting Started</h3>
+    <h3 style="margin-top: 0; color: #1e40af;">📱 How to Start Scanning</h3>
     <ol style="margin: 10px 0; padding-left: 20px;">
-        <li style="margin: 8px 0;">Click the button below to access the scanner portal</li>
-        <li style="margin: 8px 0;">Login with your email and temporary password</li>
-        <li style="margin: 8px 0;">Start scanning participant vouchers</li>
+        <li style="margin: 8px 0;"><strong>Download</strong> the Msafiri Mobile App from the App Store or Google Play</li>
+        <li style="margin: 8px 0;"><strong>Login</strong> using your email and the temporary password above</li>
+        <li style="margin: 8px 0;"><strong>Change your password</strong> when prompted for security</li>
+        <li style="margin: 8px 0;"><strong>Start scanning</strong> participant vouchers at the event</li>
     </ol>
 </div>
 
-<div style="text-align: center; margin: 30px 0;">
-    <a href="{scanner_url}" style="display: inline-block; background-color: #dc2626; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-        🔍 Access Voucher Scanner
-    </a>
-</div>
-
 <div style="background-color: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 6px;">
-    <p style="margin: 0; color: #991b1b;"><strong>⚠️ Important:</strong> Please change your password after first login for security.</p>
+    <p style="margin: 0; color: #991b1b;"><strong>⚠️ Important:</strong> You must change your password on first login for security purposes.</p>
 </div>
 
 <p>If you have any questions, please contact the event organizer.</p>
@@ -181,18 +174,12 @@ async def create_voucher_scanners_bulk(
 </div>
 
 <div style="background-color: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 6px;">
-    <h3 style="margin-top: 0; color: #065f46;">📋 Getting Started</h3>
+    <h3 style="margin-top: 0; color: #065f46;">📱 How to Start Scanning</h3>
     <ol style="margin: 10px 0; padding-left: 20px;">
-        <li style="margin: 8px 0;">Click the button below to access the scanner portal</li>
-        <li style="margin: 8px 0;">Login with your existing credentials</li>
-        <li style="margin: 8px 0;">Start scanning participant vouchers</li>
+        <li style="margin: 8px 0;"><strong>Download</strong> the Msafiri Mobile App from the App Store or Google Play (if you haven't already)</li>
+        <li style="margin: 8px 0;"><strong>Login</strong> using your email and existing password</li>
+        <li style="margin: 8px 0;"><strong>Start scanning</strong> participant vouchers at the event</li>
     </ol>
-</div>
-
-<div style="text-align: center; margin: 30px 0;">
-    <a href="{scanner_url}" style="display: inline-block; background-color: #dc2626; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-        🔍 Access Voucher Scanner
-    </a>
 </div>
 
 <p>If you have any questions, please contact the event organizer.</p>
