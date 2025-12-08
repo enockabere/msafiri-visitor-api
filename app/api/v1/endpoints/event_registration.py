@@ -108,12 +108,29 @@ async def get_event_registrations(
     from sqlalchemy import text
     
     # Query participants with detailed registration data
-    query = """
-    SELECT 
+    # Try to get column info first to check if oc column exists
+    try:
+        check_column = db.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'public_registrations' AND column_name = 'oc'
+        """)).fetchone()
+        has_oc_column = check_column is not None
+    except:
+        has_oc_column = False
+
+    # Build query based on whether oc column exists
+    if has_oc_column:
+        oc_field = "pr.oc,"
+    else:
+        oc_field = ""
+
+    query = f"""
+    SELECT
         ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
         ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
         ep.decline_reason, ep.declined_at,
-        pr.first_name, pr.last_name, pr.oc, pr.contract_status, pr.contract_type,
+        pr.first_name, pr.last_name, {oc_field} pr.contract_status, pr.contract_type,
         pr.gender_identity, pr.sex, pr.pronouns, pr.current_position,
         pr.country_of_work, pr.project_of_work, pr.personal_email, pr.msf_email,
         pr.hrco_email, pr.career_manager_email, pr.line_manager_email, pr.phone_number,
@@ -203,32 +220,32 @@ async def get_event_registrations(
                 "invitation_accepted": p.status == "confirmed",
                 "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None,
                 # Registration form data
-                "oc": p.oc,
-                "position": p.current_position or p.position,
-                "country": p.country_of_work or p.country,
-                "travelling_from_country": p.pr_travelling_from_country or p.travelling_from_country,
-                "contract_status": p.contract_status,
-                "contract_type": p.contract_type,
-                "gender_identity": p.gender_identity,
-                "sex": p.sex,
-                "pronouns": p.pronouns,
-                "project_of_work": p.project_of_work or p.project,
-                "personal_email": p.personal_email,
-                "msf_email": p.msf_email,
-                "hrco_email": p.hrco_email,
-                "career_manager_email": p.career_manager_email,
-                "line_manager_email": p.line_manager_email,
-                "phone_number": p.phone_number,
-                "dietary_requirements": p.dietary_requirements,
-                "accommodation_needs": p.accommodation_needs,
-                "certificate_name": p.certificate_name,
-                "badge_name": p.badge_name,
-                "motivation_letter": p.motivation_letter,
-                "code_of_conduct_confirm": p.code_of_conduct_confirm,
-                "travel_requirements_confirm": p.travel_requirements_confirm,
-                "travelling_internationally": p.travelling_internationally,
-                "accommodation_type": p.accommodation_type,
-                "daily_meals": p.daily_meals,
+                "oc": getattr(p, 'oc', None),
+                "position": getattr(p, 'current_position', None) or p.position,
+                "country": getattr(p, 'country_of_work', None) or p.country,
+                "travelling_from_country": getattr(p, 'pr_travelling_from_country', None) or p.travelling_from_country,
+                "contract_status": getattr(p, 'contract_status', None),
+                "contract_type": getattr(p, 'contract_type', None),
+                "gender_identity": getattr(p, 'gender_identity', None),
+                "sex": getattr(p, 'sex', None),
+                "pronouns": getattr(p, 'pronouns', None),
+                "project_of_work": getattr(p, 'project_of_work', None) or p.project,
+                "personal_email": getattr(p, 'personal_email', None),
+                "msf_email": getattr(p, 'msf_email', None),
+                "hrco_email": getattr(p, 'hrco_email', None),
+                "career_manager_email": getattr(p, 'career_manager_email', None),
+                "line_manager_email": getattr(p, 'line_manager_email', None),
+                "phone_number": getattr(p, 'phone_number', None),
+                "dietary_requirements": getattr(p, 'dietary_requirements', None),
+                "accommodation_needs": getattr(p, 'accommodation_needs', None),
+                "certificate_name": getattr(p, 'certificate_name', None),
+                "badge_name": getattr(p, 'badge_name', None),
+                "motivation_letter": getattr(p, 'motivation_letter', None),
+                "code_of_conduct_confirm": getattr(p, 'code_of_conduct_confirm', None),
+                "travel_requirements_confirm": getattr(p, 'travel_requirements_confirm', None),
+                "travelling_internationally": getattr(p, 'travelling_internationally', None),
+                "accommodation_type": getattr(p, 'accommodation_type', None),
+                "daily_meals": getattr(p, 'daily_meals', None),
                 "decline_reason": p.decline_reason,
                 "declined_at": p.declined_at.isoformat() if p.declined_at else None
             })
