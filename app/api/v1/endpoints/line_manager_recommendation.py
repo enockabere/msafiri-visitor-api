@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class RecommendationSubmission(BaseModel):
-    recommendation_text: str
+    is_recommended: bool
 
 @router.get("/test")
 async def test_endpoint():
@@ -28,7 +28,7 @@ async def get_recommendation_details(
     result = db.execute(
         text("""
             SELECT r.id, r.participant_name, r.participant_email, r.operation_center,
-                   r.event_title, r.event_dates, r.event_location, r.recommendation_text,
+                   r.event_title, r.event_dates, r.event_location, r.is_recommended,
                    r.submitted_at, e.registration_deadline
             FROM line_manager_recommendations r
             JOIN events e ON r.event_id = e.id
@@ -48,7 +48,7 @@ async def get_recommendation_details(
         "event_title": result[4],
         "event_dates": result[5],
         "event_location": result[6],
-        "recommendation_text": result[7],
+        "is_recommended": result[7],
         "submitted_at": result[8],
         "registration_deadline": result[9],
         "already_submitted": result[8] is not None
@@ -81,10 +81,10 @@ async def submit_recommendation(
     db.execute(
         text("""
             UPDATE line_manager_recommendations 
-            SET recommendation_text = :text, submitted_at = CURRENT_TIMESTAMP
+            SET is_recommended = :is_recommended, submitted_at = CURRENT_TIMESTAMP
             WHERE recommendation_token = :token
         """),
-        {"text": submission.recommendation_text, "token": token}
+        {"is_recommended": submission.is_recommended, "token": token}
     )
     
     db.commit()
@@ -102,7 +102,7 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
     all_recs = db.execute(
         text("""
             SELECT id, registration_id, participant_name, participant_email, 
-                   line_manager_email, recommendation_text, submitted_at, created_at,
+                   line_manager_email, is_recommended, submitted_at, created_at,
                    recommendation_token, event_id
             FROM line_manager_recommendations 
             ORDER BY created_at DESC
@@ -118,7 +118,7 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
         print(f"  Participant Name: {rec[2]}")
         print(f"  Participant Email: {rec[3]}")
         print(f"  Line Manager Email: {rec[4]}")
-        print(f"  Recommendation Text: {rec[5][:100] if rec[5] else 'None'}...")
+        print(f"  Is Recommended: {rec[5]}")
         print(f"  Submitted At: {rec[6]}")
         print(f"  Created At: {rec[7]}")
         print(f"  Token: {rec[8][:10] if rec[8] else 'None'}...")
@@ -148,7 +148,7 @@ async def debug_email_match(
         
         # Check if recommendation exists for this email
         rec_check = db.execute(
-            text("SELECT id, recommendation_text, submitted_at FROM line_manager_recommendations WHERE participant_email = :email AND event_id = 41"),
+            text("SELECT id, is_recommended, submitted_at FROM line_manager_recommendations WHERE participant_email = :email AND event_id = 41"),
             {"email": email}
         ).fetchone()
         
@@ -216,9 +216,9 @@ async def create_test_for_participant_email(
         text("""
             INSERT INTO line_manager_recommendations 
             (registration_id, participant_name, participant_email, line_manager_email, 
-             recommendation_text, submitted_at, created_at, recommendation_token, event_id)
+             is_recommended, submitted_at, created_at, recommendation_token, event_id)
             VALUES (1, :name, :email, 'test-manager@msf.org',
-                    'This is a test recommendation created for debugging. The participant shows excellent potential.', 
+                    TRUE, 
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :token, 41)
         """),
         {
@@ -259,9 +259,9 @@ async def create_test_recommendation(
         text("""
             INSERT INTO line_manager_recommendations 
             (registration_id, participant_name, participant_email, line_manager_email, 
-             recommendation_text, submitted_at, created_at, recommendation_token, event_id)
+             is_recommended, submitted_at, created_at, recommendation_token, event_id)
             VALUES (:registration_id, :name, :email, 'manager@test.com',
-                    'This is a test recommendation for debugging purposes.', 
+                    TRUE, 
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'test-token-456', 41)
         """),
         {
@@ -300,7 +300,7 @@ async def get_recommendation_by_participant(
     # Try to find recommendation by participant email and event_id
     result = db.execute(
         text("""
-            SELECT id, line_manager_email, recommendation_text, submitted_at, created_at
+            SELECT id, line_manager_email, is_recommended, submitted_at, created_at
             FROM line_manager_recommendations 
             WHERE participant_email = :email AND event_id = :event_id
             ORDER BY created_at DESC
@@ -314,7 +314,7 @@ async def get_recommendation_by_participant(
     return {
         "id": result[0],
         "line_manager_email": result[1],
-        "recommendation_text": result[2],
+        "is_recommended": result[2],
         "submitted_at": result[3],
         "created_at": result[4]
     }
