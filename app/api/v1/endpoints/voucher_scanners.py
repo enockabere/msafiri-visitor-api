@@ -326,27 +326,51 @@ async def toggle_scanner_status(
 @router.delete("/voucher-scanners/{scanner_id}")
 async def delete_scanner(
     scanner_id: int,
+    event_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Delete a voucher scanner"""
+    """Delete a voucher scanner from an event"""
     try:
         # Get the user (scanner)
         scanner_user = db.query(User).filter(User.id == scanner_id).first()
         if not scanner_user:
             raise HTTPException(status_code=404, detail="Scanner not found")
 
-        # Remove voucher_scanner role from user
-        user_role = db.query(UserRole).filter(
-            UserRole.user_id == scanner_id,
-            UserRole.role == RoleType.VOUCHER_SCANNER
-        ).first()
-
-        if user_role:
-            db.delete(user_role)
+        # Delete from event_voucher_scanners table (event-specific assignment)
+        from sqlalchemy import text
+        try:
+            db.execute(text("""
+                DELETE FROM event_voucher_scanners
+                WHERE user_id = :user_id AND event_id = :event_id
+            """), {"user_id": scanner_id, "event_id": event_id})
             db.commit()
-        
+            logger.info(f"Deleted scanner {scanner_id} from event {event_id}")
+        except Exception as table_error:
+            logger.warning(f"Event-specific scanner table not available: {str(table_error)}")
+
+        # Check if user has other event scanner assignments
+        try:
+            remaining = db.execute(text("""
+                SELECT COUNT(*) FROM event_voucher_scanners
+                WHERE user_id = :user_id
+            """), {"user_id": scanner_id}).scalar()
+
+            # Only remove role if no other events
+            if remaining == 0:
+                user_role = db.query(UserRole).filter(
+                    UserRole.user_id == scanner_id,
+                    UserRole.role == RoleType.VOUCHER_SCANNER
+                ).first()
+
+                if user_role:
+                    db.delete(user_role)
+                    db.commit()
+                    logger.info(f"Removed VOUCHER_SCANNER role from user {scanner_id}")
+        except Exception as role_error:
+            logger.warning(f"Could not check remaining assignments: {str(role_error)}")
+
         return {"message": "Scanner deleted successfully"}
-        
+
     except Exception as e:
         logger.error(f"Error deleting scanner: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete scanner: {str(e)}")
