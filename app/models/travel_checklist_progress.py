@@ -9,6 +9,6 @@ class TravelChecklistProgress(Base):
     event_id = Column(Integer, nullable=False, index=True)
     user_email = Column(String, nullable=False, index=True)
     checklist_items = Column(JSON, nullable=False, default={})
-    completed = Column(Boolean, default=False)
+    is_completed = Column(Boolean, default=False)  # Database has is_completed, not completed
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

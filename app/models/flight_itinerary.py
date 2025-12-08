@@ -11,10 +11,10 @@ class FlightItinerary(BaseModel):
     # Flight details
     airline = Column(String(100), nullable=True)
     flight_number = Column(String(50), nullable=True)
-    departure_airport = Column(String(100), nullable=False)
-    arrival_airport = Column(String(100), nullable=True)  # Made nullable for departure itineraries
-    departure_date = Column(DateTime, nullable=False)
-    arrival_date = Column(DateTime, nullable=True)  # Made nullable for departure itineraries
+    departure_city = Column(String(255), nullable=True)  # Database has departure_city
+    arrival_city = Column(String(255), nullable=True)  # Database has arrival_city
+    departure_date = Column(DateTime, nullable=True)
+    arrival_date = Column(DateTime, nullable=True)
     
     # Departure-specific fields
     pickup_location = Column(String(255), nullable=True)  # For departure itineraries
