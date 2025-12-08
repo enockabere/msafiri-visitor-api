@@ -802,20 +802,47 @@ async def delete_item_allocation(
     
     return {"message": "Item allocation deleted successfully"}
 
+@router.put("/vouchers/{allocation_id}")
+async def update_voucher_allocation(
+    allocation_id: int,
+    request_data: dict,
+    tenant_id: int = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Update voucher allocation"""
+
+    allocation = db.query(EventAllocation).filter(EventAllocation.id == allocation_id).first()
+    if not allocation:
+        raise HTTPException(status_code=404, detail="Voucher allocation not found")
+
+    # Update voucher fields
+    drink_vouchers_per_participant = request_data.get("drink_vouchers_per_participant")
+    notes = request_data.get("notes")
+
+    if drink_vouchers_per_participant is not None:
+        allocation.drink_vouchers_per_participant = drink_vouchers_per_participant
+    if notes is not None:
+        allocation.notes = notes
+
+    db.commit()
+    db.refresh(allocation)
+
+    return {"message": "Voucher allocation updated successfully", "id": allocation.id}
+
 @router.delete("/vouchers/{allocation_id}")
 async def delete_voucher_allocation(
     allocation_id: int,
     db: Session = Depends(get_db)
 ):
     """Delete voucher allocation"""
-    
+
     allocation = db.query(EventAllocation).filter(EventAllocation.id == allocation_id).first()
     if not allocation:
         raise HTTPException(status_code=404, detail="Voucher allocation not found")
-    
+
     db.delete(allocation)
     db.commit()
-    
+
     return {"message": "Voucher allocation deleted successfully"}
 
 @router.delete("/{allocation_id}")
