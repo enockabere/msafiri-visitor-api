@@ -322,8 +322,10 @@ async def send_line_manager_recommendation_email(
         
         # Send email to line manager
         from app.core.email_service import email_service
-        
-        base_url = "http://41.90.97.253:8001"  # Use production URL
+        import os
+
+        # Get base URL from environment variable, fallback to production URL
+        base_url = os.getenv("FRONTEND_BASE_URL", "http://41.90.97.253:8001/portal")
         recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
         
         subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
