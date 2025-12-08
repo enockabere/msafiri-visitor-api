@@ -7,7 +7,6 @@ from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.event import Event
 from app.models.user_roles import UserRole, RoleType
-from app.models.role import Role
 from app.schemas.user import UserCreate
 # Direct database operations - no CRUD imports needed
 from pydantic import BaseModel, EmailStr
@@ -61,19 +60,7 @@ async def create_voucher_scanners_bulk(
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Get or create voucher_scanner role
-        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
-        if not scanner_role:
-            # Create the role if it doesn't exist
-            scanner_role = Role(
-                name="voucher_scanner",
-                description="Can scan and redeem vouchers at events"
-            )
-            db.add(scanner_role)
-            db.commit()
-            db.refresh(scanner_role)
-            logger.info("✅ Created voucher_scanner role")
-        
+        # Note: We use RoleType.VOUCHER_SCANNER enum, not the roles table
         created_scanners = []
         
         for email in scanner_data.emails:
@@ -360,19 +347,16 @@ async def delete_scanner(
         scanner_user = db.query(User).filter(User.id == scanner_id).first()
         if not scanner_user:
             raise HTTPException(status_code=404, detail="Scanner not found")
-        
-        # Get voucher_scanner role
-        scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
-        if scanner_role:
-            # Remove scanner role from user
-            user_role = db.query(UserRole).filter(
-                UserRole.user_id == scanner_id,
-                UserRole.role_id == scanner_role.id
-            ).first()
-            
-            if user_role:
-                db.delete(user_role)
-                db.commit()
+
+        # Remove voucher_scanner role from user
+        user_role = db.query(UserRole).filter(
+            UserRole.user_id == scanner_id,
+            UserRole.role == RoleType.VOUCHER_SCANNER
+        ).first()
+
+        if user_role:
+            db.delete(user_role)
+            db.commit()
         
         return {"message": "Scanner deleted successfully"}
         

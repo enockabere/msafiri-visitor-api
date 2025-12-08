@@ -1,10 +1,6 @@
 -- Comprehensive script to create all missing tables
 -- Run this to ensure database has all required tables
-
--- 0. Ensure voucher_scanner role exists
-INSERT INTO roles (name, description, created_at, updated_at)
-VALUES ('voucher_scanner', 'Can scan and redeem vouchers at events', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-ON CONFLICT (name) DO NOTHING;
+-- Note: Voucher scanner role uses RoleType.VOUCHER_SCANNER enum, not the roles table
 
 -- 1. Create event_voucher_scanners table
 CREATE TABLE IF NOT EXISTS event_voucher_scanners (
