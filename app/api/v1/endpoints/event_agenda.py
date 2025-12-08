@@ -57,9 +57,10 @@ def get_event_agenda(
         # Create datetime strings for portal compatibility
         event_date_str = item.event_date.isoformat() if item.event_date else "2024-01-01"
         time_str = item.time or "09:00"
+        end_time_str = item.end_time if hasattr(item, 'end_time') and item.end_time else time_str
         start_datetime = f"{event_date_str}T{time_str}:00"
-        end_datetime = f"{event_date_str}T{time_str}:00"  # Same as start for now
-        
+        end_datetime = f"{event_date_str}T{end_time_str}:00"
+
         agenda_list.append({
             "id": item.id,
             "title": item.title or "",
@@ -195,6 +196,16 @@ def create_agenda_item(
             time = start_dt.strftime('%H:%M')
         except:
             time = '09:00'
+
+    # Handle end_time from different sources
+    end_time = agenda_data.get('end_time', '')
+    if not end_time and 'end_datetime' in agenda_data:
+        # Extract end time from end_datetime (portal format)
+        try:
+            end_dt = datetime.fromisoformat(agenda_data['end_datetime'].replace('Z', '+00:00'))
+            end_time = end_dt.strftime('%H:%M')
+        except:
+            end_time = None
     
     # Handle event_date from different sources
     event_date = agenda_data.get('event_date')
@@ -253,6 +264,7 @@ def create_agenda_item(
         title=title,
         description=description,
         time=time,
+        end_time=end_time,
         event_date=event_date,
         day_number=day_number,
         created_by=created_by
@@ -355,6 +367,16 @@ def update_agenda_item(
         try:
             start_dt = datetime.fromisoformat(agenda_data['start_datetime'].replace('Z', '+00:00'))
             agenda_item.time = start_dt.strftime('%H:%M')
+        except:
+            pass
+
+    # Handle end_time from different sources
+    if 'end_time' in agenda_data:
+        agenda_item.end_time = agenda_data['end_time']
+    elif 'end_datetime' in agenda_data:
+        try:
+            end_dt = datetime.fromisoformat(agenda_data['end_datetime'].replace('Z', '+00:00'))
+            agenda_item.end_time = end_dt.strftime('%H:%M')
         except:
             pass
     
