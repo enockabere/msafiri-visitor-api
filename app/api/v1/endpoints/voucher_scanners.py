@@ -61,10 +61,18 @@ async def create_voucher_scanners_bulk(
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
         
-        # Get voucher_scanner role
+        # Get or create voucher_scanner role
         scanner_role = db.query(Role).filter(Role.name == "voucher_scanner").first()
         if not scanner_role:
-            raise HTTPException(status_code=404, detail="Scanner role not found")
+            # Create the role if it doesn't exist
+            scanner_role = Role(
+                name="voucher_scanner",
+                description="Can scan and redeem vouchers at events"
+            )
+            db.add(scanner_role)
+            db.commit()
+            db.refresh(scanner_role)
+            logger.info("✅ Created voucher_scanner role")
         
         created_scanners = []
         
