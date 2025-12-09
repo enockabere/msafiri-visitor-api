@@ -292,15 +292,43 @@ def create_missing_transport_requests(
     transport_requests_created = []
     
     for itinerary in confirmed_itineraries:
-        # Check if transport request already exists
+        # Check if transport request already exists linked to this itinerary
         existing_request = db.query(TransportRequest).filter(
             TransportRequest.flight_itinerary_id == itinerary.id,
             TransportRequest.user_email == current_user.email
         ).first()
-        
+
         if existing_request:
+            print(f"DEBUG: Transport request already exists for itinerary {itinerary.id}, skipping...")
             continue
-        
+
+        # Check for orphaned transport requests (NULL flight_itinerary_id) that match this itinerary
+        # This handles cases where itineraries were deleted and recreated
+        flight_details_str = f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip()
+        orphaned_request = None
+
+        if flight_details_str:
+            # Look for orphaned request with matching flight details and similar timing
+            time_window_start = itinerary.departure_date - timedelta(hours=24) if itinerary.departure_date else None
+            time_window_end = itinerary.departure_date + timedelta(hours=24) if itinerary.departure_date else None
+
+            if time_window_start and time_window_end:
+                orphaned_request = db.query(TransportRequest).filter(
+                    TransportRequest.flight_itinerary_id == None,
+                    TransportRequest.user_email == current_user.email,
+                    TransportRequest.event_id == itinerary.event_id,
+                    TransportRequest.flight_details.like(f"%{flight_details_str}%"),
+                    TransportRequest.pickup_time >= time_window_start,
+                    TransportRequest.pickup_time <= time_window_end
+                ).first()
+
+        if orphaned_request:
+            # Relink orphaned request to this itinerary instead of creating a duplicate
+            print(f"DEBUG: Found orphaned request {orphaned_request.id} matching itinerary {itinerary.id}, relinking...")
+            orphaned_request.flight_itinerary_id = itinerary.id
+            transport_requests_created.append(f"relinked-{itinerary.itinerary_type}")
+            continue
+
         if itinerary.itinerary_type == "arrival":
             # Use arrival_airport, fall back to arrival_city, then departure fields
             pickup_addr = (itinerary.arrival_airport or
