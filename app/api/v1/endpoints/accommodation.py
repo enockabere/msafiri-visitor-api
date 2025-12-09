@@ -1280,16 +1280,16 @@ def check_in_allocation(
     current_user: schemas.User = Depends(deps.get_current_user),
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
-    """Check in allocation"""
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
+    """Check in allocation - Admin or self check-in"""
+    from app.models.guesthouse import AccommodationAllocation
+    from app.models.event_participant import EventParticipant
     
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
-    allocation = crud.accommodation_allocation.get(db, id=allocation_id)
+    allocation = db.query(AccommodationAllocation).filter(
+        AccommodationAllocation.id == allocation_id
+    ).first()
+    
     if not allocation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1302,6 +1302,27 @@ def check_in_allocation(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this allocation"
         )
+    
+    # Check permissions: Admin can check in anyone, regular user can only check in themselves
+    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]
+    
+    if not is_admin:
+        # For non-admin users, verify they are checking in their own accommodation
+        if allocation.participant_id:
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.id == allocation.participant_id
+            ).first()
+            
+            if not participant or participant.email != current_user.email:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only check in to your own accommodation"
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to check in this accommodation"
+            )
     
     # Update status to checked_in
     allocation.status = "checked_in"
