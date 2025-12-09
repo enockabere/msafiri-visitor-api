@@ -7,6 +7,7 @@ from app.api import deps
 from app.db.database import get_db
 from app.models.flight_itinerary import FlightItinerary
 from app.models.event_participant import EventParticipant
+from app.models.transport_request import TransportRequest
 from datetime import datetime
 
 router = APIRouter()
@@ -184,6 +185,18 @@ def delete_flight_itinerary(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to delete this itinerary"
         )
+
+    # Before deleting, set flight_itinerary_id to NULL for all related transport requests
+    # to avoid foreign key constraint violation
+    related_requests = db.query(TransportRequest).filter(
+        TransportRequest.flight_itinerary_id == itinerary_id
+    ).all()
+
+    if related_requests:
+        print(f"DEBUG: Found {len(related_requests)} transport requests linked to this itinerary, unlinking them...")
+        for request in related_requests:
+            request.flight_itinerary_id = None
+        db.flush()  # Flush the changes to the database before deleting the itinerary
 
     # Delete the itinerary
     db.delete(itinerary)
