@@ -39,12 +39,16 @@ def get_participant_flight_itinerary(
         "id": itinerary.id,
         "departure_city": itinerary.departure_city,
         "arrival_city": itinerary.arrival_city,
+        "departure_airport": itinerary.departure_airport,
+        "arrival_airport": itinerary.arrival_airport,
+        "pickup_location": itinerary.pickup_location,
         "departure_date": itinerary.departure_date.isoformat() if itinerary.departure_date else None,
         "departure_time": itinerary.departure_time if itinerary.departure_time else None,
         "arrival_date": itinerary.arrival_date.isoformat() if itinerary.arrival_date else None,
         "arrival_time": itinerary.arrival_time if itinerary.arrival_time else None,
         "airline": itinerary.airline,
         "flight_number": itinerary.flight_number,
+        "itinerary_type": itinerary.itinerary_type or "arrival",
         "status": itinerary.status or "pending",
         "destination": itinerary.destination,
         "created_at": itinerary.created_at.isoformat() if itinerary.created_at else None
@@ -80,10 +84,14 @@ def create_flight_itinerary(
             user_email=current_user.email,
             airline=flight_data.get("airline"),
             flight_number=flight_data.get("flight_number"),
-            departure_city=flight_data.get("departure_airport"),  # Mobile sends departure_airport, DB has departure_city
-            arrival_city=flight_data.get("arrival_airport"),  # Mobile sends arrival_airport, DB has arrival_city
+            departure_city=flight_data.get("departure_airport"),  # Mobile sends departure_airport
+            arrival_city=flight_data.get("arrival_airport"),  # Mobile sends arrival_airport
+            departure_airport=flight_data.get("departure_airport"),  # Also store in departure_airport field
+            arrival_airport=flight_data.get("arrival_airport"),  # Also store in arrival_airport field
+            pickup_location=flight_data.get("pickup_location"),
             departure_date=departure_date,
             arrival_date=arrival_date,
+            itinerary_type=flight_data.get("itinerary_type", "arrival"),
             destination=flight_data.get("destination"),
             status="pending"  # Default status
         )
