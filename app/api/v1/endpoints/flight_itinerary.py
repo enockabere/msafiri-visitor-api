@@ -105,3 +105,32 @@ def create_flight_itinerary(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to create flight itinerary: {str(e)}"
         )
+
+@router.post("/confirm-itineraries")
+def confirm_itineraries(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    itinerary_data: dict
+) -> Any:
+    """Confirm flight itineraries"""
+    print(f"DEBUG: Confirming itineraries: {itinerary_data}")
+
+    itinerary_ids = itinerary_data.get("itinerary_ids", [])
+
+    if not itinerary_ids:
+        return {"message": "No itineraries to confirm"}
+
+    # Update all specified itineraries to confirmed
+    for itinerary_id in itinerary_ids:
+        itinerary = db.query(FlightItinerary).filter(
+            FlightItinerary.id == itinerary_id,
+            FlightItinerary.user_email == current_user.email
+        ).first()
+
+        if itinerary:
+            itinerary.status = "confirmed"
+
+    db.commit()
+
+    return {"message": f"Confirmed {len(itinerary_ids)} itineraries successfully"}
