@@ -336,10 +336,11 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
         booking_result = db.execute(text("""
             SELECT 
                 COUNT(*) as total_bookings,
-                COUNT(CASE WHEN aa.status = 'checked_in' THEN 1 END) as checked_in_visitors
+                COUNT(CASE WHEN aa.status = 'checked_in' THEN 1 END) as checked_in_visitors,
+                COUNT(CASE WHEN aa.status = 'released' THEN 1 END) as checked_out_visitors
             FROM accommodation_allocations aa
             JOIN event_participants ep ON aa.participant_id = ep.id
-            WHERE ep.event_id = :event_id AND aa.status IN ('booked', 'checked_in')
+            WHERE ep.event_id = :event_id AND aa.status IN ('booked', 'checked_in', 'released')
         """), {"event_id": event_id})
         
         booking_stats = booking_result.fetchone()
@@ -347,7 +348,8 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
         return {
             "total_bookings": booking_stats.total_bookings or confirmed_count,
             "booked_rooms": booking_stats.total_bookings or confirmed_count,
-            "checked_in_visitors": booking_stats.checked_in_visitors or 0
+            "checked_in_visitors": booking_stats.checked_in_visitors or 0,
+            "checked_out_visitors": booking_stats.checked_out_visitors or 0
         }
     except Exception:
         # Fallback: count confirmed participants
