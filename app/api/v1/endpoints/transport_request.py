@@ -286,7 +286,7 @@ def create_missing_transport_requests(
     confirmed_itineraries = db.query(FlightItinerary).filter(
         FlightItinerary.event_id == event_id,
         FlightItinerary.user_email == current_user.email,
-        FlightItinerary.confirmed == True
+        FlightItinerary.status == "confirmed"
     ).all()
     
     transport_requests_created = []
