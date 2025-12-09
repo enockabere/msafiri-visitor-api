@@ -121,6 +121,9 @@ def confirm_itineraries(
     if not itinerary_ids:
         return {"message": "No itineraries to confirm"}
 
+    # Track which events need participant updates
+    event_ids = set()
+
     # Update all specified itineraries to confirmed
     for itinerary_id in itinerary_ids:
         itinerary = db.query(FlightItinerary).filter(
@@ -130,6 +133,18 @@ def confirm_itineraries(
 
         if itinerary:
             itinerary.status = "confirmed"
+            event_ids.add(itinerary.event_id)
+
+    # Update EventParticipant ticket_document for each event
+    for event_id in event_ids:
+        participant = db.query(EventParticipant).filter(
+            EventParticipant.email == current_user.email,
+            EventParticipant.event_id == event_id
+        ).first()
+
+        if participant:
+            participant.ticket_document = True
+            print(f"DEBUG: Updated participant {participant.id} ticket_document to True")
 
     db.commit()
 
