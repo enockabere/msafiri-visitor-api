@@ -157,3 +157,37 @@ def confirm_itineraries(
     db.commit()
 
     return {"message": f"Confirmed {len(itinerary_ids)} itineraries successfully"}
+
+@router.delete("/{itinerary_id}")
+def delete_flight_itinerary(
+    itinerary_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Delete a flight itinerary"""
+    print(f"DEBUG: Deleting itinerary {itinerary_id} for user {current_user.email}")
+
+    # Get the itinerary
+    itinerary = db.query(FlightItinerary).filter(
+        FlightItinerary.id == itinerary_id
+    ).first()
+
+    if not itinerary:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Flight itinerary not found"
+        )
+
+    # Check if user owns this itinerary
+    if itinerary.user_email != current_user.email:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this itinerary"
+        )
+
+    # Delete the itinerary
+    db.delete(itinerary)
+    db.commit()
+
+    print(f"DEBUG: Successfully deleted itinerary {itinerary_id}")
+    return {"message": "Flight itinerary deleted successfully"}
