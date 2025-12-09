@@ -321,7 +321,7 @@ async def send_message(
                         title=mention_title,
                         message=mention_body,
                         tenant_id=mentioned_user.tenant_id or current_user.tenant_id,
-                        priority=NotificationPriority.HIGH,
+                        priority="HIGH",
                         notification_type=NotificationType.CHAT_MENTION,
                         send_push=True,
                         triggered_by=current_user.email
@@ -372,7 +372,7 @@ async def send_message(
                             title=notification_title,
                             message=notification_body,
                             tenant_id=user.tenant_id or current_user.tenant_id,
-                            priority=NotificationPriority.MEDIUM,
+                            priority="MEDIUM",
                             notification_type=NotificationType.CHAT_MESSAGE,
                             send_push=True,
                             triggered_by=current_user.email
@@ -605,7 +605,7 @@ async def send_direct_message(
                 title=notification_title,
                 message=notification_body,
                 tenant_id=recipient.tenant_id or current_user.tenant_id,
-                priority=NotificationPriority.MEDIUM,
+                priority="MEDIUM",
                 notification_type=NotificationType.CHAT_MESSAGE,
                 send_push=True,
                 triggered_by=current_user.email

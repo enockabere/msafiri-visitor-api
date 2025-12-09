@@ -456,7 +456,7 @@ def notify_super_admins_about_cancellation(db: Session, cancelled_email: str, ca
                 message=f"Super admin invitation for {cancelled_email} was cancelled by {cancelled_by}",
                 tenant_id=admin.tenant_id or "system",
                 notification_type=NotificationType.SYSTEM_ANNOUNCEMENT,
-                priority=NotificationPriority.MEDIUM,
+                priority="MEDIUM",
                 send_email=False,
                 send_push=False,
                 triggered_by=cancelled_by

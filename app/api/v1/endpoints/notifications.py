@@ -213,14 +213,14 @@ def send_notification_to_user(
     # Handle tenant_id - use current user's tenant if target user has None (super admin)
     target_tenant_id = target_user.tenant_id or current_user.tenant_id or tenant_context
     
-    # Convert priority string to enum
+    # Convert priority string to uppercase
     priority_map = {
-        "low": NotificationPriority.LOW,
-        "medium": NotificationPriority.MEDIUM,
-        "high": NotificationPriority.HIGH,
-        "urgent": NotificationPriority.URGENT
+        "low": "LOW",
+        "medium": "MEDIUM",
+        "high": "HIGH",
+        "urgent": "URGENT"
     }
-    priority = priority_map.get(notification_data.priority.lower(), NotificationPriority.MEDIUM)
+    priority = priority_map.get(notification_data.priority.lower(), "MEDIUM")
     
     notification = crud.notification.create_user_notification(
         db,
@@ -252,14 +252,14 @@ def send_notification_to_tenant(
             detail="Not enough permissions"
         )
     
-    # Convert priority string to enum
+    # Convert priority string to uppercase
     priority_map = {
-        "low": NotificationPriority.LOW,
-        "medium": NotificationPriority.MEDIUM,
-        "high": NotificationPriority.HIGH,
-        "urgent": NotificationPriority.URGENT
+        "low": "LOW",
+        "medium": "MEDIUM",
+        "high": "HIGH",
+        "urgent": "URGENT"
     }
-    priority = priority_map.get(notification_data.priority.lower(), NotificationPriority.MEDIUM)
+    priority = priority_map.get(notification_data.priority.lower(), "MEDIUM")
     
     notification = crud.notification.create_tenant_broadcast(
         db,
@@ -297,14 +297,14 @@ def edit_notification(
             detail="Notification not found"
         )
     
-    # Convert priority string to enum if provided
+    # Convert priority string to uppercase if provided
     priority = None
     if edit_data.priority:
         priority_map = {
-            "low": NotificationPriority.LOW,
-            "medium": NotificationPriority.MEDIUM,
-            "high": NotificationPriority.HIGH,
-            "urgent": NotificationPriority.URGENT
+            "low": "LOW",
+            "medium": "MEDIUM",
+            "high": "HIGH",
+            "urgent": "URGENT"
         }
         priority = priority_map.get(edit_data.priority.lower())
     
@@ -407,15 +407,15 @@ def send_broadcast_notification(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    
-    # Convert priority string to enum
+
+    # Convert priority string to uppercase
     priority_map = {
-        "low": NotificationPriority.LOW,
-        "medium": NotificationPriority.MEDIUM,
-        "high": NotificationPriority.HIGH,
-        "urgent": NotificationPriority.URGENT
+        "low": "LOW",
+        "medium": "MEDIUM",
+        "high": "HIGH",
+        "urgent": "URGENT"
     }
-    priority = priority_map.get(broadcast_data.priority.lower(), NotificationPriority.MEDIUM)
+    priority = priority_map.get(broadcast_data.priority.lower(), "MEDIUM")
     
     notification = crud.notification.create_tenant_broadcast(
         db,
@@ -658,7 +658,7 @@ def send_notification_to_super_admins(
                 title=notification_data.get("title", "Notification"),
                 message=notification_data.get("message", ""),
                 notification_type=NotificationType.SYSTEM_ANNOUNCEMENT,
-                priority=NotificationPriority.MEDIUM,
+                priority="MEDIUM",
                 send_in_app=True,
                 send_email=False,
                 send_push=False,

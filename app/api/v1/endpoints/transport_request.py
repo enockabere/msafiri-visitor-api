@@ -345,7 +345,7 @@ def create_missing_transport_requests(
                 title="Transport Pickup Confirmation Required",
                 message=f"Please confirm your pickup for {itinerary.itinerary_type} transport on {pickup_date.strftime('%B %d')} at {pickup_time.strftime('%H:%M')} from {pickup_addr}.",
                 notification_type=NotificationType.PICKUP_CONFIRMATION,
-                priority=NotificationPriority.HIGH,
+                priority="HIGH",
                 send_in_app=True,
                 send_push=True,
                 action_url=f"/movement?transport_id={transport_request.id}",
