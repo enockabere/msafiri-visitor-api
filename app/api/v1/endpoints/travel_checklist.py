@@ -54,13 +54,13 @@ async def get_checklist_progress(
         TravelChecklistProgress.event_id == event_id,
         TravelChecklistProgress.user_email == current_user.email
     ).first()
-    
+
     if not progress:
         return {"checklist_items": {}, "completed": False}
-    
+
     return {
         "checklist_items": progress.checklist_items,
-        "completed": progress.completed,
+        "completed": progress.is_completed,
         "updated_at": progress.updated_at
     }
 
@@ -97,7 +97,7 @@ async def save_checklist_progress(
     if existing_progress:
         # Update existing progress with server-calculated completion
         existing_progress.checklist_items = checklist_items
-        existing_progress.completed = server_calculated_completed
+        existing_progress.is_completed = server_calculated_completed
         print(f"🔍 API DEBUG: Updated existing progress - completed: {server_calculated_completed}")
     else:
         # Create new progress record with server-calculated completion
@@ -105,7 +105,7 @@ async def save_checklist_progress(
             event_id=event_id,
             user_email=current_user.email,
             checklist_items=checklist_items,
-            completed=server_calculated_completed
+            is_completed=server_calculated_completed
         )
         db.add(new_progress)
         print(f"🔍 API DEBUG: Created new progress - completed: {server_calculated_completed}")
@@ -126,23 +126,23 @@ async def get_participant_checklist_progress(
     db: Session = Depends(get_db)
 ):
     """Get travel checklist progress for a specific participant (admin only)"""
-    
 
-    
+
+
     # Check if current user has admin permissions for this event
     # For now, allow any authenticated user to view progress
-    
+
     progress = db.query(TravelChecklistProgress).filter(
         TravelChecklistProgress.event_id == event_id,
         TravelChecklistProgress.user_email == participant_email
     ).first()
-    
+
     if not progress:
         return {"checklist_items": {}, "completed": False}
-    
+
     return {
         "checklist_items": progress.checklist_items,
-        "completed": progress.completed,
+        "completed": progress.is_completed,
         "updated_at": progress.updated_at
     }
 
