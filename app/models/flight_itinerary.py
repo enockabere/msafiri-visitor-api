@@ -11,6 +11,9 @@ class FlightItinerary(BaseModel):
     # Flight location details
     departure_city = Column(String(255), nullable=True)
     arrival_city = Column(String(255), nullable=True)
+    departure_airport = Column(String(100), nullable=True)
+    arrival_airport = Column(String(100), nullable=True)
+    pickup_location = Column(String(255), nullable=True)
 
     # Flight timing
     departure_date = Column(DateTime, nullable=True)
@@ -27,6 +30,9 @@ class FlightItinerary(BaseModel):
     seat_number = Column(String(20), nullable=True)
     baggage_allowance = Column(String(100), nullable=True)
     special_requests = Column(Text, nullable=True)
+
+    # Itinerary type (arrival or departure)
+    itinerary_type = Column(String(50), nullable=True)
 
     # Status and confirmation
     status = Column(String(50), nullable=True)
