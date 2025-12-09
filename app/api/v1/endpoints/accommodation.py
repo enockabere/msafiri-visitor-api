@@ -1273,6 +1273,65 @@ def delete_allocation(
     crud.accommodation_allocation.remove(db, id=allocation_id)
     return {"message": "Allocation deleted successfully"}
 
+@router.patch("/allocations/{allocation_id}/status")
+def update_allocation_status(
+    allocation_id: int,
+    status_data: dict,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Update allocation status - Admin or self update"""
+    from app.models.guesthouse import AccommodationAllocation
+    from app.models.event_participant import EventParticipant
+    
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    allocation = db.query(AccommodationAllocation).filter(
+        AccommodationAllocation.id == allocation_id
+    ).first()
+    
+    if not allocation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Allocation not found"
+        )
+    
+    if allocation.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this allocation"
+        )
+    
+    # Check permissions
+    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]
+    
+    if not is_admin:
+        if allocation.participant_id:
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.id == allocation.participant_id
+            ).first()
+            
+            if not participant or participant.email != current_user.email:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only update your own accommodation"
+                )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to update this accommodation"
+            )
+    
+    # Update status
+    new_status = status_data.get('status')
+    if new_status:
+        allocation.status = new_status
+        db.commit()
+        db.refresh(allocation)
+    
+    return {"message": "Status updated successfully", "status": allocation.status}
+
 @router.patch("/allocations/{allocation_id}/check-in")
 def check_in_allocation(
     allocation_id: int,
