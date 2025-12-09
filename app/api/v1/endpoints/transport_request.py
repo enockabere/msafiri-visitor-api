@@ -302,17 +302,30 @@ def create_missing_transport_requests(
             continue
         
         if itinerary.itinerary_type == "arrival":
-            pickup_addr = itinerary.arrival_airport or itinerary.departure_airport
+            # Use arrival_airport, fall back to arrival_city, then departure fields
+            pickup_addr = (itinerary.arrival_airport or
+                          itinerary.arrival_city or
+                          itinerary.departure_airport or
+                          itinerary.departure_city or
+                          "Airport")
             dropoff_addr = itinerary.destination or "Event Location"
             pickup_time = itinerary.arrival_date or itinerary.departure_date
             notes = "Airport pickup for arrival flight"
-            
+
         elif itinerary.itinerary_type == "departure":
-            pickup_addr = itinerary.pickup_location or "Event Location"
-            dropoff_addr = itinerary.departure_airport
+            pickup_addr = itinerary.pickup_location or itinerary.destination or "Event Location"
+            # Use departure_airport, fall back to departure_city
+            dropoff_addr = (itinerary.departure_airport or
+                           itinerary.departure_city or
+                           "Airport")
             pickup_time = itinerary.departure_date - timedelta(hours=2)
             notes = "Airport drop-off for departure flight"
         else:
+            continue
+
+        # Skip if we still don't have valid addresses
+        if not pickup_addr or not dropoff_addr:
+            print(f"DEBUG: Skipping transport request - missing addresses. Pickup: {pickup_addr}, Dropoff: {dropoff_addr}")
             continue
             
         transport_request = TransportRequest(
