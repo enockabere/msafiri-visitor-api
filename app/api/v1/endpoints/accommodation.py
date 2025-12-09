@@ -1497,6 +1497,7 @@ def get_participant_accommodation(
                             all_facilities.extend([key for key, value in room_facilities.items() if value])
                         
                         accommodations.append({
+                            "allocation_id": allocation.id,
                             "type": "guesthouse",
                             "name": f"{guesthouse.name} - Room {room.room_number}",
                             "location": guesthouse.location or guesthouse.name,
@@ -1507,6 +1508,7 @@ def get_participant_accommodation(
                             "room_capacity": room.capacity,
                             "room_occupants": room.current_occupants,
                             "is_shared": room.capacity > 1,
+                            "room_number": room.room_number,
                             "description": getattr(guesthouse, 'description', None),
                             "facilities": all_facilities,
                             "room_facilities": room_facilities,
@@ -1557,6 +1559,7 @@ def get_participant_accommodation(
                                     })
                     
                     accommodation_data = {
+                        "allocation_id": allocation.id,
                         "type": "vendor",
                         "name": vendor.vendor_name,
                         "location": vendor.location,
@@ -1567,6 +1570,7 @@ def get_participant_accommodation(
                         "room_capacity": 2 if allocation.room_type == "double" else 1,
                         "room_occupants": len(roommates) + 1 if allocation.room_type == "double" else 1,
                         "is_shared": allocation.room_type == "double",
+                        "room_type": allocation.room_type,
                         "vendor_name": vendor.vendor_name,
                         "vendor_contact": vendor.contact_phone,
                         "description": vendor.description,
