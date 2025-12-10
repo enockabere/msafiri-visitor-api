@@ -41,7 +41,14 @@ class TransportRequest(BaseModel):
     vehicle_number = Column(String(50), nullable=True)
     vehicle_color = Column(String(50), nullable=True)
     booking_reference = Column(String(100), nullable=True)
-    
+
+    # Auto-booking tracking
+    auto_booked = Column(Boolean, default=False, nullable=False)
+    auto_booking_attempted_at = Column(DateTime, nullable=True)
+    auto_booking_error = Column(Text, nullable=True)
+    pooled_with_request_ids = Column(Text, nullable=True)  # JSON array of pooled request IDs
+    is_pool_leader = Column(Boolean, default=False, nullable=False)
+
     # Relationships
     event = relationship("Event")
     flight_itinerary = relationship("FlightItinerary")
