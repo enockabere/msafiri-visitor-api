@@ -1235,6 +1235,48 @@ def get_transport_feature_flags():
         "show_create_request": True
     }
 
+@router.delete("/transport-requests/{request_id}")
+def delete_transport_request(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a transport request (only if not booked)"""
+    
+    transport_request = db.query(TransportRequest).filter(
+        TransportRequest.id == request_id,
+        TransportRequest.user_email == current_user.email
+    ).first()
+    
+    if not transport_request:
+        raise HTTPException(
+            status_code=404, 
+            detail="Transport request not found"
+        )
+    
+    # Only allow deletion if not booked
+    if transport_request.status in ["booked", "confirmed", "pickup_confirmed", "completed"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete transport request with status: {transport_request.status}"
+        )
+    
+    try:
+        db.delete(transport_request)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Transport request deleted successfully"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete transport request: {str(e)}"
+        )
+
 @router.get("/booking-details/{ref_no}")
 def get_booking_details(
     ref_no: str,

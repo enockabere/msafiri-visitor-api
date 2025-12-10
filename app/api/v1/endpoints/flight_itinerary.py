@@ -143,10 +143,7 @@ def confirm_itineraries(
     4. Attempts auto-booking with transport provider if configured
     5. Returns comprehensive status including booking results
     """
-    logger.info(f"Confirming itineraries: {itinerary_data} for user {current_user.email}")
-
     itinerary_ids = itinerary_data.get("itinerary_ids", [])
-
     if not itinerary_ids:
         return {"message": "No itineraries to confirm"}
 
@@ -163,7 +160,6 @@ def confirm_itineraries(
         if itinerary:
             itinerary.status = "confirmed"
             event_ids.add(itinerary.event_id)
-            logger.info(f"Confirmed itinerary {itinerary_id} for event {itinerary.event_id}")
 
     # Update EventParticipant ticket_document for each event
     for event_id in event_ids:
@@ -174,31 +170,59 @@ def confirm_itineraries(
 
         if participant:
             participant.ticket_document = True
-            logger.info(f"Updated participant {participant.id} ticket_document to True")
 
     # Commit itinerary confirmations
     db.commit()
 
-    # Auto-create transport requests and attempt booking for each event
+    # Auto-create transport requests for each confirmed itinerary individually
     transport_bookings = []
-    for event_id in event_ids:
+    for itinerary_id in itinerary_ids:
         try:
-            booking_result = auto_create_and_book_transport(
-                event_id=event_id,
-                user_email=current_user.email,
-                db=db
-            )
-            transport_bookings.append(booking_result)
-            logger.info(f"Auto-booking result for event {event_id}: {booking_result}")
+            itinerary = db.query(FlightItinerary).filter(
+                FlightItinerary.id == itinerary_id,
+                FlightItinerary.user_email == current_user.email
+            ).first()
+            
+            if not itinerary:
+                continue
+                
+            # Create transport request for this specific itinerary
+            transport_request = create_transport_request_from_itinerary(itinerary, current_user.email, db)
+            
+            if transport_request:
+                # Attempt auto-booking for this single request
+                booking_results = attempt_auto_booking(itinerary.event_id, [transport_request], db)
+                
+                transport_bookings.append({
+                    "itinerary_id": itinerary_id,
+                    "event_id": itinerary.event_id,
+                    "requests_created": 1,
+                    "booking_results": booking_results
+                })
+            else:
+                transport_bookings.append({
+                    "itinerary_id": itinerary_id,
+                    "event_id": itinerary.event_id,
+                    "requests_created": 0,
+                    "booking_results": [],
+                    "error": "Failed to create transport request"
+                })
+                
         except Exception as e:
-            logger.error(f"Error in auto-booking for event {event_id}: {str(e)}")
+            db.rollback()
             transport_bookings.append({
-                "event_id": event_id,
+                "itinerary_id": itinerary_id,
                 "error": str(e),
                 "requests_created": 0,
                 "booking_results": []
             })
 
+    # Commit all transport request creations
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+    
     # Calculate summary statistics
     total_requests_created = sum(tb.get("requests_created", 0) for tb in transport_bookings)
     total_auto_booked = sum(
@@ -220,6 +244,29 @@ def confirm_itineraries(
             "pooled_bookings": total_pooled
         }
     }
+
+@router.delete("/cleanup-orphaned-transport/{event_id}")
+def cleanup_orphaned_transport(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Clean up orphaned transport requests that have no linked flight itinerary"""
+    # Find orphaned transport requests
+    orphaned_requests = db.query(TransportRequest).filter(
+        TransportRequest.user_email == current_user.email,
+        TransportRequest.event_id == event_id,
+        TransportRequest.flight_itinerary_id == None
+    ).all()
+    
+    if orphaned_requests:
+        for request in orphaned_requests:
+            db.delete(request)
+        
+        db.commit()
+        return {"message": f"Cleaned up {len(orphaned_requests)} orphaned transport requests"}
+    else:
+        return {"message": "No orphaned transport requests found"}
 
 @router.delete("/{itinerary_id}")
 def delete_flight_itinerary(
@@ -248,23 +295,30 @@ def delete_flight_itinerary(
             detail="Not authorized to delete this itinerary"
         )
 
-    # Before deleting, set flight_itinerary_id to NULL for all related transport requests
-    # to avoid foreign key constraint violation
+    # Delete all related transport requests
     related_requests = db.query(TransportRequest).filter(
         TransportRequest.flight_itinerary_id == itinerary_id
     ).all()
 
     if related_requests:
-        print(f"DEBUG: Found {len(related_requests)} transport requests linked to this itinerary, unlinking them...")
         for request in related_requests:
-            request.flight_itinerary_id = None
-        db.flush()  # Flush the changes to the database before deleting the itinerary
+            db.delete(request)
+        db.flush()
 
     # Delete the itinerary
     db.delete(itinerary)
     db.commit()
 
-    print(f"DEBUG: Successfully deleted itinerary {itinerary_id}")
+    # Also delete any orphaned transport requests for this user/event that have no flight_itinerary_id
+    orphaned_requests = db.query(TransportRequest).filter(
+        TransportRequest.user_email == current_user.email,
+        TransportRequest.event_id == itinerary.event_id,
+        TransportRequest.flight_itinerary_id == None
+    ).all()
+    
+    if orphaned_requests:
+        for request in orphaned_requests:
+            db.delete(request)
     return {"message": "Flight itinerary deleted successfully"}
 
 
@@ -430,8 +484,30 @@ def create_transport_request_from_itinerary(
         ).first()
 
         if existing_request:
-            logger.info(f"Transport request already exists for itinerary {itinerary.id}")
             return existing_request
+
+        # Get phone number from public registration data
+        from sqlalchemy import text
+        phone_result = db.execute(
+            text("""
+                SELECT COALESCE(pr.phone_number, '254743332560') as phone_number
+                FROM public_registrations pr
+                JOIN event_participants ep ON pr.participant_id = ep.id
+                WHERE ep.email = :user_email AND ep.event_id = :event_id
+                LIMIT 1
+            """),
+            {"user_email": user_email, "event_id": itinerary.event_id}
+        ).fetchone()
+        
+        phone_number = phone_result[0] if phone_result else None
+        
+        # Fallback to user profile if not found in registration
+        if not phone_number and user and user.phone_number:
+            phone_number = user.phone_number
+        
+        # Final fallback to known phone number
+        if not phone_number:
+            phone_number = "254743332560"
 
         # Create transport request
         transport_request = TransportRequest(
@@ -443,7 +519,7 @@ def create_transport_request_from_itinerary(
             dropoff_longitude=dropoff_lon,
             pickup_time=pickup_time,
             passenger_name=user.full_name if user and hasattr(user, 'full_name') else user_email.split('@')[0],
-            passenger_phone=user.phone_number if user and hasattr(user, 'phone_number') else "",
+            passenger_phone=phone_number or "254700000000",
             passenger_email=user_email,
             vehicle_type="SUV",
             flight_details=f"{itinerary.airline or ''} {itinerary.flight_number or ''}".strip() or "Flight",
@@ -456,12 +532,10 @@ def create_transport_request_from_itinerary(
 
         db.add(transport_request)
         db.flush()  # Get ID without committing
-
-        logger.info(f"Created transport request {transport_request.id} from itinerary {itinerary.id}")
         return transport_request
 
     except Exception as e:
-        logger.error(f"Error creating transport request from itinerary: {str(e)}")
+        db.rollback()
         return None
 
 
@@ -658,7 +732,22 @@ def _book_pooled_request(
     # Collect passengers
     passengers = []
     for req in transport_requests:
-        phone = req.passenger_phone or f"254700{req.id:06d}"[-12:]
+        phone = req.passenger_phone
+        if not phone or phone.strip() == "":
+            # Try to get from public registration
+            from sqlalchemy import text
+            phone_result = db.execute(
+                text("""
+                    SELECT COALESCE(pr.phone_number, '254700000000') as phone_number
+                    FROM public_registrations pr
+                    JOIN event_participants ep ON pr.participant_id = ep.id
+                    WHERE ep.email = :user_email AND ep.event_id = :event_id
+                    LIMIT 1
+                """),
+                {"user_email": req.user_email, "event_id": req.event_id}
+            ).fetchone()
+            phone = phone_result[0] if phone_result else f"254700{abs(hash(req.user_email)) % 1000000:06d}"
+        
         passengers.append({
             "name": req.passenger_name,
             "phone": phone,
@@ -746,14 +835,28 @@ def _book_individual_request(
     """Book a single transport request"""
     pickup_datetime = transport_request.pickup_time.strftime("%Y-%m-%d %H:%M")
 
-    # Get phone number
+    # Get phone number from transport request or registration data
     phone = transport_request.passenger_phone
-    if not phone:
-        user = db.query(User).filter(User.email == transport_request.user_email).first()
-        if user and hasattr(user, 'phone_number') and user.phone_number:
-            phone = user.phone_number
+    if not phone or phone.strip() == "":
+        # Try to get from public registration first
+        from sqlalchemy import text
+        phone_result = db.execute(
+            text("""
+                SELECT COALESCE(pr.phone_number, '254700000000') as phone_number
+                FROM public_registrations pr
+                JOIN event_participants ep ON pr.participant_id = ep.id
+                WHERE ep.email = :user_email AND ep.event_id = :event_id
+                LIMIT 1
+            """),
+            {"user_email": transport_request.user_email, "event_id": transport_request.event_id}
+        ).fetchone()
+        
+        if phone_result and phone_result[0]:
+            phone = phone_result[0]
         else:
-            phone = f"254700{transport_request.id:06d}"[-12:]
+            # Fallback to user profile
+            user = db.query(User).filter(User.email == transport_request.user_email).first()
+            phone = user.phone_number if user and user.phone_number else f"254700{abs(hash(transport_request.user_email)) % 1000000:06d}"
 
     # Prepare booking data
     booking_data = {
@@ -1011,6 +1114,10 @@ def auto_create_and_book_transport(
             FlightItinerary.status == "confirmed"
         ).all()
 
+        logger.info(f"DEBUG: Found {len(confirmed_itineraries)} confirmed itineraries for user {user_email}, event {event_id}")
+        for itinerary in confirmed_itineraries:
+            logger.info(f"DEBUG: Itinerary {itinerary.id} - Type: {itinerary.itinerary_type}, Status: {itinerary.status}")
+
         if not confirmed_itineraries:
             return {
                 "requests_created": 0,
@@ -1021,19 +1128,29 @@ def auto_create_and_book_transport(
         # Create transport requests from itineraries
         created_requests = []
         for itinerary in confirmed_itineraries:
+            logger.info(f"DEBUG: Processing itinerary {itinerary.id} (type: {itinerary.itinerary_type})")
+            
             # Check if request already exists
             existing = db.query(TransportRequest).filter(
                 TransportRequest.flight_itinerary_id == itinerary.id
             ).first()
 
             if not existing:
+                logger.info(f"DEBUG: No existing transport request found for itinerary {itinerary.id}, creating new one")
                 transport_request = create_transport_request_from_itinerary(itinerary, user_email, db)
                 if transport_request:
+                    logger.info(f"DEBUG: Successfully created transport request {transport_request.id} for itinerary {itinerary.id}")
                     created_requests.append(transport_request)
+                else:
+                    logger.warning(f"DEBUG: Failed to create transport request for itinerary {itinerary.id}")
             else:
-                logger.info(f"Transport request already exists for itinerary {itinerary.id}")
+                logger.info(f"DEBUG: Transport request {existing.id} already exists for itinerary {itinerary.id} (status: {existing.status})")
                 if existing.status == "pending":
                     created_requests.append(existing)
+
+        logger.info(f"DEBUG: Total transport requests to process: {len(created_requests)}")
+        for req in created_requests:
+            logger.info(f"DEBUG: Request {req.id} - Pickup: {req.pickup_address} -> Dropoff: {req.dropoff_address} at {req.pickup_time}")
 
         if not created_requests:
             return {
