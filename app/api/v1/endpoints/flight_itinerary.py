@@ -419,6 +419,15 @@ def create_transport_request_from_itinerary(
         Created TransportRequest or None
     """
     try:
+        logger.info(f"DEBUG: Creating transport request for itinerary {itinerary.id}")
+        logger.info(f"DEBUG: Itinerary type: {itinerary.itinerary_type}")
+        logger.info(f"DEBUG: Departure airport: {itinerary.departure_airport}")
+        logger.info(f"DEBUG: Arrival airport: {itinerary.arrival_airport}")
+        logger.info(f"DEBUG: Departure date: {itinerary.departure_date}")
+        logger.info(f"DEBUG: Arrival date: {itinerary.arrival_date}")
+        logger.info(f"DEBUG: Pickup location: {itinerary.pickup_location}")
+        logger.info(f"DEBUG: Destination: {itinerary.destination}")
+        
         # Get user details
         user = db.query(User).filter(User.email == user_email).first()
 
@@ -431,12 +440,14 @@ def create_transport_request_from_itinerary(
         # Try to get accommodation address
         position = "first" if itinerary.itinerary_type == "arrival" else "last"
         accommodation = get_participant_accommodation_address(user_email, itinerary.event_id, position, db)
+        logger.info(f"DEBUG: Accommodation for {position}: {accommodation}")
 
         # Prepare addresses and coordinates
         if itinerary.itinerary_type == "arrival":
             pickup_addr = itinerary.arrival_airport or itinerary.arrival_city or itinerary.departure_airport or "Airport"
             pickup_lat = None  # Will be populated from predefined locations
             pickup_lon = None
+            logger.info(f"DEBUG: Arrival - Pickup address: {pickup_addr}")
 
             # Use accommodation address if available, otherwise event location
             if accommodation and accommodation.get("address"):
@@ -447,8 +458,11 @@ def create_transport_request_from_itinerary(
                 dropoff_addr = itinerary.destination or event.location or "Event Location"
                 dropoff_lat = float(event.latitude) if event.latitude else None
                 dropoff_lon = float(event.longitude) if event.longitude else None
+            
+            logger.info(f"DEBUG: Arrival - Dropoff address: {dropoff_addr}")
 
             pickup_time = itinerary.arrival_date or itinerary.departure_date
+            logger.info(f"DEBUG: Arrival - Pickup time: {pickup_time}")
             notes = "Airport pickup for arrival flight (auto-created from itinerary)"
 
         elif itinerary.itinerary_type == "departure":
@@ -461,14 +475,18 @@ def create_transport_request_from_itinerary(
                 pickup_addr = itinerary.pickup_location or itinerary.destination or event.location or "Event Location"
                 pickup_lat = float(event.latitude) if event.latitude else None
                 pickup_lon = float(event.longitude) if event.longitude else None
+            
+            logger.info(f"DEBUG: Departure - Pickup address: {pickup_addr}")
 
             dropoff_addr = itinerary.departure_airport or itinerary.departure_city or "Airport"
             dropoff_lat = None  # Will be populated from predefined locations
             dropoff_lon = None
+            logger.info(f"DEBUG: Departure - Dropoff address: {dropoff_addr}")
 
             # Pickup 2 hours before departure
             if itinerary.departure_date:
                 pickup_time = itinerary.departure_date - timedelta(hours=2)
+                logger.info(f"DEBUG: Departure - Pickup time: {pickup_time}")
             else:
                 logger.warning(f"Departure itinerary {itinerary.id} has no departure_date")
                 return None
@@ -484,6 +502,7 @@ def create_transport_request_from_itinerary(
         ).first()
 
         if existing_request:
+            logger.info(f"DEBUG: Transport request already exists for itinerary {itinerary.id}: {existing_request.id}")
             return existing_request
 
         # Get phone number from public registration data
@@ -529,12 +548,17 @@ def create_transport_request_from_itinerary(
             user_email=user_email,
             status="pending"
         )
+        
+        logger.info(f"DEBUG: Created transport request object for itinerary {itinerary.id}")
+        logger.info(f"DEBUG: Pickup: {pickup_addr} -> Dropoff: {dropoff_addr} at {pickup_time}")
 
         db.add(transport_request)
         db.flush()  # Get ID without committing
+        logger.info(f"DEBUG: Successfully saved transport request {transport_request.id}")
         return transport_request
 
     except Exception as e:
+        logger.error(f"DEBUG: Error creating transport request for itinerary {itinerary.id}: {str(e)}")
         db.rollback()
         return None
 
