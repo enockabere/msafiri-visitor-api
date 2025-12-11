@@ -437,7 +437,7 @@ def send_super_admin_invitation_email(email: str, token: str, invited_by: str, u
                                     <!-- Accept Button -->
                                     <div style="text-align: center; margin: 35px 0;">
                                         <a href="{magic_link}"
-                                           style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); transition: all 0.3s;">
+                                           style="background-color: #dc2626; color: #ffffff; padding: 16px 40px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
                                             🚀 Accept Invitation
                                         </a>
                                     </div>
