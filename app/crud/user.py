@@ -87,13 +87,15 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return super().update(db, db_obj=db_obj, obj_in=update_data)
    
     def authenticate_local(self, db: Session, *, email: str, password: str, tenant_id: Optional[str] = None) -> Optional[User]:
-        """Traditional email/password authentication for LOCAL users"""
+        """Traditional email/password authentication for LOCAL users and SSO users with passwords"""
         user = self.get_by_email(db, email=email, tenant_id=tenant_id)
         if not user:
             return None
-        if user.auth_provider != AuthProvider.LOCAL:
+        # Allow SSO users to login with password if they have one (for admin portal)
+        # This enables dual authentication: SSO for mobile, password for admin portal
+        if not user.hashed_password:
             return None
-        if not user.hashed_password or not verify_password(password, user.hashed_password):
+        if not verify_password(password, user.hashed_password):
             return None
         return user
 
