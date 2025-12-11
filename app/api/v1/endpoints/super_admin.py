@@ -102,17 +102,16 @@ def invite_super_admin(
         user_id = new_user.id
         needs_password = True
     else:
-        # User exists - check if they have a password (for admin portal access)
-        # SSO users won't have a hashed_password, so they need one for admin portal
-        if not existing_user.hashed_password or existing_user.auth_provider != AuthProvider.LOCAL:
-            # Set password for SSO users who need admin portal access
-            existing_user.hashed_password = get_password_hash(default_password)
-            existing_user.must_change_password = True
-            db.add(existing_user)
-            db.commit()
-            db.refresh(existing_user)
-            needs_password = True
-            logger.info(f"Set password for SSO user {existing_user.email} for admin portal access")
+        # User exists - always reset password for re-invited users
+        # This handles: SSO users, removed admins being re-invited, or inactive users
+        # Always reset to ensure the password in the email matches the database
+        existing_user.hashed_password = get_password_hash(default_password)
+        existing_user.must_change_password = True
+        db.add(existing_user)
+        db.commit()
+        db.refresh(existing_user)
+        needs_password = True
+        logger.info(f"Reset password for re-invited user {existing_user.email}")
 
     invitation = crud.admin_invitation.create_invitation(
         db,
