@@ -63,7 +63,7 @@ def invite_super_admin(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super admins can invite other super admins"
         )
-    
+
     # Check if user already has super admin role
     existing_user = crud.user.get_by_email(db, email=invitation_data.email)
     if existing_user and existing_user.role == UserRole.SUPER_ADMIN:
@@ -71,7 +71,7 @@ def invite_super_admin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User is already a super admin"
         )
-    
+
     # Check if there's already a pending invitation
     existing_invitation = crud.admin_invitation.get_by_email(db, email=invitation_data.email)
     if existing_invitation:
@@ -79,14 +79,15 @@ def invite_super_admin(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="There is already a pending invitation for this email"
         )
-    
-    # Create invitation
+
+    # Check if user needs a password
+    default_password = "password@1234"
+    needs_password = False
     user_existed = existing_user is not None
     user_id = existing_user.id if existing_user else None
-    
+
     # If user doesn't exist, create them with default password
     if not user_existed:
-        default_password = "password@1234"
         user_create = schemas.UserCreate(
             email=invitation_data.email,
             password=default_password,
@@ -96,10 +97,23 @@ def invite_super_admin(
             is_active=False,
             auth_provider=AuthProvider.LOCAL  # Ensure password gets hashed
         )
-        
+
         new_user = crud.user.create(db, obj_in=user_create)
         user_id = new_user.id
-    
+        needs_password = True
+    else:
+        # User exists - check if they have a password (for admin portal access)
+        # SSO users won't have a hashed_password, so they need one for admin portal
+        if not existing_user.hashed_password or existing_user.auth_provider != AuthProvider.LOCAL:
+            # Set password for SSO users who need admin portal access
+            existing_user.hashed_password = get_password_hash(default_password)
+            existing_user.must_change_password = True
+            db.add(existing_user)
+            db.commit()
+            db.refresh(existing_user)
+            needs_password = True
+            logger.info(f"Set password for SSO user {existing_user.email} for admin portal access")
+
     invitation = crud.admin_invitation.create_invitation(
         db,
         email=invitation_data.email,
@@ -107,17 +121,18 @@ def invite_super_admin(
         user_existed=user_existed,
         user_id=user_id
     )
-    
+
     # Send invitation email in background
+    # Send password if user needs it (new user or SSO user)
     background_tasks.add_task(
         send_super_admin_invitation_email,
         invitation.email,
         invitation.invitation_token,
         current_user.full_name,
-        user_existed,
-        "password@1234" if not user_existed else None
+        user_existed and not needs_password,  # Only show "upgrade" message if user existed AND doesn't need password
+        default_password if needs_password else None
     )
-    
+
     return invitation
 
 @router.post("/accept-invitation")
@@ -134,7 +149,7 @@ def accept_super_admin_invitation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invalid or expired invitation token"
         )
-    
+
     # Get user (should exist since we create them during invitation)
     user = crud.user.get_by_email(db, email=invitation.email)
     if not user:
@@ -142,35 +157,27 @@ def accept_super_admin_invitation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-    
-    if invitation.user_existed:
-        # User existed - just upgrade to super admin role
-        updated_user = crud.user.update_role_with_notifications(
-            db,
-            user=user,
-            new_role=UserRole.SUPER_ADMIN,
-            changed_by=invitation.invited_by
-        )
-    else:
-        # User was created with invitation - upgrade role and activate
-        user.role = UserRole.SUPER_ADMIN
-        user.status = UserStatus.ACTIVE
-        user.is_active = True
-        # Mark that password must be changed on first login
-        user.must_change_password = True
-        
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        updated_user = user
-    
+
+    # Update user to super admin role
+    user.role = UserRole.SUPER_ADMIN
+    user.status = UserStatus.ACTIVE
+    user.is_active = True
+
+    # Ensure must_change_password is set if user has temporary password
+    if user.must_change_password is None:
+        user.must_change_password = not invitation.user_existed
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
     # Mark invitation as accepted
     crud.admin_invitation.accept_invitation(db, invitation=invitation)
-    
+
     return {
-        "message": "Super admin invitation accepted successfully", 
-        "user_id": updated_user.id,
-        "must_change_password": not invitation.user_existed
+        "message": "Super admin invitation accepted successfully",
+        "user_id": user.id,
+        "must_change_password": user.must_change_password
     }
 
 @router.get("/pending-invitations", response_model=List[AdminInvitationResponse])
@@ -204,34 +211,40 @@ def resend_super_admin_invitation(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    
+
     invitation = db.query(crud.admin_invitation.model).filter(
         crud.admin_invitation.model.id == invitation_id,
         crud.admin_invitation.model.status == "pending"
     ).first()
-    
+
     if not invitation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Invitation not found or already processed"
         )
-    
+
     # Extend expiration by 24 hours
     from datetime import datetime, timedelta
     invitation.expires_at = datetime.utcnow() + timedelta(hours=24)
     db.add(invitation)
     db.commit()
-    
+
+    # Check if user needs password in email
+    existing_user = crud.user.get_by_email(db, email=invitation.email)
+    needs_password = False
+    if existing_user and existing_user.must_change_password:
+        needs_password = True
+
     # Resend email
     background_tasks.add_task(
         send_super_admin_invitation_email,
         invitation.email,
         invitation.invitation_token,
         current_user.full_name,
-        invitation.user_existed,
-        "password@1234" if not invitation.user_existed else None
+        invitation.user_existed and not needs_password,
+        "password@1234" if needs_password else None
     )
-    
+
     return {"message": "Invitation resent successfully"}
 
 @router.post("/cancel-invitation/{invitation_id}")
