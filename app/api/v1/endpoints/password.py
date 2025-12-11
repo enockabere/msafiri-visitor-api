@@ -318,19 +318,19 @@ def change_password(
     """
     Change password for logged-in user (requires current password)
     """
-    # Only allow LOCAL auth users to change passwords
-    if current_user.auth_provider != AuthProvider.LOCAL:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="SSO users cannot change passwords through this system. Contact your administrator."
-        )
-    
     # Get full user object
     user = crud.user.get(db, id=current_user.id)
-    if not user or not user.hashed_password:
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Allow password change if user has a password set (LOCAL or SSO with admin portal access)
+    if not user.hashed_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No password set for this account"
+            detail="No password set for this account. SSO-only users cannot set passwords."
         )
     
     # Verify current password
@@ -441,20 +441,22 @@ def update_password(
 ) -> Any:
     """
     Update password for any authenticated user (no current password required)
+    Used for forced password changes (must_change_password flows)
     """
-    # Only allow LOCAL auth users to change passwords
-    if current_user.auth_provider != AuthProvider.LOCAL:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="SSO users cannot change passwords through this system. Contact your administrator."
-        )
-    
     # Get full user object
     user = crud.user.get(db, id=current_user.id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
+        )
+
+    # Allow password change if user has a password OR needs to set one
+    # This supports: LOCAL users, SSO users with admin portal access, and forced password changes
+    if not user.hashed_password and current_user.auth_provider != AuthProvider.LOCAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SSO-only users cannot set passwords through this system."
         )
     
     # Validate new password
