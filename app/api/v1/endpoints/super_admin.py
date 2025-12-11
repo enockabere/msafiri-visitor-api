@@ -295,6 +295,70 @@ def cancel_super_admin_invitation(
     
     return {"message": "Invitation cancelled successfully"}
 
+@router.delete("/remove-super-admin/{user_id}")
+def remove_super_admin_role(
+    *,
+    db: Session = Depends(get_db),
+    user_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Remove super admin role from a user"""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only super admins can remove super admin roles"
+        )
+
+    # Get the user to remove
+    user_to_modify = crud.user.get(db, id=user_id)
+    if not user_to_modify:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if user is actually a super admin
+    if user_to_modify.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not a super admin"
+        )
+
+    # Prevent removing yourself
+    if user_to_modify.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot remove your own super admin role"
+        )
+
+    # Check if this is the last active super admin
+    active_super_admins = db.query(crud.user.model).filter(
+        crud.user.model.role == UserRole.SUPER_ADMIN,
+        crud.user.model.is_active == True
+    ).count()
+
+    if active_super_admins <= 1 and user_to_modify.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot remove the last active super admin"
+        )
+
+    # Downgrade user to visitor role
+    user_to_modify.role = UserRole.VISITOR
+    user_to_modify.is_active = False
+    user_to_modify.status = UserStatus.PENDING_APPROVAL
+
+    db.add(user_to_modify)
+    db.commit()
+    db.refresh(user_to_modify)
+
+    logger.info(f"Super admin role removed from user {user_to_modify.email} by {current_user.email}")
+
+    return {
+        "message": f"Super admin role removed from {user_to_modify.full_name}",
+        "user_id": user_to_modify.id
+    }
+
 def send_super_admin_invitation_email(email: str, token: str, invited_by: str, user_existed: bool, default_password: str = None):
     """Send super admin invitation email with magic link"""
     try:
