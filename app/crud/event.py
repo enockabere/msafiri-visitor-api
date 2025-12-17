@@ -71,5 +71,13 @@ class CRUDEvent(CRUDBase[Event, EventCreate, EventUpdate]):
             .limit(limit)
             .all()
         )
+    
+    def get_by_ids(self, db: Session, *, event_ids: List[int]) -> List[Event]:
+        """Get events by list of IDs"""
+        return (
+            db.query(Event)
+            .filter(Event.id.in_(event_ids))
+            .all()
+        )
 
 event = CRUDEvent(Event)

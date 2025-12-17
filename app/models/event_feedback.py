@@ -1,5 +1,5 @@
 # File: app/models/event_feedback.py
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Float
+from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Float, Boolean
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
@@ -21,8 +21,8 @@ class EventFeedback(BaseModel):
     feedback_text = Column(Text, nullable=True)
     suggestions = Column(Text, nullable=True)
     
-    # Would recommend
-    would_recommend = Column(String(10), nullable=True)  # "Yes", "No", "Maybe"
+    # Would recommend - changed to Boolean for consistency
+    would_recommend = Column(Boolean, nullable=True)
     
     # Tracking
     submitted_at = Column(DateTime(timezone=True), nullable=False)

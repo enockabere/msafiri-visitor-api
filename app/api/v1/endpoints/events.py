@@ -298,7 +298,7 @@ def create_event(
             db.add(chat_room)
             logger.info(f"✅ Auto-created chat room for event: {event.title}")
         except Exception as e:
-            logger.warning(f"⚠️ Failed to create chat room for event: {str(e)}")
+            logger.warning(f"[WARNING] Failed to create chat room for event: {str(e)}")
             import traceback
             traceback.print_exc()
         
@@ -339,9 +339,9 @@ def create_event(
                         from app.services.automatic_room_booking_service import refresh_automatic_room_booking
                         refresh_automatic_room_booking(db, event.id, tenant_obj.id)
                     except Exception as booking_error:
-                        logger.warning(f"⚠️ Failed to refresh room booking during event creation: {str(booking_error)}")
+                        logger.warning(f"[WARNING] Failed to refresh room booking during event creation: {str(booking_error)}")
         except Exception as e:
-            logger.warning(f"⚠️ Failed to create vendor event accommodation setup: {str(e)}")
+            logger.warning(f"[WARNING] Failed to create vendor event accommodation setup: {str(e)}")
             import traceback
             traceback.print_exc()
         
@@ -360,12 +360,25 @@ def get_events(
     *,
     db: Session = Depends(get_db),
     tenant: Optional[str] = None,
+    event_ids: Optional[str] = Query(None),
     skip: int = 0,
     limit: int = 100
 ) -> Any:
     """Get events (no auth required for dashboard stats)."""
     import logging
     logger = logging.getLogger(__name__)
+    
+    # If specific event IDs are provided, filter by those
+    if event_ids:
+        try:
+            event_id_list = [int(id.strip()) for id in event_ids.split(',') if id.strip()]
+            events = crud.event.get_by_ids(db, event_ids=event_id_list)
+            return events
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid event IDs format"
+            )
     
     # If no tenant specified, return all events
     if not tenant:
@@ -501,7 +514,7 @@ def update_event(
         old_double_rooms != new_double_rooms or 
         old_vendor_id != new_vendor_id):
         room_allocation_changed = True
-        logger.info(f"🏨 Room allocation changed:")
+        logger.info(f"[HOTEL] Room allocation changed:")
         logger.info(f"   Single rooms: {old_single_rooms} → {new_single_rooms}")
         logger.info(f"   Double rooms: {old_double_rooms} → {new_double_rooms}")
         logger.info(f"   Vendor ID: {old_vendor_id} → {new_vendor_id}")
@@ -527,7 +540,7 @@ def update_event(
                 new_total_capacity = new_single_rooms + (new_double_rooms * 2)
                 
                 if existing_setup.current_occupants > new_total_capacity:
-                    logger.warning(f"⚠️ Cannot reduce capacity below current occupants ({existing_setup.current_occupants})")
+                    logger.warning(f"[WARNING] Cannot reduce capacity below current occupants ({existing_setup.current_occupants})")
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Cannot reduce room capacity below current occupants ({existing_setup.current_occupants}). Please reassign participants first."
@@ -577,12 +590,12 @@ def update_event(
                 if success:
                     logger.info(f"✅ Automatic room booking refresh completed successfully")
                 else:
-                    logger.warning(f"⚠️ Automatic room booking refresh failed")
+                    logger.warning(f"[WARNING] Automatic room booking refresh failed")
                     
             except Exception as e:
                 logger.error(f"💥 Error during automatic room booking refresh: {str(e)}")
                 # Don't fail the update if room reassignment fails
-                logger.warning(f"⚠️ Event updated but automatic room reassignment failed")
+                logger.warning(f"[WARNING] Event updated but automatic room reassignment failed")
             
             logger.info(f"🔄 Room booking refresh completed for event {event_id}")
             
@@ -591,7 +604,7 @@ def update_event(
         except Exception as e:
             logger.error(f"💥 Failed to refresh vendor event accommodation setup: {str(e)}")
             # Don't fail the entire update if accommodation setup fails
-            logger.warning(f"⚠️ Event updated but accommodation setup refresh failed")
+            logger.warning(f"[WARNING] Event updated but accommodation setup refresh failed")
             import traceback
             traceback.print_exc()
     
@@ -684,7 +697,7 @@ def delete_event(
             logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
         except Exception as e:
             # Table might not exist yet, rollback and continue
-            logger.warning(f"⚠️ Could not delete transport requests (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete transport requests (table may not exist): {str(e)}")
             db.rollback()  # Rollback the failed transaction to continue with other deletions
         
         # 2. Delete participant QR codes (they reference event_participants)
@@ -696,7 +709,7 @@ def delete_event(
                 db.delete(qr_code)
             logger.info(f"🗑️ Deleted {len(qr_codes)} participant QR codes for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete participant QR codes (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete participant QR codes (table may not exist): {str(e)}")
             db.rollback()
 
         # 3. Delete accommodation allocations (they reference event_participants)
@@ -708,7 +721,7 @@ def delete_event(
                 db.delete(allocation)
             logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete accommodation allocations (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete accommodation allocations (table may not exist): {str(e)}")
             db.rollback()
 
         # 4. Delete flight itineraries
@@ -720,7 +733,7 @@ def delete_event(
                 db.delete(itinerary)
             logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete flight itineraries (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete flight itineraries (table may not exist): {str(e)}")
             db.rollback()
         
         # 5. Delete passport records manually (table may not exist)
@@ -733,7 +746,7 @@ def delete_event(
                 db.delete(record)
             logger.info(f"🗑️ Deleted {len(passport_records)} passport records for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete passport records (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete passport records (table may not exist): {str(e)}")
             db.rollback()
 
         # 6. Delete chat rooms manually (table may not exist)
@@ -746,7 +759,7 @@ def delete_event(
                 db.delete(room)
             logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete chat rooms (table may not exist): {str(e)}")
+            logger.warning(f"[WARNING] Could not delete chat rooms (table may not exist): {str(e)}")
             db.rollback()
 
         # 7. Delete event participants manually (should exist)
@@ -758,7 +771,7 @@ def delete_event(
                 db.delete(participant)
             logger.info(f"🗑️ Deleted {len(participants)} event participants for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete event participants: {str(e)}")
+            logger.warning(f"[WARNING] Could not delete event participants: {str(e)}")
             db.rollback()
 
         # 8. Delete event attachments manually (should exist)
@@ -771,7 +784,7 @@ def delete_event(
                 db.delete(attachment)
             logger.info(f"🗑️ Deleted {len(attachments)} event attachments for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete event attachments: {str(e)}")
+            logger.warning(f"[WARNING] Could not delete event attachments: {str(e)}")
             db.rollback()
 
         # 9. Delete vendor event accommodations using raw SQL
@@ -783,7 +796,7 @@ def delete_event(
             db.commit()
             logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations for event {event_id}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete vendor event accommodations: {str(e)}")
+            logger.warning(f"[WARNING] Could not delete vendor event accommodations: {str(e)}")
             db.rollback()
 
         # 10. Finally delete the event itself using raw SQL to avoid cascade loading
@@ -1111,14 +1124,14 @@ def confirm_event_attendance(
                     db, participation.id, event_id, event.tenant_id
                 )
                 if allocation:
-                    logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
+                    logger.info(f"[HOTEL] Created accommodation booking for participant {participation.id}")
                 else:
-                    logger.warning(f"⚠️ Failed to create accommodation booking for participant {participation.id}")
+                    logger.warning(f"[WARNING] Failed to create accommodation booking for participant {participation.id}")
         else:
-            logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
+            logger.info(f"[HOTEL] Accommodation booking already exists for participant {participation.id}")
             
     except Exception as e:
-        logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
+        logger.warning(f"[WARNING] Failed to create accommodation booking: {str(e)}")
     
     return {
         "message": "Attendance confirmed successfully",
@@ -1189,14 +1202,14 @@ def admin_confirm_participant(
                     db, participation.id, event_id, event.tenant_id
                 )
                 if allocation:
-                    logger.info(f"🏨 Created accommodation booking for participant {participation.id}")
+                    logger.info(f"[HOTEL] Created accommodation booking for participant {participation.id}")
                 else:
-                    logger.warning(f"⚠️ Failed to create accommodation booking for participant {participation.id}")
+                    logger.warning(f"[WARNING] Failed to create accommodation booking for participant {participation.id}")
         else:
-            logger.info(f"🏨 Accommodation booking already exists for participant {participation.id}")
+            logger.info(f"[HOTEL] Accommodation booking already exists for participant {participation.id}")
             
     except Exception as e:
-        logger.warning(f"⚠️ Failed to create accommodation booking: {str(e)}")
+        logger.warning(f"[WARNING] Failed to create accommodation booking: {str(e)}")
     
     return {
         "message": f"Participant {participation.full_name} confirmed successfully",
@@ -1349,7 +1362,7 @@ def decline_event_attendance(
     
     # Note: Room booking system temporarily disabled during migration
     # Will be re-enabled with new room planning system
-    logger.info(f"🏨 Room booking system temporarily disabled during migration")
+    logger.info(f"[HOTEL] Room booking system temporarily disabled during migration")
     
     return {
         "message": "Attendance declined successfully",

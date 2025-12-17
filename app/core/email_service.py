@@ -98,9 +98,7 @@ class EmailService:
         </head>
         <body>
             <div class="container">
-                <div class="header">
-                    <div class="logo">🌍 Msafiri - Kenya HR Portal</div>
-                </div>
+
                 
                 <h2 class="title">{title}</h2>
                 

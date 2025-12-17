@@ -15,7 +15,7 @@ def get_event_room_stats(
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"🏨 Getting room stats for event {event_id}")
+    logger.info(f"[HOTEL] Getting room stats for event {event_id}")
     
     # Debug: Check all allocations for this event
     debug_result = db.execute(

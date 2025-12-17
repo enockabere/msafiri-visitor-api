@@ -10,8 +10,8 @@ from sqlalchemy import create_engine, text
 from app.api.v1.api import api_router
 from app.core.config import settings
 
-# Configure logging
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL))
+# Configure logging - Set to WARNING to reduce log noise
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
@@ -34,7 +34,7 @@ else:
     if settings.ENVIRONMENT == "development":
         allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
     else:
-        logger.warning("⚠️ No ALLOWED_ORIGINS configured for production!")
+        print("WARNING: No ALLOWED_ORIGINS configured for production!")
 
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
@@ -58,24 +58,19 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log requests with minimal output"""
     start_time = time.time()
     
-    # Only log line manager recommendation endpoints
-    if "line-manager-recommendation" in request.url.path:
-        logger.info(f"🌐 {request.method} {request.url.path}")
-    
     try:
         response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
         
-        # Only log line manager recommendation endpoints
-        if "line-manager-recommendation" in request.url.path:
-            logger.info(f"✅ {request.method} {request.url.path} - Status: {response.status_code}")
+        # Only log errors and specific endpoints
+        if response.status_code >= 400:
+            logger.error(f"ERROR: {request.method} {request.url.path} - Status: {response.status_code}")
         
         return response
         
     except Exception as e:
-        process_time = time.time() - start_time
-        logger.error(f"❌ {request.method} {request.url.path} - Error: {str(e)}")
+        logger.error(f"ERROR: {request.method} {request.url.path} - Error: {str(e)}")
         
         return JSONResponse(
             status_code=500,
@@ -87,8 +82,6 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 @app.get("/test-cors")
 def test_cors():
     """Test endpoint to verify CORS is working"""
-    logger.info("🧪 TEST CORS endpoint called")
-    print("🧪 TEST CORS endpoint called")
     return {
         "message": "CORS is working!",
         "timestamp": time.time(),
@@ -98,8 +91,6 @@ def test_cors():
 @app.get("/test-connection")
 def test_connection():
     """Test endpoint to verify API connectivity"""
-    logger.info("🔗 TEST CONNECTION endpoint called")
-    print("🔗 TEST CONNECTION endpoint called")
     return {
         "message": "API connection is working!",
         "timestamp": time.time(),
@@ -110,7 +101,7 @@ def test_connection():
 def create_default_roles():
     """Create default system roles for all tenants"""
     try:
-        logger.info("🔧 Creating default system roles...")
+        print(">> Creating default system roles...")
         
         engine = create_engine(settings.DATABASE_URL)
         with engine.connect() as conn:
@@ -149,20 +140,20 @@ def create_default_roles():
                             "description": role_data["description"],
                             "tenant_id": tenant_id
                         })
-                        logger.info(f"✅ Created role '{role_data['name']}' for tenant '{tenant_id}'")
+                        print(f"OK: Created role '{role_data['name']}' for tenant '{tenant_id}'")
             
             conn.commit()
-            logger.info("✅ Default roles creation completed")
+            print("OK: Default roles creation completed")
             
     except Exception as e:
-        logger.error(f"❌ Error creating default roles: {str(e)}")
+        print(f"ERROR: Error creating default roles: {str(e)}")
         # Don't fail startup if role creation fails
 
 # Auto-migration function
 def run_auto_migration():
     """Run database migrations automatically on startup"""
     try:
-        logger.info("🔄 Running auto-migration...")
+        print(">> Running auto-migration...")
         
         # Try direct SQL migration first (safer)
         try:
@@ -589,7 +580,7 @@ def run_auto_migration():
                             pass  # Constraint might already exist
                     
                     trans.commit()
-                    logger.info("✅ Direct migration completed successfully")
+                    print("OK: Direct migration completed successfully")
                     
                     # Create default roles after successful migration
                     create_default_roles()
@@ -598,7 +589,7 @@ def run_auto_migration():
                     trans.rollback()
                     raise e
         except Exception as e:
-            logger.error(f"Direct migration failed: {str(e)}, trying alembic...")
+            print(f"Direct migration failed: {str(e)}, trying alembic...")
         
         # Fallback to alembic
         import subprocess
@@ -615,27 +606,27 @@ def run_auto_migration():
         )
         
         if result.returncode == 0:
-            logger.info("✅ Alembic migration completed successfully")
+            print("OK: Alembic migration completed successfully")
             if result.stdout:
-                logger.info(f"Migration output: {result.stdout}")
+                print(f"Migration output: {result.stdout}")
             # Create default roles after successful alembic migration
             create_default_roles()
         else:
-            logger.error(f"❌ Alembic migration failed: {result.stderr}")
+            print(f"ERROR: Alembic migration failed: {result.stderr}")
             
     except Exception as e:
-        logger.error(f"❌ Auto-migration error: {str(e)}")
+        print(f"ERROR: Auto-migration error: {str(e)}")
         # Don't fail startup if migration fails
 
 # Database connection test on startup
 @app.on_event("startup")
 async def startup_event():
     """Test database connection and run migrations on startup"""
-    logger.info("🚀 Starting Msafiri Visitor System")
-    logger.info(f"🌍 Environment: {settings.ENVIRONMENT}")
-    logger.info(f"📡 API V1 prefix: {settings.API_V1_STR}")
-    logger.info(f"💾 Database URL: {settings.DATABASE_URL[:50]}...")
-    logger.info(f"🔗 Allowed CORS origins: {allowed_origins}")
+    print(">> Starting Msafiri Visitor System")
+    print(f">> Environment: {settings.ENVIRONMENT}")
+    print(f">> API V1 prefix: {settings.API_V1_STR}")
+    print(f">> Database URL: {settings.DATABASE_URL[:50]}...")
+    print(f">> Allowed CORS origins: {allowed_origins}")
     
     try:
         # Test database connection
@@ -643,7 +634,7 @@ async def startup_event():
         with engine.connect() as conn:
             result = conn.execute(text("SELECT version()"))
             version_info = result.fetchone()[0]
-            logger.info(f"✅ Database connected: {version_info[:50]}...")
+            print(f"OK: Database connected: {version_info[:50]}...")
         
         # Run auto-migration in production
         if settings.ENVIRONMENT == "production":
@@ -653,17 +644,22 @@ async def startup_event():
         from app.core.agenda_scheduler import agenda_scheduler
         import asyncio
         asyncio.create_task(agenda_scheduler.start())
-        logger.info("📅 Agenda notification scheduler started")
+        print(">> Agenda notification scheduler started")
         
         # Start background tasks
         from app.tasks.background_tasks import background_task_manager
         await background_task_manager.start_background_tasks()
-        logger.info("🔄 Background tasks started")
-        
-        logger.info("🎉 Application startup completed!")
+        print(">> Background tasks started")
+
+        # Start vetting deadline scheduler
+        from app.core.scheduler import start_scheduler
+        start_scheduler()
+        print(">> Vetting deadline scheduler started")
+
+        print(">> Application startup completed!")
         
     except Exception as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        print(f"ERROR: Database connection failed: {e}")
         # Don't exit in production - let the app start anyway
         if settings.ENVIRONMENT != "production":
             raise
@@ -671,22 +667,31 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    logger.info("🛑 Shutting down Msafiri Visitor System")
+    print(">> Shutting down Msafiri Visitor System")
     
     # Stop agenda notification scheduler
     from app.core.agenda_scheduler import agenda_scheduler
     agenda_scheduler.stop()
-    logger.info("📅 Agenda notification scheduler stopped")
-    
+    print(">> Agenda notification scheduler stopped")
+
+    # Stop vetting deadline scheduler
+    from app.core.scheduler import stop_scheduler
+    stop_scheduler()
+    print(">> Vetting deadline scheduler stopped")
+
     # Stop background tasks
     from app.tasks.background_tasks import background_task_manager
     await background_task_manager.stop_background_tasks()
-    logger.info("🔄 Background tasks stopped")
-    
-    logger.info("👋 Application shutdown completed")
+    print(">> Background tasks stopped")
+
+    print(">> Application shutdown completed")
 
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Include vetting router
+from app.api.v1.vetting import router as vetting_router
+app.include_router(vetting_router, prefix=settings.API_V1_STR, tags=["vetting"])
 
 # Basic routes
 @app.get("/")
@@ -757,8 +762,8 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     host = "0.0.0.0" if settings.ENVIRONMENT == "production" else "127.0.0.1"
     
-    logger.info(f"🚀 Starting server on {host}:{port}")
-    logger.info(f"🔗 CORS configured for: {allowed_origins}")
+    print(f">> Starting server on {host}:{port}")
+    print(f">> CORS configured for: {allowed_origins}")
     uvicorn.run(
         app, 
         host=host, 

@@ -11,26 +11,26 @@ from sqlalchemy import text
 
 def get_tenant_id_from_context(db, tenant_context, current_user):
     """Helper function to get tenant ID from context"""
-    print(f"🏠 TENANT: Input tenant_context: {tenant_context}, type: {type(tenant_context)}")
+    print(f"[DEBUG] TENANT: Input tenant_context: {tenant_context}, type: {type(tenant_context)}")
     
     if tenant_context and tenant_context.isdigit():
         result = int(tenant_context)
-        print(f"🏠 TENANT: Returning numeric tenant_id: {result}")
+        print(f"[DEBUG] TENANT: Returning numeric tenant_id: {result}")
         return result
     else:
         # Look up tenant by slug
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_context).first()
         if tenant:
-            print(f"🏠 TENANT: Found tenant by slug '{tenant_context}': ID {tenant.id}")
+            print(f"[DEBUG] TENANT: Found tenant by slug '{tenant_context}': ID {tenant.id}")
             return tenant.id
         else:
             # Try to look up by current_user.tenant_id (which might be a slug)
             if isinstance(current_user.tenant_id, str):
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
                 if tenant:
-                    print(f"🏠 TENANT: Found tenant by user slug '{current_user.tenant_id}': ID {tenant.id}")
+                    print(f"[DEBUG] TENANT: Found tenant by user slug '{current_user.tenant_id}': ID {tenant.id}")
                     return tenant.id
-            print(f"🏠 TENANT: Tenant not found, using fallback")
+            print(f"[DEBUG] TENANT: Tenant not found, using fallback")
             return 1  # Fallback to default tenant
 
 router = APIRouter()
@@ -38,7 +38,7 @@ router = APIRouter()
 @router.get("/test")
 def test_accommodation_endpoint():
     """Test endpoint to verify accommodation router is working"""
-    print("🏠 DEBUG: Accommodation test endpoint called")
+    print("[DEBUG] DEBUG: Accommodation test endpoint called")
     return {"message": "Accommodation router is working", "timestamp": "2024-10-15"}
 
 @router.get("/available-participants")
@@ -281,16 +281,16 @@ def create_room_allocation(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Allocate visitor to room with gender validation"""
-    print(f"🏠 DEBUG: ===== ROOM ALLOCATION ENDPOINT REACHED =====")
-    print(f"🏠 DEBUG: Request method: POST")
-    print(f"🏠 DEBUG: Request path: /room-allocations")
-    print(f"🏠 DEBUG: User: {current_user.email}, Tenant: {tenant_context}")
-    print(f"🏠 DEBUG: Allocation data: {allocation_data}")
-    print(f"🏠 DEBUG: User role: {current_user.role}")
+    print(f"[DEBUG] DEBUG: ===== ROOM ALLOCATION ENDPOINT REACHED =====")
+    print(f"[DEBUG] DEBUG: Request method: POST")
+    print(f"[DEBUG] DEBUG: Request path: /room-allocations")
+    print(f"[DEBUG] DEBUG: User: {current_user.email}, Tenant: {tenant_context}")
+    print(f"[DEBUG] DEBUG: Allocation data: {allocation_data}")
+    print(f"[DEBUG] DEBUG: User role: {current_user.role}")
     
     try:
         if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
-            print(f"🏠 DEBUG: Permission denied for role: {current_user.role}")
+            print(f"[DEBUG] DEBUG: Permission denied for role: {current_user.role}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not enough permissions"
@@ -341,11 +341,11 @@ def create_room_allocation(
         allocation = crud.accommodation_allocation.create_with_tenant(
             db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
         )
-        print(f"🏠 DEBUG: ===== ALLOCATION CREATED SUCCESSFULLY: {allocation.id} =====")
+        print(f"[DEBUG] DEBUG: ===== ALLOCATION CREATED SUCCESSFULLY: {allocation.id} =====")
         return allocation
         
     except Exception as e:
-        print(f"🏠 DEBUG: Error creating allocation: {str(e)}")
+        print(f"[DEBUG] DEBUG: Error creating allocation: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -361,14 +361,14 @@ def get_vendor_accommodations(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all vendor accommodations for tenant"""
-    print(f"🏨 DEBUG: ===== GET VENDOR ACCOMMODATIONS ENDPOINT CALLED =====")
-    print(f"🏨 DEBUG: get_vendor_accommodations - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"[HOTEL] DEBUG: ===== GET VENDOR ACCOMMODATIONS ENDPOINT CALLED =====")
+    print(f"[HOTEL] DEBUG: get_vendor_accommodations - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    print(f"🏨 DEBUG: Resolved tenant_id: {tenant_id}")
+    print(f"[HOTEL] DEBUG: Resolved tenant_id: {tenant_id}")
     
     vendors = crud.vendor_accommodation.get_by_tenant(db, tenant_id=tenant_id)
-    print(f"🏨 DEBUG: Found {len(vendors)} vendor accommodations for tenant {tenant_id}")
-    print(f"🏨 DEBUG: ===== VENDOR ACCOMMODATIONS ENDPOINT COMPLETE =====")
+    print(f"[HOTEL] DEBUG: Found {len(vendors)} vendor accommodations for tenant {tenant_id}")
+    print(f"[HOTEL] DEBUG: ===== VENDOR ACCOMMODATIONS ENDPOINT COMPLETE =====")
     return vendors
 
 @router.post("/vendor-accommodations", response_model=schemas.VendorAccommodation)
@@ -462,7 +462,7 @@ def create_vendor_allocation(
                 detail=f"Hotel '{vendor.vendor_name}' is not available for this event. Please contact admin to set up accommodation for this event."
             )
         
-        print(f"🏨 VALIDATION: Vendor {vendor.vendor_name} is properly set up for event {event_id}")
+        print(f"[HOTEL] VALIDATION: Vendor {vendor.vendor_name} is properly set up for event {event_id}")
         
         # Check room availability based on type using event-specific setup
         if room_type == "single":
@@ -471,7 +471,7 @@ def create_vendor_allocation(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"No single rooms available at {vendor.vendor_name} for this event"
                 )
-            print(f"🏨 AVAILABILITY: {vendor_event_setup.single_rooms} single rooms available for event {event_id}")
+            print(f"[HOTEL] AVAILABILITY: {vendor_event_setup.single_rooms} single rooms available for event {event_id}")
         
         else:
             raise HTTPException(
@@ -494,7 +494,7 @@ def create_vendor_allocation(
                     detail=f"Not enough double rooms available at {vendor.vendor_name} for this event. Need {rooms_needed}, have {vendor_event_setup.double_rooms}"
                 )
             vendor_event_setup.double_rooms -= rooms_needed
-            print(f"🏨 BOOKING: Reserved {rooms_needed} double rooms for event {event_id}")
+            print(f"[HOTEL] BOOKING: Reserved {rooms_needed} double rooms for event {event_id}")
         else:
             # For single rooms, allocate 1 person per room
             if vendor_event_setup.single_rooms < len(participant_ids):
@@ -503,7 +503,7 @@ def create_vendor_allocation(
                     detail=f"Not enough single rooms available at {vendor.vendor_name} for this event. Need {len(participant_ids)}, have {vendor_event_setup.single_rooms}"
                 )
             vendor_event_setup.single_rooms -= len(participant_ids)
-            print(f"🏨 BOOKING: Reserved {len(participant_ids)} single rooms for event {event_id}")
+            print(f"[HOTEL] BOOKING: Reserved {len(participant_ids)} single rooms for event {event_id}")
         
         for participant_id in participant_ids:
             if participant_id:
@@ -525,7 +525,7 @@ def create_vendor_allocation(
         
         # Commit vendor event setup changes
         db.commit()
-        print(f"🏨 SUCCESS: Updated event setup occupancy to {vendor_event_setup.current_occupants}")
+        print(f"[HOTEL] SUCCESS: Updated event setup occupancy to {vendor_event_setup.current_occupants}")
         
         # Return serialized response
         if len(allocations) == 1:
@@ -554,8 +554,8 @@ def create_vendor_allocation(
         
     except Exception as e:
         db.rollback()
-        print(f"🏨 ERROR: Failed to create vendor allocation: {str(e)}")
-        print(f"🏨 ERROR: Event ID: {allocation_data.get('event_id')}, Vendor ID: {allocation_data.get('vendor_accommodation_id')}")
+        print(f"[HOTEL] ERROR: Failed to create vendor allocation: {str(e)}")
+        print(f"[HOTEL] ERROR: Event ID: {allocation_data.get('event_id')}, Vendor ID: {allocation_data.get('vendor_accommodation_id')}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -717,30 +717,30 @@ def get_vendor_event_setups(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all event setups for a vendor accommodation with event details"""
-    print(f"🏨 DEBUG: ===== GET VENDOR EVENT SETUPS ENDPOINT CALLED =====")
-    print(f"🏨 DEBUG: Vendor ID: {vendor_id}, Tenant: {tenant_context}")
+    print(f"[HOTEL] DEBUG: ===== GET VENDOR EVENT SETUPS ENDPOINT CALLED =====")
+    print(f"[HOTEL] DEBUG: Vendor ID: {vendor_id}, Tenant: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
     
     from app.models.guesthouse import VendorEventAccommodation, AccommodationAllocation
     from app.models.event import Event
     
-    print(f"🏨 DEBUG: Querying setups for vendor {vendor_id}, tenant {tenant_id}")
+    print(f"[HOTEL] DEBUG: Querying setups for vendor {vendor_id}, tenant {tenant_id}")
     setups = db.query(VendorEventAccommodation).filter(
         VendorEventAccommodation.vendor_accommodation_id == vendor_id,
         VendorEventAccommodation.tenant_id == tenant_id,
         VendorEventAccommodation.is_active == True
     ).all()
-    print(f"🏨 DEBUG: Found {len(setups)} setups for vendor {vendor_id}")
+    print(f"[HOTEL] DEBUG: Found {len(setups)} setups for vendor {vendor_id}")
     
     # Build response with event details and calculate actual occupants
     result = []
-    print(f"🏨 DEBUG: Processing {len(setups)} setups...")
+    print(f"[HOTEL] DEBUG: Processing {len(setups)} setups...")
     for setup in setups:
-        print(f"🏨 DEBUG: Processing setup {setup.id} for event {setup.event_id}")
+        print(f"[HOTEL] DEBUG: Processing setup {setup.id} for event {setup.event_id}")
         # Calculate current occupants from actual allocations for this vendor and event
         current_occupants = 0
         if setup.event_id:
-            print(f"🏨 DEBUG: Counting allocations for setup {setup.id}, event {setup.event_id}, vendor {setup.vendor_accommodation_id}")
+            print(f"[HOTEL] DEBUG: Counting allocations for setup {setup.id}, event {setup.event_id}, vendor {setup.vendor_accommodation_id}")
             # Count allocations for this specific vendor accommodation and event
             allocations_query = db.query(AccommodationAllocation).filter(
                 AccommodationAllocation.event_id == setup.event_id,
@@ -751,23 +751,23 @@ def get_vendor_event_setups(
             )
             allocations_list = allocations_query.all()
             current_occupants = len(allocations_list)
-            print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id}")
+            print(f"[HOTEL] DEBUG: Found {current_occupants} allocations for setup {setup.id}")
             for alloc in allocations_list:
-                print(f"🏨 DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
+                print(f"[HOTEL] DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
             
             # Update the setup's current_occupants in the database
             setup.current_occupants = current_occupants
             db.commit()
-            print(f"🏨 DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
+            print(f"[HOTEL] DEBUG: Updated setup {setup.id} current_occupants to {current_occupants}")
         else:
-            print(f"🏨 DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
-            print(f"🏨 DEBUG: Setup {setup.id} event_name: {setup.event_name}")
+            print(f"[HOTEL] DEBUG: Setup {setup.id} has no event_id, skipping occupancy calculation")
+            print(f"[HOTEL] DEBUG: Setup {setup.id} event_name: {setup.event_name}")
             # Try to find allocations by event name if no event_id
             if setup.event_name:
                 # Find event by name
                 event = db.query(Event).filter(Event.title == setup.event_name).first()
                 if event:
-                    print(f"🏨 DEBUG: Found event {event.id} for setup {setup.id} by name '{setup.event_name}'")
+                    print(f"[HOTEL] DEBUG: Found event {event.id} for setup {setup.id} by name '{setup.event_name}'")
                     # Count allocations using the found event_id
                     allocations_query = db.query(AccommodationAllocation).filter(
                         AccommodationAllocation.event_id == event.id,
@@ -778,17 +778,17 @@ def get_vendor_event_setups(
                     )
                     allocations_list = allocations_query.all()
                     current_occupants = len(allocations_list)
-                    print(f"🏨 DEBUG: Found {current_occupants} allocations for setup {setup.id} by event name")
+                    print(f"[HOTEL] DEBUG: Found {current_occupants} allocations for setup {setup.id} by event name")
                     for alloc in allocations_list:
-                        print(f"🏨 DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
+                        print(f"[HOTEL] DEBUG: - Allocation {alloc.id}: {alloc.guest_name}, status={alloc.status}")
                     
                     # Update the setup with the correct event_id and occupants
                     setup.event_id = event.id
                     setup.current_occupants = current_occupants
                     db.commit()
-                    print(f"🏨 DEBUG: Updated setup {setup.id} with event_id {event.id} and {current_occupants} occupants")
+                    print(f"[HOTEL] DEBUG: Updated setup {setup.id} with event_id {event.id} and {current_occupants} occupants")
                 else:
-                    print(f"🏨 DEBUG: No event found with name '{setup.event_name}' for setup {setup.id}")
+                    print(f"[HOTEL] DEBUG: No event found with name '{setup.event_name}' for setup {setup.id}")
         
         # Calculate room usage instead of person occupancy
         single_rooms_used = 0
@@ -816,7 +816,7 @@ def get_vendor_event_setups(
             ).count()
             double_rooms_used = (double_allocations + 1) // 2  # Round up for partial room usage
             
-            print(f"🏨 DEBUG: Setup {setup.id} room usage: {single_rooms_used}S used, {double_rooms_used}D used")
+            print(f"[HOTEL] DEBUG: Setup {setup.id} room usage: {single_rooms_used}S used, {double_rooms_used}D used")
         
         # Calculate remaining capacity
         remaining_single = setup.single_rooms - single_rooms_used
@@ -849,9 +849,9 @@ def get_vendor_event_setups(
                 }
         
         result.append(setup_data)
-        print(f"🏨 DEBUG: Added setup {setup.id} to result with {current_occupants} occupants")
+        print(f"[HOTEL] DEBUG: Added setup {setup.id} to result with {current_occupants} occupants")
     
-    print(f"🏨 DEBUG: Returning {len(result)} setups for vendor {vendor_id}")
+    print(f"[HOTEL] DEBUG: Returning {len(result)} setups for vendor {vendor_id}")
     return result
 
 # Dashboard endpoints
@@ -894,10 +894,10 @@ def get_allocations(
 ) -> Any:
     """Get all allocations for tenant with complete related data"""
     try:
-        print(f"🏨 DEBUG: ===== GET ALLOCATIONS ENDPOINT CALLED =====")
-        print(f"🏨 DEBUG: Starting get_allocations for tenant_context: {tenant_context}")
-        print(f"🏨 DEBUG: Event ID filter: {event_id}")
-        print(f"🏨 DEBUG: User: {current_user.email}")
+        print(f"[HOTEL] DEBUG: ===== GET ALLOCATIONS ENDPOINT CALLED =====")
+        print(f"[HOTEL] DEBUG: Starting get_allocations for tenant_context: {tenant_context}")
+        print(f"[HOTEL] DEBUG: Event ID filter: {event_id}")
+        print(f"[HOTEL] DEBUG: User: {current_user.email}")
         
         from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
         from app.models.event import Event
@@ -905,7 +905,7 @@ def get_allocations(
         from app.models.user import User
         
         tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-        print(f"🏨 DEBUG: Resolved tenant_id: {tenant_id}")
+        print(f"[HOTEL] DEBUG: Resolved tenant_id: {tenant_id}")
         
         query = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.tenant_id == tenant_id
@@ -916,8 +916,8 @@ def get_allocations(
             print(f"DEBUG: Filtering by event_id: {event_id}")
         
         allocations = query.all()
-        print(f"🏨 DEBUG: Found {len(allocations)} allocations")
-        print(f"🏨 DEBUG: ===== ALLOCATIONS ENDPOINT COMPLETE =====")
+        print(f"[HOTEL] DEBUG: Found {len(allocations)} allocations")
+        print(f"[HOTEL] DEBUG: ===== ALLOCATIONS ENDPOINT COMPLETE =====")
         
         result = []
         for allocation in allocations:
@@ -1061,11 +1061,11 @@ def get_allocations(
             result.append(allocation_data)
             print(f"DEBUG: Completed processing allocation {allocation.id}")
         
-        print(f"🏨 DEBUG: Returning {len(result)} processed allocations")
+        print(f"[HOTEL] DEBUG: Returning {len(result)} processed allocations")
         return result
         
     except Exception as e:
-        print(f"🏨 DEBUG: Error in get_allocations: {str(e)}")
+        print(f"[HOTEL] DEBUG: Error in get_allocations: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -1429,8 +1429,8 @@ def get_participant_accommodation(
     """Get accommodation details for a specific participant"""
     # Determine tenant context from headers or user
     tenant_context = x_tenant_context or x_tenant_id or current_user.tenant_id
-    print(f"🏠 DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
-    print(f"🏠 DEBUG: Headers - X-Tenant-ID: {x_tenant_id}, X-Tenant-Context: {x_tenant_context}")
+    print(f"[DEBUG] DEBUG: get_participant_accommodation - Participant: {participant_id}, Event: {event_id}, User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
+    print(f"[DEBUG] DEBUG: Headers - X-Tenant-ID: {x_tenant_id}, X-Tenant-Context: {x_tenant_context}")
     
     from app.models.guesthouse import AccommodationAllocation, Room, GuestHouse, VendorAccommodation
     from app.models.event_participant import EventParticipant
@@ -1443,24 +1443,24 @@ def get_participant_accommodation(
             event = db.query(Event).filter(Event.id == event_id).first()
             if event:
                 tenant_id = event.tenant_id
-                print(f"🏠 DEBUG: Using event's tenant_id: {tenant_id}")
+                print(f"[DEBUG] DEBUG: Using event's tenant_id: {tenant_id}")
             else:
-                print(f"🏠 DEBUG: Event {event_id} not found")
+                print(f"[DEBUG] DEBUG: Event {event_id} not found")
                 return []
         else:
             # If no event_id provided, try to get it from tenant context as fallback
             if tenant_context:
                 tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-                print(f"🏠 DEBUG: Using fallback tenant_id: {tenant_id}")
+                print(f"[DEBUG] DEBUG: Using fallback tenant_id: {tenant_id}")
             else:
-                print(f"🏠 DEBUG: No tenant context available")
+                print(f"[DEBUG] DEBUG: No tenant context available")
                 return []
         
         if not tenant_id:
-            print(f"🏠 DEBUG: No tenant_id available")
+            print(f"[DEBUG] DEBUG: No tenant_id available")
             return []
         
-        print(f"🏠 DEBUG: Final tenant_id: {tenant_id}, type: {type(tenant_id)}")
+        print(f"[DEBUG] DEBUG: Final tenant_id: {tenant_id}, type: {type(tenant_id)}")
         
         # Get participant's accommodation allocations
         query = db.query(AccommodationAllocation).filter(
@@ -1659,13 +1659,13 @@ def get_participant_accommodation(
                     print(f"DEBUG: Adding vendor accommodation: {accommodation_data}")
                     accommodations.append(accommodation_data)
         
-        print(f"🏠 DEBUG: Returning {len(accommodations)} accommodation details")
+        print(f"[DEBUG] DEBUG: Returning {len(accommodations)} accommodation details")
         for i, acc in enumerate(accommodations):
-            print(f"🏠 DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
+            print(f"[DEBUG] DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
         return accommodations
         
     except Exception as e:
-        print(f"🏠 DEBUG: Error in get_participant_accommodation: {str(e)}")
+        print(f"[DEBUG] DEBUG: Error in get_participant_accommodation: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(

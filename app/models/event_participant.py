@@ -16,6 +16,21 @@ class ParticipantStatus(enum.Enum):
     WAITING = "waiting"       # On waiting list
     CANCELED = "canceled"     # Registration canceled
     ATTENDED = "attended"     # Actually attended
+    CONFIRMED = "confirmed"   # User confirmed attendance
+    DECLINED = "declined"     # User declined attendance
+
+class DeclineReason(enum.Enum):
+    NO_SHOW = "No Show"
+    DECLINED_OPERATIONAL = "Declined - Operational / Work Reasons"
+    DECLINED_PERSONAL = "Declined - Personal Reasons"
+    CANCELLED_OPERATIONAL = "Cancelled - Operational Reasons"
+    CANCELLED_PERSONAL = "Cancelled - Personal Reasons"
+    CANCELLED_PRIORITISING_TRAINING = "Cancelled - Prioritising Other Training"
+    CANCELLED_VISA_REJECTED = "Cancelled - Visa Rejected"
+    CANCELLED_VISA_APPOINTMENT = "Cancelled - Visa Appointment Not Available"
+    CANCELLED_VISA_DELAY = "Cancelled - Visa Issuing Took Too Long"
+    CANCELLED_VISA_UNFEASIBLE = "Cancelled - Visa Process Unfeasible"
+    CANCELLATION = "Cancellation"
 
 class EventParticipant(BaseModel):
     __tablename__ = "event_participants"
@@ -57,8 +72,14 @@ class EventParticipant(BaseModel):
     # invitation_accepted_at = Column(DateTime, nullable=True)
     
     # Decline tracking fields
-    decline_reason = Column(Text, nullable=True)
+    decline_reason = Column(Enum(DeclineReason), nullable=True)
     declined_at = Column(DateTime, nullable=True)
+    
+    # Vetting comments
+    vetting_comments = Column(Text, nullable=True)
+    
+    # Confirmation tracking
+    confirmed_at = Column(DateTime, nullable=True)
     
     # Relationships
     event = relationship("Event", back_populates="participants")

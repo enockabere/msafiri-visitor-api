@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.db.database import get_db
+from app.api.deps import get_current_user
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from app.models.user import User
@@ -28,6 +29,8 @@ class EventRegistrationRequest(BaseModel):
 class ParticipantStatusUpdate(BaseModel):
     status: str  # selected, not_selected, waiting, canceled
     notes: str = None
+    comments: str = None  # Vetting comments
+    suppress_email: bool = False  # Suppress email notifications during vetting
 
 @router.post("/register")
 async def register_for_event(
@@ -170,7 +173,7 @@ async def get_event_registrations(
         SELECT
             ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
             ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
-            ep.decline_reason, ep.declined_at{pr_select}
+            ep.decline_reason, ep.declined_at, ep.vetting_comments{pr_select}
         FROM event_participants ep
         LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
         WHERE ep.event_id = :event_id
@@ -181,7 +184,7 @@ async def get_event_registrations(
         SELECT
             ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
             ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
-            ep.decline_reason, ep.declined_at
+            ep.decline_reason, ep.declined_at, ep.vetting_comments
         FROM event_participants ep
         WHERE ep.event_id = :event_id
         """
@@ -244,7 +247,8 @@ async def get_event_registrations(
                 "accommodation_type": "[REDACTED]",
                 "daily_meals": "[REDACTED]",
                 "decline_reason": "[REDACTED]",
-                "declined_at": "[REDACTED]"
+                "declined_at": "[REDACTED]",
+                "vetting_comments": "[REDACTED]"
             })
         else:
             result.append({
@@ -290,7 +294,8 @@ async def get_event_registrations(
                 "accommodation_type": getattr(p, 'accommodation_type', None),
                 "daily_meals": getattr(p, 'daily_meals', None),
                 "decline_reason": p.decline_reason,
-                "declined_at": p.declined_at.isoformat() if p.declined_at else None
+                "declined_at": p.declined_at.isoformat() if p.declined_at else None,
+                "vetting_comments": getattr(p, 'vetting_comments', None)
             })
     
     return result
@@ -499,28 +504,52 @@ async def update_participant_role_simple(
 async def update_participant_status(
     participant_id: int,
     status_update: ParticipantStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update participant status (admin only)"""
-    
+
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id
     ).first()
-    
+
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
-    
+
+    # Check if event has active vetting committee and apply permission checks
+    from app.models.vetting_committee import VettingCommittee, VettingStatus
+    from app.core.permissions import can_edit_vetting_participants
+
+    suppress_emails = status_update.suppress_email
+    committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == participant.event_id
+    ).first()
+
+    if committee and committee.status != VettingStatus.APPROVED:
+        # Check permissions during vetting
+        permissions = can_edit_vetting_participants(current_user, db, participant.event_id)
+        if not permissions['can_edit']:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Cannot edit participant during vetting: {permissions['reason']}"
+            )
+        # Suppress emails during vetting
+        suppress_emails = True
+
     # Validate status
     valid_statuses = ["registered", "selected", "not_selected", "waiting", "canceled", "attended", "confirmed", "declined"]
     if status_update.status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Invalid status")
-    
+
     participant.status = status_update.status
     participant.updated_at = datetime.utcnow()
-    # Notes field not available yet
     
-    # If status is selected, send invitation email and push notification
-    if status_update.status == "selected":
+    # Update vetting comments if provided
+    if status_update.comments:
+        participant.vetting_comments = status_update.comments
+
+    # If status is selected, send invitation email and push notification (only if not suppressed)
+    if status_update.status == "selected" and not suppress_emails:
         print(f"🎉 SENDING SELECTION EMAIL to {participant.full_name} ({participant.email})")
         email_sent = await send_status_notification(participant, status_update.status, db)
         if email_sent:
@@ -541,32 +570,33 @@ async def update_participant_status(
             import traceback
             traceback.print_exc()
         
-        # Send push notification
-        try:
-            from app.services.firebase_service import firebase_service
-            event = db.query(Event).filter(Event.id == participant.event_id).first()
-            if event:
-                push_sent = firebase_service.send_to_user(
-                    db=db,
-                    user_email=participant.email,
-                    title="🎉 You've been selected!",
-                    body=f"Congratulations! You've been selected for {event.title}",
-                    data={
-                        "type": "event_selection",
-                        "event_id": str(event.id),
-                        "participant_id": str(participant.id)
-                    }
-                )
-                if push_sent:
-                    print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
-                else:
-                    print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
-        except Exception as e:
-            print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
+        # Send push notification (only if not suppressed)
+        if not suppress_emails:
+            try:
+                from app.services.firebase_service import firebase_service
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if event:
+                    push_sent = firebase_service.send_to_user(
+                        db=db,
+                        user_email=participant.email,
+                        title="🎉 You've been selected!",
+                        body=f"Congratulations! You've been selected for {event.title}",
+                        data={
+                            "type": "event_selection",
+                            "event_id": str(event.id),
+                            "participant_id": str(participant.id)
+                        }
+                    )
+                    if push_sent:
+                        print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
+                    else:
+                        print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
+            except Exception as e:
+                print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
             
         # participant.invitation_sent = True
         # participant.invitation_sent_at = datetime.utcnow()
-    elif status_update.status == "not_selected":
+    elif status_update.status == "not_selected" and not suppress_emails:
         print(f"😔 SENDING REJECTION EMAIL to {participant.full_name} ({participant.email})")
         email_sent = await send_status_notification(participant, status_update.status, db)
         if email_sent:
@@ -574,28 +604,29 @@ async def update_participant_status(
         else:
             print(f"❌ FAILED TO SEND REJECTION EMAIL to {participant.email}")
         
-        # Send push notification for rejection
-        try:
-            from app.services.firebase_service import firebase_service
-            event = db.query(Event).filter(Event.id == participant.event_id).first()
-            if event:
-                push_sent = firebase_service.send_to_user(
-                    db=db,
-                    user_email=participant.email,
-                    title="Event Application Update",
-                    body=f"Thank you for your interest in {event.title}. Unfortunately, we were unable to select you at this time.",
-                    data={
-                        "type": "event_rejection",
-                        "event_id": str(event.id),
-                        "participant_id": str(participant.id)
-                    }
-                )
-                if push_sent:
-                    print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
-                else:
-                    print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
-        except Exception as e:
-            print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
+        # Send push notification for rejection (only if not suppressed)
+        if not suppress_emails:
+            try:
+                from app.services.firebase_service import firebase_service
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if event:
+                    push_sent = firebase_service.send_to_user(
+                        db=db,
+                        user_email=participant.email,
+                        title="Event Application Update",
+                        body=f"Thank you for your interest in {event.title}. Unfortunately, we were unable to select you at this time.",
+                        data={
+                            "type": "event_rejection",
+                            "event_id": str(event.id),
+                            "participant_id": str(participant.id)
+                        }
+                    )
+                    if push_sent:
+                        print(f"✅ PUSH NOTIFICATION SENT to {participant.email}")
+                    else:
+                        print(f"❌ FAILED TO SEND PUSH NOTIFICATION to {participant.email}")
+            except Exception as e:
+                print(f"❌ ERROR SENDING PUSH NOTIFICATION: {str(e)}")
         
         # Data privacy: Ensure not_selected participants are not created as system users
         try:
@@ -608,84 +639,87 @@ async def update_participant_status(
             print(f"❌ ERROR REMOVING AUTO-REGISTERED USER: {str(e)}")
     elif status_update.status == "confirmed":
         print(f"✅ PARTICIPANT CONFIRMED: {participant.full_name} ({participant.email})")
-        # Send push notification for confirmation
-        try:
-            from app.services.firebase_service import firebase_service
-            event = db.query(Event).filter(Event.id == participant.event_id).first()
-            if event:
-                push_sent = firebase_service.send_to_user(
-                    db=db,
-                    user_email=participant.email,
-                    title="Confirmation Received!",
-                    body=f"Thank you for confirming your participation in {event.title}",
-                    data={
-                        "type": "event_confirmation",
-                        "event_id": str(event.id),
-                        "participant_id": str(participant.id)
-                    }
-                )
-                if push_sent:
-                    print(f"✅ CONFIRMATION PUSH NOTIFICATION SENT to {participant.email}")
-                else:
-                    print(f"❌ FAILED TO SEND CONFIRMATION PUSH NOTIFICATION to {participant.email}")
-        except Exception as e:
-            print(f"❌ ERROR SENDING CONFIRMATION PUSH NOTIFICATION: {str(e)}")
+        # Send push notification for confirmation (only if not suppressed)
+        if not suppress_emails:
+            try:
+                from app.services.firebase_service import firebase_service
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if event:
+                    push_sent = firebase_service.send_to_user(
+                        db=db,
+                        user_email=participant.email,
+                        title="Confirmation Received!",
+                        body=f"Thank you for confirming your participation in {event.title}",
+                        data={
+                            "type": "event_confirmation",
+                            "event_id": str(event.id),
+                            "participant_id": str(participant.id)
+                        }
+                    )
+                    if push_sent:
+                        print(f"✅ CONFIRMATION PUSH NOTIFICATION SENT to {participant.email}")
+                    else:
+                        print(f"❌ FAILED TO SEND CONFIRMATION PUSH NOTIFICATION to {participant.email}")
+            except Exception as e:
+                print(f"❌ ERROR SENDING CONFIRMATION PUSH NOTIFICATION: {str(e)}")
     elif status_update.status == "declined":
         print(f"😔 PARTICIPANT DECLINED: {participant.full_name} ({participant.email})")
         # Set decline timestamp
         participant.declined_at = datetime.utcnow()
-        # Send push notification for decline
-        try:
-            from app.services.firebase_service import firebase_service
-            event = db.query(Event).filter(Event.id == participant.event_id).first()
-            if event:
-                push_sent = firebase_service.send_to_user(
-                    db=db,
-                    user_email=participant.email,
-                    title="Participation Declined",
-                    body=f"We understand you cannot participate in {event.title}. Thank you for letting us know.",
-                    data={
-                        "type": "event_decline",
-                        "event_id": str(event.id),
-                        "participant_id": str(participant.id)
-                    }
-                )
-                if push_sent:
-                    print(f"✅ DECLINE PUSH NOTIFICATION SENT to {participant.email}")
-                else:
-                    print(f"❌ FAILED TO SEND DECLINE PUSH NOTIFICATION to {participant.email}")
-        except Exception as e:
-            print(f"❌ ERROR SENDING DECLINE PUSH NOTIFICATION: {str(e)}")
+        # Send push notification for decline (only if not suppressed)
+        if not suppress_emails:
+            try:
+                from app.services.firebase_service import firebase_service
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if event:
+                    push_sent = firebase_service.send_to_user(
+                        db=db,
+                        user_email=participant.email,
+                        title="Participation Declined",
+                        body=f"We understand you cannot participate in {event.title}. Thank you for letting us know.",
+                        data={
+                            "type": "event_decline",
+                            "event_id": str(event.id),
+                            "participant_id": str(participant.id)
+                        }
+                    )
+                    if push_sent:
+                        print(f"✅ DECLINE PUSH NOTIFICATION SENT to {participant.email}")
+                    else:
+                        print(f"❌ FAILED TO SEND DECLINE PUSH NOTIFICATION to {participant.email}")
+            except Exception as e:
+                print(f"❌ ERROR SENDING DECLINE PUSH NOTIFICATION: {str(e)}")
     elif status_update.status in ["waiting", "canceled", "attended"]:
         print(f"📝 STATUS UPDATE: {participant.full_name} ({participant.email}) -> {status_update.status}")
-        # Send push notification for other status changes
-        try:
-            from app.services.firebase_service import firebase_service
-            event = db.query(Event).filter(Event.id == participant.event_id).first()
-            if event:
-                status_messages = {
-                    "waiting": f"You have been placed on the waiting list for {event.title}",
-                    "canceled": f"Your registration for {event.title} has been canceled",
-                    "attended": f"Thank you for attending {event.title}!"
-                }
-                push_sent = firebase_service.send_to_user(
-                    db=db,
-                    user_email=participant.email,
-                    title="Event Status Update",
-                    body=status_messages.get(status_update.status, f"Your status for {event.title} has been updated"),
-                    data={
-                        "type": "event_status_update",
-                        "event_id": str(event.id),
-                        "participant_id": str(participant.id),
-                        "new_status": status_update.status
+        # Send push notification for other status changes (only if not suppressed)
+        if not suppress_emails:
+            try:
+                from app.services.firebase_service import firebase_service
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if event:
+                    status_messages = {
+                        "waiting": f"You have been placed on the waiting list for {event.title}",
+                        "canceled": f"Your registration for {event.title} has been canceled",
+                        "attended": f"Thank you for attending {event.title}!"
                     }
-                )
-                if push_sent:
-                    print(f"✅ STATUS UPDATE PUSH NOTIFICATION SENT to {participant.email}")
-                else:
-                    print(f"❌ FAILED TO SEND STATUS UPDATE PUSH NOTIFICATION to {participant.email}")
-        except Exception as e:
-            print(f"❌ ERROR SENDING STATUS UPDATE PUSH NOTIFICATION: {str(e)}")
+                    push_sent = firebase_service.send_to_user(
+                        db=db,
+                        user_email=participant.email,
+                        title="Event Status Update",
+                        body=status_messages.get(status_update.status, f"Your status for {event.title} has been updated"),
+                        data={
+                            "type": "event_status_update",
+                            "event_id": str(event.id),
+                            "participant_id": str(participant.id),
+                            "new_status": status_update.status
+                        }
+                    )
+                    if push_sent:
+                        print(f"✅ STATUS UPDATE PUSH NOTIFICATION SENT to {participant.email}")
+                    else:
+                        print(f"❌ FAILED TO SEND STATUS UPDATE PUSH NOTIFICATION to {participant.email}")
+            except Exception as e:
+                print(f"❌ ERROR SENDING STATUS UPDATE PUSH NOTIFICATION: {str(e)}")
     
     try:
         db.commit()

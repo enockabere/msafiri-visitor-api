@@ -41,12 +41,18 @@ def update_participant_role(
     logger.info(f"Current user: {current_user.email}, Role: {current_user.role}")
     logger.info(f"Role update data: {role_update}")
     
-    # Check admin permissions
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]:
-        logger.error(f"❌ Permission denied - User role: {current_user.role}")
+    # Check permissions - allow vetting approvers during approval phase
+    from app.core.permissions import can_edit_vetting_participants
+
+    has_admin_permission = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    vetting_permissions = can_edit_vetting_participants(current_user, db, event_id)
+    has_vetting_permission = vetting_permissions['can_edit']
+
+    if not (has_admin_permission or has_vetting_permission):
+        logger.error(f"❌ Permission denied - User role: {current_user.role}, Reason: {vetting_permissions['reason']}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin roles can update participant roles"
+            detail=f"Insufficient permissions to update participant roles: {vetting_permissions['reason']}"
         )
     
     from app.models.event_participant import EventParticipant

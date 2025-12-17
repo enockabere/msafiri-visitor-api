@@ -2,10 +2,14 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+import logging
+
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.models.tenant import Tenant
+
+logger = logging.getLogger(__name__)
 
 def get_tenant_id_from_context(db, tenant_context, current_user):
     """Helper function to get tenant ID from context"""
@@ -269,6 +273,7 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
     """), {"accommodation_setup_id": event.accommodation_setup_id})
     
     db.commit()
+
     return {"message": "Single room booked successfully", "allocation_id": allocation.id}
 
 def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
@@ -360,6 +365,7 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
 
     
     db.commit()
+
     return {
         "message": f"Matched with {existing_allocation.full_name} in double room",
         "allocation_id": new_allocation.id,
@@ -412,6 +418,7 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     """), {"accommodation_setup_id": event.accommodation_setup_id})
     
     db.commit()
+
     return {
         "message": "Single room booked (waiting for potential match)",
         "allocation_id": allocation.id

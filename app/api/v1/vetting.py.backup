@@ -1,0 +1,333 @@
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session
+from app.db.database import get_db
+from app.models.user import User
+from app.models.event import Event
+from app.api.deps import get_current_user
+from app.core.email_service import email_service
+from pydantic import BaseModel
+from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+class VettingSubmission(BaseModel):
+    event_id: int
+    submitted_by: str
+
+class VettingStatus(BaseModel):
+    status: str
+    submitted_at: Optional[str] = None
+    submitted_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    approved_by: Optional[str] = None
+
+@router.post("/events/{event_id}/vetting/submit")
+async def submit_vetting(
+    event_id: int,
+    submission: VettingSubmission,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Submit vetting for approval and notify approver"""
+    try:
+        from app.models.vetting_committee import VettingCommittee, VettingStatus
+        from datetime import datetime
+        
+        # Get event details
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        
+        # Update vetting committee status
+        committee = db.query(VettingCommittee).filter(
+            VettingCommittee.event_id == event_id
+        ).first()
+        
+        if committee:
+            committee.status = VettingStatus.SUBMITTED_FOR_APPROVAL
+            committee.submitted_at = datetime.utcnow()
+            committee.submitted_by = current_user.email
+            db.commit()
+        else:
+            raise HTTPException(status_code=404, detail="Vetting committee not found")
+        
+        # Find vetting approvers for this event
+        # Get approver from committee
+        if committee.approver_id:
+            approver = db.query(User).filter(User.id == committee.approver_id).first()
+            approvers = [approver] if approver else []
+        else:
+            # Fallback: find all users with vetting_approver role
+            from app.models.user_roles import UserRole
+            approver_role_records = db.query(UserRole).filter(
+                UserRole.role == "VETTING_APPROVER",
+                UserRole.is_active == True
+            ).all()
+            approver_ids = [record.user_id for record in approver_role_records]
+            approvers = db.query(User).filter(
+                User.id.in_(approver_ids),
+                User.is_active == True
+            ).all()
+        
+        # Send email notification to approvers
+        for approver in approvers:
+            background_tasks.add_task(
+                send_vetting_notification,
+                approver.email,
+                event.title,
+                current_user.full_name or current_user.email
+            )
+        
+        logger.info(f"✅ VETTING SUBMITTED: Event {event.title} by {current_user.email}")
+        logger.info(f"📧 NOTIFYING {len(approvers)} APPROVERS")
+        
+        return {
+            "message": "Vetting submitted successfully",
+            "status": "submitted",
+            "approvers_notified": len(approvers)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ VETTING SUBMISSION ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to submit vetting")
+
+@router.get("/events/{event_id}/vetting/status")
+async def get_vetting_status(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get vetting status for an event"""
+    try:
+        from app.models.vetting_committee import VettingCommittee, VettingStatus
+
+        # Check database for vetting committee status
+        committee = db.query(VettingCommittee).filter(
+            VettingCommittee.event_id == event_id
+        ).first()
+
+        if not committee:
+            return {"status": "not_submitted"}
+
+        # Map database status to frontend status
+        status_map = {
+            VettingStatus.PENDING: "not_submitted",
+            VettingStatus.IN_PROGRESS: "not_submitted",
+            VettingStatus.SUBMITTED_FOR_APPROVAL: "submitted",
+            VettingStatus.COMPLETED: "approved"
+        }
+
+        status = status_map.get(committee.status, "not_submitted")
+
+        return {
+            "status": status,
+            "submitted_at": committee.submitted_at.isoformat() if committee.submitted_at else None,
+            "submitted_by": committee.submitted_by,
+            "approved_at": committee.approved_at.isoformat() if committee.approved_at else None,
+            "approved_by": committee.approved_by
+        }
+
+    except Exception as e:
+        logger.error(f"❌ VETTING STATUS ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get vetting status")
+
+@router.post("/events/{event_id}/vetting/approve")
+async def approve_vetting(
+    event_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Approve vetting submission and send emails to participants"""
+    try:
+        from app.models.vetting_committee import VettingCommittee, VettingStatus, ApprovalStatus
+        from app.models.event_participant import EventParticipant
+        from app.models.event import Event
+        from datetime import datetime
+        
+        # Check if user is vetting approver (check both primary role and secondary roles)
+        from app.models.user_roles import UserRole
+        
+        logger.info(f"🔍 CHECKING APPROVER PERMISSIONS for user {current_user.email}")
+        logger.info(f"🔍 User primary role: {current_user.role}")
+
+        is_approver = current_user.role in ["VETTING_APPROVER", "vetting_approver"]
+        logger.info(f"🔍 Primary role check: {is_approver}")
+        
+        if not is_approver:
+            # Check secondary roles
+            logger.info(f"🔍 Checking secondary roles for user ID {current_user.id}")
+            approver_role = db.query(UserRole).filter(
+                UserRole.user_id == current_user.id,
+                UserRole.role == "VETTING_APPROVER",
+                UserRole.is_active == True
+            ).first()
+            is_approver = approver_role is not None
+            logger.info(f"🔍 Secondary role check: {is_approver}")
+
+        if not is_approver:
+            logger.warning(f"❌ ACCESS DENIED: User {current_user.email} is not a vetting approver")
+            raise HTTPException(status_code=403, detail="Only vetting approvers can approve")
+            
+        logger.info(f"✅ APPROVER PERMISSIONS VERIFIED for {current_user.email}")
+        
+        # Get event details
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+        
+        # Update vetting committee status
+        committee = db.query(VettingCommittee).filter(
+            VettingCommittee.event_id == event_id,
+            VettingCommittee.status == VettingStatus.SUBMITTED_FOR_APPROVAL
+        ).first()
+
+        if not committee:
+            raise HTTPException(status_code=400, detail="No pending vetting submission found for approval")
+
+        # Verify this user is the designated approver for this committee
+        if committee.approver_id and committee.approver_id != current_user.id:
+            raise HTTPException(status_code=403, detail="You are not the designated approver for this vetting committee")
+        
+        # Update committee status
+        committee.status = VettingStatus.COMPLETED
+        committee.approval_status = ApprovalStatus.APPROVED
+        committee.approved_at = datetime.utcnow()
+        committee.approved_by = current_user.email
+        db.commit()
+        
+        # Send emails to all confirmed participants
+        confirmed_participants = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.status == 'confirmed'
+        ).all()
+        
+        # Send approval emails in background
+        for participant in confirmed_participants:
+            background_tasks.add_task(
+                send_vetting_approval_notification,
+                participant.email,
+                participant.full_name,
+                event.title,
+                current_user.full_name or current_user.email
+            )
+        
+        logger.info(f"✅ VETTING APPROVED: Event {event.title} by {current_user.email}")
+        logger.info(f"📧 SENDING APPROVAL EMAILS to {len(confirmed_participants)} participants")
+        
+        return {
+            "message": "Vetting approved successfully",
+            "status": "approved",
+            "participants_notified": len(confirmed_participants)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ VETTING APPROVAL ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to approve vetting")
+
+async def send_vetting_notification(approver_email: str, event_title: str, submitted_by: str):
+    """Send email notification to vetting approver"""
+    try:
+        subject = f"Vetting Approval Required - {event_title}"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #ee0000, #ff4444); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Vetting Approval Required</h1>
+            </div>
+            
+            <div style="padding: 30px; background: #f9f9f9;">
+                <h2 style="color: #333; margin-bottom: 20px;">Event Vetting Submitted</h2>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <p><strong>Event:</strong> {event_title}</p>
+                    <p><strong>Submitted by:</strong> {submitted_by}</p>
+                    <p><strong>Status:</strong> Awaiting your approval</p>
+                </div>
+                
+                <p style="color: #666; line-height: 1.6;">
+                    The vetting committee has completed their review of event participants and submitted 
+                    the vetting for your approval. Please log in to the admin portal to review and approve 
+                    the vetting.
+                </p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{process.env.NEXT_PUBLIC_BASE_URL or 'http://localhost:3000'}" 
+                       style="background: #ee0000; color: white; padding: 12px 30px; text-decoration: none; 
+                              border-radius: 5px; font-weight: bold; display: inline-block;">
+                        Review Vetting
+                    </a>
+                </div>
+                
+                <p style="color: #999; font-size: 12px; text-align: center;">
+                    MSF Msafiri Admin Portal
+                </p>
+            </div>
+        </div>
+        """
+        
+        email_service.send_email(
+            to_emails=[approver_email],
+            subject=subject,
+            html_content=html_content
+        )
+        
+        logger.info(f"📧 VETTING NOTIFICATION SENT to {approver_email}")
+        
+    except Exception as e:
+        logger.error(f"❌ FAILED TO SEND VETTING NOTIFICATION to {approver_email}: {str(e)}")
+
+async def send_vetting_approval_notification(participant_email: str, participant_name: str, event_title: str, approved_by: str):
+    """Send email notification to participant when vetting is approved"""
+    try:
+        subject = f"Vetting Approved - {event_title}"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #10b981, #34d399); padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Vetting Approved!</h1>
+            </div>
+            
+            <div style="padding: 30px; background: #f9f9f9;">
+                <h2 style="color: #333; margin-bottom: 20px;">Great News!</h2>
+                
+                <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <p>Dear <strong>{participant_name}</strong>,</p>
+                    <p>We're pleased to inform you that the vetting process for <strong>{event_title}</strong> has been completed and approved.</p>
+                    <p><strong>Approved by:</strong> {approved_by}</p>
+                </div>
+                
+                <div style="background: #ecfdf5; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 20px;">
+                    <h3 style="color: #065f46; margin-top: 0;">Next Steps:</h3>
+                    <ul style="color: #065f46; line-height: 1.6;">
+                        <li>Check the Msafiri mobile app for event updates</li>
+                        <li>Review your accommodation and travel arrangements</li>
+                        <li>Prepare for the upcoming event</li>
+                    </ul>
+                </div>
+                
+                <p style="color: #666; line-height: 1.6;">
+                    Thank you for your patience during the vetting process. We look forward to your participation in the event.
+                </p>
+                
+                <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
+                    MSF Msafiri - Event Management System
+                </p>
+            </div>
+        </div>
+        """
+        
+        email_service.send_email(
+            to_emails=[participant_email],
+            subject=subject,
+            html_content=html_content
+        )
+        
+        logger.info(f"📧 VETTING APPROVAL NOTIFICATION SENT to {participant_email}")
+        
+    except Exception as e:
+        logger.error(f"❌ FAILED TO SEND VETTING APPROVAL NOTIFICATION to {participant_email}: {str(e)}")

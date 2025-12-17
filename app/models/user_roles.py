@@ -12,6 +12,8 @@ class RoleType(enum.Enum):
     USER = "USER"
     GUEST = "GUEST"
     VOUCHER_SCANNER = "VOUCHER_SCANNER"
+    VETTING_APPROVER = "vetting_approver"
+    VETTING_COMMITTEE = "VETTING_COMMITTEE"
 
 class UserRole(BaseModel):
     __tablename__ = "user_roles"

@@ -1,6 +1,8 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset, upload, vetting_committee, code_of_conduct, participant_response, form_fields
+from app.api.v1 import vetting
+from app.api import deps
 
 # Create main API router
 api_router = APIRouter()
@@ -91,6 +93,37 @@ api_router.include_router(
 )
 
 api_router.include_router(
+    vetting_committee.router,
+    prefix="/vetting-committee",
+    tags=["vetting-committee"]
+)
+
+api_router.include_router(
+    vetting.router,
+    prefix="",
+    tags=["vetting"]
+)
+
+from app.api.v1.endpoints import vetting_export
+api_router.include_router(
+    vetting_export.router,
+    prefix="/vetting-committee",
+    tags=["vetting-export"]
+)
+
+api_router.include_router(
+    code_of_conduct.router,
+    prefix="/code-of-conduct",
+    tags=["code-of-conduct"]
+)
+
+api_router.include_router(
+    participant_response.router,
+    prefix="/participant-response",
+    tags=["participant-response"]
+)
+
+api_router.include_router(
     event_participants.router,
     prefix="/events/{event_id}/participants",
     tags=["event-participants"]
@@ -131,6 +164,13 @@ api_router.include_router(
     invitations.router,
     prefix="/invitations",
     tags=["invitations"]
+)
+
+# Upload endpoints for email images to Azure Blob Storage
+api_router.include_router(
+    upload.router,
+    prefix="/upload",
+    tags=["upload"]
 )
 
 from app.api.v1.endpoints import security_briefings
@@ -549,6 +589,37 @@ api_router.include_router(
     tags=["admin-cleanup"]
 )
 
+# Participant proof of accommodation endpoint
+from app.api.v1.endpoints import participant_proof
+api_router.include_router(
+    participant_proof.router,
+    prefix="",
+    tags=["participant-proof"]
+)
+
+# Vendor proof generation endpoint
+from app.api.v1.endpoints import vendor_proof_generation
+api_router.include_router(
+    vendor_proof_generation.router,
+    prefix="",
+    tags=["vendor-proof"]
+)
+
+# Form fields for dynamic forms
+api_router.include_router(
+    form_fields.router,
+    prefix="/form-fields",
+    tags=["form-fields"]
+)
+
+# Email templates
+from app.api.v1.endpoints import email_templates
+api_router.include_router(
+    email_templates.router,
+    prefix="/email-templates",
+    tags=["email-templates"]
+)
+
 # Add registration email endpoint
 @api_router.post("/notifications/send-registration-email")
 async def send_registration_email(
@@ -593,6 +664,46 @@ async def send_registration_email(
     except Exception as e:
         print(f"Error sending registration email: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+# Add event participants permissions endpoint for frontend compatibility
+@api_router.get("/event-participants/permissions")
+def get_event_participant_permissions(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_user)
+):
+    """Get event participant edit permissions - frontend compatibility endpoint"""
+    from app.core.permissions import can_edit_vetting_participants
+    from app.models.user import UserRole
+    from app.models.vetting_committee import VettingCommittee, VettingStatus
+    
+    has_admin_permission = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    has_vetting_permission = can_edit_vetting_participants(current_user, db, event_id)
+    
+    # Get vetting status for frontend
+    committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).first()
+    
+    vetting_status = None
+    can_approve_vetting = False
+    
+    if committee:
+        vetting_status = committee.status.value if committee.status else None
+        # Check if current user can approve vetting
+        can_approve_vetting = (
+            current_user.role == UserRole.VETTING_APPROVER and 
+            committee.approver_email == current_user.email and
+            committee.status == VettingStatus.SUBMITTED_FOR_APPROVAL
+        )
+    
+    return {
+        "can_edit": has_admin_permission or has_vetting_permission,
+        "has_admin_permission": has_admin_permission,
+        "has_vetting_permission": has_vetting_permission,
+        "vetting_status": vetting_status,
+        "can_approve_vetting": can_approve_vetting
+    }
 
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])

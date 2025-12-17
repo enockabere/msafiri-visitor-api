@@ -25,6 +25,9 @@ from .invitation import Invitation
 from .passport_record import PassportRecord
 from .app_feedback import AppFeedback
 from .travel_checklist_progress import TravelChecklistProgress
+from .vetting_committee import VettingCommittee, VettingCommitteeMember, ParticipantSelection, VettingStatus, ApprovalStatus
+from .form_field import FormField, FormResponse
+from .code_of_conduct import CodeOfConduct
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole", 
@@ -36,5 +39,7 @@ __all__ = [
     "BookingType", "BookingStatus", "VendorType", "EmergencyContact", "UserConsent",
     "EventAgenda", "AgendaFeedback", "FeedbackResponse", "CountryTravelRequirement",
     "NewsUpdate", "NewsCategory", "ChatRoom", "ChatMessage", "DirectMessage", "ChatType",
-    "FlightItinerary", "TransportRequest", "Invitation", "PassportRecord", "AppFeedback", "TravelChecklistProgress"
+    "FlightItinerary", "TransportRequest", "Invitation", "PassportRecord", "AppFeedback", "TravelChecklistProgress",
+    "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus",
+    "FormField", "FormResponse", "CodeOfConduct"
 ]

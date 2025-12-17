@@ -4,7 +4,7 @@ from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,6 +12,7 @@ router = APIRouter()
 
 class PublicRegistrationRequest(BaseModel):
     eventId: int
+    # Core required fields
     firstName: str
     lastName: str
     oc: str
@@ -21,25 +22,31 @@ class PublicRegistrationRequest(BaseModel):
     sex: str
     pronouns: str
     currentPosition: str
+    personalEmail: str
+    phoneNumber: str
+    travellingInternationally: str
+    accommodationType: str
+    codeOfConductConfirm: str
+    travelRequirementsConfirm: str
+    
+    # Optional fields
     countryOfWork: Optional[str] = ""
     projectOfWork: Optional[str] = ""
-    personalEmail: str
     msfEmail: Optional[str] = ""
     hrcoEmail: Optional[str] = ""
     careerManagerEmail: Optional[str] = ""
     lineManagerEmail: Optional[str] = ""
-    phoneNumber: str
-    travellingInternationally: Optional[str] = ""
     travellingFromCountry: Optional[str] = ""
-    accommodationType: Optional[str] = ""
     dietaryRequirements: Optional[str] = ""
     accommodationNeeds: Optional[str] = ""
     dailyMeals: Optional[list] = []
     certificateName: Optional[str] = ""
     badgeName: Optional[str] = ""
     motivationLetter: Optional[str] = ""
-    codeOfConductConfirm: Optional[str] = ""
-    travelRequirementsConfirm: Optional[str] = ""
+    
+    # Dynamic form fields (any additional fields)
+    class Config:
+        extra = "allow"  # Allow additional fields for dynamic form data
 
 @router.post("/check-email-registration")
 async def check_email_registration(
@@ -192,27 +199,27 @@ async def public_register_for_event(
         
         # Store detailed registration data in public_registrations table
         from sqlalchemy import text
-        detailed_registration_sql = """
-        INSERT INTO public_registrations (
-            event_id, participant_id, first_name, last_name, oc, contract_status, 
-            contract_type, gender_identity, sex, pronouns, current_position, 
-            country_of_work, project_of_work, personal_email, msf_email, 
-            hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
-            phone_number, travelling_internationally, travelling_from_country, accommodation_type, 
-            dietary_requirements, accommodation_needs, daily_meals, certificate_name,
-            badge_name, motivation_letter, code_of_conduct_confirm, travel_requirements_confirm, created_at
-        ) VALUES (
-            :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
-            :contract_type, :gender_identity, :sex, :pronouns, :current_position,
-            :country_of_work, :project_of_work, :personal_email, :msf_email,
-            :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
-            :phone_number, :travelling_internationally, :travelling_from_country, :accommodation_type,
-            :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
-            :badge_name, :motivation_letter, :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
-        )
-        """
         
-        db.execute(text(detailed_registration_sql), {
+        # Get registration ID for form responses
+        registration_result = db.execute(text("""
+            INSERT INTO public_registrations (
+                event_id, participant_id, first_name, last_name, oc, contract_status, 
+                contract_type, gender_identity, sex, pronouns, current_position, 
+                country_of_work, project_of_work, personal_email, msf_email, 
+                hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
+                phone_number, travelling_internationally, travelling_from_country, accommodation_type, 
+                dietary_requirements, accommodation_needs, daily_meals, certificate_name,
+                badge_name, motivation_letter, code_of_conduct_confirm, travel_requirements_confirm, created_at
+            ) VALUES (
+                :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
+                :contract_type, :gender_identity, :sex, :pronouns, :current_position,
+                :country_of_work, :project_of_work, :personal_email, :msf_email,
+                :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
+                :phone_number, :travelling_internationally, :travelling_from_country, :accommodation_type,
+                :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
+                :badge_name, :motivation_letter, :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
+            ) RETURNING id
+        """), {
             "event_id": event_id,
             "participant_id": participant.id,
             "first_name": registration.firstName,
@@ -245,6 +252,11 @@ async def public_register_for_event(
             "code_of_conduct_confirm": registration.codeOfConductConfirm,
             "travel_requirements_confirm": registration.travelRequirementsConfirm
         })
+        
+        registration_id = registration_result.fetchone()[0]
+        
+        # Save any additional dynamic form responses
+        # This would be handled by the frontend calling the form-responses endpoint separately
         
         # Send line manager recommendation email if line manager email provided
         if registration.lineManagerEmail and registration.lineManagerEmail.strip():
@@ -383,3 +395,163 @@ async def send_line_manager_recommendation_email(
         logger.error(f"❌ Error sending recommendation email: {e}")
         # Don't fail the registration if email fails
         pass
+
+# ==================== Dynamic Form Field Endpoints ====================
+
+from app.models.form_field import FormField, FormResponse
+from datetime import datetime
+import json
+
+class PublicFormFieldResponse(BaseModel):
+    id: int
+    field_name: str
+    field_label: str
+    field_type: str
+    field_options: Optional[List[str]] = None
+    is_required: bool
+    order_index: int
+    section: Optional[str] = None
+
+class ParticipantStatusResponse(BaseModel):
+    status: Optional[str] = None
+    show_travel_section: bool
+    participant_found: bool
+
+@router.get("/events/{event_id}/form-fields")
+async def get_public_form_fields(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all active form fields for public registration form.
+    Returns dynamic form fields configured by admin.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    fields = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.is_active == True
+    ).order_by(FormField.order_index).all()
+
+    result = []
+    for field in fields:
+        field_data = {
+            "id": field.id,
+            "field_name": field.field_name,
+            "field_label": field.field_label,
+            "field_type": field.field_type,
+            "is_required": field.is_required,
+            "order_index": field.order_index,
+            "section": field.section if hasattr(field, 'section') else None,
+            "field_options": json.loads(field.field_options) if field.field_options else None
+        }
+        result.append(field_data)
+
+    return result
+
+@router.get("/events/{event_id}/participant-status")
+async def check_participant_status(
+    event_id: int,
+    email: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if participant is selected for the event.
+    Determines if Travel & Accommodation section should be shown.
+    """
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == email
+    ).first()
+
+    if not participant:
+        return {
+            "status": None,
+            "show_travel_section": False,
+            "participant_found": False
+        }
+
+    # Only show travel section if participant is SELECTED
+    show_travel = participant.status and participant.status.lower() == "selected"
+
+    return {
+        "status": participant.status,
+        "show_travel_section": show_travel,
+        "participant_found": True
+    }
+
+@router.get("/events/{event_id}/can-register")
+async def check_registration_status(
+    event_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if event is accepting registrations.
+    Validates event dates and registration deadline.
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    now = datetime.utcnow()
+    can_register = True
+    reason = None
+
+    # Check if event has started
+    if event.start_date and datetime.fromisoformat(str(event.start_date)) <= now:
+        can_register = False
+        reason = "Event has already started"
+
+    # Check if event has ended
+    elif event.end_date and datetime.fromisoformat(str(event.end_date)) <= now:
+        can_register = False
+        reason = "Event has ended"
+
+    # Check if registration deadline has passed
+    elif event.registration_deadline and datetime.fromisoformat(str(event.registration_deadline)) <= now:
+        can_register = False
+        reason = "Registration deadline has passed"
+
+    return {
+        "can_register": can_register,
+        "reason": reason,
+        "event_title": event.title,
+        "start_date": str(event.start_date),
+        "end_date": str(event.end_date),
+        "registration_deadline": str(event.registration_deadline) if event.registration_deadline else None
+    }
+
+@router.post("/events/{event_id}/form-responses")
+async def save_form_responses(
+    event_id: int,
+    responses: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Save dynamic form field responses for a registration.
+    """
+    try:
+        registration_id = responses.get("registration_id")
+        form_responses = responses.get("responses", {})
+        
+        if not registration_id:
+            raise HTTPException(status_code=400, detail="Registration ID required")
+        
+        # Save each form response
+        for field_id, value in form_responses.items():
+            if value:  # Only save non-empty responses
+                form_response = FormResponse(
+                    registration_id=registration_id,
+                    field_id=int(field_id),
+                    field_value=str(value)
+                )
+                db.add(form_response)
+        
+        db.commit()
+        return {"message": "Form responses saved successfully"}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save responses: {str(e)}")

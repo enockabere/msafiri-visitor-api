@@ -144,11 +144,23 @@ async def update_participant_role(
     db: Session = Depends(get_db),
     event_id: int,
     participant_id: int,
-    role_data: dict
+    role_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Update participant role with auto-booking"""
     
-
+    # Check permissions - allow vetting approvers during approval phase
+    from app.core.permissions import can_edit_vetting_participants
+    from app.models.user import UserRole
+    
+    has_admin_permission = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    has_vetting_permission = can_edit_vetting_participants(current_user, db, event_id)
+    
+    if not (has_admin_permission or has_vetting_permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to update participant role"
+        )
     
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id,
@@ -493,9 +505,23 @@ async def update_participant_status(
     db: Session = Depends(get_db),
     event_id: int,
     participant_id: int,
-    status_data: dict
+    status_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Update participant status with auto-booking"""
+    
+    # Check permissions - allow vetting approvers during approval phase
+    from app.core.permissions import can_edit_vetting_participants
+    from app.models.user import UserRole
+    
+    has_admin_permission = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    has_vetting_permission = can_edit_vetting_participants(current_user, db, event_id)
+    
+    if not (has_admin_permission or has_vetting_permission):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to update participant status"
+        )
     
     print(f"DEBUG STATUS UPDATE: Starting status update for participant {participant_id} in event {event_id}")
     print(f"DEBUG STATUS UPDATE: Status data: {status_data}")
@@ -566,6 +592,47 @@ async def update_participant_status(
         db.rollback()
         print(f"DEBUG STATUS UPDATE: Error updating participant status: {e}")
         raise HTTPException(status_code=500, detail="Failed to update status")
+
+@router.get("/permissions", operation_id="get_participant_edit_permissions")
+def get_participant_edit_permissions(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int = None,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Check if current user can edit participants for this event"""
+    
+    from app.core.permissions import can_edit_vetting_participants
+    from app.models.user import UserRole
+    from app.models.vetting_committee import VettingCommittee, VettingStatus
+    
+    has_admin_permission = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    has_vetting_permission = can_edit_vetting_participants(current_user, db, event_id)
+    
+    # Get vetting status for frontend
+    committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).first()
+    
+    vetting_status = None
+    can_approve_vetting = False
+    
+    if committee:
+        vetting_status = committee.status.value if committee.status else None
+        # Check if current user can approve vetting
+        can_approve_vetting = (
+            current_user.role == UserRole.VETTING_APPROVER and 
+            committee.approver_email == current_user.email and
+            committee.status == VettingStatus.PENDING_APPROVAL
+        )
+    
+    return {
+        "can_edit": has_admin_permission or has_vetting_permission,
+        "has_admin_permission": has_admin_permission,
+        "has_vetting_permission": has_vetting_permission,
+        "vetting_status": vetting_status,
+        "can_approve_vetting": can_approve_vetting
+    }
 
 @router.delete("/{participant_id}", operation_id="delete_event_participant_unique")
 def delete_participant(

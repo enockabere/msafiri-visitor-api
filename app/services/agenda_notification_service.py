@@ -48,11 +48,12 @@ def send_agenda_start_notifications(db: Session):
                     message=message,
                     triggered_by="system"
                 )
-                
-                logger.info(f"Sent agenda notification to {participant.email} for agenda {agenda_item.id}")
         
         db.commit()
-        logger.info(f"Processed {len(upcoming_agenda_items)} upcoming agenda items")
+        
+        # Only log when there are actual notifications sent
+        if upcoming_agenda_items:
+            logger.info(f"Sent agenda notifications for {len(upcoming_agenda_items)} upcoming sessions")
         
     except Exception as e:
         logger.error(f"Error sending agenda notifications: {str(e)}")
