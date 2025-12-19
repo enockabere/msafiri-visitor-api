@@ -28,10 +28,11 @@ def check_and_send_deadline_reminders():
         three_days_from_now = now + timedelta(days=3)  # Give 1 day window
 
         # Find committees with deadline in 2 days that haven't been reminded
+        # Only send reminders for OPEN vetting committees
         committees = db.query(VettingCommittee).filter(
             VettingCommittee.selection_end_date >= two_days_from_now,
             VettingCommittee.selection_end_date <= three_days_from_now,
-            VettingCommittee.status.in_([VettingStatus.PENDING, VettingStatus.IN_PROGRESS]),
+            VettingCommittee.status == VettingStatus.OPEN,
             VettingCommittee.reminders_sent == False
         ).all()
 

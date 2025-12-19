@@ -111,7 +111,7 @@ async def get_public_event(
                    e.registration_form_title, e.registration_form_description, e.registration_deadline,
                    t.slug as tenant_slug, t.name as tenant_name
             FROM events e
-            LEFT JOIN tenants t ON e.tenant_id = t.slug
+            LEFT JOIN tenants t ON e.tenant_id = t.id
             WHERE e.id = :event_id
         """),
         {"event_id": event_id}

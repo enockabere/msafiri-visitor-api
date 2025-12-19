@@ -21,10 +21,22 @@ def create_code_of_conduct(
 ):
     """Create code of conduct (Admin only)"""
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN, UserRole.HR_ADMIN]:
+    # Allow all admin roles to create code of conduct
+    # Check if user has admin role (handle both enum and string)
+    admin_roles = ["super_admin", "mt_admin", "hr_admin", "event_admin"]
+    user_role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role).lower()
+    
+    # Also check enum directly
+    is_admin = (user_role_str in admin_roles or 
+                current_user.role == UserRole.SUPER_ADMIN or
+                current_user.role == UserRole.MT_ADMIN or
+                current_user.role == UserRole.HR_ADMIN or
+                current_user.role == UserRole.EVENT_ADMIN)
+    
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can create code of conduct"
+            detail=f"Only admins can create code of conduct. Your role: {current_user.role}"
         )
     
     # Deactivate existing active code
@@ -45,20 +57,39 @@ def create_code_of_conduct(
     
     return code
 
-@router.get("/", response_model=CodeOfConductResponse)
+@router.get("/public/{tenant_slug}")
+def get_public_code_of_conduct(
+    tenant_slug: str,
+    db: Session = Depends(get_db)
+):
+    """Get active code of conduct for tenant - public access (no auth required)"""
+
+    # Get tenant by slug
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+
+    code = crud_code.get_code_of_conduct_by_tenant(db, tenant.id)
+    if not code:
+        return None  # Return null instead of 404 for frontend to handle
+
+    return code
+
+@router.get("/")
 def get_active_code_of_conduct(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get active code of conduct for tenant"""
-    
+    """Get active code of conduct for tenant - accessible to all authenticated users"""
+
     code = crud_code.get_code_of_conduct_by_tenant(db, current_user.tenant_id)
     if not code:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active code of conduct found"
-        )
-    
+        return None  # Return null instead of 404 for frontend to handle
+
     return code
 
 @router.get("/all", response_model=List[CodeOfConductResponse])
@@ -68,10 +99,21 @@ def get_all_codes_of_conduct(
 ):
     """Get all codes of conduct for tenant (Admin only)"""
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN, UserRole.HR_ADMIN]:
+    # Check if user has admin role (handle both enum and string)
+    admin_roles = ["super_admin", "mt_admin", "hr_admin", "event_admin"]
+    user_role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role).lower()
+    
+    # Also check enum directly
+    is_admin = (user_role_str in admin_roles or 
+                current_user.role == UserRole.SUPER_ADMIN or
+                current_user.role == UserRole.MT_ADMIN or
+                current_user.role == UserRole.HR_ADMIN or
+                current_user.role == UserRole.EVENT_ADMIN)
+    
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can view all codes"
+            detail=f"Only admins can view all codes. Your role: {current_user.role}"
         )
     
     codes = crud_code.get_all_codes_by_tenant(db, current_user.tenant_id)
@@ -86,10 +128,22 @@ def update_code_of_conduct(
 ):
     """Update code of conduct (Admin only)"""
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN, UserRole.HR_ADMIN]:
+    # Allow all admin roles to update code of conduct
+    # Check if user has admin role (handle both enum and string)
+    admin_roles = ["super_admin", "mt_admin", "hr_admin", "event_admin"]
+    user_role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role).lower()
+    
+    # Also check enum directly
+    is_admin = (user_role_str in admin_roles or 
+                current_user.role == UserRole.SUPER_ADMIN or
+                current_user.role == UserRole.MT_ADMIN or
+                current_user.role == UserRole.HR_ADMIN or
+                current_user.role == UserRole.EVENT_ADMIN)
+    
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update code of conduct"
+            detail=f"Only admins can update code of conduct. Your role: {current_user.role}"
         )
     
     code = crud_code.update_code_of_conduct(
@@ -115,10 +169,21 @@ def delete_code_of_conduct(
 ):
     """Delete code of conduct (Admin only)"""
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN, UserRole.HR_ADMIN]:
+    # Check if user has admin role (handle both enum and string)
+    admin_roles = ["super_admin", "mt_admin", "hr_admin", "event_admin"]
+    user_role_str = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role).lower()
+    
+    # Also check enum directly
+    is_admin = (user_role_str in admin_roles or 
+                current_user.role == UserRole.SUPER_ADMIN or
+                current_user.role == UserRole.MT_ADMIN or
+                current_user.role == UserRole.HR_ADMIN or
+                current_user.role == UserRole.EVENT_ADMIN)
+    
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can delete code of conduct"
+            detail=f"Only admins can delete code of conduct. Your role: {current_user.role}"
         )
     
     success = crud_code.delete_code_of_conduct(db, code_id)

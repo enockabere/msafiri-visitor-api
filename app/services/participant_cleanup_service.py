@@ -39,6 +39,8 @@ class ParticipantCleanupService:
                 except Exception as e:
                     logger.error(f"Failed to delete participant {participant.id}: {str(e)}")
                     db.rollback()
+                    # Start fresh transaction for next participant
+                    db.begin()
                     continue
             
             return len(participants_to_delete)
@@ -117,6 +119,15 @@ class ParticipantCleanupService:
             
             for table_name, column_name, value in tables_to_clean:
                 try:
+                    # Check if table exists first
+                    table_exists = db.execute(
+                        text("SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = :table_name)"),
+                        {"table_name": table_name}
+                    ).scalar()
+                    
+                    if not table_exists:
+                        continue
+                        
                     count_result = db.execute(
                         text(f"SELECT COUNT(*) FROM {table_name} WHERE {column_name} = :value"),
                         {"value": value}
@@ -132,6 +143,9 @@ class ParticipantCleanupService:
                         
                 except Exception as e:
                     logger.warning(f"Could not clean {table_name}: {e}")
+                    # Rollback and start fresh transaction for next table
+                    db.rollback()
+                    db.begin()
             
             # Delete the participant record
             db.delete(participant)

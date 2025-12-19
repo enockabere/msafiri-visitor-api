@@ -47,7 +47,8 @@ class FormFieldResponse(BaseModel):
 @router.get("/events/{event_id}/form-fields", response_model=List[FormFieldResponse])
 def get_event_form_fields(
     event_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get all form fields for an event (admin endpoint)"""
     fields = db.query(FormField).filter(

@@ -173,6 +173,14 @@ api_router.include_router(
     tags=["upload"]
 )
 
+# Document upload endpoints for Cloudinary
+from app.api.v1.endpoints import documents
+api_router.include_router(
+    documents.router,
+    prefix="/documents",
+    tags=["documents"]
+)
+
 from app.api.v1.endpoints import security_briefings
 api_router.include_router(
     security_briefings.router,
@@ -292,7 +300,7 @@ api_router.include_router(
 
 api_router.include_router(
     public_registration.router,
-    prefix="",
+    prefix="/public-registration",
     tags=["public-registration"]
 )
 

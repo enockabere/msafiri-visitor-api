@@ -12,11 +12,12 @@ def check_deadline_notifications():
     db = SessionLocal()
     try:
         # Get committees with deadline in 2 days
+        # Only send reminders for OPEN vetting committees
         deadline_date = datetime.utcnow() + timedelta(days=2)
-        
+
         committees = db.query(VettingCommittee).filter(
             VettingCommittee.selection_end_date <= deadline_date,
-            VettingCommittee.status.in_([VettingStatus.PENDING, VettingStatus.IN_PROGRESS])
+            VettingCommittee.status == VettingStatus.OPEN
         ).all()
         
         for committee in committees:

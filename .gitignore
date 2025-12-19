@@ -60,3 +60,5 @@ uploads/*
 
 # Never ignore migration files
 !alembic/versions/*.py
+
+.claude/

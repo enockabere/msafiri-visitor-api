@@ -14,10 +14,14 @@ def create_code_of_conduct(
     code = CodeOfConduct(
         title=code_data.title,
         content=code_data.content,
+        url=code_data.url,
+        document_url=code_data.document_url,
+        document_public_id=code_data.document_public_id,
         version=code_data.version,
         effective_date=code_data.effective_date,
         tenant_id=tenant_id,
-        created_by=created_by
+        created_by=created_by,
+        updated_by=created_by  # Set updated_by to avoid None value
     )
     db.add(code)
     db.commit()
