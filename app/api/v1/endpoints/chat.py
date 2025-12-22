@@ -572,6 +572,11 @@ def get_room_messages(
             "reply_to_message_id": message.reply_to_message_id,
             "is_admin_message": message.is_admin_message,
             "created_at": message.created_at,
+            "file_url": message.file_url,
+            "file_type": message.file_type,
+            "file_name": message.file_name,
+            "file_size": message.file_size,
+            "duration": message.duration,
             "reply_to": None
         }
         
@@ -814,6 +819,11 @@ def get_direct_messages(
             "is_read": message.is_read,
             "tenant_id": message.tenant_id,
             "created_at": message.created_at,
+            "file_url": message.file_url,
+            "file_type": message.file_type,
+            "file_name": message.file_name,
+            "file_size": message.file_size,
+            "duration": message.duration,
             "reply_to": None
         }
         
