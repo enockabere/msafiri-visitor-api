@@ -5,16 +5,15 @@ from app.models.base import BaseModel
 import enum
 
 class UserRole(enum.Enum):
-    SUPER_ADMIN = "super_admin"
-    MT_ADMIN = "mt_admin"
-    HR_ADMIN = "hr_admin"
-    EVENT_ADMIN = "event_admin"
-    VETTING_COMMITTEE = "vetting_committee"
+    SUPER_ADMIN = "SUPER_ADMIN"
+    MT_ADMIN = "MT_ADMIN"
+    HR_ADMIN = "HR_ADMIN"
+    EVENT_ADMIN = "EVENT_ADMIN"
+    VETTING_COMMITTEE = "VETTING_COMMITTEE"
     VETTING_APPROVER = "vetting_approver"
-    APPROVER = "approver"
-    VISITOR = "visitor"
-    GUEST = "guest"
-    STAFF = "staff"
+    VISITOR = "VISITOR"
+    GUEST = "GUEST"
+    STAFF = "STAFF"
 
 class UserStatus(enum.Enum):
     ACTIVE = "active"

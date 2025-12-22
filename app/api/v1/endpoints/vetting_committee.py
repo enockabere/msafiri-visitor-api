@@ -75,7 +75,7 @@ def get_event_vetting_committee(
         if not is_member:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         return committee
-    elif current_user.role in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+    elif current_user.role == UserRole.VETTING_APPROVER:
         # Check if user is approver for this committee
         if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
@@ -92,7 +92,7 @@ def get_my_committees(
     
     if current_user.role == UserRole.VETTING_COMMITTEE:
         committees = crud_vetting.get_committee_for_user(db, current_user.email)
-    elif current_user.role in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+    elif current_user.role == UserRole.VETTING_APPROVER:
         committees = db.query(VettingCommittee).filter(
             VettingCommittee.approver_email == current_user.email
         ).all()
@@ -131,7 +131,7 @@ def get_committee_participants(
             is_member = any(member.email == current_user.email for member in committee.members)
             if not is_member:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-        elif current_user.role in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+        elif current_user.role == UserRole.VETTING_APPROVER:
             if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
@@ -142,7 +142,7 @@ def get_committee_participants(
             is_member = any(member.email == current_user.email for member in committee.members)
             if not is_member:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-        elif current_user.role in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+        elif current_user.role == UserRole.VETTING_APPROVER:
             if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
@@ -231,7 +231,7 @@ def edit_participant_selections(
 ):
     """Edit participant selections (Approvers only when status is pending approval)"""
     
-    if current_user.role not in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+    if current_user.role != UserRole.VETTING_APPROVER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only approvers can edit selections"
@@ -309,11 +309,20 @@ def update_vetting_committee(
     # Add new members
     import secrets
     from app.core.security import get_password_hash
+    from app.core.email_service import email_service
+    import os
+    from app.models.event import Event
+    
+    portal_url = os.getenv('PORTAL_URL', 'http://localhost:3000')
+    event = db.query(Event).filter(Event.id == committee.event_id).first()
+    event_title = event.title if event else "Event"
+    member_passwords = {}
     
     for member_data in committee_data.members:
         user = db.query(User).filter(User.email == member_data.email).first()
         if not user:
             temp_password = secrets.token_urlsafe(12)
+            member_passwords[member_data.email] = temp_password
             user = User(
                 email=member_data.email,
                 hashed_password=get_password_hash(temp_password),
@@ -338,6 +347,31 @@ def update_vetting_committee(
     
     db.commit()
     db.refresh(committee)
+    
+    # Send emails to new members with credentials
+    for member_data in committee_data.members:
+        if member_data.email in member_passwords:
+            try:
+                message = f"""You have been invited as a member of the vetting committee for {event_title}.
+
+Selection Period: {committee_data.selection_start_date.strftime('%Y-%m-%d')} to {committee_data.selection_end_date.strftime('%Y-%m-%d')}
+
+Your login credentials:
+Email: {member_data.email}
+Temporary Password: {member_passwords[member_data.email]}
+
+Please log in and change your password on first login.
+Login at: {portal_url}/auth/login"""
+                
+                email_service.send_notification_email(
+                    to_email=member_data.email,
+                    user_name=member_data.full_name or member_data.email.split('@')[0],
+                    title=f"Vetting Committee Member - {event_title}",
+                    message=message
+                )
+            except Exception as e:
+                print(f"Failed to send member notification email to {member_data.email}: {e}")
+    
     return committee
 
 @router.post("/{committee_id}/submit-for-approval", response_model=VettingCommitteeResponse)
@@ -468,7 +502,7 @@ def approve_final(
 ):
     """Final approval of committee selections (Approvers only)"""
     
-    if current_user.role not in [UserRole.APPROVER, UserRole.VETTING_APPROVER]:
+    if current_user.role != UserRole.VETTING_APPROVER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only approvers can give final approval"

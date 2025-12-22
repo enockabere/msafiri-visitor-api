@@ -26,7 +26,7 @@ def export_participant_data(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     
     # Check permissions
-    if current_user.role not in [UserRole.VETTING_COMMITTEE, UserRole.APPROVER, UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
+    if current_user.role not in [UserRole.VETTING_COMMITTEE, UserRole.VETTING_APPROVER, UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     
     # Get participants with selections
