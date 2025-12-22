@@ -900,7 +900,7 @@ def get_conversations(
             conversations.append({
                 "email": email,
                 "name": name,
-                "last_message": last_msg.message if last_msg else None,
+                "last_message": last_msg.message if (last_msg and last_msg.message) else None,
                 "last_message_time": last_msg.created_at if last_msg else None,
                 "unread_count": unread_count
             })
@@ -930,7 +930,7 @@ def get_conversations(
             conversations.append({
                 "email": email,
                 "name": name,
-                "last_message": last_msg.message if last_msg else None,
+                "last_message": last_msg.message if (last_msg and last_msg.message) else None,
                 "last_message_time": last_msg.created_at if last_msg else None,
                 "unread_count": unread_count
             })
