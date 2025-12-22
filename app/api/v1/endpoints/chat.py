@@ -897,10 +897,25 @@ def get_conversations(
             
 
             
+            # Format last message properly for attachments
+            formatted_last_message = None
+            if last_msg:
+                if last_msg.message:
+                    formatted_last_message = last_msg.message
+                elif last_msg.file_url:
+                    # Handle attachment-only messages
+                    file_type_display = {
+                        'image': '📷 Photo',
+                        'document': '📄 Document', 
+                        'voice': '🎵 Voice message',
+                        'video': '🎥 Video'
+                    }.get(last_msg.file_type, '📎 File')
+                    formatted_last_message = file_type_display
+            
             conversations.append({
                 "email": email,
                 "name": name,
-                "last_message": last_msg.message if (last_msg and last_msg.message) else None,
+                "last_message": formatted_last_message,
                 "last_message_time": last_msg.created_at if last_msg else None,
                 "unread_count": unread_count
             })
@@ -925,12 +940,25 @@ def get_conversations(
                 )
             ).count()
             
-
+            # Format last message properly for attachments
+            formatted_last_message = None
+            if last_msg:
+                if last_msg.message:
+                    formatted_last_message = last_msg.message
+                elif last_msg.file_url:
+                    # Handle attachment-only messages
+                    file_type_display = {
+                        'image': '📷 Photo',
+                        'document': '📄 Document', 
+                        'voice': '🎵 Voice message',
+                        'video': '🎥 Video'
+                    }.get(last_msg.file_type, '📎 File')
+                    formatted_last_message = file_type_display
             
             conversations.append({
                 "email": email,
                 "name": name,
-                "last_message": last_msg.message if (last_msg and last_msg.message) else None,
+                "last_message": formatted_last_message,
                 "last_message_time": last_msg.created_at if last_msg else None,
                 "unread_count": unread_count
             })
