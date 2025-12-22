@@ -253,21 +253,21 @@ async def upload_chat_attachment(
         elif file.content_type == 'application/pdf':
             file_type = "document"
             resource_type = "raw"
-    else:
-        # Fallback: detect by filename extension if content-type is missing/wrong
-        filename = file.filename or ""
-        if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
-            file_type = "image"
-            folder = "msafiri-documents/chat-images"
-            resource_type = "image"
-        elif filename.lower().endswith(('.mp3', '.wav', '.m4a', '.aac', '.ogg')):
-            file_type = "voice"
-            folder = "msafiri-documents/chat-voice"
-            resource_type = "video"
-        elif filename.lower().endswith(('.mp4', '.avi', '.mov', '.wmv', '.flv')):
-            file_type = "video"
-            folder = "msafiri-documents/chat-videos"
-            resource_type = "video"
+    
+    # Fallback: detect by filename extension if content-type is missing/wrong
+    filename = file.filename or ""
+    if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
+        file_type = "image"
+        folder = "msafiri-documents/chat-images"
+        resource_type = "image"
+    elif filename.lower().endswith(('.mp3', '.wav', '.m4a', '.aac', '.ogg')):
+        file_type = "voice"
+        folder = "msafiri-documents/chat-voice"
+        resource_type = "video"
+    elif filename.lower().endswith(('.mp4', '.avi', '.mov', '.wmv', '.flv')):
+        file_type = "video"
+        folder = "msafiri-documents/chat-videos"
+        resource_type = "video"
 
     print(f"DEBUG CHAT UPLOAD: Determined file_type: {file_type}, folder: {folder}, resource_type: {resource_type}")
 
