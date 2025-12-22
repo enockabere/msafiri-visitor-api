@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '086_fix_direct_messages_id_sequence'
+revision = '086fix_dm_seq'
 down_revision = '085532e32bfb'
 branch_labels = None
 depends_on = None
