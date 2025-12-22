@@ -728,7 +728,7 @@ async def send_direct_message(
         print(f"CHAT: Sending direct message notification to {recipient.email}")
         
         notification_title = f"💬 {current_user.full_name or current_user.email}"
-        notification_body = dm.message[:100] + "..." if len(dm.message) > 100 else dm.message
+        notification_body = (dm.message[:100] + "..." if len(dm.message) > 100 else dm.message) if dm.message else "📎 Attachment"
         
         # Create database notification for direct message
         try:
