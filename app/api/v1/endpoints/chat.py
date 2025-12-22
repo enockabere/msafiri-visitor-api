@@ -155,7 +155,21 @@ def get_chat_rooms(
         formatted_last_message = None
         if last_message:
             sender_name = last_message.sender_name.split('@')[0] if '@' in last_message.sender_name else last_message.sender_name
-            formatted_last_message = f"{sender_name}: {last_message.message}"
+            if last_message.message:
+                formatted_last_message = f"{sender_name}: {last_message.message}"
+            elif last_message.file_url:
+                # Handle file-only messages
+                file_type_display = {
+                    'image': '📷 Photo',
+                    'document': '📄 Document', 
+                    'voice': '🎵 Voice message',
+                    'video': '🎥 Video'
+                }.get(last_message.file_type, '📎 File')
+                formatted_last_message = f"{sender_name}: {file_type_display}"
+            else:
+                formatted_last_message = f"{sender_name}: Message"
+        
+        print(f"DEBUG ROOM: {room.name} - last_message obj: message='{last_message.message if last_message else None}', file_url='{last_message.file_url if last_message else None}', formatted='{formatted_last_message}'")
         
         room_data = {
             "id": room.id,
