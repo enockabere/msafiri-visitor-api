@@ -29,7 +29,7 @@ class Event(BaseModel):
     perdiem_rate = Column(Numeric(10,2))
     
     # Registration
-    registration_deadline = Column(Date, nullable=False)
+    registration_deadline = Column(DateTime, nullable=False)
     
     # Venue
     vendor_accommodation_id = Column(Integer, ForeignKey("vendor_accommodations.id"), nullable=True)
@@ -46,6 +46,7 @@ class Event(BaseModel):
     # Relationships
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
     attachments = relationship("EventAttachment", back_populates="event", cascade="all, delete-orphan")
+    certificates = relationship("EventCertificate", back_populates="event", cascade="all, delete-orphan")
     venue = relationship("VendorAccommodation", foreign_keys=[vendor_accommodation_id])
     passport_records = relationship("PassportRecord", back_populates="event", cascade="all, delete-orphan")
     chat_rooms = relationship("ChatRoom", back_populates="event", cascade="all, delete-orphan")

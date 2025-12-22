@@ -8,6 +8,7 @@ from app.db.database import get_db
 from app.models.user import UserRole
 from app.core.enhanced_notifications import notification_service
 from app.core.tenant_admin_assignment import assign_user_to_tenant_on_admin_change
+from app.utils.timezone_utils import auto_set_timezone
 import json
 import logging
 
@@ -110,6 +111,9 @@ def create_tenant(
     tenant_data = tenant_in.dict()
     tenant_data["created_by"] = current_user.email
     
+    # Auto-set timezone based on country
+    tenant_data = auto_set_timezone(tenant_data)
+    
     # Handle empty domain - convert to NULL to avoid unique constraint violation
     if "domain" in tenant_data and (tenant_data["domain"] == "" or tenant_data["domain"] is None):
         tenant_data["domain"] = None
@@ -166,6 +170,10 @@ def update_tenant(
     # Prepare update data
     update_data = tenant_update.changes.dict(exclude_unset=True)
     update_data["last_modified_by"] = current_user.email
+    
+    # Auto-set timezone based on country if country is being updated
+    if "country" in update_data:
+        update_data = auto_set_timezone(update_data)
     
     # Handle empty domain - convert to NULL to avoid unique constraint violation
     if "domain" in update_data and (update_data["domain"] == "" or update_data["domain"] is None):
@@ -393,6 +401,38 @@ def read_tenant_by_id(
     }
     
     return schemas.TenantWithStats(**tenant_data)
+
+@router.post("/update-timezones")
+def update_tenant_timezones(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Update timezones for all tenants based on their country."""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    from app.utils.timezone_utils import get_timezone_for_country
+    
+    # Get all tenants
+    tenants = crud.tenant.get_multi(db, limit=1000)
+    updated_count = 0
+    
+    for tenant in tenants:
+        if tenant.country and not tenant.timezone:
+            timezone = get_timezone_for_country(tenant.country)
+            if timezone:
+                update_data = {"timezone": timezone}
+                crud.tenant.update(db, db_obj=tenant, obj_in=update_data)
+                updated_count += 1
+    
+    return {
+        "message": f"Updated {updated_count} tenants with automatic timezones",
+        "updated_count": updated_count
+    }
 
 # Background task functions
 def send_tenant_creation_notifications(db: Session, tenant, created_by: str):

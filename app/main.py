@@ -6,12 +6,14 @@ from typing import Callable
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy import create_engine, text
 from app.api.v1.api import api_router
 from app.core.config import settings
 
-# Configure logging - Set to WARNING to reduce log noise
-logging.basicConfig(level=logging.WARNING)
+# Configure logging - Set to INFO to see debug messages
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create FastAPI app
@@ -58,10 +60,14 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log requests with minimal output"""
     start_time = time.time()
     
+    # Minimal request logging for errors only
+    
     try:
         response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
+        
+
         
         # Only log errors and specific endpoints
         if response.status_code >= 400:
@@ -71,6 +77,13 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         
     except Exception as e:
         logger.error(f"ERROR: {request.method} {request.url.path} - Error: {str(e)}")
+        
+        if "ValidationError" in str(type(e)) or "validation" in str(e).lower():
+            return JSONResponse(
+                status_code=422,
+                content={"error": "Validation error", "message": str(e), "detail": str(e)},
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
         
         return JSONResponse(
             status_code=500,
@@ -200,10 +213,41 @@ def run_auto_migration():
                     
                     # Add columns to tenants table
                     tenant_columns = [
-                        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country VARCHAR(100)"
+                        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS country VARCHAR(100)",
+                        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS timezone VARCHAR(50)"
                     ]
                     for sql in tenant_columns:
                         conn.execute(text(sql))
+                    
+                    # Auto-set timezones for existing tenants based on country
+                    from app.utils.timezone_utils import get_timezone_for_country
+                    
+                    # Get all tenants with country but no timezone
+                    result = conn.execute(text("""
+                        SELECT id, slug, country 
+                        FROM tenants 
+                        WHERE country IS NOT NULL 
+                        AND (timezone IS NULL OR timezone = '')
+                    """))
+                    
+                    tenants_to_update = result.fetchall()
+                    updated_count = 0
+                    
+                    for tenant in tenants_to_update:
+                        timezone = get_timezone_for_country(tenant.country)
+                        if timezone:
+                            conn.execute(text("""
+                                UPDATE tenants 
+                                SET timezone = :timezone 
+                                WHERE id = :tenant_id
+                            """), {"timezone": timezone, "tenant_id": tenant.id})
+                            updated_count += 1
+                            print(f"✅ Set timezone {timezone} for tenant {tenant.slug} ({tenant.country})")
+                    
+                    if updated_count > 0:
+                        print(f"✅ Updated {updated_count} tenants with automatic timezones")
+                    else:
+                        print("ℹ️ No tenants needed timezone updates")
                     
                     # Create inventory table
                     create_inventory_table = """
@@ -686,6 +730,20 @@ async def shutdown_event():
 
     print(">> Application shutdown completed")
 
+# Add a test endpoint to verify error handling
+@app.put("/test-validation")
+def test_validation_endpoint(data: dict):
+    """Test endpoint to verify validation error handling"""
+    print(f"TEST VALIDATION ENDPOINT HIT: {data}")
+    return {"message": "Test validation successful", "data": data}
+
+# Add a test endpoint for EventUpdate schema
+@app.put("/test-event-update")
+def test_event_update_endpoint(event_data: dict):
+    """Test endpoint to verify EventUpdate schema validation"""
+    print(f"TEST EVENT UPDATE ENDPOINT HIT: {event_data}")
+    return {"message": "EventUpdate validation successful", "data": event_data}
+
 # Include API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
@@ -741,6 +799,60 @@ async def internal_error_handler(request: Request, exc: Exception):
             "error": "Internal server error",
             "message": "Something went wrong on our end",
             "status_code": 500
+        }
+    )
+
+@app.exception_handler(422)
+async def validation_error_handler(request: Request, exc: Exception):
+    """Handle validation errors"""
+    logger.error(f"Validation error: {str(exc)}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Validation error",
+            "message": str(exc),
+            "status_code": 422
+        }
+    )
+
+@app.exception_handler(400)
+async def bad_request_handler(request: Request, exc: Exception):
+    """Handle bad request errors"""
+    logger.error(f"Bad request error: {str(exc)}")
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": "Bad request",
+            "message": str(exc) or getattr(exc, 'detail', 'Unknown error'),
+            "status_code": 400
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    """Handle FastAPI request validation errors"""
+    logger.error(f"FastAPI validation error: {str(exc)}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Request validation error",
+            "message": "Invalid request data",
+            "details": exc.errors(),
+            "status_code": 422
+        }
+    )
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_error_handler(request: Request, exc: ValidationError):
+    """Handle Pydantic validation errors"""
+    logger.error(f"Pydantic validation error: {str(exc)}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "Data validation error",
+            "message": "Invalid data format",
+            "details": exc.errors(),
+            "status_code": 422
         }
     )
 

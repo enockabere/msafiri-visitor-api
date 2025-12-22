@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, func, select
-from typing import List
+from typing import List, Optional
 import json
 from datetime import datetime, timedelta
+import cloudinary
+import cloudinary.uploader
+import os
+from dotenv import load_dotenv
 from app.db.database import get_db
 from app.models.chat import ChatRoom, ChatMessage, DirectMessage, ChatType
 from app.models.user import User
@@ -16,6 +20,18 @@ from app.schemas.chat import (
 )
 from app.api.deps import get_current_user, get_tenant_context
 from app.core.websocket_manager import manager, notification_manager
+
+# Load environment variables
+load_dotenv()
+
+# Configure Cloudinary
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
+
+print(f"DEBUG CHAT: Cloudinary config - Cloud Name: {os.getenv('CLOUDINARY_CLOUD_NAME')}, API Key: {os.getenv('CLOUDINARY_API_KEY')}")
 
 router = APIRouter()
 
@@ -195,6 +211,98 @@ def auto_create_event_rooms(
     
     return {"message": f"Created {len(created_rooms)} chat rooms", "rooms": len(created_rooms)}
 
+@router.post("/upload-attachment")
+async def upload_chat_attachment(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload chat attachment (image, document, voice message) to Cloudinary"""
+    
+    print(f"DEBUG CHAT UPLOAD: File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    print(f"DEBUG CHAT UPLOAD: User: {current_user.email}")
+
+    # Validate file size (15MB limit for attachments, 5MB for voice)
+    max_size = 5 * 1024 * 1024 if file.content_type and 'audio' in file.content_type else 15 * 1024 * 1024
+
+    if file.size and file.size > max_size:
+        print(f"DEBUG CHAT UPLOAD: File too large: {file.size} bytes")
+        raise HTTPException(
+            status_code=400,
+            detail=f"File size must be less than {max_size // (1024 * 1024)}MB"
+        )
+
+    # Determine file type and folder
+    file_type = "document"
+    folder = "msafiri-documents/chat-files"
+    resource_type = "auto"
+
+    if file.content_type:
+        if file.content_type.startswith('image/'):
+            file_type = "image"
+            folder = "msafiri-documents/chat-images"
+            resource_type = "image"
+        elif file.content_type.startswith('audio/'):
+            file_type = "voice"
+            folder = "msafiri-documents/chat-voice"
+            resource_type = "video"  # Cloudinary uses 'video' for audio files
+        elif file.content_type.startswith('video/'):
+            file_type = "video"
+            folder = "msafiri-documents/chat-videos"
+            resource_type = "video"
+        elif file.content_type == 'application/pdf':
+            file_type = "document"
+            resource_type = "raw"
+
+    print(f"DEBUG CHAT UPLOAD: Determined file_type: {file_type}, folder: {folder}, resource_type: {resource_type}")
+
+    try:
+        # Validate Cloudinary configuration
+        if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+            print("DEBUG CHAT UPLOAD: Cloudinary cloud name not configured")
+            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured")
+
+        # Read file content
+        file_content = await file.read()
+        print(f"DEBUG CHAT UPLOAD: Read {len(file_content)} bytes from file")
+
+        # Generate unique filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = file.filename or "file"
+        public_id = f"{current_user.email.split('@')[0]}_{timestamp}_{filename.split('.')[0]}"
+        
+        print(f"DEBUG CHAT UPLOAD: Generated public_id: {public_id}")
+
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            file_content,
+            public_id=public_id,
+            folder=folder,
+            resource_type=resource_type,
+            use_filename=True,
+            unique_filename=True
+        )
+
+        print(f"DEBUG CHAT UPLOAD: Upload successful: {result['secure_url']}")
+        print(f"DEBUG CHAT UPLOAD: Public ID: {result['public_id']}")
+
+        return {
+            "success": True,
+            "file_url": result["secure_url"],
+            "file_type": file_type,
+            "file_name": filename,
+            "file_size": file.size,
+            "public_id": result["public_id"],
+            "duration": result.get("duration"),  # For audio/video files
+            "format": result.get("format")
+        }
+
+    except Exception as e:
+        print(f"DEBUG CHAT UPLOAD: Upload failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 @router.post("/messages/", response_model=MessageSchema)
 async def send_message(
     message: MessageCreate,
@@ -222,13 +330,13 @@ async def send_message(
     
     # Extract mentions from message
     mentioned_users = []
-    message_text = message.message
+    message_text = message.message or ""
     if '@' in message_text:
         import re
         # Find @mentions in the message
         mention_pattern = r'@([^\s@]+)'
         mentions = re.findall(mention_pattern, message_text)
-        
+
         for mention in mentions:
             # Find user by name or email
             mentioned_user = db.query(User).filter(
@@ -237,17 +345,22 @@ async def send_message(
                     User.email.ilike(f"{mention}%")
                 )
             ).first()
-            
+
             if mentioned_user and mentioned_user.email != current_user.email:
                 mentioned_users.append(mentioned_user)
-    
+
     db_message = ChatMessage(
         chat_room_id=message.chat_room_id,
         sender_email=current_user.email,
         sender_name=sender_name,
         message=message.message,
         reply_to_message_id=getattr(message, 'reply_to_message_id', None),
-        is_admin_message=(current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)).upper() in ["MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "SUPER_ADMIN"]
+        is_admin_message=(current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)).upper() in ["MT_ADMIN", "HR_ADMIN", "EVENT_ADMIN", "SUPER_ADMIN"],
+        file_url=getattr(message, 'file_url', None),
+        file_type=getattr(message, 'file_type', None),
+        file_name=getattr(message, 'file_name', None),
+        file_size=getattr(message, 'file_size', None),
+        duration=getattr(message, 'duration', None)
     )
     db.add(db_message)
     db.commit()
@@ -568,7 +681,12 @@ async def send_direct_message(
         recipient_name=recipient.full_name or recipient.email,
         message=dm.message,
         reply_to_message_id=dm.reply_to_message_id,
-        tenant_id=tenant_context
+        tenant_id=tenant_context,
+        file_url=getattr(dm, 'file_url', None),
+        file_type=getattr(dm, 'file_type', None),
+        file_name=getattr(dm, 'file_name', None),
+        file_size=getattr(dm, 'file_size', None),
+        duration=getattr(dm, 'duration', None)
     )
     
     print(f"DEBUG: Direct message - Creating DB record with tenant_id: {tenant_context}")

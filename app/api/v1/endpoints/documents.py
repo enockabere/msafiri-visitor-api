@@ -97,7 +97,57 @@ async def upload_document(
         
     except Exception as e:
         print(f"DEBUG: Upload failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+@router.post("/upload-logo")
+async def upload_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload logo image to Cloudinary"""
+    
+    print(f"DEBUG: Logo upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    
+    # Validate file type - accept common image formats
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if not file.content_type or file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only image files (JPEG, PNG, GIF, WEBP) are allowed")
+    
+    # Validate file size (5MB limit for images)
+    if file.size and file.size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+    
+    try:
+        if not CLOUDINARY_CLOUD_NAME:
+            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured.")
+
+        # Read file content
+        file_content = await file.read()
+        import io
+        file_obj = io.BytesIO(file_content)
+        file_obj.name = file.filename
+
+        # Upload logo to Cloudinary
+        result = cloudinary.uploader.upload(
+            file_obj,
+            folder="msafiri-documents/logos",
+            resource_type="image",
+            use_filename=True,
+            unique_filename=True,
+            overwrite=False
+        )
+
+        print(f"DEBUG: Logo upload successful: {result['secure_url']}")
+
+        return {
+            "success": True,
+            "url": result["secure_url"],
+            "public_id": result["public_id"],
+            "format": result.get("format", "png")
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Logo upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Logo upload failed: {str(e)}")
 
 @router.get("/generate-signed-url/{public_id:path}")
 async def generate_signed_url(
@@ -144,5 +194,21 @@ async def delete_document(
         else:
             raise HTTPException(status_code=404, detail="Document not found")
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+@router.delete("/delete-logo/{public_id:path}")
+async def delete_logo(
+    public_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete logo from Cloudinary"""
+    try:
+        result = cloudinary.uploader.destroy(public_id, resource_type="image")
+        if result["result"] == "ok":
+            return {"success": True, "message": "Logo deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Logo not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")

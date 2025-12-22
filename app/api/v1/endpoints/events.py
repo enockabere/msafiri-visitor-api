@@ -417,6 +417,40 @@ def get_event(
     logger.info(f"👤 User tenant_id: {current_user.tenant_id}")
     logger.info(f"👤 User role: {current_user.role}")
     
+    # Debug: Print registration data for maebaenock95@gmail.com when event page is accessed
+    try:
+        participant = db.execute(
+            text("SELECT * FROM event_participants WHERE email = 'maebaenock95@gmail.com' AND event_id = :event_id"),
+            {"event_id": event_id}
+        ).fetchone()
+        
+        if participant:
+            print(f"\n📋 AUTO DEBUG: Found participant maebaenock95@gmail.com in event {event_id}")
+            print(f"  Participant ID: {participant.id}")
+            print(f"  Full Name: {participant.full_name}")
+            print(f"  Status: {participant.status}")
+            
+            # Get public registration details
+            pub_reg = db.execute(
+                text("SELECT * FROM public_registrations WHERE participant_id = :pid"),
+                {"pid": participant.id}
+            ).fetchone()
+            
+            if pub_reg:
+                print(f"\n📝 AUTO DEBUG: Public registration data:")
+                print(f"  Personal Email: {pub_reg.personal_email}")
+                print(f"  MSF Email: {pub_reg.msf_email}")
+                print(f"  Phone: {pub_reg.phone_number}")
+                print(f"  OC: {pub_reg.oc}")
+                print(f"  Contract Status: {pub_reg.contract_status}")
+                print(f"  Gender Identity: {pub_reg.gender_identity}")
+                print(f"  Sex: {pub_reg.sex}")
+                print(f"  Line Manager Email: {pub_reg.line_manager_email}")
+            else:
+                print(f"\n❌ AUTO DEBUG: No public registration found for participant {participant.id}")
+    except Exception as e:
+        print(f"\n⚠️ AUTO DEBUG ERROR: {e}")
+    
     event = crud.event.get(db, id=event_id)
     if not event:
         logger.error(f"❌ Event not found: {event_id}")
@@ -482,8 +516,9 @@ def update_event(
     *,
     db: Session = Depends(get_db),
     event_id: int,
-    event_update: schemas.EventUpdate,
-    current_user: schemas.User = Depends(deps.get_current_user)
+    event_update: dict,
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant: Optional[str] = Query(None)
 ) -> Any:
     """Update event."""
     import logging
@@ -496,117 +531,22 @@ def update_event(
             detail="Event not found"
         )
     
-    logger.info(f"🔄 Updating event {event_id}: {event.title}")
+    # Convert registration_deadline string to datetime if provided
+    if 'registration_deadline' in event_update and event_update['registration_deadline']:
+        from datetime import datetime
+        try:
+            dt_str = event_update['registration_deadline']
+            dt_obj = datetime.fromisoformat(dt_str)
+            event_update['registration_deadline'] = dt_obj
+        except Exception:
+            # Keep as string and let Pydantic handle it
+            pass
     
-    # Check if room allocation is being updated
-    room_allocation_changed = False
-    old_single_rooms = event.single_rooms
-    old_double_rooms = event.double_rooms
-    old_vendor_id = event.vendor_accommodation_id
-    
-    # Get the update data
-    update_data = event_update.dict(exclude_unset=True)
-    new_single_rooms = update_data.get('single_rooms', old_single_rooms)
-    new_double_rooms = update_data.get('double_rooms', old_double_rooms)
-    new_vendor_id = update_data.get('vendor_accommodation_id', old_vendor_id)
-    
-    if (old_single_rooms != new_single_rooms or 
-        old_double_rooms != new_double_rooms or 
-        old_vendor_id != new_vendor_id):
-        room_allocation_changed = True
-        logger.info(f"[HOTEL] Room allocation changed:")
-        logger.info(f"   Single rooms: {old_single_rooms} → {new_single_rooms}")
-        logger.info(f"   Double rooms: {old_double_rooms} → {new_double_rooms}")
-        logger.info(f"   Vendor ID: {old_vendor_id} → {new_vendor_id}")
+    # Convert dict to EventUpdate schema
+    event_update_schema = schemas.EventUpdate(**event_update)
     
     # Update the event
-    updated_event = crud.event.update(db, db_obj=event, obj_in=event_update)
-    
-    # Refresh vendor event accommodation setup if room allocation changed
-    if room_allocation_changed and new_vendor_id:
-        try:
-            from app.models.guesthouse import VendorEventAccommodation
-            
-            logger.info(f"🔄 Refreshing vendor event accommodation setup...")
-            
-            # Find existing setup
-            existing_setup = db.query(VendorEventAccommodation).filter(
-                VendorEventAccommodation.event_id == event_id,
-                VendorEventAccommodation.tenant_id == updated_event.tenant_id
-            ).first()
-            
-            if existing_setup:
-                # Check if we can update (no current occupants or reducing capacity safely)
-                new_total_capacity = new_single_rooms + (new_double_rooms * 2)
-                
-                if existing_setup.current_occupants > new_total_capacity:
-                    logger.warning(f"[WARNING] Cannot reduce capacity below current occupants ({existing_setup.current_occupants})")
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cannot reduce room capacity below current occupants ({existing_setup.current_occupants}). Please reassign participants first."
-                    )
-                
-                # Update existing setup
-                existing_setup.vendor_accommodation_id = new_vendor_id
-                existing_setup.single_rooms = new_single_rooms
-                existing_setup.double_rooms = new_double_rooms
-                existing_setup.total_capacity = new_total_capacity
-                existing_setup.event_name = updated_event.title
-                
-                logger.info(f"✅ Updated existing vendor event accommodation setup")
-                logger.info(f"📊 New allocation: {new_single_rooms} single, {new_double_rooms} double rooms")
-                
-            else:
-                # Create new setup if none exists
-                if new_single_rooms is not None and new_double_rooms is not None:
-                    total_capacity = new_single_rooms + (new_double_rooms * 2)
-                    
-                    vendor_setup = VendorEventAccommodation(
-                        tenant_id=updated_event.tenant_id,
-                        vendor_accommodation_id=new_vendor_id,
-                        event_id=event_id,
-                        event_name=updated_event.title,
-                        single_rooms=new_single_rooms,
-                        double_rooms=new_double_rooms,
-                        total_capacity=total_capacity,
-                        current_occupants=0,
-                        is_active=True,
-                        created_by=current_user.email
-                    )
-                    
-                    db.add(vendor_setup)
-                    logger.info(f"✅ Created new vendor event accommodation setup")
-                    logger.info(f"📊 Room allocation: {new_single_rooms} single, {new_double_rooms} double rooms")
-            
-            db.commit()
-            
-            # Refresh automatic room booking for confirmed participants
-            try:
-                from app.services.automatic_room_booking_service import refresh_automatic_room_booking
-                
-                logger.info(f"🔄 Refreshing automatic room assignments...")
-                success = refresh_automatic_room_booking(db, event_id, updated_event.tenant_id)
-                
-                if success:
-                    logger.info(f"✅ Automatic room booking refresh completed successfully")
-                else:
-                    logger.warning(f"[WARNING] Automatic room booking refresh failed")
-                    
-            except Exception as e:
-                logger.error(f"💥 Error during automatic room booking refresh: {str(e)}")
-                # Don't fail the update if room reassignment fails
-                logger.warning(f"[WARNING] Event updated but automatic room reassignment failed")
-            
-            logger.info(f"🔄 Room booking refresh completed for event {event_id}")
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"💥 Failed to refresh vendor event accommodation setup: {str(e)}")
-            # Don't fail the entire update if accommodation setup fails
-            logger.warning(f"[WARNING] Event updated but accommodation setup refresh failed")
-            import traceback
-            traceback.print_exc()
+    updated_event = crud.event.update(db, db_obj=event, obj_in=event_update_schema)
     
     return updated_event
 
@@ -679,128 +619,81 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
-    # Delete related records that don't have proper cascade relationships
+    # Delete related records in correct order to avoid foreign key violations
     try:
-        from app.models.guesthouse import AccommodationAllocation
-        from app.models.flight_itinerary import FlightItinerary
-        from app.models.participant_qr import ParticipantQR
-        from app.models.event_participant import EventParticipant
-
-        # 1. Delete transport requests first (they reference flight_itineraries) - if table exists
-        try:
-            from app.models.transport_request import TransportRequest
-            transport_requests = db.query(TransportRequest).filter(
-                TransportRequest.event_id == event_id
-            ).all()
-            for request in transport_requests:
-                db.delete(request)
-            logger.info(f"🗑️ Deleted {len(transport_requests)} transport requests for event {event_id}")
-        except Exception as e:
-            # Table might not exist yet, rollback and continue
-            logger.warning(f"[WARNING] Could not delete transport requests (table may not exist): {str(e)}")
-            db.rollback()  # Rollback the failed transaction to continue with other deletions
+        # Use CASCADE deletion to handle all foreign key constraints
+        logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
-        # 2. Delete participant QR codes (they reference event_participants)
+        # First try to delete child records manually for better logging
         try:
-            qr_codes = db.query(ParticipantQR).join(
-                EventParticipant, ParticipantQR.participant_id == EventParticipant.id
-            ).filter(EventParticipant.event_id == event_id).all()
-            for qr_code in qr_codes:
-                db.delete(qr_code)
-            logger.info(f"🗑️ Deleted {len(qr_codes)} participant QR codes for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete participant QR codes (table may not exist): {str(e)}")
-            db.rollback()
-
-        # 3. Delete accommodation allocations (they reference event_participants)
+            result = db.execute(
+                text("DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} participant certificates")
+        except Exception:
+            pass
+            
         try:
-            allocations = db.query(AccommodationAllocation).filter(
-                AccommodationAllocation.event_id == event_id
-            ).all()
-            for allocation in allocations:
-                db.delete(allocation)
-            logger.info(f"🗑️ Deleted {len(allocations)} accommodation allocations for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete accommodation allocations (table may not exist): {str(e)}")
-            db.rollback()
-
-        # 4. Delete flight itineraries
+            result = db.execute(
+                text("DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} line manager recommendations")
+        except Exception:
+            pass
+            
+        # Force delete event participants
         try:
-            flight_itineraries = db.query(FlightItinerary).filter(
-                FlightItinerary.event_id == event_id
-            ).all()
-            for itinerary in flight_itineraries:
-                db.delete(itinerary)
-            logger.info(f"🗑️ Deleted {len(flight_itineraries)} flight itineraries for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete flight itineraries (table may not exist): {str(e)}")
-            db.rollback()
-        
-        # 5. Delete passport records manually (table may not exist)
-        try:
-            from app.models.passport_record import PassportRecord
-            passport_records = db.query(PassportRecord).filter(
-                PassportRecord.event_id == event_id
-            ).all()
-            for record in passport_records:
-                db.delete(record)
-            logger.info(f"🗑️ Deleted {len(passport_records)} passport records for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete passport records (table may not exist): {str(e)}")
-            db.rollback()
-
-        # 6. Delete chat rooms manually (table may not exist)
-        try:
-            from app.models.chat import ChatRoom
-            chat_rooms = db.query(ChatRoom).filter(
-                ChatRoom.event_id == event_id
-            ).all()
-            for room in chat_rooms:
-                db.delete(room)
-            logger.info(f"🗑️ Deleted {len(chat_rooms)} chat rooms for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete chat rooms (table may not exist): {str(e)}")
-            db.rollback()
-
-        # 7. Delete event participants manually (should exist)
-        try:
-            participants = db.query(EventParticipant).filter(
-                EventParticipant.event_id == event_id
-            ).all()
-            for participant in participants:
-                db.delete(participant)
-            logger.info(f"🗑️ Deleted {len(participants)} event participants for event {event_id}")
+            result = db.execute(
+                text("DELETE FROM event_participants WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} event participants")
         except Exception as e:
             logger.warning(f"[WARNING] Could not delete event participants: {str(e)}")
-            db.rollback()
-
-        # 8. Delete event attachments manually (should exist)
-        try:
-            from app.models.event_attachment import EventAttachment
-            attachments = db.query(EventAttachment).filter(
-                EventAttachment.event_id == event_id
-            ).all()
-            for attachment in attachments:
-                db.delete(attachment)
-            logger.info(f"🗑️ Deleted {len(attachments)} event attachments for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete event attachments: {str(e)}")
-            db.rollback()
-
-        # 9. Delete vendor event accommodations using raw SQL
+            
+        # Delete vendor event accommodations
         try:
             result = db.execute(
                 text("DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
                 {"event_id": event_id}
             )
-            db.commit()
-            logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete vendor event accommodations: {str(e)}")
-            db.rollback()
-
-        # 10. Finally delete the event itself using raw SQL to avoid cascade loading
-        logger.info(f"✅ Deleting draft event: {event_id}")
+            logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations")
+        except Exception:
+            pass
+            
+        # Delete event agenda
+        try:
+            result = db.execute(
+                text("DELETE FROM event_agenda WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} event agenda items")
+        except Exception:
+            pass
+            
+        # Delete chat rooms
+        try:
+            result = db.execute(
+                text("DELETE FROM chat_rooms WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} chat rooms")
+        except Exception:
+            pass
+            
+        # Delete event certificates
+        try:
+            result = db.execute(
+                text("DELETE FROM event_certificates WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} event certificates")
+        except Exception:
+            pass
+            
+        # Delete the event itself
         db.execute(text("DELETE FROM events WHERE id = :event_id"), {"event_id": event_id})
         db.commit()
         logger.info(f"🎉 Event deleted successfully: {event_id}")

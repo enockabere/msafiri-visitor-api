@@ -1,6 +1,6 @@
 # File: app/schemas/event.py
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, field_validator
+from typing import Optional, Any
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -11,7 +11,7 @@ class EventBase(BaseModel):
     status: Optional[str] = "Draft"
     start_date: date
     end_date: date
-    registration_deadline: date  # Required field
+    registration_deadline: Optional[datetime] = None  # Optional field with time
     location: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
@@ -27,6 +27,8 @@ class EventBase(BaseModel):
 class EventCreate(EventBase):
     pass
 
+from typing import Union
+
 class EventUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -34,18 +36,22 @@ class EventUpdate(BaseModel):
     status: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    registration_deadline: Optional[date] = None
+    registration_deadline: Optional[Union[str, datetime]] = None  # Accept string or datetime
     location: Optional[str] = None
     address: Optional[str] = None
     country: Optional[str] = None
-    latitude: Optional[Decimal] = None
-    longitude: Optional[Decimal] = None
+    latitude: Optional[Union[Decimal, float]] = None
+    longitude: Optional[Union[Decimal, float]] = None
     banner_image: Optional[str] = None
-    duration_days: Optional[int] = None
-    vendor_accommodation_id: Optional[int] = None
-    expected_participants: Optional[int] = None
-    single_rooms: Optional[int] = None
-    double_rooms: Optional[int] = None
+    duration_days: Optional[Union[int, str]] = None      # Accept both int and str
+    perdiem_rate: Optional[Decimal] = None
+    perdiem_currency: Optional[str] = None
+    vendor_accommodation_id: Optional[Union[int, str]] = None    # Accept both int and str
+    expected_participants: Optional[Union[int, str]] = None      # Accept both int and str
+    single_rooms: Optional[Union[int, str]] = None               # Accept both int and str
+    double_rooms: Optional[Union[int, str]] = None               # Accept both int and str
+    
+
 
 class Event(EventBase):
     id: int

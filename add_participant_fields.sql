@@ -1,0 +1,27 @@
+-- Add missing fields from public_registrations to event_participants
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS oc VARCHAR(50);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS contract_status VARCHAR(100);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS contract_type VARCHAR(100);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS gender_identity VARCHAR(100);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS sex VARCHAR(50);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS pronouns VARCHAR(50);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS current_position VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS country_of_work VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS project_of_work VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS personal_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS msf_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS hrco_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS career_manager_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS ld_manager_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS line_manager_email VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS phone_number VARCHAR(50);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS travelling_internationally VARCHAR(10);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS accommodation_needs TEXT;
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS daily_meals VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS certificate_name VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS badge_name VARCHAR(255);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS motivation_letter TEXT;
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS code_of_conduct_confirm VARCHAR(10);
+ALTER TABLE event_participants ADD COLUMN IF NOT EXISTS travel_requirements_confirm VARCHAR(10);

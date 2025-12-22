@@ -1,0 +1,163 @@
+# File: app/utils/timezone_utils.py
+from typing import Optional
+
+# Country to timezone mapping for MSF operations
+COUNTRY_TIMEZONE_MAP = {
+    # Africa
+    "Kenya": "Africa/Nairobi",
+    "Uganda": "Africa/Kampala", 
+    "Tanzania": "Africa/Dar_es_Salaam",
+    "Ethiopia": "Africa/Addis_Ababa",
+    "South Sudan": "Africa/Juba",
+    "Democratic Republic of Congo": "Africa/Kinshasa",
+    "Chad": "Africa/Ndjamena",
+    "Central African Republic": "Africa/Bangui",
+    "Niger": "Africa/Niamey",
+    "Mali": "Africa/Bamako",
+    "Burkina Faso": "Africa/Ouagadougou",
+    "Nigeria": "Africa/Lagos",
+    "Cameroon": "Africa/Douala",
+    "South Africa": "Africa/Johannesburg",
+    "Madagascar": "Indian/Antananarivo",
+    "Mozambique": "Africa/Maputo",
+    "Zimbabwe": "Africa/Harare",
+    "Malawi": "Africa/Blantyre",
+    "Zambia": "Africa/Lusaka",
+    "Somalia": "Africa/Mogadishu",
+    "Sudan": "Africa/Khartoum",
+    "Libya": "Africa/Tripoli",
+    "Egypt": "Africa/Cairo",
+    "Morocco": "Africa/Casablanca",
+    "Algeria": "Africa/Algiers",
+    "Tunisia": "Africa/Tunis",
+    "Guinea": "Africa/Conakry",
+    "Sierra Leone": "Africa/Freetown",
+    "Liberia": "Africa/Monrovia",
+    "Ivory Coast": "Africa/Abidjan",
+    "Ghana": "Africa/Accra",
+    "Senegal": "Africa/Dakar",
+    "Mauritania": "Africa/Nouakchott",
+    
+    # Middle East
+    "Syria": "Asia/Damascus",
+    "Lebanon": "Asia/Beirut",
+    "Jordan": "Asia/Amman",
+    "Iraq": "Asia/Baghdad",
+    "Yemen": "Asia/Aden",
+    "Palestine": "Asia/Gaza",
+    "Israel": "Asia/Jerusalem",
+    "Turkey": "Europe/Istanbul",
+    "Iran": "Asia/Tehran",
+    "Afghanistan": "Asia/Kabul",
+    
+    # Asia
+    "Bangladesh": "Asia/Dhaka",
+    "Myanmar": "Asia/Yangon",
+    "India": "Asia/Kolkata",
+    "Pakistan": "Asia/Karachi",
+    "Nepal": "Asia/Kathmandu",
+    "Sri Lanka": "Asia/Colombo",
+    "Thailand": "Asia/Bangkok",
+    "Cambodia": "Asia/Phnom_Penh",
+    "Laos": "Asia/Vientiane",
+    "Philippines": "Asia/Manila",
+    "Indonesia": "Asia/Jakarta",
+    "Papua New Guinea": "Pacific/Port_Moresby",
+    "China": "Asia/Shanghai",
+    "North Korea": "Asia/Pyongyang",
+    "Uzbekistan": "Asia/Tashkent",
+    "Kyrgyzstan": "Asia/Bishkek",
+    "Tajikistan": "Asia/Dushanbe",
+    
+    # Europe
+    "Ukraine": "Europe/Kiev",
+    "Russia": "Europe/Moscow",
+    "Belarus": "Europe/Minsk",
+    "Moldova": "Europe/Chisinau",
+    "Georgia": "Asia/Tbilisi",
+    "Armenia": "Asia/Yerevan",
+    "Azerbaijan": "Asia/Baku",
+    "Greece": "Europe/Athens",
+    "Serbia": "Europe/Belgrade",
+    "Bosnia and Herzegovina": "Europe/Sarajevo",
+    "Kosovo": "Europe/Belgrade",
+    "North Macedonia": "Europe/Skopje",
+    "Albania": "Europe/Tirane",
+    "Montenegro": "Europe/Podgorica",
+    "Croatia": "Europe/Zagreb",
+    "Slovenia": "Europe/Ljubljana",
+    "Hungary": "Europe/Budapest",
+    "Romania": "Europe/Bucharest",
+    "Bulgaria": "Europe/Sofia",
+    "Poland": "Europe/Warsaw",
+    "Czech Republic": "Europe/Prague",
+    "Slovakia": "Europe/Bratislava",
+    "Lithuania": "Europe/Vilnius",
+    "Latvia": "Europe/Riga",
+    "Estonia": "Europe/Tallinn",
+    "Finland": "Europe/Helsinki",
+    "Sweden": "Europe/Stockholm",
+    "Norway": "Europe/Oslo",
+    "Denmark": "Europe/Copenhagen",
+    "Germany": "Europe/Berlin",
+    "Netherlands": "Europe/Amsterdam",
+    "Belgium": "Europe/Brussels",
+    "Luxembourg": "Europe/Luxembourg",
+    "France": "Europe/Paris",
+    "Switzerland": "Europe/Zurich",
+    "Austria": "Europe/Vienna",
+    "Italy": "Europe/Rome",
+    "Spain": "Europe/Madrid",
+    "Portugal": "Europe/Lisbon",
+    "United Kingdom": "Europe/London",
+    "Ireland": "Europe/Dublin",
+    
+    # Americas
+    "Haiti": "America/Port-au-Prince",
+    "Dominican Republic": "America/Santo_Domingo",
+    "Cuba": "America/Havana",
+    "Jamaica": "America/Jamaica",
+    "Guatemala": "America/Guatemala",
+    "Belize": "America/Belize",
+    "El Salvador": "America/El_Salvador",
+    "Honduras": "America/Tegucigalpa",
+    "Nicaragua": "America/Managua",
+    "Costa Rica": "America/Costa_Rica",
+    "Panama": "America/Panama",
+    "Colombia": "America/Bogota",
+    "Venezuela": "America/Caracas",
+    "Guyana": "America/Guyana",
+    "Suriname": "America/Paramaribo",
+    "Brazil": "America/Sao_Paulo",
+    "Ecuador": "America/Guayaquil",
+    "Peru": "America/Lima",
+    "Bolivia": "America/La_Paz",
+    "Paraguay": "America/Asuncion",
+    "Chile": "America/Santiago",
+    "Argentina": "America/Argentina/Buenos_Aires",
+    "Uruguay": "America/Montevideo",
+    "Mexico": "America/Mexico_City",
+    "United States": "America/New_York",
+    "Canada": "America/Toronto",
+    
+    # Oceania
+    "Australia": "Australia/Sydney",
+    "New Zealand": "Pacific/Auckland",
+    "Fiji": "Pacific/Fiji",
+    "Vanuatu": "Pacific/Efate",
+    "Solomon Islands": "Pacific/Guadalcanal",
+}
+
+def get_timezone_for_country(country: Optional[str]) -> Optional[str]:
+    """Get timezone for a given country."""
+    if not country:
+        return None
+    return COUNTRY_TIMEZONE_MAP.get(country)
+
+def auto_set_timezone(tenant_data: dict) -> dict:
+    """Automatically set timezone based on country if not already set."""
+    if not tenant_data.get("timezone") and tenant_data.get("country"):
+        timezone = get_timezone_for_country(tenant_data["country"])
+        if timezone:
+            tenant_data["timezone"] = timezone
+    return tenant_data

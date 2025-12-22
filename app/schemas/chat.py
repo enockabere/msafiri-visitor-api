@@ -21,16 +21,23 @@ class ChatRoom(ChatRoomBase):
         from_attributes = True
 
 class MessageBase(BaseModel):
-    message: str
+    message: Optional[str] = None
 
 class MessageCreate(MessageBase):
     chat_room_id: int
     reply_to_message_id: Optional[int] = None
+    file_url: Optional[str] = None
+    file_type: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None
 
 class ReplyToMessage(BaseModel):
     id: int
     sender_name: str
-    message: str
+    message: Optional[str] = None
+    file_type: Optional[str] = None
+    file_name: Optional[str] = None
 
 class ChatMessage(MessageBase):
     id: int
@@ -40,15 +47,25 @@ class ChatMessage(MessageBase):
     reply_to_message_id: Optional[int] = None
     reply_to: Optional[ReplyToMessage] = None
     is_admin_message: bool
+    file_url: Optional[str] = None
+    file_type: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 class DirectMessageCreate(BaseModel):
     recipient_email: str
-    message: str
+    message: Optional[str] = None
     reply_to_message_id: Optional[int] = None
+    file_url: Optional[str] = None
+    file_type: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None
 
 class DirectMessage(BaseModel):
     id: int
@@ -56,13 +73,18 @@ class DirectMessage(BaseModel):
     sender_name: str
     recipient_email: str
     recipient_name: str
-    message: str
+    message: Optional[str] = None
     reply_to_message_id: Optional[int] = None
     reply_to: Optional[ReplyToMessage] = None
     is_read: bool
     tenant_id: str
+    file_url: Optional[str] = None
+    file_type: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 

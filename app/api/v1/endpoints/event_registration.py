@@ -106,91 +106,19 @@ async def get_event_registrations(
     status_filter: str = Query(None, description="Filter by status: registered, selected, not_selected, waiting, canceled, attended"),
     db: Session = Depends(get_db)
 ):
-    """Get all registrations for an event with detailed registration data"""
+    """Get all registrations for an event from consolidated event_participants table"""
 
     from sqlalchemy import text
 
-    # Query participants with detailed registration data
-    # Check if public_registrations table exists and what columns it has
-    try:
-        check_table = db.execute(text("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'public_registrations'
-        """)).fetchall()
-
-        existing_columns = {row[0] for row in check_table} if check_table else set()
-        has_pr_table = len(existing_columns) > 0
-    except:
-        has_pr_table = False
-        existing_columns = set()
-
-    # Build query based on whether public_registrations table exists
-    if has_pr_table:
-        # Build the column list dynamically based on what exists
-        pr_columns = []
-        column_mapping = {
-            'first_name': 'pr.first_name',
-            'last_name': 'pr.last_name',
-            'oc': 'pr.oc',
-            'contract_status': 'pr.contract_status',
-            'contract_type': 'pr.contract_type',
-            'gender_identity': 'pr.gender_identity',
-            'sex': 'pr.sex',
-            'pronouns': 'pr.pronouns',
-            'current_position': 'pr.current_position',
-            'country_of_work': 'pr.country_of_work',
-            'project_of_work': 'pr.project_of_work',
-            'personal_email': 'pr.personal_email',
-            'msf_email': 'pr.msf_email',
-            'hrco_email': 'pr.hrco_email',
-            'career_manager_email': 'pr.career_manager_email',
-            'line_manager_email': 'pr.line_manager_email',
-            'phone_number': 'pr.phone_number',
-            'dietary_requirements': 'pr.dietary_requirements',
-            'accommodation_needs': 'pr.accommodation_needs',
-            'certificate_name': 'pr.certificate_name',
-            'badge_name': 'pr.badge_name',
-            'motivation_letter': 'pr.motivation_letter',
-            'code_of_conduct_confirm': 'pr.code_of_conduct_confirm',
-            'travel_requirements_confirm': 'pr.travel_requirements_confirm',
-            'travelling_internationally': 'pr.travelling_internationally',
-            'travelling_from_country': 'pr.travelling_from_country',
-            'accommodation_type': 'pr.accommodation_type',
-            'daily_meals': 'pr.daily_meals'
-        }
-
-        for col_name, col_expr in column_mapping.items():
-            if col_name in existing_columns:
-                if col_name == 'travelling_from_country':
-                    pr_columns.append(f"{col_expr} as pr_travelling_from_country")
-                else:
-                    pr_columns.append(col_expr)
-
-        pr_select = ", " + ", ".join(pr_columns) if pr_columns else ""
-
-        query = f"""
-        SELECT
-            ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
-            ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
-            ep.decline_reason, ep.declined_at, ep.vetting_comments{pr_select}
-        FROM event_participants ep
-        LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
-        WHERE ep.event_id = :event_id
-        """
-    else:
-        # No public_registrations table, just query event_participants
-        query = """
-        SELECT
-            ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, ep.created_at, ep.updated_at,
-            ep.country, ep.travelling_from_country, ep.position, ep.project, ep.gender, ep.participant_role,
-            ep.decline_reason, ep.declined_at, ep.vetting_comments
-        FROM event_participants ep
-        WHERE ep.event_id = :event_id
-        """
+    # Query consolidated event_participants table directly
+    query = """
+    SELECT *
+    FROM event_participants
+    WHERE event_id = :event_id
+    """
     
     if status_filter:
-        query += " AND ep.status = :status_filter"
+        query += " AND status = :status_filter"
     
     params = {"event_id": event_id}
     if status_filter:
@@ -199,8 +127,6 @@ async def get_event_registrations(
     result = db.execute(text(query), params)
     participants = result.fetchall()
     
-
-    
     result = []
     for p in participants:
         # Data privacy: anonymize personal data for not_selected participants
@@ -208,7 +134,7 @@ async def get_event_registrations(
             result.append({
                 "id": p.id,
                 "email": "[REDACTED]",
-                "full_name": p.full_name,  # Keep name for audit purposes
+                "full_name": p.full_name,
                 "role": p.role,
                 "participant_role": "[REDACTED]",
                 "status": p.status,
@@ -220,83 +146,32 @@ async def get_event_registrations(
                 "invitation_sent_at": None,
                 "invitation_accepted": False,
                 "invitation_accepted_at": None,
-                # Redacted registration form data
-                "oc": "[REDACTED]",
-                "position": "[REDACTED]",
-                "country": "[REDACTED]",
-                "contract_status": "[REDACTED]",
-                "contract_type": "[REDACTED]",
-                "gender_identity": "[REDACTED]",
-                "sex": "[REDACTED]",
-                "pronouns": "[REDACTED]",
-                "project_of_work": "[REDACTED]",
-                "personal_email": "[REDACTED]",
-                "msf_email": "[REDACTED]",
-                "hrco_email": "[REDACTED]",
-                "career_manager_email": "[REDACTED]",
-                "line_manager_email": "[REDACTED]",
-                "phone_number": "[REDACTED]",
-                "dietary_requirements": "[REDACTED]",
-                "accommodation_needs": "[REDACTED]",
-                "certificate_name": "[REDACTED]",
-                "badge_name": "[REDACTED]",
-                "motivation_letter": "[REDACTED]",
-                "code_of_conduct_confirm": "[REDACTED]",
-                "travel_requirements_confirm": "[REDACTED]",
-                "travelling_internationally": "[REDACTED]",
-                "accommodation_type": "[REDACTED]",
-                "daily_meals": "[REDACTED]",
-                "decline_reason": "[REDACTED]",
-                "declined_at": "[REDACTED]",
-                "vetting_comments": "[REDACTED]"
+                # Redacted fields
+                **{field: "[REDACTED]" for field in [
+                    "oc", "position", "country", "contract_status", "contract_type",
+                    "gender_identity", "sex", "pronouns", "project_of_work", "personal_email",
+                    "msf_email", "hrco_email", "career_manager_email", "line_manager_email",
+                    "phone_number", "dietary_requirements", "accommodation_needs",
+                    "certificate_name", "badge_name", "motivation_letter",
+                    "code_of_conduct_confirm", "travel_requirements_confirm",
+                    "travelling_internationally", "accommodation_type", "daily_meals",
+                    "decline_reason", "declined_at", "vetting_comments", "travelling_from_country"
+                ]}
             })
         else:
-            result.append({
-                "id": p.id,
-                "email": p.email,
-                "full_name": p.full_name,
-                "role": p.role,
-                "participant_role": p.participant_role or 'visitor',
-                "status": p.status,
+            # Convert row to dict and return all fields
+            participant_dict = dict(p._mapping)
+            participant_dict.update({
                 "registration_type": "self",
-                "registered_by": p.invited_by,
+                "registered_by": p.invited_by or "public_form",
                 "notes": None,
-                "created_at": p.created_at,
                 "invitation_sent": p.status == "selected" and p.email and p.email.strip(),
                 "invitation_sent_at": p.updated_at if p.status == "selected" and p.email and p.email.strip() else None,
                 "invitation_accepted": p.status == "confirmed",
                 "invitation_accepted_at": p.updated_at if p.status == "confirmed" else None,
-                # Registration form data
-                "oc": getattr(p, 'oc', None),
-                "position": getattr(p, 'current_position', None) or p.position,
-                "country": getattr(p, 'country_of_work', None) or p.country,
-                "travelling_from_country": getattr(p, 'pr_travelling_from_country', None) or p.travelling_from_country,
-                "contract_status": getattr(p, 'contract_status', None),
-                "contract_type": getattr(p, 'contract_type', None),
-                "gender_identity": getattr(p, 'gender_identity', None),
-                "sex": getattr(p, 'sex', None),
-                "pronouns": getattr(p, 'pronouns', None),
-                "project_of_work": getattr(p, 'project_of_work', None) or p.project,
-                "personal_email": getattr(p, 'personal_email', None),
-                "msf_email": getattr(p, 'msf_email', None),
-                "hrco_email": getattr(p, 'hrco_email', None),
-                "career_manager_email": getattr(p, 'career_manager_email', None),
-                "line_manager_email": getattr(p, 'line_manager_email', None),
-                "phone_number": getattr(p, 'phone_number', None),
-                "dietary_requirements": getattr(p, 'dietary_requirements', None),
-                "accommodation_needs": getattr(p, 'accommodation_needs', None),
-                "certificate_name": getattr(p, 'certificate_name', None),
-                "badge_name": getattr(p, 'badge_name', None),
-                "motivation_letter": getattr(p, 'motivation_letter', None),
-                "code_of_conduct_confirm": getattr(p, 'code_of_conduct_confirm', None),
-                "travel_requirements_confirm": getattr(p, 'travel_requirements_confirm', None),
-                "travelling_internationally": getattr(p, 'travelling_internationally', None),
-                "accommodation_type": getattr(p, 'accommodation_type', None),
-                "daily_meals": getattr(p, 'daily_meals', None),
-                "decline_reason": p.decline_reason,
                 "declined_at": p.declined_at.isoformat() if p.declined_at else None,
-                "vetting_comments": getattr(p, 'vetting_comments', None)
             })
+            result.append(participant_dict)
     
     return result
 
@@ -385,11 +260,18 @@ async def get_participant_details(
         print(f"📋 PARTICIPANT DETAILS: PassportDoc={result.passport_document} -> {passport_status}")
         print(f"📋 PARTICIPANT DETAILS: TicketDoc={result.ticket_document} -> {ticket_status}")
         
+        # Get participant object for consolidated data access
+        participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
+        if not participant:
+            raise HTTPException(status_code=404, detail="Participant not found")
+        
+        print(f"🔥 BASIC DEBUG: Using consolidated participant data from event_participants table")
+        
         response_data = {
             "id": result.id,
             "email": result.email,
             "full_name": result.full_name,
-            "phone": result.phone_number or (user.phone_number if user and hasattr(user, 'phone_number') else None),
+            "phone": participant.phone_number or (user.phone_number if user and hasattr(user, 'phone_number') else None),
             "role": result.role,
             "status": result.status,
             "registration_type": "self",
@@ -400,25 +282,40 @@ async def get_participant_details(
             "invitation_sent_at": result.updated_at.isoformat() if result.status == "selected" and result.email and result.email.strip() and result.updated_at else None,
             "invitation_accepted": result.status == "confirmed",
             "invitation_accepted_at": result.updated_at.isoformat() if result.status == "confirmed" and result.updated_at else None,
-            # Registration details from event_participants
-            "country": result.country,
-            "travelling_from_country": result.travelling_from_country,
-            "position": result.position,
-            "department": result.project,  # project field stores department
-            "gender": result.gender,
-            "eta": result.eta,
-            "requires_eta": result.requires_eta,
+            # Registration details - all from consolidated participant object
+            "country": participant.country_of_work or participant.country,
+            "travelling_from_country": participant.travelling_from_country,
+            "position": participant.current_position or participant.position,
+            "department": participant.project_of_work or participant.project,
+            "gender": participant.gender,
+            "eta": participant.eta,
+            "requires_eta": participant.requires_eta,
             "passport_document": passport_status,
             "ticket_document": ticket_status,
-            "dietary_requirements": result.dietary_requirements,
-            "accommodation_type": accommodation_type,
-            # Registration details from public_registrations
-            "travelling_internationally": result.travelling_internationally if result.travelling_internationally and result.travelling_internationally.strip() else None,
-            "accommodation_needs": result.accommodation_needs if result.accommodation_needs and result.accommodation_needs.strip() else None,
-            "daily_meals": result.daily_meals if result.daily_meals and result.daily_meals.strip() else None,
-            "certificate_name": result.certificate_name if result.certificate_name and result.certificate_name.strip() else None,
-            "code_of_conduct_confirm": result.code_of_conduct_confirm if result.code_of_conduct_confirm and result.code_of_conduct_confirm.strip() else None,
-            "travel_requirements_confirm": result.travel_requirements_confirm if result.travel_requirements_confirm and result.travel_requirements_confirm.strip() else None,
+            "dietary_requirements": participant.dietary_requirements,
+            "accommodation_type": participant.accommodation_type,
+            # All public registration fields now in participant object
+            "first_name": participant.first_name,
+            "last_name": participant.last_name,
+            "oc": participant.oc,
+            "contract_status": participant.contract_status,
+            "contract_type": participant.contract_type,
+            "gender_identity": participant.gender_identity,
+            "sex": participant.sex,
+            "pronouns": participant.pronouns,
+            "personal_email": participant.personal_email,
+            "msf_email": participant.msf_email,
+            "hrco_email": participant.hrco_email,
+            "career_manager_email": participant.career_manager_email,
+            "line_manager_email": participant.line_manager_email,
+            "travelling_internationally": participant.travelling_internationally,
+            "accommodation_needs": participant.accommodation_needs,
+            "daily_meals": participant.daily_meals,
+            "certificate_name": participant.certificate_name,
+            "badge_name": participant.badge_name,
+            "motivation_letter": participant.motivation_letter,
+            "code_of_conduct_confirm": participant.code_of_conduct_confirm,
+            "travel_requirements_confirm": participant.travel_requirements_confirm,
             "decline_reason": result.decline_reason,
             "declined_at": result.declined_at.isoformat() if result.declined_at else None
         }

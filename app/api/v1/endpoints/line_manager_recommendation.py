@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from pydantic import BaseModel
@@ -97,7 +97,7 @@ async def submit_recommendation(
 async def debug_all_recommendations(db: Session = Depends(get_db)):
     """DEBUG: Print all recommendations in database"""
     
-    print("=== DEBUG: ALL RECOMMENDATIONS IN DATABASE ===")
+    logger.info("DEBUG: ALL RECOMMENDATIONS IN DATABASE")
     
     all_recs = db.execute(
         text("""
@@ -109,20 +109,10 @@ async def debug_all_recommendations(db: Session = Depends(get_db)):
         """)
     ).fetchall()
     
-    print(f"DEBUG: Total recommendations: {len(all_recs)}")
+    logger.info(f"DEBUG: Total recommendations: {len(all_recs)}")
     
     for i, rec in enumerate(all_recs, 1):
-        print(f"\nDEBUG: Recommendation #{i}:")
-        print(f"  ID: {rec[0]}")
-        print(f"  Registration ID: {rec[1]}")
-        print(f"  Participant Name: {rec[2]}")
-        print(f"  Participant Email: {rec[3]}")
-        print(f"  Line Manager Email: {rec[4]}")
-        print(f"  Is Recommended: {rec[5]}")
-        print(f"  Submitted At: {rec[6]}")
-        print(f"  Created At: {rec[7]}")
-        print(f"  Token: {rec[8][:10] if rec[8] else 'None'}...")
-        print(f"  Event ID: {rec[9]}")
+        logger.info(f"DEBUG: Recommendation #{i}: ID={rec[0]}, Email={rec[3]}, Event={rec[9]}")
     
     return {"total_recommendations": len(all_recs), "data": "Check server logs"}
 
@@ -133,7 +123,7 @@ async def debug_email_match(
 ):
     """DEBUG: Check email matching for participant"""
     
-    print(f"=== DEBUG: Email matching for participant {participant_id} ===")
+    logger.info(f"DEBUG: Email matching for participant {participant_id}")
     
     # Get participant email from event_participants
     participant_info = db.execute(
@@ -144,7 +134,7 @@ async def debug_email_match(
     if participant_info:
         email = participant_info[0]
         name = participant_info[1]
-        print(f"DEBUG: Participant {participant_id}: {name} ({email})")
+        logger.info(f"DEBUG: Participant {participant_id}: {name} ({email})")
         
         # Check if recommendation exists for this email
         rec_check = db.execute(
@@ -153,20 +143,20 @@ async def debug_email_match(
         ).fetchone()
         
         if rec_check:
-            print(f"DEBUG: Found recommendation: ID {rec_check[0]}, submitted {rec_check[2]}")
+            logger.info(f"DEBUG: Found recommendation: ID {rec_check[0]}, submitted {rec_check[2]}")
             return {"participant": f"{name} ({email})", "recommendation_found": True, "rec_id": rec_check[0]}
         else:
-            print(f"DEBUG: No recommendation found for {email}")
+            logger.info(f"DEBUG: No recommendation found for {email}")
             return {"participant": f"{name} ({email})", "recommendation_found": False}
     else:
-        print(f"DEBUG: Participant {participant_id} not found")
+        logger.info(f"DEBUG: Participant {participant_id} not found")
         return {"error": f"Participant {participant_id} not found"}
 
 @router.get("/debug/registrations")
 async def debug_registrations(db: Session = Depends(get_db)):
     """DEBUG: Show all public registrations"""
     
-    print("=== DEBUG: ALL PUBLIC REGISTRATIONS ===")
+    logger.info("DEBUG: ALL PUBLIC REGISTRATIONS")
     
     registrations = db.execute(
         text("""
@@ -177,17 +167,51 @@ async def debug_registrations(db: Session = Depends(get_db)):
         """)
     ).fetchall()
     
-    print(f"DEBUG: Total registrations for event 41: {len(registrations)}")
+    logger.info(f"DEBUG: Total registrations for event 41: {len(registrations)}")
     
     for i, reg in enumerate(registrations, 1):
-        print(f"\nDEBUG: Registration #{i}:")
-        print(f"  ID: {reg[0]}")
-        print(f"  Event ID: {reg[1]}")
-        print(f"  Name: {reg[2]} {reg[3]}")
-        print(f"  Email: {reg[4]}")
-        print(f"  Created: {reg[5]}")
+        logger.info(f"DEBUG: Registration #{i}: ID={reg[0]}, Name={reg[2]} {reg[3]}, Email={reg[4]}")
     
     return {"total_registrations": len(registrations), "data": "Check server logs"}
+
+@router.get("/debug/user-registration/{email}")
+async def debug_user_registration(
+    email: str,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Print registration details for a specific user"""
+    
+    logger.info(f"DEBUG: Registration details for {email}")
+    
+    # Get participant from event_participants
+    participant = db.execute(
+        text("SELECT * FROM event_participants WHERE email = :email"),
+        {"email": email}
+    ).fetchone()
+    
+    if participant:
+        logger.info(f"EVENT PARTICIPANT RECORD found for {email}")
+        
+        # Get public registration details
+        pub_reg = db.execute(
+            text("SELECT * FROM public_registrations WHERE participant_id = :pid"),
+            {"pid": participant.id}
+        ).fetchone()
+        
+        if pub_reg:
+            logger.info(f"PUBLIC REGISTRATION RECORD found for participant {participant.id}")
+        else:
+            logger.info(f"NO PUBLIC REGISTRATION RECORD FOUND for participant {participant.id}")
+        
+        return {
+            "participant_found": True,
+            "participant_id": participant.id,
+            "public_registration_found": pub_reg is not None,
+            "details": "Check server logs for full details"
+        }
+    else:
+        logger.info(f"NO PARTICIPANT FOUND with email {email}")
+        return {"participant_found": False}
 
 @router.get("/debug/create-test-for-email/{participant_id}")
 async def create_test_for_participant_email(
@@ -196,7 +220,7 @@ async def create_test_for_participant_email(
 ):
     """DEBUG: Create test recommendation for participant email"""
     
-    print(f"=== DEBUG: Creating test recommendation for participant {participant_id} ===")
+    logger.info(f"DEBUG: Creating test recommendation for participant {participant_id}")
     
     # Get participant info
     participant_info = db.execute(
@@ -209,7 +233,7 @@ async def create_test_for_participant_email(
     
     email = participant_info[0]
     name = participant_info[1]
-    print(f"DEBUG: Creating recommendation for {name} ({email})")
+    logger.info(f"DEBUG: Creating recommendation for {name} ({email})")
     
     # Insert test recommendation
     db.execute(
@@ -229,7 +253,7 @@ async def create_test_for_participant_email(
     )
     
     db.commit()
-    print(f"DEBUG: Test recommendation created for {name} ({email})")
+    logger.info(f"DEBUG: Test recommendation created for {name} ({email})")
     
     return {"message": f"Test recommendation created for {name} ({email})"}
 
@@ -240,7 +264,7 @@ async def create_test_recommendation(
 ):
     """DEBUG: Create test recommendation for registration"""
     
-    print(f"=== DEBUG: Creating test recommendation for registration {registration_id} ===")
+    logger.info(f"DEBUG: Creating test recommendation for registration {registration_id}")
     
     # Check if registration exists
     reg_check = db.execute(
@@ -249,10 +273,10 @@ async def create_test_recommendation(
     ).fetchone()
     
     if not reg_check:
-        print(f"DEBUG: Registration {registration_id} not found")
+        logger.info(f"DEBUG: Registration {registration_id} not found")
         return {"error": f"Registration {registration_id} not found"}
     
-    print(f"DEBUG: Found registration: {reg_check[2]} {reg_check[3]} ({reg_check[1]})")
+    logger.info(f"DEBUG: Found registration: {reg_check[2]} {reg_check[3]} ({reg_check[1]})")
     
     # Insert test recommendation
     db.execute(
@@ -272,49 +296,135 @@ async def create_test_recommendation(
     )
     
     db.commit()
-    print(f"DEBUG: Test recommendation created for registration {registration_id}")
+    logger.info(f"DEBUG: Test recommendation created for registration {registration_id}")
     
     return {"message": f"Test recommendation created for registration {registration_id}"}
 
-@router.get("/participant/{participant_id}")
-async def get_recommendation_by_participant(
-    participant_id: int,
-    event_id: int = 41,  # Default to current event
+@router.get("/debug/delete-all-participants")
+async def delete_all_participants_debug(
     db: Session = Depends(get_db)
 ):
-    """Get line manager recommendation by participant ID and event ID"""
+    """DEBUG: Delete all participants and related data"""
     
+    logger.info("STARTING DELETION OF ALL PARTICIPANTS")
+    
+    try:
+        from sqlalchemy import text
+        
+        # Delete in correct order to avoid foreign key constraints
+        tables_to_clean = [
+            "line_manager_recommendations",
+            "form_responses", 
+            "accommodation_allocations",
+            "participant_qr_codes",
+            "event_participants"
+        ]
+        
+        total_deleted = 0
+        results = []
+        
+        for table in tables_to_clean:
+            try:
+                # Get count first
+                count_result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                count = count_result.scalar()
+                
+                if count > 0:
+                    logger.info(f"Deleting {count} records from {table}...")
+                    db.execute(text(f"DELETE FROM {table}"))
+                    total_deleted += count
+                    results.append(f"Deleted {count} records from {table}")
+                    logger.info(f"Deleted {count} records from {table}")
+                else:
+                    results.append(f"No records found in {table}")
+                    logger.info(f"No records found in {table}")
+                    
+            except Exception as e:
+                error_msg = f"Could not clean {table}: {e}"
+                results.append(error_msg)
+                logger.error(f"ERROR: {error_msg}")
+        
+        # Commit all deletions
+        db.commit()
+        
+        logger.info(f"DELETION COMPLETE! Total records deleted: {total_deleted}")
+        
+        return {
+            "message": "All participants and related data deleted successfully",
+            "total_deleted": total_deleted,
+            "details": results
+        }
+        
+    except Exception as e:
+        db.rollback()
+        error_msg = f"ERROR during deletion: {e}"
+        logger.error(f"ERROR: {error_msg}")
+        raise HTTPException(status_code=500, detail=error_msg)
 
+@router.get("/participant/{participant_id}")
+async def get_recommendations_by_participant(
+    participant_id: int,
+    event_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get all recommendations (HRCO, Career Manager, Line Manager) by participant ID and event ID"""
     
-    # Get participant email from event_participants table
-    participant_info = db.execute(
-        text("SELECT email FROM event_participants WHERE id = :participant_id"),
-        {"participant_id": participant_id}
-    ).fetchone()
+    logger.info(f"Getting recommendations for participant {participant_id}, event {event_id}")
     
-    if not participant_info:
-        raise HTTPException(status_code=404, detail="Participant not found")
-    
-    participant_email = participant_info[0]
-    
-    # Try to find recommendation by participant email and event_id
-    result = db.execute(
-        text("""
-            SELECT id, line_manager_email, is_recommended, submitted_at, created_at
-            FROM line_manager_recommendations 
-            WHERE participant_email = :email AND event_id = :event_id
-            ORDER BY created_at DESC
-            LIMIT 1
-        """),
-        {"email": participant_email, "event_id": event_id}
-    ).fetchone()
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="No recommendation found for this participant")
-    return {
-        "id": result[0],
-        "line_manager_email": result[1],
-        "is_recommended": result[2],
-        "submitted_at": result[3],
-        "created_at": result[4]
-    }
+    try:
+        # Get participant email from event_participants table
+        participant_info = db.execute(
+            text("SELECT email, event_id FROM event_participants WHERE id = :participant_id"),
+            {"participant_id": participant_id}
+        ).fetchone()
+        
+        if not participant_info:
+            logger.info(f"Participant {participant_id} not found")
+            return {
+                "recommendations": [],
+                "message": "Participant not found"
+            }
+        
+        participant_email = participant_info[0]
+        participant_event_id = participant_info[1]
+        
+        # Use event_id from query param or participant's event_id
+        search_event_id = event_id if event_id is not None else participant_event_id
+        
+        logger.info(f"Searching for recommendations - Email: {participant_email}, Event: {search_event_id}")
+        
+        # Get all recommendations for this participant and event
+        results = db.execute(
+            text("""
+                SELECT id, line_manager_email, contact_type, is_recommended, submitted_at, created_at
+                FROM line_manager_recommendations 
+                WHERE participant_email = :email AND event_id = :event_id
+                ORDER BY created_at DESC
+            """),
+            {"email": participant_email, "event_id": search_event_id}
+        ).fetchall()
+        
+        recommendations = []
+        for result in results:
+            recommendations.append({
+                "id": result[0],
+                "email": result[1],
+                "contact_type": result[2] or "Line Manager",  # Default for old records
+                "is_recommended": result[3],
+                "submitted_at": result[4],
+                "created_at": result[5]
+            })
+        
+        logger.info(f"Found {len(recommendations)} recommendations for participant {participant_id}")
+        return {
+            "recommendations": recommendations,
+            "total_count": len(recommendations)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting recommendations for participant {participant_id}: {str(e)}")
+        # Return empty response instead of raising exception to avoid frontend errors
+        return {
+            "recommendations": [],
+            "message": "Error retrieving recommendations"
+        }

@@ -14,6 +14,7 @@ class TenantBase(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = None
     
 class TenantCreate(TenantBase):
     # Settings for new tenant
@@ -40,6 +41,7 @@ class TenantUpdate(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
+    timezone: Optional[str] = None
     allow_self_registration: Optional[bool] = None
     require_admin_approval: Optional[bool] = None
     max_users: Optional[str] = None
@@ -69,6 +71,7 @@ class Tenant(TenantBase):
     activated_at: Optional[datetime] = None
     deactivated_at: Optional[datetime] = None
     last_notification_sent: Optional[datetime] = None
+    timezone: Optional[str] = None
     
     class Config:
         from_attributes = True

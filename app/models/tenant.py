@@ -34,6 +34,7 @@ class Tenant(BaseModel):
     address = Column(Text, nullable=True)
     website = Column(String(255), nullable=True)
     country = Column(String(100), nullable=True)
+    timezone = Column(String(50), nullable=True)
     
     # Branding
     logo_url = Column(String(500), nullable=True)
@@ -46,3 +47,4 @@ class Tenant(BaseModel):
     # Relationships - commented out to avoid conflicts
     # roles = relationship("Role", back_populates="tenant")
     news_updates = relationship("NewsUpdate", back_populates="tenant")
+    certificate_templates = relationship("CertificateTemplate", back_populates="tenant")

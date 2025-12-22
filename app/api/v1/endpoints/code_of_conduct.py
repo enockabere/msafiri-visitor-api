@@ -73,7 +73,7 @@ def get_public_code_of_conduct(
             detail="Tenant not found"
         )
 
-    code = crud_code.get_code_of_conduct_by_tenant(db, tenant.id)
+    code = crud_code.get_code_of_conduct_by_tenant(db, tenant.slug)
     if not code:
         return None  # Return null instead of 404 for frontend to handle
 

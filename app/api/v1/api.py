@@ -181,6 +181,22 @@ api_router.include_router(
     tags=["documents"]
 )
 
+# Certificate templates
+from app.api.v1.endpoints import certificate_templates
+api_router.include_router(
+    certificate_templates.router,
+    prefix="/certificate-templates",
+    tags=["certificate-templates"]
+)
+
+# Event certificates
+from app.api.v1.endpoints import event_certificates
+api_router.include_router(
+    event_certificates.router,
+    prefix="/events",
+    tags=["event-certificates"]
+)
+
 from app.api.v1.endpoints import security_briefings
 api_router.include_router(
     security_briefings.router,

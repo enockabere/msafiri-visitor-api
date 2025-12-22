@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
+from app.models.form_field import FormField, FormResponse
 from pydantic import BaseModel
 from typing import Optional, List
 import logging
@@ -20,7 +21,6 @@ class PublicRegistrationRequest(BaseModel):
     contractType: str
     genderIdentity: str
     sex: str
-    pronouns: str
     currentPosition: str
     personalEmail: str
     phoneNumber: str
@@ -28,6 +28,9 @@ class PublicRegistrationRequest(BaseModel):
     accommodationType: str
     codeOfConductConfirm: str
     travelRequirementsConfirm: str
+    
+    # Fields that may not exist in all templates
+    pronouns: Optional[str] = ""
     
     # Optional fields
     countryOfWork: Optional[str] = ""
@@ -142,6 +145,9 @@ async def public_register_for_event(
 ):
     """Allow public registration for events without authentication"""
     
+    print(f"🔥 BACKEND DEBUG: Public registration endpoint called for event {event_id}")
+    print(f"🔥 BACKEND DEBUG: Registration data received: {registration}")
+    
     logger.info(f"🌐 Public registration request for event {event_id}")
     logger.info(f"   Name: {registration.firstName} {registration.lastName}")
     logger.info(f"   Email: {registration.personalEmail}")
@@ -174,7 +180,7 @@ async def public_register_for_event(
     try:
         print(f"🔥 BASIC DEBUG: Starting registration process for {registration.firstName} {registration.lastName}")
         
-        # Create participant record using primary email
+        # Create participant record with all form data
         participant = EventParticipant(
             event_id=event_id,
             email=primary_email,
@@ -182,13 +188,39 @@ async def public_register_for_event(
             role="attendee",
             status="registered",
             invited_by="public_form",
-            # Store additional registration data
+            # Basic info
+            first_name=registration.firstName,
+            last_name=registration.lastName,
+            oc=registration.oc,
+            contract_status=registration.contractStatus,
+            contract_type=registration.contractType,
+            gender_identity=registration.genderIdentity,
+            sex=registration.sex,
+            pronouns=registration.pronouns,
+            current_position=registration.currentPosition,
+            country_of_work=registration.countryOfWork,
+            project_of_work=registration.projectOfWork,
+            personal_email=registration.personalEmail,
+            msf_email=registration.msfEmail,
+            hrco_email=registration.hrcoEmail,
+            career_manager_email=registration.careerManagerEmail,
+            ld_manager_email=registration.lineManagerEmail,
+            line_manager_email=registration.lineManagerEmail,
+            phone_number=registration.phoneNumber,
+            travelling_internationally=registration.travellingInternationally,
+            accommodation_needs=registration.accommodationNeeds,
+            daily_meals=','.join(registration.dailyMeals) if registration.dailyMeals else None,
+            certificate_name=registration.certificateName,
+            badge_name=registration.badgeName,
+            motivation_letter=registration.motivationLetter,
+            code_of_conduct_confirm=registration.codeOfConductConfirm,
+            travel_requirements_confirm=registration.travelRequirementsConfirm,
+            # Legacy fields for backward compatibility
             country=registration.countryOfWork or None,
             travelling_from_country=registration.travellingFromCountry if registration.travellingFromCountry else None,
             position=registration.currentPosition,
             project=registration.projectOfWork or None,
             gender=registration.genderIdentity.lower() if registration.genderIdentity in ['Man', 'Woman'] else 'other',
-            # Store the missing fields directly in the participant record
             dietary_requirements=registration.dietaryRequirements if registration.dietaryRequirements else None,
             accommodation_type=registration.accommodationType if registration.accommodationType else None
         )
@@ -197,71 +229,53 @@ async def public_register_for_event(
         db.commit()
         db.refresh(participant)
         
-        # Store detailed registration data in public_registrations table
-        from sqlalchemy import text
-        
-        # Get registration ID for form responses
-        registration_result = db.execute(text("""
-            INSERT INTO public_registrations (
-                event_id, participant_id, first_name, last_name, oc, contract_status, 
-                contract_type, gender_identity, sex, pronouns, current_position, 
-                country_of_work, project_of_work, personal_email, msf_email, 
-                hrco_email, career_manager_email, ld_manager_email, line_manager_email, 
-                phone_number, travelling_internationally, travelling_from_country, accommodation_type, 
-                dietary_requirements, accommodation_needs, daily_meals, certificate_name,
-                badge_name, motivation_letter, code_of_conduct_confirm, travel_requirements_confirm, created_at
-            ) VALUES (
-                :event_id, :participant_id, :first_name, :last_name, :oc, :contract_status,
-                :contract_type, :gender_identity, :sex, :pronouns, :current_position,
-                :country_of_work, :project_of_work, :personal_email, :msf_email,
-                :hrco_email, :career_manager_email, :ld_manager_email, :line_manager_email,
-                :phone_number, :travelling_internationally, :travelling_from_country, :accommodation_type,
-                :dietary_requirements, :accommodation_needs, :daily_meals, :certificate_name,
-                :badge_name, :motivation_letter, :code_of_conduct_confirm, :travel_requirements_confirm, CURRENT_TIMESTAMP
-            ) RETURNING id
-        """), {
-            "event_id": event_id,
-            "participant_id": participant.id,
-            "first_name": registration.firstName,
-            "last_name": registration.lastName,
-            "oc": registration.oc,
-            "contract_status": registration.contractStatus,
-            "contract_type": registration.contractType,
-            "gender_identity": registration.genderIdentity,
-            "sex": registration.sex,
-            "pronouns": registration.pronouns,
-            "current_position": registration.currentPosition,
-            "country_of_work": registration.countryOfWork,
-            "project_of_work": registration.projectOfWork,
-            "personal_email": registration.personalEmail,
-            "msf_email": registration.msfEmail,
-            "hrco_email": registration.hrcoEmail,
-            "career_manager_email": registration.careerManagerEmail,
-            "ld_manager_email": registration.lineManagerEmail,
-            "line_manager_email": registration.lineManagerEmail,
-            "phone_number": registration.phoneNumber,
-            "travelling_internationally": registration.travellingInternationally,
-            "travelling_from_country": registration.travellingFromCountry,
-            "accommodation_type": registration.accommodationType,
-            "dietary_requirements": registration.dietaryRequirements,
-            "accommodation_needs": registration.accommodationNeeds,
-            "daily_meals": ','.join(registration.dailyMeals) if registration.dailyMeals else None,
-            "certificate_name": registration.certificateName,
-            "badge_name": registration.badgeName,
-            "motivation_letter": registration.motivationLetter,
-            "code_of_conduct_confirm": registration.codeOfConductConfirm,
-            "travel_requirements_confirm": registration.travelRequirementsConfirm
-        })
-        
-        registration_id = registration_result.fetchone()[0]
-        
         # Save any additional dynamic form responses
-        # This would be handled by the frontend calling the form-responses endpoint separately
+        # Get all form fields for this event
+        form_fields = db.query(FormField).filter(
+            FormField.event_id == event_id,
+            FormField.is_active == True
+        ).all()
         
-        # Send line manager recommendation email if line manager email provided
+        # Get all data from registration as dict
+        registration_dict = registration.dict()
+        
+        # Save dynamic field responses that are not standard fields
+        standard_fields = {
+            'eventId', 'firstName', 'lastName', 'oc', 'contractStatus', 'contractType',
+            'genderIdentity', 'sex', 'pronouns', 'currentPosition', 'countryOfWork',
+            'projectOfWork', 'personalEmail', 'msfEmail', 'hrcoEmail', 'careerManagerEmail',
+            'lineManagerEmail', 'phoneNumber', 'travellingInternationally', 'travellingFromCountry',
+            'accommodationType', 'dietaryRequirements', 'accommodationNeeds', 'dailyMeals',
+            'certificateName', 'badgeName', 'motivationLetter', 'codeOfConductConfirm',
+            'travelRequirementsConfirm'
+        }
+        
+        for field in form_fields:
+            # Check if this is a dynamic field (not in standard fields)
+            if field.field_name not in standard_fields and field.field_name in registration_dict:
+                value = registration_dict[field.field_name]
+                if value:  # Only save non-empty values
+                    form_response = FormResponse(
+                        registration_id=participant.id,
+                        field_id=field.id,
+                        field_value=str(value)
+                    )
+                    db.add(form_response)
+        
+        db.commit()
+        
+        # Send recommendation emails to all three contacts if provided
+        recommendation_contacts = []
+        if registration.hrcoEmail and registration.hrcoEmail.strip():
+            recommendation_contacts.append(("HRCO", registration.hrcoEmail))
+        if registration.careerManagerEmail and registration.careerManagerEmail.strip():
+            recommendation_contacts.append(("Career Manager", registration.careerManagerEmail))
         if registration.lineManagerEmail and registration.lineManagerEmail.strip():
-            await send_line_manager_recommendation_email(
-                db, event_id, participant.id, registration, event
+            recommendation_contacts.append(("Line Manager", registration.lineManagerEmail))
+        
+        if recommendation_contacts:
+            await send_recommendation_emails(
+                db, event_id, participant.id, registration, event, recommendation_contacts
             )
         
         db.commit()
@@ -279,120 +293,117 @@ async def public_register_for_event(
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
 
-async def send_line_manager_recommendation_email(
-    db: Session, event_id: int, participant_id: int, registration: PublicRegistrationRequest, event: Event
+async def send_recommendation_emails(
+    db: Session, event_id: int, participant_id: int, registration: PublicRegistrationRequest, event: Event, contacts: list
 ):
-    """Send recommendation request email to line manager"""
+    """Send recommendation request emails to HRCO, Career Manager, and Line Manager"""
     
     import uuid
     from sqlalchemy import text
     
     try:
-        # Generate unique token for recommendation
-        recommendation_token = str(uuid.uuid4())
-        
-        # Get registration ID
-        registration_result = db.execute(
-            text("SELECT id FROM public_registrations WHERE participant_id = :participant_id"),
-            {"participant_id": participant_id}
-        ).fetchone()
-        
-        if not registration_result:
-            logger.error("Could not find registration record")
-            return
-        
-        registration_id = registration_result[0]
-        
-        # Insert recommendation record
-        db.execute(
-            text("""
-                INSERT INTO line_manager_recommendations (
-                    registration_id, event_id, participant_name, participant_email,
-                    line_manager_email, operation_center, event_title, event_dates,
-                    event_location, recommendation_token
-                ) VALUES (
-                    :registration_id, :event_id, :participant_name, :participant_email,
-                    :line_manager_email, :operation_center, :event_title, :event_dates,
-                    :event_location, :recommendation_token
-                )
-            """),
-            {
-                "registration_id": registration_id,
-                "event_id": event_id,
-                "participant_name": f"{registration.firstName} {registration.lastName}",
-                "participant_email": registration.personalEmail,
-                "line_manager_email": registration.lineManagerEmail,
-                "operation_center": registration.oc,
-                "event_title": event.title,
-                "event_dates": f"{event.start_date} to {event.end_date}",
-                "event_location": event.location,
-                "recommendation_token": recommendation_token
-            }
-        )
+        for contact_type, email in contacts:
+            # Generate unique token for each recommendation
+            recommendation_token = str(uuid.uuid4())
+            
+            # Insert recommendation record for each contact
+            db.execute(
+                text("""
+                    INSERT INTO line_manager_recommendations (
+                        registration_id, event_id, participant_name, participant_email,
+                        line_manager_email, operation_center, event_title, event_dates,
+                        event_location, recommendation_token, contact_type, created_at
+                    ) VALUES (
+                        :registration_id, :event_id, :participant_name, :participant_email,
+                        :line_manager_email, :operation_center, :event_title, :event_dates,
+                        :event_location, :recommendation_token, :contact_type, CURRENT_TIMESTAMP
+                    )
+                """),
+                {
+                    "registration_id": participant_id,
+                    "event_id": event_id,
+                    "participant_name": f"{registration.firstName} {registration.lastName}",
+                    "participant_email": registration.personalEmail,
+                    "line_manager_email": email,
+                    "operation_center": registration.oc,
+                    "event_title": event.title,
+                    "event_dates": f"{event.start_date} to {event.end_date}",
+                    "event_location": event.location,
+                    "recommendation_token": recommendation_token,
+                    "contact_type": contact_type
+                }
+            )
+            
+            # Send email to contact
+            from app.core.email_service import email_service
+            import os
+
+            # Get base URL from environment variable
+            base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+            
+            # Use different paths for different contact types
+            if contact_type == "HRCO":
+                recommendation_url = f"{base_url}/public/hrco-recommendation/{recommendation_token}"
+            elif contact_type == "Career Manager":
+                recommendation_url = f"{base_url}/public/career-manager-recommendation/{recommendation_token}"
+            else:  # Line Manager
+                recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
+            
+            subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
+            
+            message = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #dc2626;">{contact_type} Recommendation Request</h2>
+                
+                <p>Dear {contact_type},</p>
+                
+                <p><strong>{registration.firstName} {registration.lastName}</strong> has registered for the following event and listed you as their {contact_type.lower()}:</p>
+                
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #374151;">Event Details</h3>
+                    <p><strong>Event:</strong> {event.title}</p>
+                    <p><strong>Dates:</strong> {event.start_date} to {event.end_date}</p>
+                    <p><strong>Location:</strong> {event.location}</p>
+                    <p><strong>Operation Center:</strong> {registration.oc}</p>
+                </div>
+                
+                <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="margin-top: 0; color: #92400e;">Participant Information</h3>
+                    <p><strong>Name:</strong> {registration.firstName} {registration.lastName}</p>
+                    <p><strong>Email:</strong> {registration.personalEmail}</p>
+                    <p><strong>Position:</strong> {registration.currentPosition}</p>
+                    <p><strong>Country of Work:</strong> {registration.countryOfWork or 'Not specified'}</p>
+                </div>
+                
+                <p>Please click the link below to provide your recommendation:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{recommendation_url}" 
+                       style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                       Provide Recommendation
+                    </a>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 14px;">
+                    This link is unique to this request and will expire after the event registration deadline.
+                    If you have any questions, please contact the event organizers.
+                </p>
+            </div>
+            """
+            
+            email_service.send_notification_email(
+                to_email=email,
+                user_name=contact_type,
+                title=subject,
+                message=message
+            )
+            
+            logger.info(f"✅ Recommendation email sent to {contact_type}: {email}")
         
         db.commit()
         
-        # Send email to line manager
-        from app.core.email_service import email_service
-        import os
-
-        # Get base URL from environment variable, fallback to production URL
-        base_url = os.getenv("FRONTEND_BASE_URL", "http://41.90.97.253:8001/portal")
-        recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
-        
-        subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
-        
-        message = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #dc2626;">Line Manager Recommendation Request</h2>
-            
-            <p>Dear Line Manager,</p>
-            
-            <p><strong>{registration.firstName} {registration.lastName}</strong> has registered for the following event and listed you as their line manager:</p>
-            
-            <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #374151;">Event Details</h3>
-                <p><strong>Event:</strong> {event.title}</p>
-                <p><strong>Dates:</strong> {event.start_date} to {event.end_date}</p>
-                <p><strong>Location:</strong> {event.location}</p>
-                <p><strong>Operation Center:</strong> {registration.oc}</p>
-            </div>
-            
-            <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="margin-top: 0; color: #92400e;">Participant Information</h3>
-                <p><strong>Name:</strong> {registration.firstName} {registration.lastName}</p>
-                <p><strong>Email:</strong> {registration.personalEmail}</p>
-                <p><strong>Position:</strong> {registration.currentPosition}</p>
-                <p><strong>Country of Work:</strong> {registration.countryOfWork or 'Not specified'}</p>
-            </div>
-            
-            <p>Please click the link below to provide your recommendation:</p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="{recommendation_url}" 
-                   style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                   Provide Recommendation
-                </a>
-            </div>
-            
-            <p style="color: #6b7280; font-size: 14px;">
-                This link is unique to this request and will expire after the event registration deadline.
-                If you have any questions, please contact the event organizers.
-            </p>
-        </div>
-        """
-        
-        email_service.send_notification_email(
-            to_email=registration.lineManagerEmail,
-            user_name="Line Manager",
-            title=subject,
-            message=message
-        )
-        
-        logger.info(f"✅ Recommendation email sent to {registration.lineManagerEmail}")
-        
     except Exception as e:
-        logger.error(f"❌ Error sending recommendation email: {e}")
+        logger.error(f"❌ Error sending recommendation emails: {e}")
         # Don't fail the registration if email fails
         pass
 
@@ -495,24 +506,62 @@ async def check_registration_status(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    from datetime import timedelta
+
     now = datetime.utcnow()
     can_register = True
     reason = None
 
     # Check if event has started
-    if event.start_date and datetime.fromisoformat(str(event.start_date)) <= now:
-        can_register = False
-        reason = "Event has already started"
+    if event.start_date:
+        # Convert date to datetime if needed
+        if isinstance(event.start_date, datetime):
+            start_datetime = event.start_date
+        else:
+            start_datetime = datetime.combine(event.start_date, datetime.min.time())
+
+        if start_datetime <= now:
+            can_register = False
+            reason = "Event has already started"
 
     # Check if event has ended
-    elif event.end_date and datetime.fromisoformat(str(event.end_date)) <= now:
-        can_register = False
-        reason = "Event has ended"
+    if can_register and event.end_date:
+        # Convert date to datetime if needed, add 1 day for date-only values
+        if isinstance(event.end_date, datetime):
+            end_datetime = event.end_date
+        else:
+            end_datetime = datetime.combine(event.end_date, datetime.min.time()) + timedelta(days=1)
+
+        if end_datetime <= now:
+            can_register = False
+            reason = "Event has ended"
 
     # Check if registration deadline has passed
-    elif event.registration_deadline and datetime.fromisoformat(str(event.registration_deadline)) <= now:
-        can_register = False
-        reason = "Registration deadline has passed"
+    if can_register and event.registration_deadline:
+        # registration_deadline is now DateTime type
+        if isinstance(event.registration_deadline, datetime):
+            deadline_datetime = event.registration_deadline
+            # If time is midnight (00:00:00), set to end of day to allow registration throughout the deadline day
+            if deadline_datetime.time() == datetime.min.time():
+                deadline_datetime = deadline_datetime.replace(hour=23, minute=59, second=59)
+            # Ensure timezone-aware comparison
+            if deadline_datetime.tzinfo is None:
+                from datetime import timezone
+                deadline_datetime = deadline_datetime.replace(tzinfo=timezone.utc)
+        else:
+            # Fallback for date objects (shouldn't happen with new schema, but handle gracefully)
+            deadline_datetime = datetime.combine(event.registration_deadline, datetime.max.time())
+            from datetime import timezone
+            deadline_datetime = deadline_datetime.replace(tzinfo=timezone.utc)
+        
+        # Ensure now is timezone-aware for comparison
+        if now.tzinfo is None:
+            from datetime import timezone
+            now = now.replace(tzinfo=timezone.utc)
+
+        if deadline_datetime <= now:
+            can_register = False
+            reason = "Registration deadline has passed"
 
     return {
         "can_register": can_register,
