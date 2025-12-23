@@ -181,6 +181,21 @@ api_router.include_router(
     tags=["documents"]
 )
 
+# Badge templates
+from app.api.v1.endpoints import badge_templates
+api_router.include_router(
+    badge_templates.router,
+    prefix="/tenants/{tenant_slug}/badge-templates",
+    tags=["badge-templates"]
+)
+
+# Also add badge templates without tenant prefix for generate endpoint
+api_router.include_router(
+    badge_templates.router,
+    prefix="/badge-templates",
+    tags=["badge-templates-generate"]
+)
+
 # Certificate templates
 from app.api.v1.endpoints import certificate_templates
 api_router.include_router(
