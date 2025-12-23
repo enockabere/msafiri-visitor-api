@@ -189,6 +189,29 @@ api_router.include_router(
     tags=["certificate-templates"]
 )
 
+# Invitation templates (with generate endpoint)
+from app.api.v1.endpoints import invitation_templates
+api_router.include_router(
+    invitation_templates.router,
+    prefix="/tenants/{tenant_slug}/invitation-templates",
+    tags=["invitation-templates"]
+)
+
+# Also add invitation templates without tenant prefix for generate endpoint
+api_router.include_router(
+    invitation_templates.router,
+    prefix="/invitation-templates",
+    tags=["invitation-templates-generate"]
+)
+
+# LOI generation endpoint (separate from tenant-specific templates)
+from app.api.v1.endpoints import loi
+api_router.include_router(
+    loi.router,
+    prefix="/invitation-templates",
+    tags=["loi-generation"]
+)
+
 # Event certificates
 from app.api.v1.endpoints import event_certificates
 api_router.include_router(

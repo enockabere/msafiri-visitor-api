@@ -10,6 +10,7 @@ from .event_participant import EventParticipant
 from .event_attachment import EventAttachment
 from .certificate_template import CertificateTemplate
 from .event_certificate import EventCertificate, ParticipantCertificate
+from .invitation_template import InvitationTemplate
 from .security_brief import SecurityBrief, UserBriefAcknowledgment, BriefType, ContentType
 from .guesthouse import GuestHouse, Room, VendorAccommodation, AccommodationAllocation
 from .useful_contact import UsefulContact
@@ -36,7 +37,7 @@ __all__ = [
     "AuthProvider", "UserStatus", "Notification", "NotificationType", "NotificationPriority",
     "AdminInvitation", "InvitationStatus", "UserRoleModel", "RoleChangeLog", "RoleType", "UserTenant", "UserTenantRole",
     "Event", "EventParticipant", "EventAttachment", "CertificateTemplate", "EventCertificate", "ParticipantCertificate",
-    "SecurityBrief", "UserBriefAcknowledgment",
+    "InvitationTemplate", "SecurityBrief", "UserBriefAcknowledgment",
     "BriefType", "ContentType", "GuestHouse", "Room", "VendorAccommodation", "AccommodationAllocation",
     "UsefulContact", "TransportBooking", "TransportStatusUpdate", "TransportVendor", 
     "BookingType", "BookingStatus", "VendorType", "EmergencyContact", "UserConsent",

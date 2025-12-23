@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.passport_record import PassportRecord
 from app.models.event_participant import EventParticipant
+from app.models.invitation_template import InvitationTemplate
+from app.services.loi_generation import generate_loi_document
 import requests
 import os
 
@@ -249,4 +251,61 @@ async def generate_slugs_for_existing_records(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate slugs: {str(e)}"
+        )
+
+# Add the missing generation endpoint that the frontend is calling
+@router.get("/events/{event_id}/loi/{template_id}/generate/{participant_id}")
+async def generate_loi_from_event_template(
+    event_id: int,
+    template_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Generate LOI PDF from template for a participant (event-based endpoint)"""
+    
+    # Get the invitation template
+    template = db.query(InvitationTemplate).filter(
+        InvitationTemplate.id == template_id,
+        InvitationTemplate.is_active == True
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=404,
+            detail="Active invitation template not found"
+        )
+    
+    # Get the participant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=404,
+            detail="Participant not found"
+        )
+    
+    try:
+        # Generate LOI document using the service
+        pdf_url, loi_slug = await generate_loi_document(
+            participant_id=participant.id,
+            event_id=participant.event_id,
+            template_html=template.template_content,
+            participant_name=participant.full_name,
+            event_name=f"Event {participant.event_id}",  # You might want to get actual event name
+            event_dates="TBD",  # You might want to get actual event dates
+            event_location="TBD",  # You might want to get actual event location
+            organization_name="MSF"
+        )
+        
+        # Redirect to the generated PDF
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=pdf_url, status_code=302)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate LOI: {str(e)}"
         )

@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 # Azure configuration
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 AZURE_LOI_CONTAINER = os.getenv("AZURE_LOI_DOCUMENTS_CONTAINER", "loi-documents")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+# Use FRONTEND_URL from environment, fallback to localhost for development
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
 
 
 def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
