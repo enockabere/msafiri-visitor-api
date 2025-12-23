@@ -55,6 +55,30 @@ def login_access_token(
     print(f"DEBUG: Authentication result: {user is not None}")
     if user:
         print(f"DEBUG: User found - ID: {user.id}, Role: {user.role}, Active: {user.is_active}")
+        
+        # Debug: Print all roles for this user
+        try:
+            from app.models.user_roles import UserRole as UserRoleModel
+            from app.models.vetting_role_assignment import VettingRoleAssignment
+            
+            # Get relationship-based roles
+            user_roles = db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == user.id,
+                UserRoleModel.is_active == True
+            ).all()
+            
+            # Get vetting role assignments
+            vetting_roles = db.query(VettingRoleAssignment).filter(
+                VettingRoleAssignment.user_id == user.id,
+                VettingRoleAssignment.is_active == True
+            ).all()
+            
+            print(f"DEBUG: Primary role: {user.role}")
+            print(f"DEBUG: Secondary roles: {[role.role.value for role in user_roles]}")
+            print(f"DEBUG: Vetting roles: {[f'{vr.role_type} (committee {vr.committee_id})' for vr in vetting_roles]}")
+            
+        except Exception as e:
+            print(f"DEBUG: Error getting roles: {e}")
     
     if not user:
         print(f"DEBUG: Authentication failed - no user found")
