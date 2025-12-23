@@ -19,6 +19,54 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+def get_user_all_roles(db: Session, user) -> list:
+    """Get all roles for a user (primary + secondary + vetting)"""
+    roles = [user.role.value]  # Primary role
+    
+    try:
+        # Secondary roles from user_roles table
+        from app.models.user_roles import UserRole as UserRoleModel
+        user_roles = db.query(UserRoleModel).filter(
+            UserRoleModel.user_id == user.id,
+            UserRoleModel.is_active == True
+        ).all()
+        roles.extend([role.role.value for role in user_roles])
+        
+        # Vetting roles from vetting_role_assignments table
+        from app.models.vetting_role_assignment import VettingRoleAssignment
+        vetting_roles = db.query(VettingRoleAssignment).filter(
+            VettingRoleAssignment.user_id == user.id,
+            VettingRoleAssignment.is_active == True
+        ).all()
+        roles.extend([vr.role_type for vr in vetting_roles])
+        
+    except Exception as e:
+        logger.warning(f"Error getting user roles: {e}")
+    
+    return list(set(roles))  # Remove duplicates
+
+def get_user_tenants(db: Session, user) -> list:
+    """Get all tenant associations for a user"""
+    try:
+        from app.models.user_tenants import UserTenant
+        from app.models.tenant import Tenant
+        
+        user_tenants = db.query(UserTenant).join(Tenant).filter(
+            UserTenant.user_id == user.id,
+            UserTenant.is_active == True
+        ).all()
+        
+        return [{
+            "tenant_id": ut.tenant_id,
+            "tenant_name": ut.tenant.name if ut.tenant else ut.tenant_id,
+            "tenant_slug": ut.tenant.slug if ut.tenant else ut.tenant_id,
+            "role": ut.role.value if ut.role else None
+        } for ut in user_tenants]
+        
+    except Exception as e:
+        logger.warning(f"Error getting user tenants: {e}")
+        return []
+
 @router.post("/login", response_model=schemas.Token)
 def login_access_token(
     db: Session = Depends(get_db),
@@ -108,12 +156,20 @@ def login_access_token(
         expires_delta=access_token_expires
     )
     
+    # Get all user roles (primary + secondary + vetting)
+    all_roles = get_user_all_roles(db, user)
+    
+    # Get user's tenant associations
+    user_tenants = get_user_tenants(db, user)
+    
     response_data = {
         "access_token": access_token,
         "token_type": "bearer",
         "user_id": user.id,
-        "role": user.role.value,
+        "role": user.role.value,  # Primary role
+        "all_roles": all_roles,  # All roles including vetting
         "tenant_id": user.tenant_id,
+        "user_tenants": user_tenants,  # All tenant associations
         "full_name": user.full_name,
         "email": user.email
     }
@@ -412,6 +468,54 @@ async def microsoft_sso_mobile_login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Mobile SSO authentication failed: {str(e)}"
         )
+
+@router.post("/select-tenant", response_model=schemas.Token)
+def select_tenant(
+    tenant_data: dict,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Select tenant for multi-tenant users"""
+    
+    tenant_slug = tenant_data.get("tenant_slug")
+    if not tenant_slug:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tenant slug is required"
+        )
+    
+    # Verify user has access to this tenant
+    user_tenants = get_user_tenants(db, current_user)
+    valid_tenant = next((t for t in user_tenants if t["tenant_slug"] == tenant_slug), None)
+    
+    if not valid_tenant:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied to this tenant"
+        )
+    
+    # Generate new token with selected tenant
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        subject=current_user.email,
+        tenant_id=tenant_slug,
+        expires_delta=access_token_expires
+    )
+    
+    # Get roles specific to this tenant
+    all_roles = get_user_all_roles(db, current_user)
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": current_user.id,
+        "role": current_user.role.value,
+        "all_roles": all_roles,
+        "tenant_id": tenant_slug,
+        "selected_tenant": valid_tenant,
+        "full_name": current_user.full_name,
+        "email": current_user.email
+    }
 
 @router.post("/update-fcm-token")
 def update_fcm_token(

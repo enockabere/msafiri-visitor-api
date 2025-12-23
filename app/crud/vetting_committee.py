@@ -203,6 +203,8 @@ def create_vetting_committee(
     # Assign vetting approver role as secondary role (preserve primary role)
     assign_vetting_role_to_user(db, approver, committee.id, "VETTING_APPROVER", tenant_id)
     
+    # Don't change primary role - keep existing role (SUPER_ADMIN, MT_ADMIN, etc.)
+    
     # Create committee members
     member_passwords = {}
     for member_data in committee_data.members:
@@ -252,6 +254,8 @@ def create_vetting_committee(
 
         # Assign vetting committee role as secondary role (preserve primary role)
         assign_vetting_role_to_user(db, user, committee.id, "VETTING_COMMITTEE", tenant_id)
+        
+        # Don't change primary role - keep existing role (SUPER_ADMIN, MT_ADMIN, etc.)
 
         # Create committee member
         member = VettingCommitteeMember(
