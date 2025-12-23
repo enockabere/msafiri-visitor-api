@@ -143,7 +143,7 @@ def create_vetting_committee(
             email=committee_data.approver_email,
             hashed_password=get_password_hash(temp_password),
             full_name="Approver",
-            role=UserRoleEnum.GUEST,  # Default primary role
+            role=UserRoleEnum.VETTING_APPROVER,  # Vetting approver role
             status=UserStatus.ACTIVE,
             tenant_id=tenant_id,
             auth_provider=AuthProvider.LOCAL,
@@ -182,7 +182,7 @@ def create_vetting_committee(
                 email=member_data.email,
                 hashed_password=get_password_hash(member_password),
                 full_name=member_data.full_name,
-                role=UserRoleEnum.GUEST,  # Default primary role
+                role=UserRoleEnum.VETTING_COMMITTEE,  # Vetting committee member role
                 status=UserStatus.ACTIVE,
                 tenant_id=tenant_id,
                 auth_provider=AuthProvider.LOCAL,
