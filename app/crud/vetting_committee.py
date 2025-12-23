@@ -70,6 +70,38 @@ def assign_vetting_role_to_user(
         db.add(user_tenant)
 
 
+def cleanup_vetting_roles_for_event(db: Session, event_id: int) -> int:
+    """Remove all vetting roles associated with an event when it's deleted"""
+    
+    # Get all committees for this event
+    committees = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).all()
+    
+    total_removed = 0
+    for committee in committees:
+        # Remove vetting roles for this committee
+        removed_count = remove_vetting_roles_after_deadline(db, committee.id)
+        total_removed += removed_count
+        
+        # Delete the committee and its members
+        db.query(VettingCommitteeMember).filter(
+            VettingCommitteeMember.committee_id == committee.id
+        ).delete()
+        
+        db.query(ParticipantSelection).filter(
+            ParticipantSelection.committee_id == committee.id
+        ).delete()
+        
+        db.query(VettingRoleAssignment).filter(
+            VettingRoleAssignment.committee_id == committee.id
+        ).delete()
+        
+        db.delete(committee)
+    
+    db.commit()
+    return total_removed
+
 def remove_vetting_roles_after_deadline(db: Session, committee_id: int) -> int:
     """Remove vetting roles from committee members after deadline"""
 
@@ -152,9 +184,15 @@ def create_vetting_committee(
         db.add(approver)
         db.flush()
     else:
-        # User exists - check if they need local password
-        if approver.auth_provider != AuthProvider.LOCAL or not approver.hashed_password:
-            # User doesn't have local password, generate one
+        # User exists - check if they need local password (either no password or password not changed)
+        needs_new_password = (
+            approver.auth_provider != AuthProvider.LOCAL or 
+            not approver.hashed_password or 
+            approver.must_change_password  # Still has temporary password
+        )
+        
+        if needs_new_password:
+            # User needs new password
             temp_password = secrets.token_urlsafe(12)
             approver.hashed_password = get_password_hash(temp_password)
             approver.auth_provider = AuthProvider.LOCAL
@@ -194,9 +232,15 @@ def create_vetting_committee(
             # User exists - store their current role
             had_previous_role = str(user.role.value) if user.role and hasattr(user.role, 'value') else str(user.role) if user.role else None
 
-            # Check if they need local password
-            if user.auth_provider != AuthProvider.LOCAL or not user.hashed_password:
-                # User doesn't have local password, generate one
+            # Check if they need local password (either no password or password not changed)
+            needs_new_password = (
+                user.auth_provider != AuthProvider.LOCAL or 
+                not user.hashed_password or 
+                user.must_change_password  # Still has temporary password
+            )
+            
+            if needs_new_password:
+                # User needs new password
                 member_password = secrets.token_urlsafe(12)
                 member_passwords[member_data.email] = member_password
                 user.hashed_password = get_password_hash(member_password)

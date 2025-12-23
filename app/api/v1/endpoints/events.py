@@ -621,6 +621,14 @@ def delete_event(
     
     # Delete related records in correct order to avoid foreign key violations
     try:
+        # Clean up vetting committee roles first
+        try:
+            from app.crud.vetting_committee import cleanup_vetting_roles_for_event
+            removed_roles = cleanup_vetting_roles_for_event(db, event_id)
+            logger.info(f"🗑️ Cleaned up {removed_roles} vetting roles for event {event_id}")
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to cleanup vetting roles: {str(e)}")
+        
         # Use CASCADE deletion to handle all foreign key constraints
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
