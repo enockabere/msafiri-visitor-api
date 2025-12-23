@@ -180,7 +180,7 @@ def login_access_token(
         response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
     
     # Check if password must be changed (either flag is set or using default password)
-    must_change = (hasattr(user, 'must_change_password') and user.must_change_password) or form_data.password == "password@1234"
+    must_change = (hasattr(user, 'must_change_password') and user.must_change_password)
     if must_change:
         response_data["must_change_password"] = True
     
