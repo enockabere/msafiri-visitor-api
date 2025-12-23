@@ -192,7 +192,7 @@ def create_vetting_committee(
             db.flush()
         else:
             # User exists - store their current role
-            had_previous_role = str(user.role.value) if user.role else None
+            had_previous_role = str(user.role.value) if user.role and hasattr(user.role, 'value') else str(user.role) if user.role else None
 
             # Check if they need local password
             if user.auth_provider != AuthProvider.LOCAL or not user.hashed_password:
