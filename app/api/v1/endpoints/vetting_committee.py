@@ -53,6 +53,8 @@ def create_vetting_committee(
         print(f"ERROR type: {type(e)}")
         print(f"Current user: {current_user.email if current_user else 'None'}")
         print(f"Current user tenant_id: {current_user.tenant_id if current_user else 'None'}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create vetting committee: {str(e)}"
