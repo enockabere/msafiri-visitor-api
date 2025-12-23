@@ -31,22 +31,32 @@ def create_vetting_committee(
     # Allow all authenticated users to create vetting committees
     # No role restriction needed
     
-    # Check if committee already exists for this event
-    existing = crud_vetting.get_committee_by_event(db, committee_data.event_id)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Vetting committee already exists for this event"
+    try:
+        # Check if committee already exists for this event
+        existing = crud_vetting.get_committee_by_event(db, committee_data.event_id)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Vetting committee already exists for this event"
+            )
+        
+        committee = crud_vetting.create_vetting_committee(
+            db=db,
+            committee_data=committee_data,
+            created_by=current_user.email,
+            tenant_id=current_user.tenant_id or "default"
         )
-    
-    committee = crud_vetting.create_vetting_committee(
-        db=db,
-        committee_data=committee_data,
-        created_by=current_user.email,
-        tenant_id=current_user.tenant_id
-    )
-    
-    return committee
+        
+        return committee
+    except Exception as e:
+        print(f"ERROR creating vetting committee: {str(e)}")
+        print(f"ERROR type: {type(e)}")
+        print(f"Current user: {current_user.email if current_user else 'None'}")
+        print(f"Current user tenant_id: {current_user.tenant_id if current_user else 'None'}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create vetting committee: {str(e)}"
+        )
 
 @router.get("/event/{event_id}", response_model=VettingCommitteeResponse)
 def get_event_vetting_committee(
