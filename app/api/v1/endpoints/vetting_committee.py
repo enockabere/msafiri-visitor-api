@@ -26,13 +26,10 @@ def create_vetting_committee(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create vetting committee for an event (Admin only)"""
+    """Create vetting committee for an event (All authenticated users)"""
     
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can create vetting committees"
-        )
+    # Allow all authenticated users to create vetting committees
+    # No role restriction needed
     
     # Check if committee already exists for this event
     existing = crud_vetting.get_committee_by_event(db, committee_data.event_id)
