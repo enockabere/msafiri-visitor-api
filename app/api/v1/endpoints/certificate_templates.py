@@ -144,24 +144,37 @@ def delete_certificate_template(
     tenant_slug: str = Depends(get_tenant_context)
 ):
     """Delete a certificate template"""
+    from app.models.event_certificate import EventCertificate
+
     # Check if user has permission to delete templates
     # if current_user.role not in ["super_admin", "mt_admin", "hr_admin"]:
     #     raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
+
     # Get tenant ID from slug
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    
+
     template = db.query(CertificateTemplate).filter(
         CertificateTemplate.id == template_id,
         CertificateTemplate.tenant_id == tenant.id
     ).first()
-    
+
     if not template:
         raise HTTPException(status_code=404, detail="Certificate template not found")
-    
+
+    # Check if template is being used by any events
+    events_using_template = db.query(EventCertificate).filter(
+        EventCertificate.certificate_template_id == template_id
+    ).count()
+
+    if events_using_template > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete template. It is currently being used by {events_using_template} event certificate(s). Please remove the template from all events first."
+        )
+
     db.delete(template)
     db.commit()
-    
+
     return {"message": "Certificate template deleted successfully"}

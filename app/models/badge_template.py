@@ -18,5 +18,9 @@ class BadgeTemplate(Base):
     is_active = Column(Boolean, default=True)
     badge_size = Column(String(50), default="standard")  # standard, large, small
     orientation = Column(String(20), default="portrait")  # portrait, landscape
+    contact_phone = Column(String(50))
+    website_url = Column(String(255))
+    avatar_url = Column(String(500))
+    include_avatar = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

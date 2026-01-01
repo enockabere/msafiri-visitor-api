@@ -162,6 +162,13 @@ def login_access_token(
     # Get user's tenant associations
     user_tenants = get_user_tenants(db, user)
     
+    # If user has no primary tenant but has tenant associations, set the first one as primary
+    if not user.tenant_id and user_tenants:
+        primary_tenant = user_tenants[0]
+        user.tenant_id = primary_tenant["tenant_slug"]
+        db.commit()
+        print(f"DEBUG: Set primary tenant for user {user.id}: {user.tenant_id}")
+    
     response_data = {
         "access_token": access_token,
         "token_type": "bearer",
@@ -174,6 +181,8 @@ def login_access_token(
         "email": user.email
     }
     
+    print(f"DEBUG: Response data - all_roles: {all_roles}")
+    
     # Add first login flag for frontend
     if is_first_login:
         response_data["first_login"] = True
@@ -185,6 +194,49 @@ def login_access_token(
         response_data["must_change_password"] = True
     
     return response_data
+
+@router.post("/refresh", response_model=schemas.Token)
+def refresh_access_token(
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_user_allow_expired)
+) -> Any:
+    """
+    Refresh access token for authenticated users.
+    Requires a valid (non-expired or recently expired) access token.
+    """
+    try:
+        # Generate new access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = security.create_access_token(
+            subject=current_user.email,
+            tenant_id=current_user.tenant_id,
+            expires_delta=access_token_expires
+        )
+
+        # Get all user roles
+        all_roles = get_user_all_roles(db, current_user)
+
+        # Get user's tenant associations
+        user_tenants = get_user_tenants(db, current_user)
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user_id": current_user.id,
+            "role": current_user.role.value,
+            "all_roles": all_roles,
+            "tenant_id": current_user.tenant_id,
+            "user_tenants": user_tenants,
+            "full_name": current_user.full_name,
+            "email": current_user.email,
+            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60  # in seconds
+        }
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not refresh token"
+        )
 
 @router.post("/login/tenant", response_model=schemas.Token)
 def login_with_tenant(

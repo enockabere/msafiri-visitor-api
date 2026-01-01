@@ -11,26 +11,19 @@ from sqlalchemy import text
 
 def get_tenant_id_from_context(db, tenant_context, current_user):
     """Helper function to get tenant ID from context"""
-    print(f"[DEBUG] TENANT: Input tenant_context: {tenant_context}, type: {type(tenant_context)}")
-    
     if tenant_context and tenant_context.isdigit():
-        result = int(tenant_context)
-        print(f"[DEBUG] TENANT: Returning numeric tenant_id: {result}")
-        return result
+        return int(tenant_context)
     else:
         # Look up tenant by slug
         tenant = db.query(Tenant).filter(Tenant.slug == tenant_context).first()
         if tenant:
-            print(f"[DEBUG] TENANT: Found tenant by slug '{tenant_context}': ID {tenant.id}")
             return tenant.id
         else:
             # Try to look up by current_user.tenant_id (which might be a slug)
             if isinstance(current_user.tenant_id, str):
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
                 if tenant:
-                    print(f"[DEBUG] TENANT: Found tenant by user slug '{current_user.tenant_id}': ID {tenant.id}")
                     return tenant.id
-            print(f"[DEBUG] TENANT: Tenant not found, using fallback")
             return 1  # Fallback to default tenant
 
 router = APIRouter()
@@ -38,7 +31,6 @@ router = APIRouter()
 @router.get("/test")
 def test_accommodation_endpoint():
     """Test endpoint to verify accommodation router is working"""
-    print("[DEBUG] DEBUG: Accommodation test endpoint called")
     return {"message": "Accommodation router is working", "timestamp": "2024-10-15"}
 
 @router.get("/available-participants")
@@ -113,12 +105,8 @@ def get_guesthouses(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all guesthouses for tenant"""
-    print(f"DEBUG: get_guesthouses - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    print(f"DEBUG: Resolved tenant_id: {tenant_id}")
-    
     guesthouses = crud.guesthouse.get_by_tenant(db, tenant_id=tenant_id)
-    print(f"DEBUG: Found {len(guesthouses)} guesthouses for tenant {tenant_id}")
     return guesthouses
 
 @router.post("/guesthouses", response_model=schemas.GuestHouse)
@@ -361,15 +349,34 @@ def get_vendor_accommodations(
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
     """Get all vendor accommodations for tenant"""
-    print(f"[HOTEL] DEBUG: ===== GET VENDOR ACCOMMODATIONS ENDPOINT CALLED =====")
-    print(f"[HOTEL] DEBUG: get_vendor_accommodations - User: {current_user.email}, Role: {current_user.role}, Tenant Context: {tenant_context}")
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    print(f"[HOTEL] DEBUG: Resolved tenant_id: {tenant_id}")
-    
     vendors = crud.vendor_accommodation.get_by_tenant(db, tenant_id=tenant_id)
-    print(f"[HOTEL] DEBUG: Found {len(vendors)} vendor accommodations for tenant {tenant_id}")
-    print(f"[HOTEL] DEBUG: ===== VENDOR ACCOMMODATIONS ENDPOINT COMPLETE =====")
     return vendors
+
+@router.get("/vendor-accommodations/{vendor_id}", response_model=schemas.VendorAccommodation)
+def get_vendor_accommodation(
+    vendor_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Get single vendor accommodation by ID"""
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+    
+    vendor = crud.vendor_accommodation.get(db, id=vendor_id)
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor accommodation not found"
+        )
+    
+    if vendor.tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this vendor accommodation"
+        )
+    
+    return vendor
 
 @router.post("/vendor-accommodations", response_model=schemas.VendorAccommodation)
 def create_vendor_accommodation(

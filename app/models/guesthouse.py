@@ -71,6 +71,7 @@ class VendorAccommodation(Base):
 
     # Relationships
     allocations = relationship("AccommodationAllocation", back_populates="vendor_accommodation")
+    poa_template = relationship("POATemplate", back_populates="vendor_accommodation", uselist=False)
 
 class AccommodationAllocation(Base):
     __tablename__ = "accommodation_allocations"

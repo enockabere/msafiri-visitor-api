@@ -634,6 +634,16 @@ def delete_event(
         
         # First try to delete child records manually for better logging
         try:
+            # Delete participant badges first (they reference event_participants)
+            result = db.execute(
+                text("DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} participant badges")
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete participant badges: {str(e)}")
+            
+        try:
             result = db.execute(
                 text("DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
                 {"event_id": event_id}
@@ -698,6 +708,16 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} event certificates")
+        except Exception:
+            pass
+            
+        # Delete event badges
+        try:
+            result = db.execute(
+                text("DELETE FROM event_badges WHERE event_id = :event_id"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} event badges")
         except Exception:
             pass
             

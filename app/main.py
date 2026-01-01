@@ -35,8 +35,6 @@ else:
     # Fallback for development only
     if settings.ENVIRONMENT == "development":
         allowed_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-    else:
-        print("WARNING: No ALLOWED_ORIGINS configured for production!")
 
 # CRITICAL: Add CORS middleware BEFORE other middleware
 app.add_middleware(
@@ -59,20 +57,29 @@ app.add_middleware(
 async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log requests with minimal output"""
     start_time = time.time()
-    
-    # Minimal request logging for errors only
-    
+
+    # Log ALL certificate-related requests for debugging
+    if "certificates" in request.url.path:
+        print(f"\n{'='*80}")
+        print(f"[MIDDLEWARE] Incoming Request: {request.method} {request.url.path}")
+        print(f"[MIDDLEWARE] Headers: {dict(request.headers)}")
+        print(f"[MIDDLEWARE] Query Params: {dict(request.query_params)}")
+        print(f"{'='*80}\n")
+
     try:
         response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
-        
 
-        
+        # Log certificate-related responses
+        if "certificates" in request.url.path:
+            print(f"\n[MIDDLEWARE] Response Status: {response.status_code}")
+            print(f"[MIDDLEWARE] Response for: {request.method} {request.url.path}\n")
+
         # Only log errors and specific endpoints
         if response.status_code >= 400:
             logger.error(f"ERROR: {request.method} {request.url.path} - Status: {response.status_code}")
-        
+
         return response
         
     except Exception as e:
@@ -666,12 +673,6 @@ def run_auto_migration():
 @app.on_event("startup")
 async def startup_event():
     """Test database connection and run migrations on startup"""
-    print(">> Starting Msafiri Visitor System")
-    print(f">> Environment: {settings.ENVIRONMENT}")
-    print(f">> API V1 prefix: {settings.API_V1_STR}")
-    print(f">> Database URL: {settings.DATABASE_URL[:50]}...")
-    print(f">> Allowed CORS origins: {allowed_origins}")
-    
     try:
         # Test database connection
         engine = create_engine(settings.DATABASE_URL)
@@ -688,19 +689,14 @@ async def startup_event():
         from app.core.agenda_scheduler import agenda_scheduler
         import asyncio
         asyncio.create_task(agenda_scheduler.start())
-        print(">> Agenda notification scheduler started")
         
         # Start background tasks
         from app.tasks.background_tasks import background_task_manager
         await background_task_manager.start_background_tasks()
-        print(">> Background tasks started")
 
         # Start vetting deadline scheduler
         from app.core.scheduler import start_scheduler
         start_scheduler()
-        print(">> Vetting deadline scheduler started")
-
-        print(">> Application startup completed!")
         
     except Exception as e:
         print(f"ERROR: Database connection failed: {e}")
@@ -711,37 +707,28 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup on shutdown"""
-    print(">> Shutting down Msafiri Visitor System")
-    
     # Stop agenda notification scheduler
     from app.core.agenda_scheduler import agenda_scheduler
     agenda_scheduler.stop()
-    print(">> Agenda notification scheduler stopped")
 
     # Stop vetting deadline scheduler
     from app.core.scheduler import stop_scheduler
     stop_scheduler()
-    print(">> Vetting deadline scheduler stopped")
 
     # Stop background tasks
     from app.tasks.background_tasks import background_task_manager
     await background_task_manager.stop_background_tasks()
-    print(">> Background tasks stopped")
-
-    print(">> Application shutdown completed")
 
 # Add a test endpoint to verify error handling
 @app.put("/test-validation")
 def test_validation_endpoint(data: dict):
     """Test endpoint to verify validation error handling"""
-    print(f"TEST VALIDATION ENDPOINT HIT: {data}")
     return {"message": "Test validation successful", "data": data}
 
 # Add a test endpoint for EventUpdate schema
 @app.put("/test-event-update")
 def test_event_update_endpoint(event_data: dict):
     """Test endpoint to verify EventUpdate schema validation"""
-    print(f"TEST EVENT UPDATE ENDPOINT HIT: {event_data}")
     return {"message": "EventUpdate validation successful", "data": event_data}
 
 # Include API router

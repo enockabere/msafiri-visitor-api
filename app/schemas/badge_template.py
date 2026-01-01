@@ -15,6 +15,10 @@ class BadgeTemplateBase(BaseModel):
     is_active: bool = True
     badge_size: str = "standard"
     orientation: str = "portrait"
+    contact_phone: Optional[str] = None
+    website_url: Optional[str] = None
+    avatar_url: Optional[str] = None
+    include_avatar: bool = False
 
 
 class BadgeTemplateCreate(BadgeTemplateBase):
@@ -27,6 +31,10 @@ class BadgeTemplateUpdate(BadgeTemplateBase):
     is_active: Optional[bool] = None
     badge_size: Optional[str] = None
     orientation: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website_url: Optional[str] = None
+    avatar_url: Optional[str] = None
+    include_avatar: Optional[bool] = None
 
 
 class BadgeTemplate(BadgeTemplateBase):

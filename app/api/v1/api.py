@@ -227,12 +227,28 @@ api_router.include_router(
     tags=["loi-generation"]
 )
 
+# POA (Proof of Accommodation) templates
+from app.api.v1.endpoints import poa_templates
+api_router.include_router(
+    poa_templates.router,
+    prefix="/poa-templates",
+    tags=["poa-templates"]
+)
+
 # Event certificates
 from app.api.v1.endpoints import event_certificates
 api_router.include_router(
     event_certificates.router,
     prefix="/events",
     tags=["event-certificates"]
+)
+
+# Event badges
+from app.api.v1.endpoints import event_badges
+api_router.include_router(
+    event_badges.router,
+    prefix="/events",
+    tags=["event-badges"]
 )
 
 from app.api.v1.endpoints import security_briefings

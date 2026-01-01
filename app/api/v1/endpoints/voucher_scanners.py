@@ -113,7 +113,6 @@ async def create_voucher_scanners_bulk(
                     db.execute(text("""
                         INSERT INTO event_voucher_scanners (user_id, event_id, tenant_id, created_by, created_at, is_active)
                         VALUES (:user_id, :event_id, :tenant_id, :created_by, :created_at, :is_active)
-                        ON CONFLICT (user_id, event_id) DO NOTHING
                     """), {
                         "user_id": user_id,
                         "event_id": scanner_data.event_id,
@@ -123,6 +122,7 @@ async def create_voucher_scanners_bulk(
                         "is_active": True
                     })
                     db.commit()
+                    logger.info(f"✅ Successfully inserted scanner {user_id} for event {scanner_data.event_id}")
                 except Exception as table_error:
                     logger.warning(f"Event-specific scanner table not available: {str(table_error)}")
                     # Continue without event-specific tracking for now
@@ -267,10 +267,10 @@ async def get_event_scanners(
         try:
             logger.info("🔍 Trying event-specific scanner table query")
             result = db.execute(text("""
-                SELECT u.id, u.email, u.full_name, u.is_active, u.created_at, evs.created_by, evs.event_id
+                SELECT u.id, u.email, u.full_name, evs.is_active, evs.created_at, evs.created_by, evs.event_id
                 FROM users u
                 JOIN event_voucher_scanners evs ON u.id = evs.user_id
-                WHERE evs.event_id = :event_id AND evs.tenant_id = :tenant_id
+                WHERE evs.event_id = :event_id AND evs.tenant_id = :tenant_id AND evs.is_active = true
             """), {"event_id": event_id, "tenant_id": tenant_id})
             
             rows = result.fetchall()

@@ -6,7 +6,9 @@ class Token(BaseModel):
     token_type: str
     user_id: Optional[int] = None
     role: Optional[str] = None
+    all_roles: Optional[list] = None
     tenant_id: Optional[str] = None
+    user_tenants: Optional[list] = None
     first_login: Optional[bool] = None
     must_change_password: Optional[bool] = None
     welcome_message: Optional[str] = None
