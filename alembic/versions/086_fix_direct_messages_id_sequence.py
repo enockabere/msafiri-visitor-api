@@ -1,6 +1,6 @@
 """fix_direct_messages_id_sequence
 
-Revision ID: 086_fix_direct_messages_id_sequence
+Revision ID: 086fix_dm_seq
 Revises: 085532e32bfb
 Create Date: 2025-01-22 15:30:00.000000
 
