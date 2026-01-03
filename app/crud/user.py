@@ -192,29 +192,37 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
     
     def record_login(self, db: Session, *, user: User) -> User:
         """Record user login and return updated user"""
-        from sqlalchemy import func
+        from datetime import datetime
         
         is_first = self.is_first_login(user)
         
-        # Update last_login timestamp
-        user.last_login = func.now()
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        
-        # Send first login welcome notification
-        if is_first and user.tenant_id:
-            from app.core.enhanced_notifications import notification_service
-            try:
-                notification_service.notify_first_login_welcome(
-                    db,
-                    user=user,
-                    tenant_id=user.tenant_id
-                )
-            except Exception as e:
-                logger.error(f"Failed to send first login notification to {user.email}: {e}")
-        
-        return user
+        try:
+            # Update last_login timestamp with Python datetime instead of SQL func
+            user.last_login = datetime.utcnow()
+            user.updated_at = datetime.utcnow()
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            # Send first login welcome notification
+            if is_first and user.tenant_id:
+                from app.core.enhanced_notifications import notification_service
+                try:
+                    notification_service.notify_first_login_welcome(
+                        db,
+                        user=user,
+                        tenant_id=user.tenant_id
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send first login notification to {user.email}: {e}")
+            
+            return user
+            
+        except Exception as e:
+            logger.error(f"Failed to record login for user {user.email}: {e}")
+            db.rollback()
+            # Return user without updating login time if database update fails
+            return user
     
     def create_with_notifications(self, db: Session, *, obj_in: UserCreate, created_by: str) -> User:
         """Create user and trigger notifications"""
