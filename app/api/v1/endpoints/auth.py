@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 def get_user_all_roles(db: Session, user) -> list:
-    """Get all roles for a user (primary + secondary + vetting)"""
+    """Get all roles for a user (primary + secondary)"""
     roles = [user.role.value]  # Primary role
     
     try:
@@ -31,14 +31,6 @@ def get_user_all_roles(db: Session, user) -> list:
             UserRoleModel.is_active == True
         ).all()
         roles.extend([role.role.value for role in user_roles])
-        
-        # Vetting roles from vetting_role_assignments table
-        from app.models.vetting_role_assignment import VettingRoleAssignment
-        vetting_roles = db.query(VettingRoleAssignment).filter(
-            VettingRoleAssignment.user_id == user.id,
-            VettingRoleAssignment.is_active == True
-        ).all()
-        roles.extend([vr.role_type for vr in vetting_roles])
         
     except Exception as e:
         logger.warning(f"Error getting user roles: {e}")
@@ -107,7 +99,6 @@ def login_access_token(
         # Debug: Print all roles for this user
         try:
             from app.models.user_roles import UserRole as UserRoleModel
-            from app.models.vetting_role_assignment import VettingRoleAssignment
             
             # Get relationship-based roles
             user_roles = db.query(UserRoleModel).filter(
@@ -115,15 +106,8 @@ def login_access_token(
                 UserRoleModel.is_active == True
             ).all()
             
-            # Get vetting role assignments
-            vetting_roles = db.query(VettingRoleAssignment).filter(
-                VettingRoleAssignment.user_id == user.id,
-                VettingRoleAssignment.is_active == True
-            ).all()
-            
             print(f"DEBUG: Primary role: {user.role}")
             print(f"DEBUG: Secondary roles: {[role.role.value for role in user_roles]}")
-            print(f"DEBUG: Vetting roles: {[f'{vr.role_type} (committee {vr.committee_id})' for vr in vetting_roles]}")
             
         except Exception as e:
             print(f"DEBUG: Error getting roles: {e}")
