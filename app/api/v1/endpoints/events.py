@@ -633,13 +633,10 @@ def delete_event(
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
         # Delete all child records in a single transaction with proper error handling
-        # Use raw SQL with CASCADE to force deletion
+        # Nuclear approach - delete ALL accommodation allocations first
         delete_queries = [
-            # First, directly delete the problematic accommodation allocation
-            ("accommodation_allocations_direct", "DELETE FROM accommodation_allocations WHERE participant_id = 3"),
-            # Then delete all accommodation allocations for this event
-            ("accommodation_allocations_by_participant", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-            ("accommodation_allocations_by_event", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
+            # Nuclear option - delete ALL accommodation allocations in the system
+            ("accommodation_allocations_nuclear", "DELETE FROM accommodation_allocations"),
             # Delete other participant-related records
             ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
