@@ -632,39 +632,40 @@ def delete_event(
         # Use a single transaction to delete everything in the correct order
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
-        # Delete all child records in a single transaction
+        # Delete all child records in a single transaction with proper error handling
         delete_queries = [
-            # Delete accommodation allocations first (they reference event_participants)
-            "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
-            # Delete participant-related records
-            "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
-            "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
-            "DELETE FROM line_manager_recommendations WHERE event_id = :event_id",
-            # Delete event participants
-            "DELETE FROM event_participants WHERE event_id = :event_id",
-            # Delete other event-related records
-            "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id",
-            "DELETE FROM event_agenda WHERE event_id = :event_id",
-            "DELETE FROM chat_rooms WHERE event_id = :event_id",
-            "DELETE FROM event_certificates WHERE event_id = :event_id",
-            "DELETE FROM event_badges WHERE event_id = :event_id",
-            # Finally delete the event itself
-            "DELETE FROM events WHERE id = :event_id"
+            ("accommodation_allocations", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+            ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+            ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+            ("line_manager_recommendations", "DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
+            ("event_participants", "DELETE FROM event_participants WHERE event_id = :event_id"),
+            ("vendor_event_accommodations", "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
+            ("event_agenda", "DELETE FROM event_agenda WHERE event_id = :event_id"),
+            ("chat_rooms", "DELETE FROM chat_rooms WHERE event_id = :event_id"),
+            ("event_certificates", "DELETE FROM event_certificates WHERE event_id = :event_id"),
+            ("event_badges", "DELETE FROM event_badges WHERE event_id = :event_id"),
+            ("events", "DELETE FROM events WHERE id = :event_id")
         ]
         
         deleted_counts = []
-        for query in delete_queries:
+        for table_name, query in delete_queries:
             try:
                 result = db.execute(text(query), {"event_id": event_id})
                 deleted_counts.append(result.rowcount)
-                logger.info(f"🗑️ Executed: {query.split()[2]} - Deleted {result.rowcount} records")
+                logger.info(f"🗑️ {table_name}: Deleted {result.rowcount} records")
             except Exception as e:
                 if "does not exist" in str(e):
-                    logger.info(f"ℹ️ Skipped non-existent table: {query.split()[2]}")
+                    logger.info(f"ℹ️ Skipped non-existent table: {table_name}")
                     deleted_counts.append(0)
                 else:
-                    logger.error(f"❌ Failed query: {query} - Error: {str(e)}")
-                    raise e
+                    logger.error(f"❌ Failed to delete from {table_name}: {str(e)}")
+                    # Rollback and start fresh transaction for remaining queries
+                    db.rollback()
+                    # If it's a critical table, re-raise the error
+                    if table_name in ['event_participants', 'events']:
+                        raise e
+                    # For non-critical tables, continue
+                    deleted_counts.append(0)
         
         # Commit all deletions
         db.commit()
@@ -676,8 +677,9 @@ def delete_event(
         logger.exception("Full traceback:")
         try:
             db.rollback()
-        except Exception:
-            pass  # Rollback might fail if connection is broken
+            logger.info("Transaction rolled back successfully")
+        except Exception as rollback_error:
+            logger.error(f"Failed to rollback transaction: {str(rollback_error)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete event: {str(e)}"
