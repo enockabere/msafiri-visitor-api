@@ -634,6 +634,7 @@ def delete_event(
             f"DELETE FROM public_registrations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = {event_id});",
             f"DELETE FROM line_manager_recommendations WHERE event_id = {event_id};",
             f"DELETE FROM transport_requests WHERE flight_itinerary_id IN (SELECT id FROM flight_itineraries WHERE event_id = {event_id});",
+            f"DELETE FROM transport_requests WHERE event_id = {event_id};",
             f"DELETE FROM flight_itineraries WHERE event_id = {event_id};",
             f"DELETE FROM event_participants WHERE event_id = {event_id};",
             f"DELETE FROM vendor_event_accommodations WHERE event_id = {event_id};",
