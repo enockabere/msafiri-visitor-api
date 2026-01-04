@@ -308,7 +308,7 @@ def create_event(
                     {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
                     
                     # Final Details Section
-                    {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "checkbox", "field_options": '["I agree"]', "is_required": True, "order_index": 401, "section": "final"},
+                    {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "select", "field_options": '["I agree", "I do not agree"]', "is_required": True, "order_index": 401, "section": "final"},
                 ]
                 
                 # Create form fields
