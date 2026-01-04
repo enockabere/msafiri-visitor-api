@@ -103,9 +103,27 @@ def upgrade():
     )
     op.create_index('idx_participant_selections_committee_id', 'participant_selections', ['committee_id'])
     op.create_index('idx_participant_selections_participant_id', 'participant_selections', ['participant_id'])
+    
+    # Create vetting_role_assignments table
+    op.create_table('vetting_role_assignments',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.Column('committee_id', sa.Integer(), nullable=False),
+        sa.Column('role_type', sa.String(50), nullable=False),
+        sa.Column('removed_at', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('is_active', sa.Boolean(), default=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['committee_id'], ['vetting_committees.id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_vetting_role_assignments_user_id', 'vetting_role_assignments', ['user_id'])
+    op.create_index('idx_vetting_role_assignments_committee_id', 'vetting_role_assignments', ['committee_id'])
 
 def downgrade():
     # Drop tables
+    op.drop_table('vetting_role_assignments')
     op.drop_table('participant_selections')
     op.drop_table('vetting_committee_members')
     op.drop_table('vetting_committees')
