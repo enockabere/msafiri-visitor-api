@@ -629,11 +629,11 @@ def delete_event(
         
         # Execute deletion commands directly
         deletion_commands = [
-            "DELETE FROM accommodation_allocations WHERE participant_id = 3;",
             f"DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = {event_id});",
             f"DELETE FROM accommodation_allocations WHERE event_id = {event_id};",
             f"DELETE FROM public_registrations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = {event_id});",
             f"DELETE FROM line_manager_recommendations WHERE event_id = {event_id};",
+            f"DELETE FROM flight_itineraries WHERE event_id = {event_id};",
             f"DELETE FROM event_participants WHERE event_id = {event_id};",
             f"DELETE FROM vendor_event_accommodations WHERE event_id = {event_id};",
             f"DELETE FROM event_agenda WHERE event_id = {event_id};",
