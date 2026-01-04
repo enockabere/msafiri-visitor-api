@@ -635,6 +635,17 @@ def delete_event(
         
         # First try to delete child records manually for better logging
         try:
+            # Delete accommodation allocations first (they reference event_participants)
+            result = db.execute(
+                text("DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+                {"event_id": event_id}
+            )
+            logger.info(f"🗑️ Deleted {result.rowcount} accommodation allocations")
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete accommodation allocations: {str(e)}")
+            db.rollback()  # Rollback failed transaction
+            
+        try:
             # Delete participant badges first (they reference event_participants)
             result = db.execute(
                 text("DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
