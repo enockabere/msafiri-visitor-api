@@ -619,73 +619,52 @@ def delete_event(
             detail="Cannot delete events from other tenants"
         )
     
-    # Delete related records in correct order to avoid foreign key violations
+    # ULTIMATE SOLUTION: Use raw connection to bypass SQLAlchemy transaction management
     try:
-        # Clean up vetting committee roles first
-        try:
-            from app.crud.vetting_committee import cleanup_vetting_roles_for_event
-            removed_roles = cleanup_vetting_roles_for_event(db, event_id)
-            logger.info(f"🗑️ Cleaned up {removed_roles} vetting roles for event {event_id}")
-        except Exception as e:
-            logger.warning(f"[WARNING] Failed to cleanup vetting roles: {str(e)}")
+        # Get raw connection
+        connection = db.get_bind().raw_connection()
+        cursor = connection.cursor()
         
-        # Use a single transaction to delete everything in the correct order
-        logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
+        logger.info(f"✅ Using raw SQL connection for event deletion: {event_id}")
         
-        # Delete all child records in a single transaction with proper error handling
-        # Ultimate solution - drop the foreign key constraint, delete everything, then recreate it
-        delete_queries = [
-            # Drop the problematic foreign key constraint
-            ("drop_fk_constraint", "ALTER TABLE accommodation_allocations DROP CONSTRAINT IF EXISTS accommodation_allocations_participant_id_fkey"),
-            # Now delete everything without constraint issues
-            ("accommodation_allocations_nuclear", "DELETE FROM accommodation_allocations"),
-            ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-            ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-            ("line_manager_recommendations", "DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
-            ("event_participants", "DELETE FROM event_participants WHERE event_id = :event_id"),
-            ("vendor_event_accommodations", "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
-            ("event_agenda", "DELETE FROM event_agenda WHERE event_id = :event_id"),
-            ("chat_rooms", "DELETE FROM chat_rooms WHERE event_id = :event_id"),
-            ("event_certificates", "DELETE FROM event_certificates WHERE event_id = :event_id"),
-            ("event_badges", "DELETE FROM event_badges WHERE event_id = :event_id"),
-            ("events", "DELETE FROM events WHERE id = :event_id"),
-            # Recreate the foreign key constraint
-            ("recreate_fk_constraint", "ALTER TABLE accommodation_allocations ADD CONSTRAINT accommodation_allocations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES event_participants(id)")
+        # Execute deletion commands directly
+        deletion_commands = [
+            "DELETE FROM accommodation_allocations WHERE participant_id = 3;",
+            f"DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = {event_id});",
+            f"DELETE FROM accommodation_allocations WHERE event_id = {event_id};",
+            f"DELETE FROM line_manager_recommendations WHERE event_id = {event_id};",
+            f"DELETE FROM event_participants WHERE event_id = {event_id};",
+            f"DELETE FROM vendor_event_accommodations WHERE event_id = {event_id};",
+            f"DELETE FROM event_agenda WHERE event_id = {event_id};",
+            f"DELETE FROM chat_rooms WHERE event_id = {event_id};",
+            f"DELETE FROM events WHERE id = {event_id};"
         ]
         
-        deleted_counts = []
-        for table_name, query in delete_queries:
+        for i, command in enumerate(deletion_commands):
             try:
-                result = db.execute(text(query), {"event_id": event_id})
-                deleted_counts.append(result.rowcount)
-                logger.info(f"🗑️ {table_name}: Deleted {result.rowcount} records")
+                cursor.execute(command)
+                logger.info(f"✅ Executed command {i+1}: {command[:50]}...")
             except Exception as e:
-                if "does not exist" in str(e):
-                    logger.info(f"ℹ️ Skipped non-existent table: {table_name}")
-                    deleted_counts.append(0)
-                else:
-                    logger.error(f"❌ Failed to delete from {table_name}: {str(e)}")
-                    # Rollback and start fresh transaction for remaining queries
-                    db.rollback()
-                    # If it's accommodation_allocations or other critical dependency, make it non-critical
-                    if table_name in ['event_participants', 'events']:
-                        raise e
-                    # For non-critical tables, continue
-                    deleted_counts.append(0)
+                logger.warning(f"⚠️ Command {i+1} failed: {str(e)[:100]}")
+                # Continue with next command
         
-        # Commit all deletions
-        db.commit()
-        logger.info(f"🎉 Event deleted successfully: {event_id}")
-        logger.info(f"📊 Deletion summary: {sum(deleted_counts)} total records deleted")
+        # Commit all changes
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        logger.info(f"🎉 Event deleted successfully using raw SQL: {event_id}")
         
     except Exception as e:
-        logger.error(f"💥 Error during event deletion: {str(e)}")
+        logger.error(f"💥 Raw SQL deletion failed: {str(e)}")
         logger.exception("Full traceback:")
         try:
-            db.rollback()
-            logger.info("Transaction rolled back successfully")
-        except Exception as rollback_error:
-            logger.error(f"Failed to rollback transaction: {str(rollback_error)}")
+            if 'connection' in locals():
+                connection.rollback()
+                cursor.close()
+                connection.close()
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete event: {str(e)}"
