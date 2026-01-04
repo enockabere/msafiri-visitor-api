@@ -638,6 +638,7 @@ def delete_event(
             f"DELETE FROM vendor_event_accommodations WHERE event_id = {event_id};",
             f"DELETE FROM event_agenda WHERE event_id = {event_id};",
             f"DELETE FROM chat_rooms WHERE event_id = {event_id};",
+            f"DELETE FROM event_attachments WHERE event_id = {event_id};",
             f"DELETE FROM events WHERE id = {event_id};"
         ]
         
