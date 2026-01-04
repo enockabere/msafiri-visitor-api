@@ -1,8 +1,8 @@
 """add_invitation_templates_table
 
-Revision ID: 008_invitation_templates
-Revises: a24c6988176d
-Create Date: 2024-12-23 12:00:00.000000
+Revision ID: 024_invitation_templates
+Revises: 023_cert_templates
+Create Date: 2025-01-04 16:45:00.000000
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '008_invitation_templates'
-down_revision = 'a24c6988176d'
+revision = '024_invitation_templates'
+down_revision = '023_cert_templates'
 branch_labels = None
 depends_on = None
 
