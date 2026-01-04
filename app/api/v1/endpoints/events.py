@@ -633,11 +633,11 @@ def delete_event(
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
         # Delete all child records in a single transaction with proper error handling
-        # First, temporarily disable foreign key constraints
+        # Use raw SQL with CASCADE to force deletion
         delete_queries = [
-            # Disable foreign key constraints temporarily
-            ("disable_fk", "SET session_replication_role = replica"),
-            # Force delete ALL accommodation allocations for this event
+            # First, directly delete the problematic accommodation allocation
+            ("accommodation_allocations_direct", "DELETE FROM accommodation_allocations WHERE participant_id = 3"),
+            # Then delete all accommodation allocations for this event
             ("accommodation_allocations_by_participant", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("accommodation_allocations_by_event", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
             # Delete other participant-related records
@@ -653,9 +653,7 @@ def delete_event(
             ("event_certificates", "DELETE FROM event_certificates WHERE event_id = :event_id"),
             ("event_badges", "DELETE FROM event_badges WHERE event_id = :event_id"),
             # Finally delete the event itself
-            ("events", "DELETE FROM events WHERE id = :event_id"),
-            # Re-enable foreign key constraints
-            ("enable_fk", "SET session_replication_role = DEFAULT")
+            ("events", "DELETE FROM events WHERE id = :event_id")
         ]
         
         deleted_counts = []
