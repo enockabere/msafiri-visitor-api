@@ -628,6 +628,7 @@ def delete_event(
             logger.info(f"🗑️ Cleaned up {removed_roles} vetting roles for event {event_id}")
         except Exception as e:
             logger.warning(f"[WARNING] Failed to cleanup vetting roles: {str(e)}")
+            db.rollback()  # Rollback any failed transaction
         
         # Use CASCADE deletion to handle all foreign key constraints
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
@@ -642,6 +643,7 @@ def delete_event(
             logger.info(f"🗑️ Deleted {result.rowcount} participant badges")
         except Exception as e:
             logger.warning(f"[WARNING] Could not delete participant badges: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         try:
             result = db.execute(
@@ -649,8 +651,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} participant certificates")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete participant certificates: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         try:
             result = db.execute(
@@ -658,8 +661,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} line manager recommendations")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete line manager recommendations: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Force delete event participants
         try:
@@ -670,6 +674,7 @@ def delete_event(
             logger.info(f"🗑️ Deleted {result.rowcount} event participants")
         except Exception as e:
             logger.warning(f"[WARNING] Could not delete event participants: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete vendor event accommodations
         try:
@@ -678,8 +683,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete vendor event accommodations: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete event agenda
         try:
@@ -688,8 +694,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} event agenda items")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete event agenda: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete chat rooms
         try:
@@ -698,8 +705,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} chat rooms")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete chat rooms: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete event certificates
         try:
@@ -708,8 +716,9 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} event certificates")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete event certificates: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete event badges
         try:
@@ -718,18 +727,27 @@ def delete_event(
                 {"event_id": event_id}
             )
             logger.info(f"🗑️ Deleted {result.rowcount} event badges")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[WARNING] Could not delete event badges: {str(e)}")
+            db.rollback()  # Rollback failed transaction
             
         # Delete the event itself
-        db.execute(text("DELETE FROM events WHERE id = :event_id"), {"event_id": event_id})
-        db.commit()
-        logger.info(f"🎉 Event deleted successfully: {event_id}")
+        try:
+            db.execute(text("DELETE FROM events WHERE id = :event_id"), {"event_id": event_id})
+            db.commit()
+            logger.info(f"🎉 Event deleted successfully: {event_id}")
+        except Exception as e:
+            logger.error(f"💥 Failed to delete event: {str(e)}")
+            db.rollback()
+            raise e
         
     except Exception as e:
         logger.error(f"💥 Error during event deletion: {str(e)}")
         logger.exception("Full traceback:")
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Rollback might fail if connection is broken
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete event: {str(e)}"
