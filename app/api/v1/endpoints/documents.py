@@ -212,3 +212,55 @@ async def delete_logo(
             raise HTTPException(status_code=404, detail="Logo not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+@router.post("/upload-avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload avatar image to Cloudinary"""
+    
+    print(f"DEBUG: Avatar upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    
+    # Validate file type - accept common image formats
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if not file.content_type or file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only image files (JPEG, PNG, GIF, WEBP) are allowed")
+    
+    # Validate file size (5MB limit for images)
+    if file.size and file.size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+    
+    try:
+        if not CLOUDINARY_CLOUD_NAME:
+            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured.")
+
+        # Read file content
+        file_content = await file.read()
+        import io
+        file_obj = io.BytesIO(file_content)
+        file_obj.name = file.filename
+
+        # Upload avatar to Cloudinary
+        result = cloudinary.uploader.upload(
+            file_obj,
+            folder="msafiri-documents/avatar",
+            resource_type="image",
+            use_filename=True,
+            unique_filename=True,
+            overwrite=False
+        )
+
+        print(f"DEBUG: Avatar upload successful: {result['secure_url']}")
+
+        return {
+            "success": True,
+            "url": result["secure_url"],
+            "public_id": result["public_id"],
+            "format": result.get("format", "png")
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Avatar upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Avatar upload failed: {str(e)}")

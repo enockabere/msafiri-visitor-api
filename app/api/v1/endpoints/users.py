@@ -276,3 +276,25 @@ def get_user_by_email(
         )
     
     return user
+
+@router.patch("/profile", response_model=schemas.User)
+def update_profile(
+    *,
+    db: Session = Depends(get_db),
+    profile_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Update current user's profile."""
+    
+    # Only allow updating specific fields
+    allowed_fields = ['avatar_url', 'full_name', 'phone']
+    update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No valid fields to update"
+        )
+    
+    updated_user = crud.user.update(db, db_obj=current_user, obj_in=update_data)
+    return updated_user

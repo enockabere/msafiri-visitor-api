@@ -65,6 +65,7 @@ class User(BaseModel):
     # Existing profile fields
     phone_number = Column(String(20), nullable=True)
     profile_picture_url = Column(String(500), nullable=True)
+    avatar_url = Column(String(500), nullable=True)
     department = Column(String(255), nullable=True)
     job_title = Column(String(255), nullable=True)
     

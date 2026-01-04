@@ -167,6 +167,7 @@ class User(UserBase):
     profile_updated_at: Optional[datetime] = None
     email_verified_at: Optional[datetime] = None
     password_changed_at: Optional[datetime] = None
+    avatar_url: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -207,6 +208,7 @@ class UserProfile(BaseModel):
     passport_expiry_date: Optional[date] = None
     whatsapp_number: Optional[str] = None
     email_work: Optional[str] = None
+    avatar_url: Optional[str] = None
     
     # Timestamps and metadata
     last_login: Optional[datetime] = None
