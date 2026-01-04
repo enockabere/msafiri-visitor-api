@@ -8,6 +8,7 @@ from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.models.user_roles import UserRole as UserRoleModel, RoleType
+from app.models.vetting_committee import VettingCommittee, VettingStatus
 
 router = APIRouter()
 
@@ -80,7 +81,8 @@ def get_my_selected_events(
     skip: int = 0,
     limit: int = 100
 ) -> Any:
-    """Get events that the current user is selected for (mobile endpoint)."""
+    """Get events that the current user is selected for (mobile endpoint).
+    Only returns events where vetting has been approved."""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -91,21 +93,33 @@ def get_my_selected_events(
         
         from app.models.event_participant import EventParticipant
         from app.models.event import Event
+        from app.models.vetting_committee import VettingCommittee, VettingStatus
         
         # Get events where user is selected/approved/confirmed (exclude declined)
         selected_statuses = ['selected', 'approved', 'confirmed', 'checked_in']
         
         # Query to get events through participation (excluding declined)
+        # AND only include events where vetting has been approved
         events_query = db.query(Event).join(
             EventParticipant, Event.id == EventParticipant.event_id
+        ).outerjoin(
+            VettingCommittee, Event.id == VettingCommittee.event_id
         ).filter(
             EventParticipant.email.ilike(current_user.email),
             EventParticipant.status.in_(selected_statuses)
+        ).filter(
+            # Only show events where:
+            # 1. No vetting committee exists (old events without vetting), OR
+            # 2. Vetting committee exists and status is APPROVED
+            db.or_(
+                VettingCommittee.id.is_(None),
+                VettingCommittee.status == VettingStatus.APPROVED
+            )
         ).distinct()
         
         events = events_query.offset(skip).limit(limit).all()
         
-        logger.info(f"📊 Found {len(events)} events for user {current_user.email} (declined events excluded)")
+        logger.info(f"📊 Found {len(events)} events for user {current_user.email} (only approved vetting)")
         logger.info(f"🎯 === MY EVENTS REQUEST END ===")
         
         return events
@@ -814,12 +828,31 @@ def get_my_attendance_status(
     event_id: int,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Get current user's attendance status for a specific event."""
+    """Get current user's attendance status for a specific event.
+    Only returns status if vetting has been approved."""
     import logging
     logger = logging.getLogger(__name__)
     
     from app.models.event_participant import EventParticipant
+    from app.models.vetting_committee import VettingCommittee, VettingStatus
     from sqlalchemy import text
+    
+    # First check if vetting committee exists and is approved
+    vetting_committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).first()
+    
+    if vetting_committee and vetting_committee.status != VettingStatus.APPROVED:
+        logger.info(f"🔒 Vetting not approved for event {event_id}, status: {vetting_committee.status.value}")
+        return {
+            "status": None,
+            "participant_id": None,
+            "requires_eta": False,
+            "has_passport": False,
+            "has_ticket": False,
+            "vetting_pending": True,
+            "vetting_status": vetting_committee.status.value
+        }
     
     # Get participation with registration data
     result = db.execute(
@@ -842,6 +875,7 @@ def get_my_attendance_status(
             "requires_eta": False,
             "has_passport": False,
             "has_ticket": False,
+            "vetting_pending": False
         }
     
     # Check if user is traveling internationally
@@ -870,6 +904,7 @@ def get_my_attendance_status(
         "requires_eta": requires_eta,
         "has_passport": bool(result.passport_document),
         "has_ticket": bool(result.ticket_document),
+        "vetting_pending": False
     }
     return response_data
 
