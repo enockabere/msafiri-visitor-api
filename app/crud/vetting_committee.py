@@ -274,7 +274,7 @@ def create_vetting_committee(
     # Send invitation emails to all users
     from app.core.email_service import email_service
     import os
-    portal_url = os.getenv('PORTAL_URL', 'http://localhost:3000')
+    portal_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
     
     # Get event details for notification
     event = db.query(Event).filter(Event.id == committee_data.event_id).first()
