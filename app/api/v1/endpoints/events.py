@@ -635,6 +635,7 @@ def delete_event(
         # Delete all child records in a single transaction with proper error handling
         delete_queries = [
             ("accommodation_allocations", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+            ("accommodation_allocations_direct", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
             ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("line_manager_recommendations", "DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
@@ -661,7 +662,7 @@ def delete_event(
                     logger.error(f"❌ Failed to delete from {table_name}: {str(e)}")
                     # Rollback and start fresh transaction for remaining queries
                     db.rollback()
-                    # If it's a critical table, re-raise the error
+                    # If it's accommodation_allocations or other critical dependency, make it non-critical
                     if table_name in ['event_participants', 'events']:
                         raise e
                     # For non-critical tables, continue
