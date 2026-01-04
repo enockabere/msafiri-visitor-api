@@ -634,12 +634,17 @@ def delete_event(
         
         # Delete all child records in a single transaction with proper error handling
         delete_queries = [
-            ("accommodation_allocations", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-            ("accommodation_allocations_direct", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
+            # Force delete ALL accommodation allocations for this event (multiple approaches)
+            ("accommodation_allocations_by_participant", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
+            ("accommodation_allocations_by_event", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
+            ("accommodation_allocations_force", "DELETE FROM accommodation_allocations WHERE id IN (SELECT aa.id FROM accommodation_allocations aa JOIN event_participants ep ON aa.participant_id = ep.id WHERE ep.event_id = :event_id)"),
+            # Delete other participant-related records
             ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("line_manager_recommendations", "DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
+            # Now delete event participants
             ("event_participants", "DELETE FROM event_participants WHERE event_id = :event_id"),
+            # Delete other event-related records
             ("vendor_event_accommodations", "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
             ("event_agenda", "DELETE FROM event_agenda WHERE event_id = :event_id"),
             ("chat_rooms", "DELETE FROM chat_rooms WHERE event_id = :event_id"),
