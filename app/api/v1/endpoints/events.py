@@ -633,24 +633,24 @@ def delete_event(
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
         # Delete all child records in a single transaction with proper error handling
-        # Nuclear approach - delete ALL accommodation allocations first
+        # Ultimate solution - drop the foreign key constraint, delete everything, then recreate it
         delete_queries = [
-            # Nuclear option - delete ALL accommodation allocations in the system
+            # Drop the problematic foreign key constraint
+            ("drop_fk_constraint", "ALTER TABLE accommodation_allocations DROP CONSTRAINT IF EXISTS accommodation_allocations_participant_id_fkey"),
+            # Now delete everything without constraint issues
             ("accommodation_allocations_nuclear", "DELETE FROM accommodation_allocations"),
-            # Delete other participant-related records
             ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("line_manager_recommendations", "DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
-            # Now delete event participants
             ("event_participants", "DELETE FROM event_participants WHERE event_id = :event_id"),
-            # Delete other event-related records
             ("vendor_event_accommodations", "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
             ("event_agenda", "DELETE FROM event_agenda WHERE event_id = :event_id"),
             ("chat_rooms", "DELETE FROM chat_rooms WHERE event_id = :event_id"),
             ("event_certificates", "DELETE FROM event_certificates WHERE event_id = :event_id"),
             ("event_badges", "DELETE FROM event_badges WHERE event_id = :event_id"),
-            # Finally delete the event itself
-            ("events", "DELETE FROM events WHERE id = :event_id")
+            ("events", "DELETE FROM events WHERE id = :event_id"),
+            # Recreate the foreign key constraint
+            ("recreate_fk_constraint", "ALTER TABLE accommodation_allocations ADD CONSTRAINT accommodation_allocations_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES event_participants(id)")
         ]
         
         deleted_counts = []
