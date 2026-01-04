@@ -300,6 +300,7 @@ def create_event(
                     {"field_name": "lastName", "field_label": "Last Name", "field_type": "text", "is_required": True, "order_index": 102, "section": "personal", "is_protected": True},
                     {"field_name": "oc", "field_label": "Operational Center (OC)", "field_type": "select", "field_options": '["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]', "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
                     {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": '["National Staff", "International Staff", "Consultant", "Volunteer"]', "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
+                    {"field_name": "pronouns", "field_label": "Pronouns", "field_type": "select", "field_options": '["Mr", "Mrs", "Miss", "Ms", "Dr", "Prof", "Prefer not to say"]', "is_required": False, "order_index": 105, "section": "personal", "is_protected": True},
                     {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": '["Male", "Female", "Non-binary", "Prefer not to say"]', "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
                     
                     # Contact Details Section
