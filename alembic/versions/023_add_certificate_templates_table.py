@@ -1,6 +1,6 @@
 """Add certificate_templates table
 
-Revision ID: 023_add_certificate_templates_table
+Revision ID: 023_cert_templates
 Revises: 022_add_code_of_conduct_table
 Create Date: 2026-01-04 15:55:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '023_add_certificate_templates_table'
+revision = '023_cert_templates'
 down_revision = '022_add_code_of_conduct_table'
 branch_labels = None
 depends_on = None
