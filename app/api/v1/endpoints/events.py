@@ -94,6 +94,7 @@ def get_my_selected_events(
         from app.models.event_participant import EventParticipant
         from app.models.event import Event
         from app.models.vetting_committee import VettingCommittee, VettingStatus
+        from sqlalchemy import or_
         
         # Get events where user is selected/approved/confirmed (exclude declined)
         selected_statuses = ['selected', 'approved', 'confirmed', 'checked_in']
@@ -111,7 +112,7 @@ def get_my_selected_events(
             # Only show events where:
             # 1. No vetting committee exists (old events without vetting), OR
             # 2. Vetting committee exists and status is APPROVED
-            db.or_(
+            or_(
                 VettingCommittee.id.is_(None),
                 VettingCommittee.status == VettingStatus.APPROVED
             )
