@@ -633,11 +633,13 @@ def delete_event(
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
         # Delete all child records in a single transaction with proper error handling
+        # First, temporarily disable foreign key constraints
         delete_queries = [
-            # Force delete ALL accommodation allocations for this event (multiple approaches)
+            # Disable foreign key constraints temporarily
+            ("disable_fk", "SET session_replication_role = replica"),
+            # Force delete ALL accommodation allocations for this event
             ("accommodation_allocations_by_participant", "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("accommodation_allocations_by_event", "DELETE FROM accommodation_allocations WHERE event_id = :event_id"),
-            ("accommodation_allocations_force", "DELETE FROM accommodation_allocations WHERE id IN (SELECT aa.id FROM accommodation_allocations aa JOIN event_participants ep ON aa.participant_id = ep.id WHERE ep.event_id = :event_id)"),
             # Delete other participant-related records
             ("participant_badges", "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
             ("participant_certificates", "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
@@ -650,7 +652,10 @@ def delete_event(
             ("chat_rooms", "DELETE FROM chat_rooms WHERE event_id = :event_id"),
             ("event_certificates", "DELETE FROM event_certificates WHERE event_id = :event_id"),
             ("event_badges", "DELETE FROM event_badges WHERE event_id = :event_id"),
-            ("events", "DELETE FROM events WHERE id = :event_id")
+            # Finally delete the event itself
+            ("events", "DELETE FROM events WHERE id = :event_id"),
+            # Re-enable foreign key constraints
+            ("enable_fk", "SET session_replication_role = DEFAULT")
         ]
         
         deleted_counts = []
