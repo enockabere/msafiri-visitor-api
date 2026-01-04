@@ -307,12 +307,8 @@ def create_event(
                     {"field_name": "personalEmail", "field_label": "Personal Email", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
                     {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
                     
-                    # Travel & Accommodation Section
-                    {"field_name": "travellingInternationally", "field_label": "Are you travelling internationally?", "field_type": "select", "field_options": '["Yes", "No"]', "is_required": True, "order_index": 301, "section": "travel"},
-                    {"field_name": "accommodationType", "field_label": "Accommodation Type", "field_type": "select", "field_options": '["Staying at venue", "Travelling daily"]', "is_required": True, "order_index": 303, "section": "travel"},
-                    
                     # Final Details Section
-                    {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "checkbox", "field_options": '["I agree"]', "is_required": True, "order_index": 404, "section": "final"},
+                    {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "checkbox", "field_options": '["I agree"]', "is_required": True, "order_index": 401, "section": "final"},
                 ]
                 
                 # Create form fields
