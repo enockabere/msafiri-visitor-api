@@ -1,7 +1,7 @@
 """Add badge templates table
 
 Revision ID: 009_badge_templates
-Revises: 008_invitation_templates
+Revises: 024_invitation_templates
 Create Date: 2024-12-23 10:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '009_badge_templates'
-down_revision = '008_invitation_templates'
+down_revision = '024_invitation_templates'
 branch_labels = None
 depends_on = None
 
