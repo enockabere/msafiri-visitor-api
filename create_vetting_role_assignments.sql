@@ -14,3 +14,7 @@ CREATE TABLE IF NOT EXISTS vetting_role_assignments (
 
 CREATE INDEX IF NOT EXISTS idx_vetting_role_assignments_user_id ON vetting_role_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_vetting_role_assignments_committee_id ON vetting_role_assignments(committee_id);
+
+-- Grant permissions to application user
+GRANT ALL PRIVILEGES ON TABLE vetting_role_assignments TO msafiri_user;
+GRANT USAGE, SELECT ON SEQUENCE vetting_role_assignments_id_seq TO msafiri_user;
