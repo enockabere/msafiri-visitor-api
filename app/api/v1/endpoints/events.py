@@ -628,129 +628,48 @@ def delete_event(
             logger.info(f"🗑️ Cleaned up {removed_roles} vetting roles for event {event_id}")
         except Exception as e:
             logger.warning(f"[WARNING] Failed to cleanup vetting roles: {str(e)}")
-            db.rollback()  # Rollback any failed transaction
         
-        # Use CASCADE deletion to handle all foreign key constraints
+        # Use a single transaction to delete everything in the correct order
         logger.info(f"✅ Force deleting draft event with CASCADE: {event_id}")
         
-        # First try to delete child records manually for better logging
-        try:
+        # Delete all child records in a single transaction
+        delete_queries = [
             # Delete accommodation allocations first (they reference event_participants)
-            result = db.execute(
-                text("DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} accommodation allocations")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete accommodation allocations: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        try:
-            # Delete participant badges first (they reference event_participants)
-            result = db.execute(
-                text("DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} participant badges")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete participant badges: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        try:
-            result = db.execute(
-                text("DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} participant certificates")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete participant certificates: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        try:
-            result = db.execute(
-                text("DELETE FROM line_manager_recommendations WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} line manager recommendations")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete line manager recommendations: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Force delete event participants
-        try:
-            result = db.execute(
-                text("DELETE FROM event_participants WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} event participants")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete event participants: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete vendor event accommodations
-        try:
-            result = db.execute(
-                text("DELETE FROM vendor_event_accommodations WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} vendor event accommodations")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete vendor event accommodations: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete event agenda
-        try:
-            result = db.execute(
-                text("DELETE FROM event_agenda WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} event agenda items")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete event agenda: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete chat rooms
-        try:
-            result = db.execute(
-                text("DELETE FROM chat_rooms WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} chat rooms")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete chat rooms: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete event certificates
-        try:
-            result = db.execute(
-                text("DELETE FROM event_certificates WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} event certificates")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete event certificates: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete event badges
-        try:
-            result = db.execute(
-                text("DELETE FROM event_badges WHERE event_id = :event_id"),
-                {"event_id": event_id}
-            )
-            logger.info(f"🗑️ Deleted {result.rowcount} event badges")
-        except Exception as e:
-            logger.warning(f"[WARNING] Could not delete event badges: {str(e)}")
-            db.rollback()  # Rollback failed transaction
-            
-        # Delete the event itself
-        try:
-            db.execute(text("DELETE FROM events WHERE id = :event_id"), {"event_id": event_id})
-            db.commit()
-            logger.info(f"🎉 Event deleted successfully: {event_id}")
-        except Exception as e:
-            logger.error(f"💥 Failed to delete event: {str(e)}")
-            db.rollback()
-            raise e
+            "DELETE FROM accommodation_allocations WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
+            # Delete participant-related records
+            "DELETE FROM participant_badges WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
+            "DELETE FROM participant_certificates WHERE participant_id IN (SELECT id FROM event_participants WHERE event_id = :event_id)",
+            "DELETE FROM line_manager_recommendations WHERE event_id = :event_id",
+            # Delete event participants
+            "DELETE FROM event_participants WHERE event_id = :event_id",
+            # Delete other event-related records
+            "DELETE FROM vendor_event_accommodations WHERE event_id = :event_id",
+            "DELETE FROM event_agenda WHERE event_id = :event_id",
+            "DELETE FROM chat_rooms WHERE event_id = :event_id",
+            "DELETE FROM event_certificates WHERE event_id = :event_id",
+            "DELETE FROM event_badges WHERE event_id = :event_id",
+            # Finally delete the event itself
+            "DELETE FROM events WHERE id = :event_id"
+        ]
+        
+        deleted_counts = []
+        for query in delete_queries:
+            try:
+                result = db.execute(text(query), {"event_id": event_id})
+                deleted_counts.append(result.rowcount)
+                logger.info(f"🗑️ Executed: {query.split()[2]} - Deleted {result.rowcount} records")
+            except Exception as e:
+                if "does not exist" in str(e):
+                    logger.info(f"ℹ️ Skipped non-existent table: {query.split()[2]}")
+                    deleted_counts.append(0)
+                else:
+                    logger.error(f"❌ Failed query: {query} - Error: {str(e)}")
+                    raise e
+        
+        # Commit all deletions
+        db.commit()
+        logger.info(f"🎉 Event deleted successfully: {event_id}")
+        logger.info(f"📊 Deletion summary: {sum(deleted_counts)} total records deleted")
         
     except Exception as e:
         logger.error(f"💥 Error during event deletion: {str(e)}")
