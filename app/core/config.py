@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = os.getenv("SECRET_KEY", "jkslksnskswjdslksmslswkdjdndldndl")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours instead of 30 minutes
 
 
     API_V1_STR: str = os.getenv("API_V1_STR", "/api/v1")
