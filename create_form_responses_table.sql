@@ -1,3 +1,16 @@
+-- Create registrations table first
+CREATE TABLE IF NOT EXISTS registrations (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    email VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    status VARCHAR(50) DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create form_responses table
 CREATE TABLE IF NOT EXISTS form_responses (
     id SERIAL PRIMARY KEY,
@@ -9,10 +22,14 @@ CREATE TABLE IF NOT EXISTS form_responses (
 );
 
 -- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_registrations_event_id ON registrations(event_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_email ON registrations(email);
 CREATE INDEX IF NOT EXISTS idx_form_responses_registration_id ON form_responses(registration_id);
 CREATE INDEX IF NOT EXISTS idx_form_responses_field_id ON form_responses(field_id);
 
 -- Grant permissions to application user
+GRANT ALL PRIVILEGES ON TABLE registrations TO msafiri_user;
+GRANT USAGE, SELECT ON SEQUENCE registrations_id_seq TO msafiri_user;
 GRANT ALL PRIVILEGES ON TABLE form_responses TO msafiri_user;
 GRANT USAGE, SELECT ON SEQUENCE form_responses_id_seq TO msafiri_user;
 
@@ -24,6 +41,11 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
+
+CREATE TRIGGER update_registrations_updated_at 
+    BEFORE UPDATE ON registrations 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_form_responses_updated_at 
     BEFORE UPDATE ON form_responses 
