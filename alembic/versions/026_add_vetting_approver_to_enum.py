@@ -15,8 +15,9 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    # Add VETTING_APPROVER to the roletype enum if it doesn't exist
+    # Add missing vetting roles to the roletype enum if they don't exist
     op.execute("ALTER TYPE roletype ADD VALUE IF NOT EXISTS 'VETTING_APPROVER'")
+    op.execute("ALTER TYPE roletype ADD VALUE IF NOT EXISTS 'VETTING_COMMITTEE'")
 
 def downgrade():
     # Cannot remove enum values in PostgreSQL easily
