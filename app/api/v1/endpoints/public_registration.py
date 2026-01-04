@@ -18,21 +18,23 @@ class PublicRegistrationRequest(BaseModel):
     lastName: str
     oc: str
     contractStatus: str
-    contractType: str
     genderIdentity: str
-    sex: str
-    currentPosition: str
     personalEmail: str
     phoneNumber: str
-    travellingInternationally: str
-    accommodationType: str
     codeOfConductConfirm: str
-    travelRequirementsConfirm: str
     
     # Fields that may not exist in all templates
     pronouns: Optional[str] = ""
     
-    # Optional fields
+    # Optional fields (previously required but now removed from frontend)
+    sex: Optional[str] = ""
+    travellingInternationally: Optional[str] = ""
+    accommodationType: Optional[str] = ""
+    contractType: Optional[str] = ""
+    currentPosition: Optional[str] = ""
+    travelRequirementsConfirm: Optional[str] = ""
+    
+    # Other optional fields
     countryOfWork: Optional[str] = ""
     projectOfWork: Optional[str] = ""
     msfEmail: Optional[str] = ""
@@ -193,36 +195,36 @@ async def public_register_for_event(
             last_name=registration.lastName,
             oc=registration.oc,
             contract_status=registration.contractStatus,
-            contract_type=registration.contractType,
+            contract_type=registration.contractType or "",
             gender_identity=registration.genderIdentity,
-            sex=registration.sex,
-            pronouns=registration.pronouns,
-            current_position=registration.currentPosition,
-            country_of_work=registration.countryOfWork,
-            project_of_work=registration.projectOfWork,
+            sex=registration.sex or "",
+            pronouns=registration.pronouns or "",
+            current_position=registration.currentPosition or "",
+            country_of_work=registration.countryOfWork or "",
+            project_of_work=registration.projectOfWork or "",
             personal_email=registration.personalEmail,
-            msf_email=registration.msfEmail,
-            hrco_email=registration.hrcoEmail,
-            career_manager_email=registration.careerManagerEmail,
-            ld_manager_email=registration.lineManagerEmail,
-            line_manager_email=registration.lineManagerEmail,
+            msf_email=registration.msfEmail or "",
+            hrco_email=registration.hrcoEmail or "",
+            career_manager_email=registration.careerManagerEmail or "",
+            ld_manager_email=registration.lineManagerEmail or "",
+            line_manager_email=registration.lineManagerEmail or "",
             phone_number=registration.phoneNumber,
-            travelling_internationally=registration.travellingInternationally,
-            accommodation_needs=registration.accommodationNeeds,
+            travelling_internationally=registration.travellingInternationally or "",
+            accommodation_needs=registration.accommodationNeeds or "",
             daily_meals=','.join(registration.dailyMeals) if registration.dailyMeals else None,
-            certificate_name=registration.certificateName,
-            badge_name=registration.badgeName,
-            motivation_letter=registration.motivationLetter,
+            certificate_name=registration.certificateName or "",
+            badge_name=registration.badgeName or "",
+            motivation_letter=registration.motivationLetter or "",
             code_of_conduct_confirm=registration.codeOfConductConfirm,
-            travel_requirements_confirm=registration.travelRequirementsConfirm,
+            travel_requirements_confirm=registration.travelRequirementsConfirm or "",
             # Legacy fields for backward compatibility
             country=registration.countryOfWork or None,
-            travelling_from_country=registration.travellingFromCountry if registration.travellingFromCountry else None,
-            position=registration.currentPosition,
+            travelling_from_country=registration.travellingFromCountry or None,
+            position=registration.currentPosition or None,
             project=registration.projectOfWork or None,
-            gender=registration.genderIdentity.lower() if registration.genderIdentity in ['Man', 'Woman'] else 'other',
-            dietary_requirements=registration.dietaryRequirements if registration.dietaryRequirements else None,
-            accommodation_type=registration.accommodationType if registration.accommodationType else None
+            gender=registration.genderIdentity.lower() if registration.genderIdentity and registration.genderIdentity in ['Man', 'Woman'] else 'other',
+            dietary_requirements=registration.dietaryRequirements or None,
+            accommodation_type=registration.accommodationType or None
         )
         
         db.add(participant)
