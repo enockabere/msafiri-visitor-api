@@ -284,6 +284,50 @@ def create_event(
         from app.services.notification_service import send_event_notifications
         send_event_notifications(db, event, "created", current_user.email)
         
+        # Auto-create default form fields for the event
+        try:
+            from app.models.form_field import FormField
+            import json
+            
+            # Check if form fields already exist
+            existing_fields = db.query(FormField).filter(FormField.event_id == event.id).count()
+            
+            if existing_fields == 0:
+                # Create default form fields
+                default_fields = [
+                    # Personal Information Section
+                    {"field_name": "firstName", "field_label": "First Name", "field_type": "text", "is_required": True, "order_index": 101, "section": "personal", "is_protected": True},
+                    {"field_name": "lastName", "field_label": "Last Name", "field_type": "text", "is_required": True, "order_index": 102, "section": "personal", "is_protected": True},
+                    {"field_name": "oc", "field_label": "Operational Center (OC)", "field_type": "select", "field_options": '["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]', "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
+                    {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": '["National Staff", "International Staff", "Consultant", "Volunteer"]', "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
+                    {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": '["Male", "Female", "Non-binary", "Prefer not to say"]', "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
+                    
+                    # Contact Details Section
+                    {"field_name": "personalEmail", "field_label": "Personal Email", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
+                    {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
+                    
+                    # Travel & Accommodation Section
+                    {"field_name": "travellingInternationally", "field_label": "Are you travelling internationally?", "field_type": "select", "field_options": '["Yes", "No"]', "is_required": True, "order_index": 301, "section": "travel"},
+                    {"field_name": "accommodationType", "field_label": "Accommodation Type", "field_type": "select", "field_options": '["Staying at venue", "Travelling daily"]', "is_required": True, "order_index": 303, "section": "travel"},
+                    
+                    # Final Details Section
+                    {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "checkbox", "field_options": '["I agree"]', "is_required": True, "order_index": 404, "section": "final"},
+                ]
+                
+                # Create form fields
+                for field_data in default_fields:
+                    form_field = FormField(
+                        event_id=event.id,
+                        **field_data
+                    )
+                    db.add(form_field)
+                
+                logger.info(f"✅ Auto-created {len(default_fields)} default form fields for event: {event.title}")
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to create default form fields for event: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        
         # Auto-create chat room for the event
         try:
             from app.models.chat import ChatRoom, ChatType
