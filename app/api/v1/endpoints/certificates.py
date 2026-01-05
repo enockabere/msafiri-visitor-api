@@ -4,10 +4,11 @@ Certificate generation endpoints for events.
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
-from app.core.database import get_db
+from app.db.database import get_db
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
-from app.models.certificate import ParticipantCertificate, EventCertificate, CertificateTemplate
+from app.models.event_certificate import ParticipantCertificate, EventCertificate
+from app.models.certificate_template import CertificateTemplate
 import logging
 from typing import Optional
 from datetime import datetime
@@ -22,7 +23,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 import io
 import os
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
