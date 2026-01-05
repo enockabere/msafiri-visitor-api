@@ -1051,6 +1051,105 @@ async def delete_participant(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to delete participant: {str(e)}")
 
+@router.get("/event/{event_id}/my-participant-id")
+async def get_my_participant_id(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get current user's participant ID for an event"""
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=404, detail="No participation record found")
+    
+    return {
+        "participant_id": participant.id,
+        "status": participant.status,
+        "event_id": event_id
+    }
+
+@router.patch("/participant/{participant_id}/travel-details")
+async def update_participant_travel_details(
+    participant_id: int,
+    travel_data: dict,
+    db: Session = Depends(get_db)
+):
+    """Update participant travel and accommodation details"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    print(f"\n🔥 API: TRAVEL DETAILS UPDATE RECEIVED")
+    print(f"🔥 API: Participant ID = {participant_id}")
+    print(f"🔥 API: Travel Data = {travel_data}")
+    
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
+    ).first()
+    
+    if not participant:
+        logger.error(f"❌ Participant not found: {participant_id}")
+        raise HTTPException(status_code=404, detail="Participant not found")
+    
+    logger.info(f"📝 Updating travel details for participant {participant_id}")
+    
+    # Update travel details
+    if 'travelling_internationally' in travel_data:
+        participant.travelling_internationally = travel_data['travelling_internationally']
+        print(f"🔥 API: Updated travelling_internationally: {travel_data['travelling_internationally']}")
+    
+    if 'nationality' in travel_data:
+        participant.country = travel_data['nationality']
+        print(f"🔥 API: Updated nationality: {travel_data['nationality']}")
+    
+    if 'accommodation_preference' in travel_data:
+        participant.accommodation_preference = travel_data['accommodation_preference']
+        print(f"🔥 API: Updated accommodation_preference: {travel_data['accommodation_preference']}")
+    
+    if 'has_dietary_requirements' in travel_data:
+        participant.has_dietary_requirements = travel_data['has_dietary_requirements']
+        if travel_data['has_dietary_requirements'] and 'dietary_requirements' in travel_data:
+            participant.dietary_requirements = travel_data['dietary_requirements']
+        else:
+            participant.dietary_requirements = None
+        print(f"🔥 API: Updated dietary requirements: {travel_data['has_dietary_requirements']}")
+    
+    if 'has_accommodation_needs' in travel_data:
+        participant.has_accommodation_needs = travel_data['has_accommodation_needs']
+        if travel_data['has_accommodation_needs'] and 'accommodation_needs' in travel_data:
+            participant.accommodation_needs = travel_data['accommodation_needs']
+        else:
+            participant.accommodation_needs = None
+        print(f"🔥 API: Updated accommodation needs: {travel_data['has_accommodation_needs']}")
+    
+    if 'certificate_name' in travel_data:
+        participant.certificate_name = travel_data['certificate_name']
+        print(f"🔥 API: Updated certificate_name: {travel_data['certificate_name']}")
+    
+    if 'badge_name' in travel_data:
+        participant.badge_name = travel_data['badge_name']
+        print(f"🔥 API: Updated badge_name: {travel_data['badge_name']}")
+    
+    try:
+        db.commit()
+        print(f"🔥 API: DATABASE COMMIT SUCCESSFUL - Travel details saved!")
+        logger.info(f"✅ Travel details updated successfully for participant {participant_id}")
+        
+        return {
+            "message": "Travel details updated successfully",
+            "participant_id": participant_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"🔥 API: DATABASE COMMIT FAILED: {e}")
+        logger.error(f"❌ Failed to update travel details: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update travel details: {str(e)}")
+
 @router.post("/user/update-fcm-token")
 async def update_fcm_token(
     token_data: dict,
