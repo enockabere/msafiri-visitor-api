@@ -683,6 +683,14 @@ api_router.include_router(
     tags=["vendor-proof"]
 )
 
+# Participant documents (certificates and badges)
+from app.api.v1.endpoints import participant_documents
+api_router.include_router(
+    participant_documents.router,
+    prefix="",
+    tags=["participant-documents"]
+)
+
 # Form fields for dynamic forms
 api_router.include_router(
     form_fields.router,
