@@ -35,7 +35,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
     """
     result = template_html
 
-    # Define all supported variables
+    # Define all supported variables (excluding image URLs which are handled separately)
     variables = {
         'participantName': data.get('participant_name', ''),
         'hotelName': data.get('hotel_name', ''),
@@ -47,12 +47,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'eventName': data.get('event_name', ''),
         'eventDates': data.get('event_dates', ''),
         'confirmationNumber': data.get('confirmation_number', ''),
-        'qrCode': data.get('qr_code', ''),
-        'logoUrl': data.get('logo_url', ''),
-        'signatureUrl': data.get('signature_url', ''),
-        # Template compatibility - map to template variable names
-        'hotelLogo': data.get('logo_url', ''),
-        'signature': data.get('signature_url', ''),
+        # Note: qrCode, hotelLogo, signature are handled separately as images
     }
 
     # Replace each variable
