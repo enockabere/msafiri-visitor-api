@@ -28,18 +28,18 @@ async def get_participant_documents(
     Only returns documents that have been generated from portal.
     """
     
-    # Verify participant belongs to current user
+    # Verify participant belongs to current user using email instead of user_id
     participant_query = text("""
         SELECT ep.id, ep.full_name, ep.event_id, e.title as event_name, ep.certificate_name
         FROM event_participants ep
         JOIN events e ON ep.event_id = e.id
         WHERE ep.id = :participant_id
-        AND ep.user_id = :user_id
+        AND ep.email = :user_email
     """)
     
     participant = db.execute(participant_query, {
         "participant_id": participant_id,
-        "user_id": current_user.id
+        "user_email": current_user.email
     }).fetchone()
     
     if not participant:
@@ -118,25 +118,30 @@ async def get_event_participant_documents(
     Mobile app endpoint - finds participant by user and event.
     """
     
-    # Find participant for current user in this event
+    logger.info(f"📄 CERT API: Getting participant documents for event {event_id}, user {current_user.email}")
+    
+    # Find participant for current user in this event using email instead of user_id
     participant_query = text("""
         SELECT ep.id, ep.full_name, ep.event_id, e.title as event_name, ep.certificate_name
         FROM event_participants ep
         JOIN events e ON ep.event_id = e.id
         WHERE ep.event_id = :event_id
-        AND ep.user_id = :user_id
+        AND ep.email = :user_email
     """)
     
     participant = db.execute(participant_query, {
         "event_id": event_id,
-        "user_id": current_user.id
+        "user_email": current_user.email
     }).fetchone()
     
     if not participant:
+        logger.warning(f"📄 CERT API: No participant found for event {event_id}, user {current_user.email}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Participant not found for this event"
         )
+    
+    logger.info(f"📄 CERT API: Found participant {participant.id} - {participant.full_name}")
     
     # Get certificates
     cert_query = text("""
@@ -152,6 +157,7 @@ async def get_event_participant_documents(
     """)
     
     certificates = db.execute(cert_query, {"participant_id": participant.id}).fetchall()
+    logger.info(f"📄 CERT API: Found {len(certificates)} certificates for participant {participant.id}")
     
     # Get badges
     badge_query = text("""
@@ -167,6 +173,7 @@ async def get_event_participant_documents(
     """)
     
     badges = db.execute(badge_query, {"participant_id": participant.id}).fetchall()
+    logger.info(f"📄 CERT API: Found {len(badges)} badges for participant {participant.id}")
     
     result = {
         "participant_name": participant.full_name,
@@ -178,4 +185,5 @@ async def get_event_participant_documents(
         "badge_issued_at": badges[0].issued_at.isoformat() if badges else None
     }
     
+    logger.info(f"📄 CERT API: Returning result: certificate_url={result['certificate_url']}, badge_url={result['badge_url']}")
     return result
