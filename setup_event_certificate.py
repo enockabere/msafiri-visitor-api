@@ -36,13 +36,29 @@ def setup_event_certificate():
     try:
         print("Setting up certificate for MSF Kenya Humanitarian Technical Conference...")
         
-        # 1. Create a default certificate template
+        # Get event and tenant info first
         cursor.execute("""
-            INSERT INTO certificate_templates (name, description, template_content)
-            VALUES ('Default Certificate', 'Default event certificate template', 'Default certificate content')
+            SELECT e.id, e.title, e.tenant_id, t.name as tenant_name
+            FROM events e
+            JOIN tenants t ON e.tenant_id = t.id
+            WHERE e.id = 7
+        """)
+        event_data = cursor.fetchone()
+        
+        if not event_data:
+            print("[ERROR] Event with ID 7 not found")
+            return
+            
+        event_id, event_title, tenant_id, tenant_name = event_data
+        print(f"[OK] Found event: {event_title} (Tenant: {tenant_name})")
+        
+        # 1. Create a default certificate template with tenant_id
+        cursor.execute("""
+            INSERT INTO certificate_templates (name, description, template_content, tenant_id)
+            VALUES ('Default Certificate', 'Default event certificate template', 'Default certificate content', %s)
             ON CONFLICT DO NOTHING
             RETURNING id;
-        """)
+        """, (tenant_id,))
         
         result = cursor.fetchone()
         if result:
@@ -50,9 +66,14 @@ def setup_event_certificate():
             print(f"[OK] Created certificate template with ID: {template_id}")
         else:
             # Template already exists, get its ID
-            cursor.execute("SELECT id FROM certificate_templates WHERE name = 'Default Certificate' LIMIT 1;")
-            template_id = cursor.fetchone()[0]
-            print(f"[OK] Using existing certificate template with ID: {template_id}")
+            cursor.execute("SELECT id FROM certificate_templates WHERE name = 'Default Certificate' AND tenant_id = %s LIMIT 1;", (tenant_id,))
+            result = cursor.fetchone()
+            if result:
+                template_id = result[0]
+                print(f"[OK] Using existing certificate template with ID: {template_id}")
+            else:
+                print("[ERROR] No matching certificate template found")
+                return
         
         # 2. Link the certificate template to event 7 (MSF Kenya Humanitarian Technical Conference)
         cursor.execute("""
