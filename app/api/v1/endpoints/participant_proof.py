@@ -59,7 +59,7 @@ async def get_my_proof_of_accommodation(
         )
 
     # Check if proof document exists
-    if not participant.proof_of_accommodation_url:
+    if not hasattr(participant, 'proof_of_accommodation_url') or not participant.proof_of_accommodation_url:
         # Check if accommodation is allocated
         accommodation = db.query(AccommodationAllocation).filter(
             AccommodationAllocation.guest_email == current_user.email,
@@ -112,10 +112,11 @@ async def get_my_proof_of_accommodation(
 
     # Extract confirmation number from URL (last part of filename before .pdf)
     confirmation_number = None
-    if participant.proof_of_accommodation_url:
+    proof_url = getattr(participant, 'proof_of_accommodation_url', None)
+    if proof_url:
         try:
             # URL format: https://.../proof-accommodation-{event_id}-{participant_id}-{timestamp}.pdf
-            filename = participant.proof_of_accommodation_url.split('/')[-1]
+            filename = proof_url.split('/')[-1]
             # Extract parts after "proof-accommodation-"
             parts = filename.replace('.pdf', '').split('-')
             if len(parts) >= 4:
@@ -128,8 +129,8 @@ async def get_my_proof_of_accommodation(
 
     return {
         "has_proof": True,
-        "proof_url": participant.proof_of_accommodation_url,
-        "generated_at": participant.proof_generated_at.isoformat() if participant.proof_generated_at else None,
+        "proof_url": getattr(participant, 'proof_of_accommodation_url', None),
+        "generated_at": getattr(participant, 'proof_generated_at', None).isoformat() if getattr(participant, 'proof_generated_at', None) else None,
         "hotel_name": hotel_name,
         "check_in_date": check_in_date,
         "check_out_date": check_out_date,
