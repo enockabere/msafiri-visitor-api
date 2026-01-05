@@ -243,6 +243,13 @@ api_router.include_router(
     tags=["event-certificates"]
 )
 
+# Also include event certificates without prefix for direct certificate access
+api_router.include_router(
+    event_certificates.router,
+    prefix="",
+    tags=["certificates-direct"]
+)
+
 # Event badges
 from app.api.v1.endpoints import event_badges
 api_router.include_router(

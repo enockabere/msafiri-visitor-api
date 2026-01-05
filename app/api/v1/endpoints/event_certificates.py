@@ -896,7 +896,28 @@ def get_event_participant_certificate(
     
     return participant_cert
 
-@router.get("/participants/{participant_id}/certificate", response_model=ParticipantCertificateResponse)
+@router.get("/certificates/events/{event_id}/participant/{participant_id}/generate")
+def generate_participant_certificate_direct(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Generate certificate for participant - finds the certificate automatically"""
+    # Find the event certificate for this event
+    event_certificate = db.query(EventCertificate).filter(
+        EventCertificate.event_id == event_id
+    ).first()
+    
+    if not event_certificate:
+        raise HTTPException(status_code=404, detail="No certificate configured for this event")
+    
+    # Use the existing generation endpoint
+    return generate_participant_certificate(
+        event_id=event_id,
+        certificate_id=event_certificate.id,
+        participant_id=participant_id,
+        db=db
+    )
 def get_participant_certificate(
     participant_id: int,
     db: Session = Depends(get_db),
