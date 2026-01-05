@@ -683,6 +683,22 @@ api_router.include_router(
     tags=["vendor-proof"]
 )
 
+# Event certificate generation
+from app.api.v1.endpoints import event_certificate_generation
+api_router.include_router(
+    event_certificate_generation.router,
+    prefix="",
+    tags=["event-certificate-generation"]
+)
+
+# Event badge generation
+from app.api.v1.endpoints import event_badge_generation
+api_router.include_router(
+    event_badge_generation.router,
+    prefix="",
+    tags=["event-badge-generation"]
+)
+
 # Participant documents (certificates and badges)
 from app.api.v1.endpoints import participant_documents
 api_router.include_router(
