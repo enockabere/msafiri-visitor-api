@@ -822,7 +822,52 @@ def notify_event_update(
     
     return {"message": "Notifications sent successfully"}
 
-@router.get("/{event_id}/my-attendance-status")
+@router.get("/{event_id}/my-registration-data")
+def get_my_registration_data(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get current user's registration data for an event."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    from app.models.event_participant import EventParticipant
+    from sqlalchemy import text
+    
+    # Get participation with registration data
+    result = db.execute(
+        text("""
+            SELECT 
+                ep.id, ep.status, ep.country, ep.travelling_internationally,
+                pr.nationality, pr.travelling_from_country
+            FROM event_participants ep
+            LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+            WHERE ep.event_id = :event_id AND ep.email = :email
+        """),
+        {"event_id": event_id, "email": current_user.email}
+    ).fetchone()
+    
+    logger.info(f"🎯 Get registration data - Event: {event_id}, User: {current_user.email}")
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No registration record found"
+        )
+    
+    # Get nationality from either the participant record or public registration
+    nationality = result.country or result.nationality
+    travelling_internationally = result.travelling_internationally
+    
+    return {
+        "participant_id": result.id,
+        "status": result.status,
+        "nationality": nationality,
+        "travelling_internationally": travelling_internationally,
+        "travelling_from_country": result.travelling_from_country
+    }
 def get_my_attendance_status(
     *,
     db: Session = Depends(get_db),
@@ -994,9 +1039,10 @@ def confirm_event_attendance(
     *,
     db: Session = Depends(get_db),
     event_id: int,
+    confirmation_data: dict = None,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Confirm attendance for an approved event."""
+    """Confirm attendance for an approved event with additional questions."""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -1040,6 +1086,18 @@ def confirm_event_attendance(
     logger.info(f"✅ Updating status from '{participation.status}' to 'confirmed'")
     participation.status = 'confirmed'
     
+    # Update additional confirmation data if provided
+    if confirmation_data:
+        # Update travelling internationally status
+        if 'travelling_internationally' in confirmation_data:
+            participation.travelling_internationally = confirmation_data['travelling_internationally']
+            logger.info(f"📝 Updated travelling_internationally: {confirmation_data['travelling_internationally']}")
+        
+        # Update nationality if provided (this updates the existing nationality field)
+        if 'nationality' in confirmation_data:
+            participation.country = confirmation_data['nationality']
+            logger.info(f"📝 Updated nationality: {confirmation_data['nationality']}")
+    
     db.commit()
     
     # Create accommodation booking for confirmed participant with room sharing
@@ -1073,7 +1131,8 @@ def confirm_event_attendance(
     
     return {
         "message": "Attendance confirmed successfully",
-        "status": "confirmed"
+        "status": "confirmed",
+        "requires_travel_checklist": confirmation_data.get('travelling_internationally', '').lower() == 'yes' if confirmation_data else False
     }
 
 @router.post("/{event_id}/admin-confirm-participant/{participant_id}")
