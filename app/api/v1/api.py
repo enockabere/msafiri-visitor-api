@@ -687,7 +687,7 @@ api_router.include_router(
 from app.api.v1.endpoints import certificates
 api_router.include_router(
     certificates.router,
-    prefix="/certificates",
+    prefix="",
     tags=["certificates"]
 )
 
