@@ -4,7 +4,6 @@ from app.db.database import get_db
 from app.models.passport_record import PassportRecord
 from app.models.event_participant import EventParticipant
 from app.models.invitation_template import InvitationTemplate
-from app.services.loi_generation import generate_loi_document
 import requests
 import os
 
@@ -254,25 +253,26 @@ async def generate_slugs_for_existing_records(db: Session = Depends(get_db)):
         )
 
 # Add the missing generation endpoint that the frontend is calling
-@router.get("/events/{event_id}/loi/{template_id}/generate/{participant_id}")
-async def generate_loi_from_event_template(
+@router.get("/events/{event_id}/participant/{participant_id}/generate")
+async def generate_loi_for_participant(
     event_id: int,
-    template_id: int,
     participant_id: int,
     db: Session = Depends(get_db)
 ):
-    """Generate LOI PDF from template for a participant (event-based endpoint)"""
+    """Generate LOI using active template for a participant"""
+    from fastapi.responses import HTMLResponse
+    import re
+    from datetime import datetime
     
-    # Get the invitation template
+    # Get the active invitation template for the tenant
     template = db.query(InvitationTemplate).filter(
-        InvitationTemplate.id == template_id,
         InvitationTemplate.is_active == True
     ).first()
     
     if not template:
         raise HTTPException(
             status_code=404,
-            detail="Active invitation template not found"
+            detail="No active invitation template found"
         )
     
     # Get the participant
@@ -287,25 +287,197 @@ async def generate_loi_from_event_template(
             detail="Participant not found"
         )
     
+    # Get event details
+    from app.models.event import Event
+    event = db.query(Event).filter(Event.id == event_id).first()
+    
+    # Get passport data from external API if available
+    passport_data = {}
     try:
-        # Generate LOI document using the service
-        pdf_url, loi_slug = await generate_loi_document(
-            participant_id=participant.id,
-            event_id=participant.event_id,
-            template_html=template.template_content,
-            participant_name=participant.full_name,
-            event_name=f"Event {participant.event_id}",  # You might want to get actual event name
-            event_dates="TBD",  # You might want to get actual event dates
-            event_location="TBD",  # You might want to get actual event location
-            organization_name="MSF"
-        )
+        passport_record = db.query(PassportRecord).filter(
+            PassportRecord.user_email == participant.email,
+            PassportRecord.event_id == event_id
+        ).first()
         
-        # Redirect to the generated PDF
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=pdf_url, status_code=302)
+        if passport_record:
+            API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
+            API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
+            
+            headers = {
+                'x-api-key': API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+            
+            payload = {"passport_id": passport_record.record_id}
+            response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                if response_data.get('result', {}).get('status') == 'success':
+                    passport_data = response_data['result']['data']
+    except Exception as e:
+        print(f"Warning: Could not fetch passport data: {e}")
+    
+    try:
+        # Start with template HTML
+        html_content = template.template_content or ''
+        
+        # Ensure proper HTML structure
+        if not html_content.strip().startswith('<!DOCTYPE html>') and not html_content.strip().startswith('<html'):
+            html_content = f'''<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Letter of Invitation</title>
+</head>
+<body>
+{html_content}
+</body>
+</html>'''
+        
+        # Prepare template variables
+        event_name = event.title if event else f"Event {event_id}"
+        event_dates = f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD"
+        event_location = event.location if event else "TBD"
+        
+        # Use passport data if available, otherwise use participant data
+        passport_number = passport_data.get('passport_number') or getattr(participant, 'passport_number', None) or 'N/A'
+        nationality = passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A'
+        date_of_birth = passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A'
+        
+        variables = {
+            'participant_name': participant.full_name,
+            'event_name': event_name,
+            'event_dates': event_dates,
+            'event_location': event_location,
+            'organization_name': 'MSF',
+            'current_date': datetime.now().strftime('%B %d, %Y'),
+            'passport_number': passport_number,
+            'nationality': nationality,
+            'date_of_birth': str(date_of_birth),
+            'event_start_date': event.start_date.strftime('%Y-%m-%d') if event and event.start_date else 'TBD',
+            'event_end_date': event.end_date.strftime('%Y-%m-%d') if event and event.end_date else 'TBD',
+        }
+        
+        # Replace template variables
+        for key, value in variables.items():
+            pattern = f'{{{{\\s*{key}\\s*}}}}'
+            html_content = re.sub(pattern, str(value), html_content, flags=re.IGNORECASE)
+        
+        # Add logo if available
+        if template.logo_url:
+            logo_html = f'<img src="{template.logo_url}" alt="Logo" style="max-width: 200px; height: auto;" />'
+            html_content = html_content.replace('{{logo}}', logo_html)
+        else:
+            html_content = html_content.replace('{{logo}}', '')
+        
+        # Add signature if available
+        if template.signature_url:
+            signature_html = f'<img src="{template.signature_url}" alt="Signature" style="max-width: 120px; max-height: 60px; height: auto;" />'
+            html_content = html_content.replace('{{signature}}', signature_html)
+        else:
+            html_content = html_content.replace('{{signature}}', '')
+        
+        # Add address fields
+        if template.address_fields:
+            address_text = '<br>'.join(template.address_fields) if isinstance(template.address_fields, list) else str(template.address_fields).replace('\n', '<br>')
+            html_content = html_content.replace('{{organization_address}}', address_text)
+        else:
+            html_content = html_content.replace('{{organization_address}}', 'MSF Kenya, Nairobi')
+        
+        # Add signature footer
+        if template.signature_footer_fields:
+            footer_text = '<br>'.join(template.signature_footer_fields) if isinstance(template.signature_footer_fields, list) else str(template.signature_footer_fields).replace('\n', '<br>')
+            html_content = html_content.replace('{{signature_footer}}', footer_text)
+        else:
+            html_content = html_content.replace('{{signature_footer}}', '')
+        
+        # Generate QR code if enabled
+        if template.enable_qr_code:
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000/portal')
+            public_url = f"{frontend_url}/public/loi/{participant_id}-{event_id}"
+            qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={public_url}"
+            qr_code_html = f'''
+            <div style="text-align: center; margin: 10px 0;">
+                <img src="{qr_code_url}" alt="QR Code" style="width: 100px; height: 100px;" />
+                <div style="font-size: 10px; margin-top: 5px; color: #666;">Scan to verify document</div>
+            </div>
+            '''
+            html_content = html_content.replace('{{qr_code}}', qr_code_html)
+        else:
+            html_content = html_content.replace('{{qr_code}}', '')
+        
+        return HTMLResponse(content=html_content)
         
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate LOI: {str(e)}"
         )
+
+@router.get("/events/{event_id}/participant/{participant_id}/data")
+async def get_loi_data_for_participant(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get LOI data for mobile app (replaces external API base64)"""
+    
+    # Get the participant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=404,
+            detail="Participant not found"
+        )
+    
+    # Get event details
+    from app.models.event import Event
+    event = db.query(Event).filter(Event.id == event_id).first()
+    
+    # Get passport data from external API if available
+    passport_data = {}
+    try:
+        passport_record = db.query(PassportRecord).filter(
+            PassportRecord.user_email == participant.email,
+            PassportRecord.event_id == event_id
+        ).first()
+        
+        if passport_record:
+            API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
+            API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
+            
+            headers = {
+                'x-api-key': API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+            
+            payload = {"passport_id": passport_record.record_id}
+            response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                if response_data.get('result', {}).get('status') == 'success':
+                    passport_data = response_data['result']['data']
+    except Exception as e:
+        print(f"Warning: Could not fetch passport data: {e}")
+    
+    # Return structured data instead of base64
+    return {
+        "participant_name": participant.full_name,
+        "participant_email": participant.email,
+        "event_name": event.title if event else f"Event {event_id}",
+        "event_dates": f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD",
+        "event_location": event.location if event else "TBD",
+        "passport_number": passport_data.get('passport_number') or getattr(participant, 'passport_number', None) or 'N/A',
+        "nationality": passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A',
+        "date_of_birth": passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A',
+        "loi_url": f"/v1/loi/events/{event_id}/participant/{participant_id}/generate",
+        "has_template": True
+    }
