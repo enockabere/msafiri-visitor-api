@@ -918,6 +918,7 @@ def generate_participant_certificate_direct(
         participant_id=participant_id,
         db=db
     )
+@router.get("/participants/{participant_id}/certificate", response_model=ParticipantCertificateResponse)
 def get_participant_certificate(
     participant_id: int,
     db: Session = Depends(get_db),
