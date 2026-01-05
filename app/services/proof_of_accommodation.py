@@ -50,6 +50,9 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'qrCode': data.get('qr_code', ''),
         'logoUrl': data.get('logo_url', ''),
         'signatureUrl': data.get('signature_url', ''),
+        # Template compatibility - map to template variable names
+        'hotelLogo': data.get('logo_url', ''),
+        'signature': data.get('signature_url', ''),
     }
 
     # Replace each variable
@@ -289,6 +292,29 @@ async def generate_proof_of_accommodation(
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
+        
+        # Handle QR code insertion if enabled and QR code was generated
+        if enable_qr_code and qr_code_base64 and '{{qrCode}}' in personalized_html:
+            # Replace {{qrCode}} with proper HTML img tag
+            qr_img_tag = f'<img src="{qr_code_base64}" style="max-width: 150px; height: auto;" alt="QR Code" />'
+            personalized_html = personalized_html.replace('{{qrCode}}', qr_img_tag)
+        elif '{{qrCode}}' in personalized_html:
+            # Remove QR code placeholder if no QR code generated
+            personalized_html = personalized_html.replace('{{qrCode}}', '')
+            
+        # Handle logo URL - convert to HTML img tag
+        if logo_url and '{{hotelLogo}}' in personalized_html:
+            logo_img_tag = f'<img src="{logo_url}" style="max-width: 200px; height: auto;" alt="Hotel Logo" />'
+            personalized_html = personalized_html.replace('{{hotelLogo}}', logo_img_tag)
+        elif '{{hotelLogo}}' in personalized_html:
+            personalized_html = personalized_html.replace('{{hotelLogo}}', '')
+            
+        # Handle signature URL - convert to HTML img tag  
+        if signature_url and '{{signature}}' in personalized_html:
+            signature_img_tag = f'<img src="{signature_url}" style="max-width: 150px; height: auto;" alt="Signature" />'
+            personalized_html = personalized_html.replace('{{signature}}', signature_img_tag)
+        elif '{{signature}}' in personalized_html:
+            personalized_html = personalized_html.replace('{{signature}}', '')
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
