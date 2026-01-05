@@ -41,7 +41,7 @@ class PublicRegistrationRequest(BaseModel):
     hrcoEmail: Optional[str] = ""
     careerManagerEmail: Optional[str] = ""
     lineManagerEmail: Optional[str] = ""
-    travellingFromCountry: Optional[str] = ""
+    nationality: Optional[str] = ""
     dietaryRequirements: Optional[str] = ""
     accommodationNeeds: Optional[str] = ""
     dailyMeals: Optional[list] = []
@@ -219,7 +219,7 @@ async def public_register_for_event(
             travel_requirements_confirm=registration.travelRequirementsConfirm or "",
             # Legacy fields for backward compatibility
             country=registration.countryOfWork or None,
-            travelling_from_country=registration.travellingFromCountry or None,
+            nationality=registration.nationality or None,
             position=registration.currentPosition or None,
             project=registration.projectOfWork or None,
             gender=registration.genderIdentity.lower() if registration.genderIdentity and registration.genderIdentity in ['Man', 'Woman'] else 'other',
@@ -246,7 +246,7 @@ async def public_register_for_event(
             'eventId', 'firstName', 'lastName', 'oc', 'contractStatus', 'contractType',
             'genderIdentity', 'sex', 'pronouns', 'currentPosition', 'countryOfWork',
             'projectOfWork', 'personalEmail', 'msfEmail', 'hrcoEmail', 'careerManagerEmail',
-            'lineManagerEmail', 'phoneNumber', 'travellingInternationally', 'travellingFromCountry',
+            'lineManagerEmail', 'phoneNumber', 'travellingInternationally', 'nationality',
             'accommodationType', 'dietaryRequirements', 'accommodationNeeds', 'dailyMeals',
             'certificateName', 'badgeName', 'motivationLetter', 'codeOfConductConfirm',
             'travelRequirementsConfirm'
