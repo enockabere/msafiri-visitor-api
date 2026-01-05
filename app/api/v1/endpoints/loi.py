@@ -454,9 +454,18 @@ async def generate_loi_for_participant(
         event_location = event.location if event else "TBD"
         
         # Use passport data if available, otherwise use participant data
-        passport_number = passport_data.get('passport_number') or getattr(participant, 'passport_number', None) or 'N/A'
+        passport_number = passport_data.get('passport_no') or getattr(participant, 'passport_number', None) or 'N/A'
         nationality = passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A'
         date_of_birth = passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A'
+        passport_issue_date = passport_data.get('date_of_issue') or 'N/A'
+        passport_expiry_date = passport_data.get('date_of_expiry') or 'N/A'
+        
+        # Get accommodation details from location_id if available
+        accommodation_details = 'N/A'
+        if passport_data.get('location_id', {}).get('accommodation'):
+            accommodation_details = passport_data['location_id']['accommodation']
+        elif event and event.location:
+            accommodation_details = event.location
         
         variables = {
             'participant_name': participant.full_name,
@@ -468,6 +477,9 @@ async def generate_loi_for_participant(
             'passport_number': passport_number,
             'nationality': nationality,
             'date_of_birth': str(date_of_birth),
+            'passport_issue_date': str(passport_issue_date),
+            'passport_expiry_date': str(passport_expiry_date),
+            'accommodation_details': accommodation_details,
             'event_start_date': event.start_date.strftime('%Y-%m-%d') if event and event.start_date else 'TBD',
             'event_end_date': event.end_date.strftime('%Y-%m-%d') if event and event.end_date else 'TBD',
         }
@@ -587,7 +599,7 @@ async def get_loi_data_for_participant(
         "event_name": event.title if event else f"Event {event_id}",
         "event_dates": f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD",
         "event_location": event.location if event else "TBD",
-        "passport_number": passport_data.get('passport_number') or getattr(participant, 'passport_number', None) or 'N/A',
+        "passport_number": passport_data.get('passport_no') or getattr(participant, 'passport_number', None) or 'N/A',
         "nationality": passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A',
         "date_of_birth": passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A',
         "loi_url": f"/v1/loi/events/{event_id}/participant/{participant_id}/generate",
