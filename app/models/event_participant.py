@@ -93,6 +93,11 @@ class EventParticipant(BaseModel):
     participant_name = Column(String(255), nullable=True)
     participant_email = Column(String(255), nullable=True)
     
+    # Travel and accommodation preferences
+    accommodation_preference = Column(String(100), nullable=True)
+    has_dietary_requirements = Column(Boolean, default=False)
+    has_accommodation_needs = Column(Boolean, default=False)
+    
     # Invitation tracking fields (will be added to DB later)
     # invitation_sent = Column(Boolean, default=False)
     # invitation_sent_at = Column(DateTime, nullable=True)

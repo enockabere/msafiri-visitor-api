@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.api.deps import get_current_user
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
+from app.models.event_participant import EventParticipant
 from app.models.user import User
 from pydantic import BaseModel
 import os
@@ -1104,7 +1105,7 @@ async def update_participant_travel_details(
     
     logger.info(f"📝 Updating travel details for participant {participant_id}")
     
-    # Update travel details with correct field mapping
+    # Update travel details
     if 'travelling_internationally' in travel_data:
         participant.travelling_internationally = travel_data['travelling_internationally']
         print(f"🔥 API: Updated travelling_internationally: {travel_data['travelling_internationally']}")
@@ -1113,24 +1114,25 @@ async def update_participant_travel_details(
         participant.country = travel_data['nationality']
         print(f"🔥 API: Updated nationality (country field): {travel_data['nationality']}")
     
-    # Map accommodation_preference to accommodation_type field
     if 'accommodation_preference' in travel_data:
-        participant.accommodation_type = travel_data['accommodation_preference']
-        print(f"🔥 API: Updated accommodation_type: {travel_data['accommodation_preference']}")
+        participant.accommodation_preference = travel_data['accommodation_preference']
+        print(f"🔥 API: Updated accommodation_preference: {travel_data['accommodation_preference']}")
     
     if 'has_dietary_requirements' in travel_data:
+        participant.has_dietary_requirements = travel_data['has_dietary_requirements']
         if travel_data['has_dietary_requirements'] and 'dietary_requirements' in travel_data:
             participant.dietary_requirements = travel_data['dietary_requirements']
         else:
             participant.dietary_requirements = None
-        print(f"🔥 API: Updated dietary requirements: {travel_data.get('dietary_requirements')}")
+        print(f"🔥 API: Updated has_dietary_requirements: {travel_data['has_dietary_requirements']}")
     
     if 'has_accommodation_needs' in travel_data:
+        participant.has_accommodation_needs = travel_data['has_accommodation_needs']
         if travel_data['has_accommodation_needs'] and 'accommodation_needs' in travel_data:
             participant.accommodation_needs = travel_data['accommodation_needs']
         else:
             participant.accommodation_needs = None
-        print(f"🔥 API: Updated accommodation needs: {travel_data.get('accommodation_needs')}")
+        print(f"🔥 API: Updated has_accommodation_needs: {travel_data['has_accommodation_needs']}")
     
     if 'certificate_name' in travel_data:
         participant.certificate_name = travel_data['certificate_name']
