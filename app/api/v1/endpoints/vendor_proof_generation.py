@@ -53,13 +53,17 @@ async def generate_proofs_for_vendor_hotel(
     """)
     vendor = db.execute(vendor_query, {"vendor_id": vendor_id}).fetchone()
 
+    logger.info(f"Vendor query result for ID {vendor_id}: {vendor}")
+
     if not vendor:
+        logger.error(f"Vendor hotel not found for ID: {vendor_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vendor hotel not found"
         )
 
     if not vendor.template_content:
+        logger.error(f"No POA template found for vendor hotel ID: {vendor_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This vendor hotel has no proof template configured. Please add a template first."
@@ -99,7 +103,10 @@ async def generate_proofs_for_vendor_hotel(
         "vendor_id": vendor_id
     }).fetchall()
 
+    logger.info(f"Found {len(participants)} participants for vendor {vendor_id} and event {event_id}")
+
     if not participants:
+        logger.error(f"No participants found with accommodation from vendor hotel ID {vendor_id} for event ID {event_id}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No participants found with accommodation from this vendor hotel"
