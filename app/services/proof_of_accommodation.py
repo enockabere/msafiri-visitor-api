@@ -152,11 +152,12 @@ async def upload_pdf_to_cloudinary(pdf_bytes: BytesIO, filename: str) -> str:
         # Upload to Cloudinary
         result = cloudinary.uploader.upload(
             pdf_bytes,
-            public_id=filename.replace('.pdf', ''),
+            public_id=filename,  # Keep full filename with .pdf extension
             folder="msafiri-documents/poa",
             resource_type="raw",
-            use_filename=True,
-            unique_filename=True,
+            format="pdf",  # Explicitly set format as PDF
+            use_filename=False,  # Don't use original filename
+            unique_filename=False,  # Use our custom filename
             overwrite=True
         )
 
