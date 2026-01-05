@@ -20,22 +20,35 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
     """
     result = template_html
 
-    # Define all supported variables
+    # Define all supported variables with both formats
     variables = {
+        # New format
         'participantName': data.get('participant_name', ''),
         'badgeName': data.get('badge_name', ''),
         'eventName': data.get('event_name', ''),
+        'eventTitle': data.get('event_name', ''),  # Alternative name
         'eventDates': data.get('event_dates', ''),
+        'startDate': data.get('start_date', ''),
+        'endDate': data.get('end_date', ''),
         'eventLocation': data.get('event_location', ''),
         'organizationName': data.get('organization_name', 'MSF'),
+        'participantRole': data.get('participant_role', 'Participant'),
+        'badgeTagline': data.get('tagline', ''),
         'tagline': data.get('tagline', ''),
         'currentDate': datetime.now().strftime('%B %d, %Y'),
+        'logo': data.get('logo', ''),
+        'qrCode': data.get('qr_code', ''),
     }
 
-    # Replace each variable
+    # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
+        # Replace {{variable}} format
         placeholder = f'{{{{{key}}}}}'
         result = result.replace(placeholder, str(value))
+        
+        # Replace {{{variable}}} format (if any)
+        placeholder_triple = f'{{{{{{{key}}}}}}}'
+        result = result.replace(placeholder_triple, str(value))
 
     return result
 
@@ -127,7 +140,11 @@ async def generate_badge(
     event_dates: str,
     event_location: str,
     tagline: str = "",
-    organization_name: str = "MSF"
+    organization_name: str = "MSF",
+    start_date: str = "",
+    end_date: str = "",
+    participant_role: str = "Participant",
+    logo_url: str = ""
 ) -> str:
     """
     Generate complete badge PDF and upload to Cloudinary.
@@ -135,15 +152,25 @@ async def generate_badge(
     try:
         logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
 
+        # Generate QR code URL that points to the badge itself
+        base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
+        badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
+
         # Prepare data for template
         template_data = {
             'participant_name': participant_name,
             'badge_name': badge_name,
             'event_name': event_name,
             'event_dates': event_dates,
+            'start_date': start_date,
+            'end_date': end_date,
             'event_location': event_location,
             'organization_name': organization_name,
+            'participant_role': participant_role,
             'tagline': tagline,
+            'logo': logo_url,
+            'qr_code': f'<img src="{qr_code_url}" alt="QR Code" style="width: 100px; height: 100px;" />',
         }
 
         # Replace variables in template

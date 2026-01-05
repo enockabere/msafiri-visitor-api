@@ -208,11 +208,14 @@ async def generate_participant_badge(
             raise HTTPException(status_code=404, detail="No badge template configured for this event")
         
         # Format event dates
-        event_dates = f"{participant.start_date.strftime('%B %d, %Y')} - {participant.end_date.strftime('%B %d, %Y')}"
+        start_date_formatted = participant.start_date.strftime('%B %d, %Y')
+        end_date_formatted = participant.end_date.strftime('%B %d, %Y')
+        event_dates = f"{start_date_formatted} - {end_date_formatted}"
         
         # Get tagline from template variables
         template_vars = badge_config.template_variables or {}
         tagline = template_vars.get('tagline', '')
+        logo_url = template_vars.get('logo', '')
         
         # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
         badge_name = participant.badge_name or participant.certificate_name or participant.full_name
@@ -226,8 +229,12 @@ async def generate_participant_badge(
             badge_name=badge_name,
             event_name=participant.event_name,
             event_dates=event_dates,
+            start_date=start_date_formatted,
+            end_date=end_date_formatted,
             event_location=participant.event_location,
-            tagline=tagline
+            tagline=tagline,
+            participant_role="Participant",
+            logo_url=logo_url
         )
         
         # Save badge record
