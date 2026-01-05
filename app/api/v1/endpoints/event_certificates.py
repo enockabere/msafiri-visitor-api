@@ -320,11 +320,12 @@ def generate_participant_certificate(
         print(f"     - {key}: {value_preview}")
     
     # Create variable mapping for template replacement
-    # Note: Frontend sends camelCase field names (organizerName, facilitatorName, etc.)
-    # Event data is always pulled from Event model to ensure current information
+    # Use certificate_name from registration if available, otherwise fall back to full_name
+    participant_name = participant.certificate_name or participant.full_name
+    
     variables = {
-        'participantName': participant.full_name,
-        'participant_name': participant.full_name,
+        'participantName': participant_name,
+        'participant_name': participant_name,
         'eventTitle': event.title if event else (template_vars.get('eventTitle') or ''),
         'event_title': event.title if event else (template_vars.get('eventTitle') or ''),
         'eventLocation': event.location if event else (template_vars.get('eventLocation') or ''),
@@ -408,7 +409,7 @@ def generate_participant_certificate(
         'startDate': event.start_date.strftime('%B %d, %Y') if event and event.start_date else (template_vars.get('startDate') or ''),
         'endDate': event.end_date.strftime('%B %d, %Y') if event and event.end_date else (template_vars.get('endDate') or ''),
         'eventLocation': event.location if event else (template_vars.get('eventLocation') or ''),
-        'participantName': participant.full_name or '',
+        'participantName': participant_name or '',
         'participantRole': participant_role.upper() if participant_role else '',  # Uppercase for badges
         'certificateDate': template_vars.get('certificateDate', datetime.now().strftime('%B %d, %Y')),
     })
