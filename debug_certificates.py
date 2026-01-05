@@ -134,39 +134,52 @@ def debug_certificates():
         
         # Create or update event certificate
         cursor.execute("""
-            INSERT INTO event_certificates (event_id, certificate_template_id)
-            VALUES (%s, %s)
-            ON CONFLICT (event_id, certificate_template_id) 
-            DO NOTHING
-            RETURNING id
+            SELECT id FROM event_certificates 
+            WHERE event_id = %s AND certificate_template_id = %s
         """, (event_id, template_id))
         result = cursor.fetchone()
         if result:
             event_cert_id = result[0]
+            print(f"   ✓ Using existing event certificate link with ID: {event_cert_id}")
         else:
-            # Get existing ID
             cursor.execute("""
-                SELECT id FROM event_certificates 
-                WHERE event_id = %s AND certificate_template_id = %s
+                INSERT INTO event_certificates (event_id, certificate_template_id)
+                VALUES (%s, %s)
+                RETURNING id
             """, (event_id, template_id))
             event_cert_id = cursor.fetchone()[0]
+            print(f"   ✓ Created event certificate link with ID: {event_cert_id}")
         print(f"   ✓ Event certificate link ID: {event_cert_id}")
         
         # Create participant certificate with proper URL
         certificate_url = f"https://certificates.msafiri.com/event-{event_id}-participant-{participant[0]}.pdf"
         
+        # Check if participant certificate already exists
         cursor.execute("""
-            INSERT INTO participant_certificates (participant_id, event_certificate_id, certificate_url, issued_at)
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-            ON CONFLICT (participant_id, event_certificate_id)
-            DO UPDATE SET 
-                certificate_url = EXCLUDED.certificate_url,
-                updated_at = CURRENT_TIMESTAMP
-            RETURNING id
-        """, (participant[0], event_cert_id, certificate_url))
+            SELECT id FROM participant_certificates 
+            WHERE participant_id = %s AND event_certificate_id = %s
+        """, (participant[0], event_cert_id))
+        existing_cert = cursor.fetchone()
         
-        cert_id = cursor.fetchone()[0]
-        print(f"   ✓ Participant certificate created/updated with ID: {cert_id}")
+        if existing_cert:
+            # Update existing certificate
+            cursor.execute("""
+                UPDATE participant_certificates 
+                SET certificate_url = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                RETURNING id
+            """, (certificate_url, existing_cert[0]))
+            cert_id = cursor.fetchone()[0]
+            print(f"   ✓ Updated existing participant certificate with ID: {cert_id}")
+        else:
+            # Create new certificate
+            cursor.execute("""
+                INSERT INTO participant_certificates (participant_id, event_certificate_id, certificate_url, issued_at)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                RETURNING id
+            """, (participant[0], event_cert_id, certificate_url))
+            cert_id = cursor.fetchone()[0]
+            print(f"   ✓ Created new participant certificate with ID: {cert_id}")
         print(f"   ✓ Certificate URL: {certificate_url}")
         
         # 6. Verify the fix
