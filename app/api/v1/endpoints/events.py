@@ -868,6 +868,7 @@ def get_my_registration_data(
         "travelling_internationally": travelling_internationally,
         "travelling_from_country": result.travelling_from_country
     }
+@router.get("/{event_id}/my-attendance-status")
 def get_my_attendance_status(
     *,
     db: Session = Depends(get_db),
