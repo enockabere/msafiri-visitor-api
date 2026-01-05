@@ -156,7 +156,7 @@ async def get_event_registrations(
                     "certificate_name", "badge_name", "motivation_letter",
                     "code_of_conduct_confirm", "travel_requirements_confirm",
                     "travelling_internationally", "accommodation_type", "daily_meals",
-                    "decline_reason", "declined_at", "vetting_comments", "travelling_from_country"
+                    "decline_reason", "declined_at", "vetting_comments"
                 ]}
             })
         else:
@@ -193,7 +193,7 @@ async def get_participant_details(
             text("""
                 SELECT 
                     ep.id, ep.email, ep.full_name, ep.role, ep.status, ep.invited_by, 
-                    ep.created_at, ep.updated_at, ep.country, ep.travelling_from_country, ep.position, ep.project, 
+                    ep.created_at, ep.updated_at, ep.country, ep.position, ep.project, 
                     ep.gender, ep.eta, ep.requires_eta, ep.passport_document, ep.ticket_document,
                     ep.dietary_requirements, ep.accommodation_type, ep.participant_name, ep.participant_email,
                     ep.decline_reason, ep.declined_at,
@@ -216,7 +216,7 @@ async def get_participant_details(
             print(f"🔥 BASIC DEBUG: EP Accommodation Type = {result.accommodation_type}")
             print(f"🔥 BASIC DEBUG: PR Accommodation Type = {result.pr_accommodation_type if hasattr(result, 'pr_accommodation_type') else 'N/A'}")
             print(f"🔥 BASIC DEBUG: Travelling Internationally = {result.travelling_internationally}")
-            print(f"🔥 BASIC DEBUG: Travelling From Country (EP) = {result.travelling_from_country}")
+            print(f"🔥 BASIC DEBUG: Nationality (EP) = {result.country}")
             print(f"🔥 BASIC DEBUG: Dietary Requirements (EP) = {result.dietary_requirements}")
             print(f"🔥 BASIC DEBUG: Certificate Name = {result.certificate_name}")
             print(f"🔥 BASIC DEBUG: Phone Number = {result.phone_number}")
@@ -233,7 +233,7 @@ async def get_participant_details(
             print(f"🔥 BASIC DEBUG: First Name = {pr_check.first_name}")
             print(f"🔥 BASIC DEBUG: Last Name = {pr_check.last_name}")
             print(f"🔥 BASIC DEBUG: Travelling Internationally = {pr_check.travelling_internationally}")
-            print(f"🔥 BASIC DEBUG: Travelling From Country (PR) = {pr_check.travelling_from_country}")
+            print(f"🔥 BASIC DEBUG: Nationality (PR) = {pr_check.country}")
             print(f"🔥 BASIC DEBUG: Accommodation Type = {pr_check.accommodation_type}")
             print(f"🔥 BASIC DEBUG: Dietary Requirements = {pr_check.dietary_requirements}")
         
@@ -286,7 +286,6 @@ async def get_participant_details(
             # Registration details - all from consolidated participant object
             "country": participant.country_of_work or participant.country,
             "nationality": participant.country,  # Mobile app expects this field
-            "travelling_from_country": participant.travelling_from_country,
             "position": participant.current_position or participant.position,
             "department": participant.project_of_work or participant.project,
             "gender": participant.gender,
