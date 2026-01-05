@@ -1097,37 +1097,75 @@ def confirm_event_attendance(
         if 'nationality' in confirmation_data:
             participation.country = confirmation_data['nationality']
             logger.info(f"📝 Updated nationality: {confirmation_data['nationality']}")
+        
+        # Update accommodation preference
+        if 'accommodation_preference' in confirmation_data:
+            participation.accommodation_preference = confirmation_data['accommodation_preference']
+            logger.info(f"📝 Updated accommodation_preference: {confirmation_data['accommodation_preference']}")
+        
+        # Update dietary requirements
+        if 'has_dietary_requirements' in confirmation_data:
+            participation.has_dietary_requirements = confirmation_data['has_dietary_requirements']
+            if confirmation_data['has_dietary_requirements'] and 'dietary_requirements' in confirmation_data:
+                participation.dietary_requirements = confirmation_data['dietary_requirements']
+            else:
+                participation.dietary_requirements = None
+            logger.info(f"📝 Updated dietary requirements: {confirmation_data['has_dietary_requirements']}")
+        
+        # Update accommodation needs
+        if 'has_accommodation_needs' in confirmation_data:
+            participation.has_accommodation_needs = confirmation_data['has_accommodation_needs']
+            if confirmation_data['has_accommodation_needs'] and 'accommodation_needs' in confirmation_data:
+                participation.accommodation_needs = confirmation_data['accommodation_needs']
+            else:
+                participation.accommodation_needs = None
+            logger.info(f"📝 Updated accommodation needs: {confirmation_data['has_accommodation_needs']}")
+        
+        # Update certificate and badge names
+        if 'certificate_name' in confirmation_data:
+            participation.certificate_name = confirmation_data['certificate_name']
+            logger.info(f"📝 Updated certificate_name: {confirmation_data['certificate_name']}")
+        
+        if 'badge_name' in confirmation_data:
+            participation.badge_name = confirmation_data['badge_name']
+            logger.info(f"📝 Updated badge_name: {confirmation_data['badge_name']}")
     
     db.commit()
     
-    # Create accommodation booking for confirmed participant with room sharing
-    try:
-        from app.models.guesthouse import AccommodationAllocation
-        from app.models.event import Event
-        from app.services.room_assignment_service import assign_room_with_sharing
-        
-        # Check if booking already exists
-        existing_booking = db.query(AccommodationAllocation).filter(
-            AccommodationAllocation.participant_id == participation.id,
-            AccommodationAllocation.status.in_(['booked', 'checked_in'])
-        ).first()
-        
-        if not existing_booking:
-            event = db.query(Event).filter(Event.id == event_id).first()
-            if event:
-                # Use intelligent room assignment with sharing
-                allocation = assign_room_with_sharing(
-                    db, participation.id, event_id, event.tenant_id
-                )
-                if allocation:
-                    logger.info(f"[HOTEL] Created accommodation booking for participant {participation.id}")
-                else:
-                    logger.warning(f"[WARNING] Failed to create accommodation booking for participant {participation.id}")
-        else:
-            logger.info(f"[HOTEL] Accommodation booking already exists for participant {participation.id}")
+    # Create accommodation booking only if staying at venue
+    accommodation_preference = confirmation_data.get('accommodation_preference') if confirmation_data else None
+    should_book_accommodation = accommodation_preference != 'travelling_daily'
+    
+    if should_book_accommodation:
+        try:
+            from app.models.guesthouse import AccommodationAllocation
+            from app.models.event import Event
+            from app.services.room_assignment_service import assign_room_with_sharing
             
-    except Exception as e:
-        logger.warning(f"[WARNING] Failed to create accommodation booking: {str(e)}")
+            # Check if booking already exists
+            existing_booking = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.participant_id == participation.id,
+                AccommodationAllocation.status.in_(['booked', 'checked_in'])
+            ).first()
+            
+            if not existing_booking:
+                event = db.query(Event).filter(Event.id == event_id).first()
+                if event:
+                    # Use intelligent room assignment with sharing
+                    allocation = assign_room_with_sharing(
+                        db, participation.id, event_id, event.tenant_id
+                    )
+                    if allocation:
+                        logger.info(f"[HOTEL] Created accommodation booking for participant {participation.id}")
+                    else:
+                        logger.warning(f"[WARNING] Failed to create accommodation booking for participant {participation.id}")
+            else:
+                logger.info(f"[HOTEL] Accommodation booking already exists for participant {participation.id}")
+                
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to create accommodation booking: {str(e)}")
+    else:
+        logger.info(f"[HOTEL] Skipping accommodation booking - participant travelling daily")
     
     return {
         "message": "Attendance confirmed successfully",
