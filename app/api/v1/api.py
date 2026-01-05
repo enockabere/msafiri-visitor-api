@@ -683,6 +683,14 @@ api_router.include_router(
     tags=["vendor-proof"]
 )
 
+# Certificate generation endpoints
+from app.api.v1.endpoints import certificates
+api_router.include_router(
+    certificates.router,
+    prefix="/certificates",
+    tags=["certificates"]
+)
+
 # Event certificate generation
 from app.api.v1.endpoints import event_certificate_generation
 api_router.include_router(

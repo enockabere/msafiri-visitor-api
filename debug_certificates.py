@@ -152,7 +152,7 @@ def debug_certificates():
         print(f"   ✓ Event certificate link ID: {event_cert_id}")
         
         # Create participant certificate with proper URL
-        certificate_url = f"https://certificates.msafiri.com/event-{event_id}-participant-{participant[0]}.pdf"
+        certificate_url = f"http://41.90.240.229:8000/api/v1/certificates/events/{event_id}/participant/{participant[0]}/generate"
         
         # Check if participant certificate already exists
         cursor.execute("""
