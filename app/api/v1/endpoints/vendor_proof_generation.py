@@ -46,7 +46,7 @@ async def generate_proofs_for_vendor_hotel(
 
     # Get vendor hotel details with template
     vendor_query = text("""
-        SELECT va.vendor_name, va.location, pt.template_content
+        SELECT va.vendor_name, va.location, pt.template_content, pt.logo_url, pt.signature_url, pt.enable_qr_code
         FROM vendor_accommodations va
         LEFT JOIN poa_templates pt ON va.id = pt.vendor_accommodation_id
         WHERE va.id = :vendor_id
@@ -139,7 +139,10 @@ async def generate_proofs_for_vendor_hotel(
                 event_name=event.title,
                 event_dates=event_dates,
                 participant_name=participant.full_name,
-                room_number=None
+                room_number=None,
+                logo_url=vendor.logo_url,
+                signature_url=vendor.signature_url,
+                enable_qr_code=vendor.enable_qr_code
             )
 
             # Update participant record with proof URL

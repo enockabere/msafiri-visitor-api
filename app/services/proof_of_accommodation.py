@@ -47,6 +47,9 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'eventName': data.get('event_name', ''),
         'eventDates': data.get('event_dates', ''),
         'confirmationNumber': data.get('confirmation_number', ''),
+        'qrCode': data.get('qr_code', ''),
+        'logoUrl': data.get('logo_url', ''),
+        'signatureUrl': data.get('signature_url', ''),
     }
 
     # Replace each variable
@@ -55,6 +58,52 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         result = result.replace(placeholder, str(value))
 
     return result
+
+
+def generate_poa_slug(participant_id: int, event_id: int) -> str:
+    """
+    Generate a secure, unique slug for public POA access.
+    """
+    import hashlib
+    unique_string = f"{participant_id}-{event_id}-{uuid.uuid4()}-{datetime.utcnow().timestamp()}"
+    hash_object = hashlib.sha256(unique_string.encode())
+    hash_hex = hash_object.hexdigest()
+    return hash_hex[:32]
+
+
+def generate_qr_code(url: str) -> str:
+    """
+    Generate QR code image as base64 string.
+    """
+    try:
+        import qrcode
+        import base64
+        from io import BytesIO
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+
+        qr.add_data(url)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+        return f"data:image/png;base64,{img_base64}"
+
+    except ImportError:
+        logger.error("qrcode library not installed")
+        return ""
+    except Exception as e:
+        logger.error(f"Error generating QR code: {str(e)}")
+        return ""
 
 
 def generate_confirmation_number(participant_id: int, event_id: int) -> str:
@@ -182,7 +231,10 @@ async def generate_proof_of_accommodation(
     event_name: str,
     event_dates: str,
     participant_name: str,
-    room_number: Optional[str] = None
+    room_number: Optional[str] = None,
+    logo_url: Optional[str] = None,
+    signature_url: Optional[str] = None,
+    enable_qr_code: bool = True
 ) -> str:
     """
     Generate complete proof of accommodation PDF and upload to Azure.
@@ -209,6 +261,14 @@ async def generate_proof_of_accommodation(
 
         # Generate confirmation number
         confirmation_number = generate_confirmation_number(participant_id, event_id)
+        
+        # Generate QR code if enabled
+        qr_code_base64 = ""
+        if enable_qr_code:
+            poa_slug = generate_poa_slug(participant_id, event_id)
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
+            public_url = f"{frontend_url}/public/poa/{poa_slug}"
+            qr_code_base64 = generate_qr_code(public_url)
 
         # Prepare data for template
         template_data = {
@@ -222,6 +282,9 @@ async def generate_proof_of_accommodation(
             'event_name': event_name,
             'event_dates': event_dates,
             'confirmation_number': confirmation_number,
+            'qr_code': qr_code_base64,
+            'logo_url': logo_url or '',
+            'signature_url': signature_url or '',
         }
 
         # Replace variables in template
