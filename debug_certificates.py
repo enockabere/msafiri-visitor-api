@@ -134,13 +134,22 @@ def debug_certificates():
         
         # Create or update event certificate
         cursor.execute("""
-            INSERT INTO event_certificates (event_id, certificate_template_id, is_active)
-            VALUES (%s, %s, TRUE)
+            INSERT INTO event_certificates (event_id, certificate_template_id)
+            VALUES (%s, %s)
             ON CONFLICT (event_id, certificate_template_id) 
-            DO UPDATE SET is_active = TRUE
+            DO NOTHING
             RETURNING id
         """, (event_id, template_id))
-        event_cert_id = cursor.fetchone()[0]
+        result = cursor.fetchone()
+        if result:
+            event_cert_id = result[0]
+        else:
+            # Get existing ID
+            cursor.execute("""
+                SELECT id FROM event_certificates 
+                WHERE event_id = %s AND certificate_template_id = %s
+            """, (event_id, template_id))
+            event_cert_id = cursor.fetchone()[0]
         print(f"   ✓ Event certificate link ID: {event_cert_id}")
         
         # Create participant certificate with proper URL
