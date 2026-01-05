@@ -1050,6 +1050,11 @@ def confirm_event_attendance(
     from app.models.event_participant import EventParticipant
     from app.models.notification import Notification, NotificationPriority, NotificationType
     
+    print(f"\n🔥 API: TRAVEL DETAILS SUBMISSION RECEIVED")
+    print(f"🔥 API: Event ID = {event_id}")
+    print(f"🔥 API: User = {current_user.email}")
+    print(f"🔥 API: Confirmation Data = {confirmation_data}")
+    
     # Find the user's participation record
     participation = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
@@ -1089,19 +1094,24 @@ def confirm_event_attendance(
     
     # Update additional confirmation data if provided
     if confirmation_data:
+        print(f"\n🔥 API: UPDATING TRAVEL DETAILS:")
+        
         # Update travelling internationally status
         if 'travelling_internationally' in confirmation_data:
             participation.travelling_internationally = confirmation_data['travelling_internationally']
+            print(f"🔥 API: Updated travelling_internationally: {confirmation_data['travelling_internationally']}")
             logger.info(f"📝 Updated travelling_internationally: {confirmation_data['travelling_internationally']}")
         
         # Update nationality if provided (this updates the existing nationality field)
         if 'nationality' in confirmation_data:
             participation.country = confirmation_data['nationality']
+            print(f"🔥 API: Updated nationality: {confirmation_data['nationality']}")
             logger.info(f"📝 Updated nationality: {confirmation_data['nationality']}")
         
         # Update accommodation preference
         if 'accommodation_preference' in confirmation_data:
             participation.accommodation_preference = confirmation_data['accommodation_preference']
+            print(f"🔥 API: Updated accommodation_preference: {confirmation_data['accommodation_preference']}")
             logger.info(f"📝 Updated accommodation_preference: {confirmation_data['accommodation_preference']}")
         
         # Update dietary requirements
@@ -1111,6 +1121,7 @@ def confirm_event_attendance(
                 participation.dietary_requirements = confirmation_data['dietary_requirements']
             else:
                 participation.dietary_requirements = None
+            print(f"🔥 API: Updated dietary requirements: {confirmation_data['has_dietary_requirements']}")
             logger.info(f"📝 Updated dietary requirements: {confirmation_data['has_dietary_requirements']}")
         
         # Update accommodation needs
@@ -1120,18 +1131,22 @@ def confirm_event_attendance(
                 participation.accommodation_needs = confirmation_data['accommodation_needs']
             else:
                 participation.accommodation_needs = None
+            print(f"🔥 API: Updated accommodation needs: {confirmation_data['has_accommodation_needs']}")
             logger.info(f"📝 Updated accommodation needs: {confirmation_data['has_accommodation_needs']}")
         
         # Update certificate and badge names
         if 'certificate_name' in confirmation_data:
             participation.certificate_name = confirmation_data['certificate_name']
+            print(f"🔥 API: Updated certificate_name: {confirmation_data['certificate_name']}")
             logger.info(f"📝 Updated certificate_name: {confirmation_data['certificate_name']}")
         
         if 'badge_name' in confirmation_data:
             participation.badge_name = confirmation_data['badge_name']
+            print(f"🔥 API: Updated badge_name: {confirmation_data['badge_name']}")
             logger.info(f"📝 Updated badge_name: {confirmation_data['badge_name']}")
     
     db.commit()
+    print(f"🔥 API: DATABASE COMMIT SUCCESSFUL - Travel details saved!")
     
     # Create accommodation booking only if staying at venue
     accommodation_preference = confirmation_data.get('accommodation_preference') if confirmation_data else None
@@ -1167,6 +1182,8 @@ def confirm_event_attendance(
             logger.warning(f"[WARNING] Failed to create accommodation booking: {str(e)}")
     else:
         logger.info(f"[HOTEL] Skipping accommodation booking - participant travelling daily")
+    
+    print(f"🔥 API: TRAVEL DETAILS SUBMISSION COMPLETE!\n")
     
     return {
         "message": "Attendance confirmed successfully",
