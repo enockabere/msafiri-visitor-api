@@ -105,3 +105,77 @@ async def get_participant_documents(
         "documents": documents,
         "message": "Documents will be available after event organizers generate them from the portal" if not documents else None
     }
+
+
+@router.get("/event/{event_id}")
+async def get_event_participant_documents(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Get all generated documents (certificates and badges) for current user in an event.
+    Mobile app endpoint - finds participant by user and event.
+    """
+    
+    # Find participant for current user in this event
+    participant_query = text("""
+        SELECT ep.id, ep.full_name, ep.event_id, e.title as event_name, ep.certificate_name
+        FROM event_participants ep
+        JOIN events e ON ep.event_id = e.id
+        WHERE ep.event_id = :event_id
+        AND ep.user_id = :user_id
+    """)
+    
+    participant = db.execute(participant_query, {
+        "event_id": event_id,
+        "user_id": current_user.id
+    }).fetchone()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participant not found for this event"
+        )
+    
+    # Get certificates
+    cert_query = text("""
+        SELECT 
+            pc.certificate_url,
+            pc.issued_at,
+            ct.name as template_name
+        FROM participant_certificates pc
+        JOIN event_certificates ec ON pc.event_certificate_id = ec.id
+        JOIN certificate_templates ct ON ec.certificate_template_id = ct.id
+        WHERE pc.participant_id = :participant_id
+        AND pc.certificate_url IS NOT NULL
+    """)
+    
+    certificates = db.execute(cert_query, {"participant_id": participant.id}).fetchall()
+    
+    # Get badges
+    badge_query = text("""
+        SELECT 
+            pb.badge_url,
+            pb.issued_at,
+            bt.name as template_name
+        FROM participant_badges pb
+        JOIN event_badges eb ON pb.event_badge_id = eb.id
+        JOIN badge_templates bt ON eb.badge_template_id = bt.id
+        WHERE pb.participant_id = :participant_id
+        AND pb.badge_url IS NOT NULL
+    """)
+    
+    badges = db.execute(badge_query, {"participant_id": participant.id}).fetchall()
+    
+    result = {
+        "participant_name": participant.full_name,
+        "certificate_name": participant.certificate_name,
+        "event_name": participant.event_name,
+        "certificate_url": certificates[0].certificate_url if certificates else None,
+        "badge_url": badges[0].badge_url if badges else None,
+        "certificate_issued_at": certificates[0].issued_at.isoformat() if certificates else None,
+        "badge_issued_at": badges[0].issued_at.isoformat() if badges else None
+    }
+    
+    return result

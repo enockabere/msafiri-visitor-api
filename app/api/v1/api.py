@@ -703,7 +703,7 @@ api_router.include_router(
 from app.api.v1.endpoints import participant_documents
 api_router.include_router(
     participant_documents.router,
-    prefix="",
+    prefix="/participant-documents",
     tags=["participant-documents"]
 )
 
