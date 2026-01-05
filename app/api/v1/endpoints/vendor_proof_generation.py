@@ -36,11 +36,12 @@ async def generate_proofs_for_vendor_hotel(
     **Returns:** Count of proofs generated successfully
     """
 
-    # Check admin permission
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    # Check admin permission - allow all admin roles
+    admin_roles = [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]
+    if current_user.role not in admin_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can generate proof documents"
+            detail="Only administrators can generate proof documents"
         )
 
     # Get vendor hotel details with template
