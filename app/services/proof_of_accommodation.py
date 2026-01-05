@@ -14,9 +14,10 @@ from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
-# Azure configuration
-AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-AZURE_CONTAINER_NAME = os.getenv("AZURE_PROOF_DOCUMENTS_CONTAINER", "proof-documents")
+# Cloudinary configuration
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 
 
 def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
@@ -116,9 +117,9 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         raise
 
 
-async def upload_pdf_to_azure(pdf_bytes: BytesIO, filename: str) -> str:
+async def upload_pdf_to_cloudinary(pdf_bytes: BytesIO, filename: str) -> str:
     """
-    Upload PDF to Azure Blob Storage and return public URL.
+    Upload PDF to Cloudinary and return public URL.
 
     Args:
         pdf_bytes: BytesIO containing PDF data
@@ -128,46 +129,43 @@ async def upload_pdf_to_azure(pdf_bytes: BytesIO, filename: str) -> str:
         Public URL of uploaded PDF
     """
     try:
-        from azure.storage.blob import BlobServiceClient, ContentSettings
+        import cloudinary
+        import cloudinary.uploader
+        import os
+        from dotenv import load_dotenv
+        
+        load_dotenv()
+        
+        # Configure Cloudinary
+        cloudinary.config(
+            cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+            api_key=os.getenv("CLOUDINARY_API_KEY"),
+            api_secret=os.getenv("CLOUDINARY_API_SECRET")
+        )
+        
+        if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+            raise Exception("Cloudinary not configured")
 
-        if not AZURE_STORAGE_CONNECTION_STRING:
-            raise Exception("Azure Storage not configured")
-
-        # Create blob service client
-        blob_service_client = BlobServiceClient.from_connection_string(
-            AZURE_STORAGE_CONNECTION_STRING
+        # Reset pointer to beginning
+        pdf_bytes.seek(0)
+        
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            pdf_bytes,
+            public_id=filename.replace('.pdf', ''),
+            folder="msafiri-documents/poa",
+            resource_type="raw",
+            use_filename=True,
+            unique_filename=True,
+            overwrite=True
         )
 
-        # Get container client
-        container_client = blob_service_client.get_container_client(AZURE_CONTAINER_NAME)
-
-        # Create container if it doesn't exist
-        try:
-            container_client.create_container(public_access='blob')
-        except Exception:
-            pass  # Container already exists
-
-        # Upload PDF
-        blob_client = container_client.get_blob_client(filename)
-
-        # Set content type
-        content_settings = ContentSettings(content_type='application/pdf')
-
-        # Upload
-        pdf_bytes.seek(0)  # Reset pointer to beginning
-        blob_client.upload_blob(
-            pdf_bytes.read(),
-            overwrite=True,
-            content_settings=content_settings
-        )
-
-        # Return public URL
-        return blob_client.url
+        return result["secure_url"]
 
     except ImportError:
-        raise Exception("Azure Storage SDK not installed")
+        raise Exception("Cloudinary SDK not installed")
     except Exception as e:
-        logger.error(f"Error uploading PDF to Azure: {str(e)}")
+        logger.error(f"Error uploading PDF to Cloudinary: {str(e)}")
         raise
 
 
@@ -235,8 +233,8 @@ async def generate_proof_of_accommodation(
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"proof-accommodation-{event_id}-{participant_id}-{timestamp}.pdf"
 
-        # Upload to Azure
-        pdf_url = await upload_pdf_to_azure(pdf_bytes, filename)
+        # Upload to Cloudinary
+        pdf_url = await upload_pdf_to_cloudinary(pdf_bytes, filename)
 
         logger.info(f"✅ Proof of accommodation generated: {pdf_url}")
 
