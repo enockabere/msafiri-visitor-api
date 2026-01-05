@@ -114,6 +114,10 @@ class EventParticipant(BaseModel):
     # Confirmation tracking
     confirmed_at = Column(DateTime, nullable=True)
     
+    # Proof of accommodation tracking
+    proof_of_accommodation_url = Column(String(500), nullable=True)
+    proof_generated_at = Column(DateTime, nullable=True)
+    
     # Relationships
     event = relationship("Event", back_populates="participants")
     # user = relationship("User", foreign_keys=[user_id])
