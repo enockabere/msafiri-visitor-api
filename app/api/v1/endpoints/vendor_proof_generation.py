@@ -46,8 +46,9 @@ async def generate_proofs_for_vendor_hotel(
 
     # Get vendor hotel details with template
     vendor_query = text("""
-        SELECT va.vendor_name, va.location, va.accommodation_template
+        SELECT va.vendor_name, va.location, pt.template_content
         FROM vendor_accommodations va
+        LEFT JOIN poa_templates pt ON va.id = pt.vendor_accommodation_id
         WHERE va.id = :vendor_id
     """)
     vendor = db.execute(vendor_query, {"vendor_id": vendor_id}).fetchone()
@@ -58,7 +59,7 @@ async def generate_proofs_for_vendor_hotel(
             detail="Vendor hotel not found"
         )
 
-    if not vendor.accommodation_template:
+    if not vendor.template_content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This vendor hotel has no proof template configured. Please add a template first."
@@ -122,7 +123,7 @@ async def generate_proofs_for_vendor_hotel(
             pdf_url = await generate_proof_of_accommodation(
                 participant_id=participant.id,
                 event_id=event.id,
-                template_html=vendor.accommodation_template,
+                template_html=vendor.template_content,
                 hotel_name=vendor.vendor_name,
                 hotel_address=vendor.location,
                 check_in_date=check_in_date,
