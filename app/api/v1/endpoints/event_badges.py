@@ -10,8 +10,13 @@ from app.models.event_participant import EventParticipant
 from app.models.event_badge import EventBadge, ParticipantBadge
 from app.models.badge_template import BadgeTemplate
 from app.schemas.event_badge import EventBadgeCreate, EventBadgeUpdate, EventBadgeResponse, ParticipantBadgeResponse
+from app.services.badge_generation import generate_badge
+from sqlalchemy import text
+from datetime import datetime
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.get("/{event_id}/badges", response_model=List[EventBadgeResponse])
 def get_event_badges(
@@ -147,3 +152,124 @@ def delete_event_badge(
     db.delete(badge)
     db.commit()
     return {"message": "Badge deleted successfully"}
+
+@router.get("/{event_id}/participant/{participant_id}/badge/generate")
+async def generate_participant_badge(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Generate badge for a specific participant"""
+    try:
+        # Get participant and event info
+        participant_query = text("""
+            SELECT 
+                ep.id,
+                ep.full_name,
+                ep.certificate_name,
+                ep.badge_name,
+                ep.email,
+                e.title as event_name,
+                e.start_date,
+                e.end_date,
+                e.location as event_location
+            FROM event_participants ep
+            JOIN events e ON ep.event_id = e.id
+            WHERE ep.id = :participant_id
+            AND ep.event_id = :event_id
+        """)
+        
+        participant = db.execute(participant_query, {
+            "participant_id": participant_id,
+            "event_id": event_id
+        }).fetchone()
+        
+        if not participant:
+            raise HTTPException(status_code=404, detail="Participant not found")
+        
+        # Get event badge configuration
+        badge_config_query = text("""
+            SELECT 
+                eb.id,
+                eb.template_variables,
+                bt.template_content,
+                bt.name as template_name
+            FROM event_badges eb
+            JOIN badge_templates bt ON eb.badge_template_id = bt.id
+            WHERE eb.event_id = :event_id
+            LIMIT 1
+        """)
+        
+        badge_config = db.execute(badge_config_query, {
+            "event_id": event_id
+        }).fetchone()
+        
+        if not badge_config:
+            raise HTTPException(status_code=404, detail="No badge template configured for this event")
+        
+        # Format event dates
+        event_dates = f"{participant.start_date.strftime('%B %d, %Y')} - {participant.end_date.strftime('%B %d, %Y')}"
+        
+        # Get tagline from template variables
+        template_vars = badge_config.template_variables or {}
+        tagline = template_vars.get('tagline', '')
+        
+        # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
+        badge_name = participant.badge_name or participant.certificate_name or participant.full_name
+        
+        # Generate badge PDF
+        badge_url = await generate_badge(
+            participant_id=participant.id,
+            event_id=event_id,
+            template_html=badge_config.template_content,
+            participant_name=participant.full_name,
+            badge_name=badge_name,
+            event_name=participant.event_name,
+            event_dates=event_dates,
+            event_location=participant.event_location,
+            tagline=tagline
+        )
+        
+        # Save badge record
+        existing_badge_query = text("""
+            SELECT id FROM participant_badges 
+            WHERE event_badge_id = :badge_id 
+            AND participant_id = :participant_id
+        """)
+        
+        existing_badge = db.execute(existing_badge_query, {
+            "badge_id": badge_config.id,
+            "participant_id": participant.id
+        }).fetchone()
+        
+        if existing_badge:
+            db.execute(text("""
+                UPDATE participant_badges 
+                SET badge_url = :badge_url, issued_at = :issued_at
+                WHERE id = :badge_id
+            """), {
+                "badge_url": badge_url,
+                "issued_at": datetime.utcnow(),
+                "badge_id": existing_badge.id
+            })
+        else:
+            db.execute(text("""
+                INSERT INTO participant_badges 
+                (event_badge_id, participant_id, badge_url, issued_at)
+                VALUES (:badge_id, :participant_id, :badge_url, :issued_at)
+            """), {
+                "badge_id": badge_config.id,
+                "participant_id": participant.id,
+                "badge_url": badge_url,
+                "issued_at": datetime.utcnow()
+            })
+        
+        db.commit()
+        
+        # Return the generated badge URL for viewing
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=badge_url, status_code=302)
+        
+    except Exception as e:
+        logger.error(f"Error generating badge: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate badge: {str(e)}")

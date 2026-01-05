@@ -258,6 +258,13 @@ api_router.include_router(
     tags=["event-badges"]
 )
 
+# Also include badges without prefix for direct badge access
+api_router.include_router(
+    event_badges.router,
+    prefix="",
+    tags=["badges-direct"]
+)
+
 from app.api.v1.endpoints import security_briefings
 api_router.include_router(
     security_briefings.router,
