@@ -285,6 +285,7 @@ async def get_participant_details(
             "invitation_accepted_at": result.updated_at.isoformat() if result.status == "confirmed" and result.updated_at else None,
             # Registration details - all from consolidated participant object
             "country": participant.country_of_work or participant.country,
+            "nationality": participant.country,  # Mobile app expects this field
             "travelling_from_country": participant.travelling_from_country,
             "position": participant.current_position or participant.position,
             "department": participant.project_of_work or participant.project,
@@ -295,6 +296,7 @@ async def get_participant_details(
             "ticket_document": ticket_status,
             "dietary_requirements": participant.dietary_requirements,
             "accommodation_type": participant.accommodation_type,
+            "accommodation_preference": participant.accommodation_preference,  # Mobile app expects this field
             # All public registration fields now in participant object
             "first_name": participant.first_name,
             "last_name": participant.last_name,
@@ -311,6 +313,8 @@ async def get_participant_details(
             "line_manager_email": participant.line_manager_email,
             "travelling_internationally": participant.travelling_internationally,
             "accommodation_needs": participant.accommodation_needs,
+            "has_dietary_requirements": participant.has_dietary_requirements,
+            "has_accommodation_needs": participant.has_accommodation_needs,
             "daily_meals": participant.daily_meals,
             "certificate_name": participant.certificate_name,
             "badge_name": participant.badge_name,
