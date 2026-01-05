@@ -253,6 +253,118 @@ async def generate_slugs_for_existing_records(db: Session = Depends(get_db)):
         )
 
 # Add the missing generation endpoint that the frontend is calling
+@router.get("/events/{event_id}/participant/{participant_id}/download")
+async def download_loi_pdf(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db)
+):
+    """Generate downloadable LOI PDF with QR code"""
+    from fastapi.responses import Response
+    import io
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.utils import ImageReader
+    import requests as req
+    
+    # Get the active invitation template
+    template = db.query(InvitationTemplate).filter(
+        InvitationTemplate.is_active == True
+    ).first()
+    
+    if not template:
+        raise HTTPException(
+            status_code=404,
+            detail="No active invitation template found"
+        )
+    
+    # Get the participant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=404,
+            detail="Participant not found"
+        )
+    
+    try:
+        # Create PDF in memory
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        
+        # Add title
+        p.setFont("Helvetica-Bold", 16)
+        p.drawString(50, height - 50, "Letter of Invitation")
+        
+        # Add participant info
+        p.setFont("Helvetica", 12)
+        y_position = height - 100
+        p.drawString(50, y_position, f"Participant: {participant.full_name}")
+        y_position -= 30
+        
+        # Get event details
+        from app.models.event import Event
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event:
+            p.drawString(50, y_position, f"Event: {event.title}")
+            y_position -= 20
+            if event.start_date and event.end_date:
+                p.drawString(50, y_position, f"Dates: {event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}")
+                y_position -= 20
+            if event.location:
+                p.drawString(50, y_position, f"Location: {event.location}")
+                y_position -= 40
+        
+        # Add QR code
+        try:
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000/portal')
+            web_url = f"{os.getenv('API_BASE_URL', 'http://localhost:8000')}/api/v1/loi/events/{event_id}/participant/{participant_id}/generate"
+            qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={web_url}"
+            
+            # Fetch QR code image
+            qr_response = req.get(qr_url, timeout=10)
+            if qr_response.status_code == 200:
+                qr_image = ImageReader(io.BytesIO(qr_response.content))
+                p.drawImage(qr_image, width - 200, y_position - 150, width=150, height=150)
+                
+                # Add QR code label
+                p.setFont("Helvetica", 10)
+                p.drawString(width - 200, y_position - 170, "Scan to view online")
+        except Exception as e:
+            print(f"Error adding QR code: {e}")
+        
+        # Add note about template
+        p.setFont("Helvetica", 10)
+        p.drawString(50, 50, "This document was generated from the active invitation template.")
+        p.drawString(50, 35, "For the complete formatted version, scan the QR code above.")
+        
+        p.showPage()
+        p.save()
+        
+        # Get PDF data
+        buffer.seek(0)
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        # Return PDF as download
+        return Response(
+            content=pdf_data,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=LOI_{participant.full_name.replace(' ', '_')}.pdf"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate PDF: {str(e)}"
+        )
+
 @router.get("/events/{event_id}/participant/{participant_id}/generate")
 async def generate_loi_for_participant(
     event_id: int,
