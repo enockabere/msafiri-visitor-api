@@ -42,19 +42,19 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
-        # Handle QR code as image
+        # Handle QR code as image (simplified CSS to avoid escaping)
         if key == 'qr_code' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="QR Code" style="width: 100px; height: 100px;" />'
+            img_tag = f'<img src="{value}" alt="QR Code" style="width:100px;height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        # Handle logo as image
+        # Handle logo as image (simplified CSS)
         elif key == 'logo' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="Logo" style="max-width: 150px; max-height: 100px;" />'
+            img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        # Handle avatar as image
+        # Handle avatar as image (simplified CSS)
         elif key == 'avatar' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="Avatar" style="max-width: 100px; max-height: 100px; border-radius: 50%;" />'
+            img_tag = f'<img src="{value}" alt="Avatar" style="max-width:100px;max-height:100px;border-radius:50%" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         else:
@@ -186,15 +186,26 @@ async def generate_badge(
         # Replace variables in template first
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Then replace any remaining text placeholders with images
+        # Then replace any remaining text placeholders with images (avoid HTML escaping)
         if logo_url and 'Logo' in personalized_html:
-            personalized_html = personalized_html.replace('Logo', f'<img src="{logo_url}" alt="Logo" style="max-width: 150px; max-height: 100px;" />')
+            # Use simple replacement without quotes to avoid escaping
+            logo_img = f'<img src="{logo_url}" alt="Logo" style="max-width:150px;max-height:100px" />'
+            personalized_html = personalized_html.replace('Logo', logo_img)
         
-        # Add QR code if template has QR code placeholder
-        if '{{qrCode}}' in personalized_html or 'QR Code' in personalized_html:
-            qr_img_tag = f'<img src="{qr_code_url}" alt="QR Code" style="width: 100px; height: 100px;" />'
-            personalized_html = personalized_html.replace('{{qrCode}}', qr_img_tag)
-            personalized_html = personalized_html.replace('QR Code', qr_img_tag)
+        # Add QR code - check for common QR placeholders
+        qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:100px;height:100px" />'
+        
+        # Replace various QR code placeholders
+        personalized_html = personalized_html.replace('{{qrCode}}', qr_img)
+        personalized_html = personalized_html.replace('{{qr_code}}', qr_img)
+        personalized_html = personalized_html.replace('QR Code', qr_img)
+        personalized_html = personalized_html.replace('QRCode', qr_img)
+        
+        # If no QR placeholder found, add QR to bottom right
+        if 'QR' not in personalized_html and qr_code_url:
+            # Add QR code to the end of body
+            qr_div = f'<div style="position:absolute;bottom:10px;right:10px">{qr_img}</div>'
+            personalized_html = personalized_html.replace('</body>', f'{qr_div}</body>')
         
         logger.info(f"Personalized HTML preview: {personalized_html[:500]}...")
 
