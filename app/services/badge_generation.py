@@ -42,13 +42,29 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
-        # Replace {{variable}} format
-        placeholder = f'{{{{{key}}}}}'
-        result = result.replace(placeholder, str(value))
-        
-        # Replace {{{variable}}} format (if any)
-        placeholder_triple = f'{{{{{{{key}}}}}}}'
-        result = result.replace(placeholder_triple, str(value))
+        # Handle special cases for images
+        if key == 'logo' and value:
+            # If logo is a URL, wrap it in an img tag
+            if value.startswith('http'):
+                img_tag = f'<img src="{value}" alt="Logo" style="max-width: 150px; max-height: 100px;" />'
+                result = result.replace(f'{{{{{key}}}}}', img_tag)
+                result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+            else:
+                result = result.replace(f'{{{{{key}}}}}', str(value))
+                result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
+        elif key == 'qr_code' and value:
+            # QR code as image
+            if value.startswith('http'):
+                img_tag = f'<img src="{value}" alt="QR Code" style="width: 100px; height: 100px;" />'
+                result = result.replace(f'{{{{{key}}}}}', img_tag)
+                result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+            else:
+                result = result.replace(f'{{{{{key}}}}}', str(value))
+                result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
+        else:
+            # Regular text replacement
+            result = result.replace(f'{{{{{key}}}}}', str(value))
+            result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
 
     return result
 
@@ -60,19 +76,13 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     try:
         from weasyprint import HTML, CSS
 
+        # Minimal CSS that doesn't override template styles
         css_string = """
             @page {
                 size: A4 portrait;
                 margin: 0.5cm;
             }
-            body {
-                font-family: 'Arial', 'Helvetica', sans-serif;
-                line-height: 1.4;
-                color: #333;
-            }
-            h1, h2, h3 {
-                color: #dc2626;
-            }
+            /* Preserve original template styles */
         """
 
         css = CSS(string=css_string)
@@ -169,12 +179,16 @@ async def generate_badge(
             'organization_name': organization_name,
             'participant_role': participant_role,
             'tagline': tagline,
-            'logo': logo_url,
-            'qr_code': f'<img src="{qr_code_url}" alt="QR Code" style="width: 100px; height: 100px;" />',
+            'logo': logo_url if logo_url else '',
+            'qr_code': qr_code_url,
         }
+
+        logger.info(f"Template data: {template_data}")
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
+        
+        logger.info(f"Personalized HTML preview: {personalized_html[:500]}...")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)

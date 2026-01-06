@@ -261,6 +261,10 @@ async def generate_participant_badge(
         tagline = template_vars.get('tagline', '')
         logo_url = template_vars.get('logo', '')
         
+        logger.info(f"Badge config template_variables: {template_vars}")
+        logger.info(f"Extracted tagline: '{tagline}'")
+        logger.info(f"Extracted logo_url: '{logo_url}'")
+        
         # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
         badge_name = participant.badge_name or participant.certificate_name or participant.full_name
         
