@@ -186,6 +186,12 @@ async def generate_badge(
         # Replace variables in template - avoid any text replacements that cause escaping
         personalized_html = replace_template_variables(template_html, template_data)
         
+        # Fallback: Replace static "QR" text with QR code image if no variable was found
+        if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
+            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:100px;height:100px" />'
+            # Replace standalone "QR" text (not part of variables)
+            personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
+        
         logger.info(f"Final HTML preview: {personalized_html[:500]}...")
 
         # Convert to PDF
