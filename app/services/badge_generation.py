@@ -48,7 +48,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="QR Code" style="width:100px;height:100px" />'
+            img_tag = f'<img src="{value}" alt="QR Code" style="width:60px;height:60px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key == 'avatar' and value and value.startswith('http'):
@@ -159,7 +159,7 @@ async def generate_badge(
         # Generate QR code URL that points to the badge itself
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=120x120&data={badge_view_url}"
 
         # Prepare data for template - only use template variables, no text replacement
         template_data = {
@@ -188,7 +188,7 @@ async def generate_badge(
         
         # Fallback: Replace static "QR" text with QR code image if no variable was found
         if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
-            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:100px;height:100px" />'
+            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:60px;height:60px" />'
             # Replace standalone "QR" text (not part of variables)
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
         
