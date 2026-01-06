@@ -42,25 +42,9 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
-        # Handle QR code as image (simplified CSS to avoid escaping)
-        if key == 'qr_code' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="QR Code" style="width:100px;height:100px" />'
-            result = result.replace(f'{{{{{key}}}}}', img_tag)
-            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        # Handle logo as image (simplified CSS)
-        elif key == 'logo' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
-            result = result.replace(f'{{{{{key}}}}}', img_tag)
-            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        # Handle avatar as image (simplified CSS)
-        elif key == 'avatar' and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="Avatar" style="max-width:100px;max-height:100px;border-radius:50%" />'
-            result = result.replace(f'{{{{{key}}}}}', img_tag)
-            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        else:
-            # Regular text replacement
-            result = result.replace(f'{{{{{key}}}}}', str(value))
-            result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
+        # For image URLs, just replace with the URL - let the template handle the img tag
+        result = result.replace(f'{{{{{key}}}}}', str(value))
+        result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
 
     return result
 
@@ -163,7 +147,7 @@ async def generate_badge(
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
 
-        # Prepare data for template - replace image placeholders with actual URLs
+        # Prepare data for template - only use template variables, no text replacement
         template_data = {
             'participant_name': participant_name,
             'badge_name': badge_name,
@@ -183,31 +167,10 @@ async def generate_badge(
 
         logger.info(f"Template data: {template_data}")
 
-        # Replace variables in template first
+        # Replace variables in template - avoid any text replacements that cause escaping
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Then replace any remaining text placeholders with images (avoid HTML escaping)
-        if logo_url and 'Logo' in personalized_html:
-            # Use simple replacement without quotes to avoid escaping
-            logo_img = f'<img src="{logo_url}" alt="Logo" style="max-width:150px;max-height:100px" />'
-            personalized_html = personalized_html.replace('Logo', logo_img)
-        
-        # Add QR code - check for common QR placeholders
-        qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:100px;height:100px" />'
-        
-        # Replace various QR code placeholders
-        personalized_html = personalized_html.replace('{{qrCode}}', qr_img)
-        personalized_html = personalized_html.replace('{{qr_code}}', qr_img)
-        personalized_html = personalized_html.replace('QR Code', qr_img)
-        personalized_html = personalized_html.replace('QRCode', qr_img)
-        
-        # If no QR placeholder found, add QR to bottom right
-        if 'QR' not in personalized_html and qr_code_url:
-            # Add QR code to the end of body
-            qr_div = f'<div style="position:absolute;bottom:10px;right:10px">{qr_img}</div>'
-            personalized_html = personalized_html.replace('</body>', f'{qr_div}</body>')
-        
-        logger.info(f"Personalized HTML preview: {personalized_html[:500]}...")
+        logger.info(f"Final HTML preview: {personalized_html[:500]}...")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
