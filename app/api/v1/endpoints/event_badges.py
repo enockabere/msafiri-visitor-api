@@ -253,7 +253,7 @@ async def generate_participant_badge(
         
         # Get tagline from event badge template variables (not badge template)
         template_vars = badge_config.template_variables or {}
-        tagline = template_vars.get('tagline', '')
+        tagline = template_vars.get('tagline', '') or template_vars.get('badgeTagline', '')
         
         logger.info(f"Badge config template_variables: {template_vars}")
         logger.info(f"Extracted tagline: '{tagline}'")
@@ -271,15 +271,14 @@ async def generate_participant_badge(
         badge_url = await generate_badge(
             participant_id=participant.id,
             event_id=event_id,
-            template_html=badge_config.template_content,  # This already contains images
+            template_html=badge_config.template_content,
             participant_name=participant.full_name,
             badge_name=badge_name,
             event_name=participant.event_name,
             event_dates=event_dates,
             start_date=start_date_formatted,
             end_date=end_date_formatted,
-            event_location=participant.event_location,
-            tagline=tagline,  # From event badge configuration
+            tagline=tagline,
             participant_role="Participant"
         )
         
