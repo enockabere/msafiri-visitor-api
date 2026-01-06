@@ -47,6 +47,16 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             img_tag = f'<img src="{value}" alt="QR Code" style="width: 100px; height: 100px;" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+        # Handle logo as image
+        elif key == 'logo' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="Logo" style="max-width: 150px; max-height: 100px;" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+        # Handle avatar as image
+        elif key == 'avatar' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="Avatar" style="max-width: 100px; max-height: 100px; border-radius: 50%;" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         else:
             # Regular text replacement
             result = result.replace(f'{{{{{key}}}}}', str(value))
@@ -138,7 +148,9 @@ async def generate_badge(
     organization_name: str = "MSF",
     start_date: str = "",
     end_date: str = "",
-    participant_role: str = "Participant"
+    participant_role: str = "Participant",
+    logo_url: str = "",
+    avatar_url: str = ""
 ) -> str:
     """
     Generate complete badge PDF and upload to Cloudinary.
@@ -151,7 +163,7 @@ async def generate_badge(
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
 
-        # Prepare data for template - template already contains images
+        # Prepare data for template - replace image placeholders with actual URLs
         template_data = {
             'participant_name': participant_name,
             'badge_name': badge_name,
@@ -165,12 +177,18 @@ async def generate_badge(
             'tagline': tagline,
             'badge_tagline': tagline,
             'qr_code': qr_code_url,
+            'logo': logo_url if logo_url else '',
+            'avatar': avatar_url if avatar_url else '',
         }
 
         logger.info(f"Template data: {template_data}")
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
+        
+        # Replace image placeholders with actual img tags
+        if logo_url:
+            personalized_html = personalized_html.replace('Logo', f'<img src="{logo_url}" alt="Logo" style="max-width: 150px; max-height: 100px;" />')
         
         logger.info(f"Personalized HTML preview: {personalized_html[:500]}...")
 

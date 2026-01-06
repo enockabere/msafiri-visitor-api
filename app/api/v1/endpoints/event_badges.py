@@ -231,13 +231,16 @@ async def generate_participant_badge(
         if not participant:
             raise HTTPException(status_code=404, detail="Participant not found")
         
-        # Get event badge configuration with template content
+        # Get event badge configuration with template content and image URLs
         badge_config_query = text("""
             SELECT 
                 eb.id,
                 eb.template_variables,
                 bt.template_content,
-                bt.name as template_name
+                bt.name as template_name,
+                bt.logo_url,
+                bt.avatar_url,
+                bt.background_url
             FROM event_badges eb
             JOIN badge_templates bt ON eb.badge_template_id = bt.id
             WHERE eb.event_id = :event_id
@@ -258,6 +261,8 @@ async def generate_participant_badge(
         logger.info(f"Badge config template_variables: {template_vars}")
         logger.info(f"Extracted tagline: '{tagline}'")
         logger.info(f"Template content preview: {badge_config.template_content[:200]}...")
+        logger.info(f"Logo URL: {badge_config.logo_url}")
+        logger.info(f"Avatar URL: {badge_config.avatar_url}")
         
         # Format event dates
         start_date_formatted = participant.start_date.strftime('%B %d, %Y')
@@ -267,7 +272,7 @@ async def generate_participant_badge(
         # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
         badge_name = participant.badge_name or participant.certificate_name or participant.full_name
         
-        # Generate badge PDF with template content that already has images
+        # Generate badge PDF with template content and replace image placeholders
         badge_url = await generate_badge(
             participant_id=participant.id,
             event_id=event_id,
@@ -279,7 +284,9 @@ async def generate_participant_badge(
             start_date=start_date_formatted,
             end_date=end_date_formatted,
             tagline=tagline,
-            participant_role="Participant"
+            participant_role="Participant",
+            logo_url=badge_config.logo_url,
+            avatar_url=badge_config.avatar_url
         )
         
         # Save badge record
