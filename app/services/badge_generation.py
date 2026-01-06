@@ -47,7 +47,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        elif key == 'qr_code' and value and value.startswith('http'):
+        elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
             img_tag = f'<img src="{value}" alt="QR Code" style="width:100px;height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
@@ -175,6 +175,8 @@ async def generate_badge(
             'tagline': tagline,
             'badge_tagline': tagline,
             'qr_code': qr_code_url,
+            'qrCode': qr_code_url,  # Alternative QR code variable name
+            'QR': qr_code_url,      # Another alternative
             'logo': logo_url if logo_url else '',
             'avatar': avatar_url if avatar_url else '',
         }
