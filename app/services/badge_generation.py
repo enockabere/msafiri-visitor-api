@@ -42,9 +42,23 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
-        # For image URLs, just replace with the URL - let the template handle the img tag
-        result = result.replace(f'{{{{{key}}}}}', str(value))
-        result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
+        # Handle image variables by creating img tags
+        if key == 'logo' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+        elif key == 'qr_code' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="QR Code" style="width:100px;height:100px" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+        elif key == 'avatar' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="Avatar" style="max-width:100px;max-height:100px;border-radius:50%" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
+        else:
+            # Regular text replacement
+            result = result.replace(f'{{{{{key}}}}}', str(value))
+            result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
 
     return result
 
