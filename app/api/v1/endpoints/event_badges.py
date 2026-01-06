@@ -231,7 +231,7 @@ async def generate_participant_badge(
         if not participant:
             raise HTTPException(status_code=404, detail="Participant not found")
         
-        # Get event badge configuration
+        # Get event badge configuration with template content
         badge_config_query = text("""
             SELECT 
                 eb.id,
@@ -251,28 +251,27 @@ async def generate_participant_badge(
         if not badge_config:
             raise HTTPException(status_code=404, detail="No badge template configured for this event")
         
+        # Get tagline from event badge template variables (not badge template)
+        template_vars = badge_config.template_variables or {}
+        tagline = template_vars.get('tagline', '')
+        
+        logger.info(f"Badge config template_variables: {template_vars}")
+        logger.info(f"Extracted tagline: '{tagline}'")
+        logger.info(f"Template content preview: {badge_config.template_content[:200]}...")
+        
         # Format event dates
         start_date_formatted = participant.start_date.strftime('%B %d, %Y')
         end_date_formatted = participant.end_date.strftime('%B %d, %Y')
         event_dates = f"{start_date_formatted} - {end_date_formatted}"
         
-        # Get tagline from template variables
-        template_vars = badge_config.template_variables or {}
-        tagline = template_vars.get('tagline', '')
-        logo_url = template_vars.get('logo', '')
-        
-        logger.info(f"Badge config template_variables: {template_vars}")
-        logger.info(f"Extracted tagline: '{tagline}'")
-        logger.info(f"Extracted logo_url: '{logo_url}'")
-        
         # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
         badge_name = participant.badge_name or participant.certificate_name or participant.full_name
         
-        # Generate badge PDF
+        # Generate badge PDF with template content that already has images
         badge_url = await generate_badge(
             participant_id=participant.id,
             event_id=event_id,
-            template_html=badge_config.template_content,
+            template_html=badge_config.template_content,  # This already contains images
             participant_name=participant.full_name,
             badge_name=badge_name,
             event_name=participant.event_name,
@@ -280,9 +279,8 @@ async def generate_participant_badge(
             start_date=start_date_formatted,
             end_date=end_date_formatted,
             event_location=participant.event_location,
-            tagline=tagline,
-            participant_role="Participant",
-            logo_url=logo_url
+            tagline=tagline,  # From event badge configuration
+            participant_role="Participant"
         )
         
         # Save badge record

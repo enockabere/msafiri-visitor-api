@@ -42,25 +42,11 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
     for key, value in variables.items():
-        # Handle special cases for images
-        if key == 'logo' and value:
-            # If logo is a URL, wrap it in an img tag
-            if value.startswith('http'):
-                img_tag = f'<img src="{value}" alt="Logo" style="max-width: 150px; max-height: 100px;" />'
-                result = result.replace(f'{{{{{key}}}}}', img_tag)
-                result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-            else:
-                result = result.replace(f'{{{{{key}}}}}', str(value))
-                result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
-        elif key == 'qr_code' and value:
-            # QR code as image
-            if value.startswith('http'):
-                img_tag = f'<img src="{value}" alt="QR Code" style="width: 100px; height: 100px;" />'
-                result = result.replace(f'{{{{{key}}}}}', img_tag)
-                result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-            else:
-                result = result.replace(f'{{{{{key}}}}}', str(value))
-                result = result.replace(f'{{{{{{{key}}}}}}}', str(value))
+        # Handle QR code as image
+        if key == 'qr_code' and value and value.startswith('http'):
+            img_tag = f'<img src="{value}" alt="QR Code" style="width: 100px; height: 100px;" />'
+            result = result.replace(f'{{{{{key}}}}}', img_tag)
+            result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         else:
             # Regular text replacement
             result = result.replace(f'{{{{{key}}}}}', str(value))
@@ -148,13 +134,11 @@ async def generate_badge(
     badge_name: str,
     event_name: str,
     event_dates: str,
-    event_location: str,
     tagline: str = "",
     organization_name: str = "MSF",
     start_date: str = "",
     end_date: str = "",
-    participant_role: str = "Participant",
-    logo_url: str = ""
+    participant_role: str = "Participant"
 ) -> str:
     """
     Generate complete badge PDF and upload to Cloudinary.
@@ -167,19 +151,19 @@ async def generate_badge(
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
         qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
 
-        # Prepare data for template
+        # Prepare data for template - template already contains images
         template_data = {
             'participant_name': participant_name,
             'badge_name': badge_name,
             'event_name': event_name,
+            'event_title': event_name,
             'event_dates': event_dates,
             'start_date': start_date,
             'end_date': end_date,
-            'event_location': event_location,
             'organization_name': organization_name,
             'participant_role': participant_role,
             'tagline': tagline,
-            'logo': logo_url if logo_url else '',
+            'badge_tagline': tagline,
             'qr_code': qr_code_url,
         }
 
