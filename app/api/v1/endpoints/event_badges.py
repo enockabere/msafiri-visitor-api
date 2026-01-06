@@ -122,6 +122,50 @@ def create_event_badge(
     
     return event_badge
 
+@router.put("/{event_id}/badges/{badge_id}", response_model=EventBadgeResponse)
+def update_event_badge(
+    event_id: int,
+    badge_id: int,
+    badge_data: EventBadgeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_slug: str = Depends(get_tenant_context)
+):
+    """Update an event badge"""
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get existing badge
+    badge = db.query(EventBadge).filter(
+        EventBadge.id == badge_id,
+        EventBadge.event_id == event_id,
+        EventBadge.tenant_id == tenant.id
+    ).first()
+    
+    if not badge:
+        raise HTTPException(status_code=404, detail="Badge not found")
+    
+    # Update badge template if provided
+    if badge_data.badge_template_id:
+        template = db.query(BadgeTemplate).filter(
+            BadgeTemplate.id == badge_data.badge_template_id
+        ).first()
+        if not template:
+            raise HTTPException(status_code=404, detail="Badge template not found")
+        badge.badge_template_id = badge_data.badge_template_id
+    
+    # Update template variables
+    if badge_data.template_variables is not None:
+        badge.template_variables = badge_data.template_variables
+    
+    badge.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(badge)
+    
+    return badge
+
 @router.delete("/{event_id}/badges/{badge_id}")
 def delete_event_badge(
     event_id: int,
