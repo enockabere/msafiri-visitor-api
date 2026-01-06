@@ -183,12 +183,18 @@ async def generate_badge(
 
         logger.info(f"Template data: {template_data}")
 
-        # Replace variables in template
+        # Replace variables in template first
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Replace image placeholders with actual img tags
-        if logo_url:
+        # Then replace any remaining text placeholders with images
+        if logo_url and 'Logo' in personalized_html:
             personalized_html = personalized_html.replace('Logo', f'<img src="{logo_url}" alt="Logo" style="max-width: 150px; max-height: 100px;" />')
+        
+        # Add QR code if template has QR code placeholder
+        if '{{qrCode}}' in personalized_html or 'QR Code' in personalized_html:
+            qr_img_tag = f'<img src="{qr_code_url}" alt="QR Code" style="width: 100px; height: 100px;" />'
+            personalized_html = personalized_html.replace('{{qrCode}}', qr_img_tag)
+            personalized_html = personalized_html.replace('QR Code', qr_img_tag)
         
         logger.info(f"Personalized HTML preview: {personalized_html[:500]}...")
 
