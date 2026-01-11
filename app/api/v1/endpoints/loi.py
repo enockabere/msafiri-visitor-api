@@ -6,6 +6,9 @@ from app.models.event_participant import EventParticipant
 from app.models.invitation_template import InvitationTemplate
 import requests
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
