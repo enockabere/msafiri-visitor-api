@@ -199,6 +199,16 @@ def get_event_public(
             )
         
         logger.info(f"✅ Returning public event details: {event.title}")
+        
+        # Add tenant_slug to response
+        if hasattr(event, 'tenant') and event.tenant:
+            event.tenant_slug = event.tenant.slug
+        else:
+            # Fallback: get tenant by ID
+            tenant = crud.tenant.get(db, id=event.tenant_id)
+            if tenant:
+                event.tenant_slug = tenant.slug
+        
         return event
         
     except HTTPException:

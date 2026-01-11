@@ -56,6 +56,7 @@ class EventUpdate(BaseModel):
 class Event(EventBase):
     id: int
     tenant_id: int
+    tenant_slug: Optional[str] = None
     created_by: str
     created_at: datetime
     updated_at: Optional[datetime] = None
