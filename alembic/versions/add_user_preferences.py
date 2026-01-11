@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_user_preferences'
-down_revision = None  # Replace with actual previous revision
+down_revision = '028_add_travel_preference_fields'
 branch_labels = None
 depends_on = None
 
