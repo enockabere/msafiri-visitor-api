@@ -100,3 +100,4 @@ class User(BaseModel):
     # user_tenants = relationship("UserTenant", back_populates="user")
     emergency_contacts = relationship("EmergencyContact", back_populates="user")
     consents = relationship("UserConsent", back_populates="user")
+    preferences = relationship("UserPreferences", back_populates="user", uselist=False)
