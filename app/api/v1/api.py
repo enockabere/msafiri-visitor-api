@@ -227,6 +227,14 @@ api_router.include_router(
     tags=["loi-generation"]
 )
 
+# LOI generation for events
+from app.api.v1.endpoints import loi_generation
+api_router.include_router(
+    loi_generation.router,
+    prefix="",
+    tags=["loi-generation"]
+)
+
 # POA (Proof of Accommodation) templates
 from app.api.v1.endpoints import poa_templates
 api_router.include_router(

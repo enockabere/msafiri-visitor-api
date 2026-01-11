@@ -154,48 +154,45 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         raise
 
 
-async def upload_pdf_to_azure(pdf_bytes: BytesIO, filename: str) -> str:
+async def upload_pdf_to_cloudinary(pdf_bytes: BytesIO, filename: str) -> str:
     """
-    Upload LOI PDF to Azure Blob Storage.
-
-    Returns:
-        Public URL of uploaded PDF
+    Upload LOI PDF to Cloudinary and return public URL.
     """
     try:
-        from azure.storage.blob import BlobServiceClient, ContentSettings
-
-        if not AZURE_STORAGE_CONNECTION_STRING:
-            raise Exception("Azure Storage not configured")
-
-        blob_service_client = BlobServiceClient.from_connection_string(
-            AZURE_STORAGE_CONNECTION_STRING
+        import cloudinary
+        import cloudinary.uploader
+        from dotenv import load_dotenv
+        
+        load_dotenv()
+        
+        cloudinary.config(
+            cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+            api_key=os.getenv("CLOUDINARY_API_KEY"),
+            api_secret=os.getenv("CLOUDINARY_API_SECRET")
         )
-
-        container_client = blob_service_client.get_container_client(AZURE_LOI_CONTAINER)
-
-        # Create container if it doesn't exist
-        try:
-            container_client.create_container(public_access='blob')
-        except Exception:
-            pass  # Container already exists
-
-        blob_client = container_client.get_blob_client(filename)
-
-        content_settings = ContentSettings(content_type='application/pdf')
+        
+        if not os.getenv("CLOUDINARY_CLOUD_NAME"):
+            raise Exception("Cloudinary not configured")
 
         pdf_bytes.seek(0)
-        blob_client.upload_blob(
-            pdf_bytes.read(),
-            overwrite=True,
-            content_settings=content_settings
+        
+        result = cloudinary.uploader.upload(
+            pdf_bytes,
+            public_id=filename,
+            folder="msafiri-documents/loi",
+            resource_type="raw",
+            format="pdf",
+            use_filename=False,
+            unique_filename=False,
+            overwrite=True
         )
 
-        return blob_client.url
+        return result["secure_url"]
 
     except ImportError:
-        raise Exception("Azure Storage SDK not installed")
+        raise Exception("Cloudinary SDK not installed")
     except Exception as e:
-        logger.error(f"Error uploading LOI PDF to Azure: {str(e)}")
+        logger.error(f"Error uploading PDF to Cloudinary: {str(e)}")
         raise
 
 
@@ -286,8 +283,8 @@ async def generate_loi_document(
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"loi-{event_id}-{participant_id}-{timestamp}.pdf"
 
-        # Upload to Azure
-        pdf_url = await upload_pdf_to_azure(pdf_bytes, filename)
+        # Upload to Cloudinary
+        pdf_url = await upload_pdf_to_cloudinary(pdf_bytes, filename)
 
         logger.info(f"✅ LOI generated: {pdf_url}")
         logger.info(f"📄 Public verification URL: {public_url}")
