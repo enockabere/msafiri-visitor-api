@@ -284,8 +284,9 @@ async def get_participant_details(
             "invitation_accepted": result.status == "confirmed",
             "invitation_accepted_at": result.updated_at.isoformat() if result.status == "confirmed" and result.updated_at else None,
             # Registration details - all from consolidated participant object
-            "country": participant.country_of_work or participant.country,
-            "nationality": participant.nationality,  # Mobile app expects this field
+            "country": participant.country,
+            "nationality": participant.nationality,
+            "country_of_work": participant.country_of_work,
             "position": participant.current_position or participant.position,
             "department": participant.project_of_work or participant.project,
             "gender": participant.gender,
