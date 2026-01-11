@@ -43,6 +43,8 @@ celery==5.3.4
 redis==5.0.1
 APScheduler==3.11.1  # For vetting deadline scheduler
 cloudinary==1.36.0  # For document upload
+qrcode[pil]==7.4.2  # For QR code generation in LOI
+weasyprint==60.2  # For HTML to PDF conversion
 
 # Development
 pytest==7.4.3

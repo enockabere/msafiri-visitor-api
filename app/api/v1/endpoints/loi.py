@@ -274,10 +274,12 @@ async def generate_loi_pdf(
     db: Session = Depends(get_db)
 ):
     """Generate LOI PDF and upload to Cloudinary for mobile app access"""
-    from fastapi.responses import Response
+    from fastapi.responses import RedirectResponse
     from app.services.loi_generation import generate_loi_document
     from app.models.invitation_template import InvitationTemplate
     from app.models.event import Event
+    import re
+    from datetime import datetime
     
     try:
         logger.info(f"📄 LOI GEN: Generating LOI PDF for event {event_id}, participant {participant_id}")
@@ -333,6 +335,11 @@ async def generate_loi_pdf(
                     response_data = response.json()
                     if response_data.get('result', {}).get('status') == 'success':
                         passport_data = response_data['result']['data']
+                        logger.info(f"📄 LOI DATA: Passport data fetched successfully")
+                    else:
+                        logger.warning(f"📄 LOI DATA: External API returned unsuccessful status")
+                else:
+                    logger.warning(f"📄 LOI DATA: External API returned status {response.status_code}")
         except Exception as e:
             logger.warning(f"Could not fetch passport data: {e}")
         
@@ -348,11 +355,84 @@ async def generate_loi_pdf(
         passport_issue_date = passport_data.get('date_of_issue') or 'N/A'
         passport_expiry_date = passport_data.get('date_of_expiry') or 'N/A'
         
-        # Generate LOI PDF and upload to Cloudinary
+        # Get accommodation details from location_id if available
+        accommodation_details = 'N/A'
+        if passport_data.get('location_id', {}).get('accommodation'):
+            accommodation_details = passport_data['location_id']['accommodation']
+        elif event and event.location:
+            accommodation_details = event.location
+        
+        # Log the data being used
+        logger.info(f"📄 LOI DATA: participant_name={participant.full_name}")
+        logger.info(f"📄 LOI DATA: passport_number={passport_number}")
+        logger.info(f"📄 LOI DATA: nationality={nationality}")
+        logger.info(f"📄 LOI DATA: event_name={event_name}")
+        logger.info(f"📄 LOI DATA: event_dates={event_dates}")
+        logger.info(f"📄 LOI DATA: event_location={event_location}")
+        logger.info(f"📄 LOI DATA: template_content_length={len(template.template_content or '')}")
+        
+        # Prepare enhanced template HTML with logos, signatures, and proper styling
+        template_html = template.template_content or ''
+        
+        # Ensure proper HTML structure with responsive CSS
+        if not template_html.strip().startswith('<!DOCTYPE html>') and not template_html.strip().startswith('<html'):
+            template_html = f'''<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Letter of Invitation</title>
+  <style>
+    body {{ font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }}
+    .header {{ text-align: center; margin-bottom: 30px; }}
+    .logo {{ max-width: 200px; height: auto; }}
+    .signature {{ max-width: 120px; max-height: 60px; height: auto; }}
+    .qr-code {{ max-width: 150px; height: auto; }}
+    @media print {{ body {{ margin: 0; }} }}
+  </style>
+</head>
+<body>
+{template_html}
+</body>
+</html>'''
+        
+        # Add logo if available
+        if hasattr(template, 'logo_url') and template.logo_url:
+            logo_html = f'<img src="{template.logo_url}" alt="Logo" class="logo" />'
+            template_html = template_html.replace('{{logo}}', logo_html)
+        else:
+            template_html = template_html.replace('{{logo}}', '')
+        
+        # Add signature if available
+        if hasattr(template, 'signature_url') and template.signature_url:
+            signature_html = f'<img src="{template.signature_url}" alt="Signature" class="signature" />'
+            template_html = template_html.replace('{{signature}}', signature_html)
+        else:
+            template_html = template_html.replace('{{signature}}', '')
+        
+        # Add address fields
+        if hasattr(template, 'address_fields') and template.address_fields:
+            address_text = '<br>'.join(template.address_fields) if isinstance(template.address_fields, list) else str(template.address_fields).replace('\n', '<br>')
+            template_html = template_html.replace('{{organizationAddress}}', address_text)
+            template_html = template_html.replace('{{organization_address}}', address_text)
+        else:
+            template_html = template_html.replace('{{organizationAddress}}', 'MSF Kenya, Nairobi')
+            template_html = template_html.replace('{{organization_address}}', 'MSF Kenya, Nairobi')
+        
+        # Add signature footer
+        if hasattr(template, 'signature_footer_fields') and template.signature_footer_fields:
+            footer_text = '<br>'.join(template.signature_footer_fields) if isinstance(template.signature_footer_fields, list) else str(template.signature_footer_fields).replace('\n', '<br>')
+            template_html = template_html.replace('{{signatureFooter}}', footer_text)
+            template_html = template_html.replace('{{signature_footer}}', footer_text)
+        else:
+            template_html = template_html.replace('{{signatureFooter}}', '')
+            template_html = template_html.replace('{{signature_footer}}', '')
+        
+        # Generate LOI PDF and upload to Cloudinary with all data
         pdf_url, loi_slug = await generate_loi_document(
             participant_id=participant_id,
             event_id=event_id,
-            template_html=template.template_content or '',
+            template_html=template_html,  # Use enhanced template with logos/signatures
             participant_name=participant.full_name,
             passport_number=passport_number,
             nationality=nationality,
@@ -368,12 +448,29 @@ async def generate_loi_pdf(
         logger.info(f"📄 LOI GEN: PDF generated and uploaded: {pdf_url}")
         
         # Return redirect to Cloudinary PDF URL for direct viewing
-        from fastapi.responses import RedirectResponse
         return RedirectResponse(url=pdf_url, status_code=302)
         
     except Exception as e:
         logger.error(f"📄 LOI GEN ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/debug/template")
+async def debug_template(db: Session = Depends(get_db)):
+    """Debug endpoint to check current invitation template"""
+    template = db.query(InvitationTemplate).filter(
+        InvitationTemplate.is_active == True
+    ).first()
+    
+    if not template:
+        return {"error": "No active template found"}
+    
+    return {
+        "template_id": template.id,
+        "template_name": getattr(template, 'name', 'Unknown'),
+        "template_content_length": len(template.template_content or ''),
+        "template_preview": (template.template_content or '')[:500] + "..." if len(template.template_content or '') > 500 else template.template_content,
+        "is_active": template.is_active
+    }
 
 @router.get("/events/{event_id}/participant/{participant_id}/data")
 async def get_loi_data_for_participant(

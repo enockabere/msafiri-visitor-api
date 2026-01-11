@@ -242,7 +242,12 @@ async def generate_loi_document(
         public_url = f"{FRONTEND_URL}/public/loi/{loi_slug}"
 
         # Generate QR code
+        logger.info(f"📄 Generating QR code for URL: {public_url}")
         qr_code_base64 = generate_qr_code(public_url)
+        if qr_code_base64:
+            logger.info(f"✅ QR code generated successfully")
+        else:
+            logger.warning(f"⚠️ QR code generation failed")
 
         # Prepare data for template
         template_data = {
@@ -259,22 +264,40 @@ async def generate_loi_document(
         }
 
         # Replace variables in template
+        logger.info(f"📄 Template data: {template_data}")
         personalized_html = replace_template_variables(template_html, template_data)
-
-        # Insert QR code into HTML (append at the end before </body>)
-        if qr_code_base64 and '</body>' in personalized_html:
-            qr_html = f'''
-            <div style="margin-top: 30px; text-align: center; page-break-inside: avoid;">
-                <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
-                    Scan QR code to verify this document online:
-                </p>
-                <img src="{qr_code_base64}" class="qr-code" alt="QR Code for verification" />
-                <p style="font-size: 10px; color: #999; margin-top: 5px;">
-                    {public_url}
-                </p>
-            </div>
-            '''
-            personalized_html = personalized_html.replace('</body>', f'{qr_html}</body>')
+        logger.info(f"📄 Template variables replaced, HTML length: {len(personalized_html)}")
+        
+        # Ensure QR code placeholder is handled even if not in original template
+        if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
+            # Add QR code section before closing body tag if not already present
+            if qr_code_base64 and '</body>' in personalized_html:
+                qr_html = f'''
+                <div style="margin-top: 30px; text-align: center; page-break-inside: avoid;">
+                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
+                        Scan QR code to verify this document online:
+                    </p>
+                    <img src="{qr_code_base64}" class="qr-code" alt="QR Code for verification" />
+                    <p style="font-size: 10px; color: #999; margin-top: 5px;">
+                        {public_url}
+                    </p>
+                </div>
+                '''
+                personalized_html = personalized_html.replace('</body>', f'{qr_html}</body>')
+        else:
+            # Replace QR code placeholders if they exist in template
+            if qr_code_base64:
+                qr_html = f'''
+                <div style="text-align: center; margin: 10px 0;">
+                    <img src="{qr_code_base64}" class="qr-code" alt="QR Code for verification" />
+                    <p style="font-size: 10px; color: #999; margin-top: 5px;">Scan to verify document</p>
+                </div>
+                '''
+                personalized_html = personalized_html.replace('{{qrCode}}', qr_html)
+                personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
+            else:
+                personalized_html = personalized_html.replace('{{qrCode}}', '')
+                personalized_html = personalized_html.replace('{{qr_code}}', '')
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
