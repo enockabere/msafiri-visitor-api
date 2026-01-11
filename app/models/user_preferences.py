@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.core.database import Base
+from app.db.database import Base
 
 class UserPreferences(Base):
     __tablename__ = "user_preferences"
