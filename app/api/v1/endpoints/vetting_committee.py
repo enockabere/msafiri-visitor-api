@@ -126,18 +126,54 @@ def get_my_vetting_events(
     # Get committees where user is member or approver
     committees = []
     
+    # Check by role first
     if current_user.role == UserRole.VETTING_COMMITTEE:
-        committees = crud_vetting.get_committee_for_user(db, current_user.email)
+        committees.extend(crud_vetting.get_committee_for_user(db, current_user.email))
     elif current_user.role == UserRole.VETTING_APPROVER:
-        committees = db.query(VettingCommittee).filter(
+        committees.extend(db.query(VettingCommittee).filter(
             VettingCommittee.approver_email == current_user.email
-        ).all()
+        ).all())
+    
+    # Also check by database relationships (for users who might be members/approvers without explicit roles)
+    # Check if user is a committee member
+    member_committees = db.query(VettingCommittee).join(
+        VettingCommitteeMember, VettingCommittee.id == VettingCommitteeMember.committee_id
+    ).filter(
+        VettingCommitteeMember.email == current_user.email
+    ).all()
+    committees.extend(member_committees)
+    
+    # Check if user is an approver by email or user_id
+    approver_committees = db.query(VettingCommittee).filter(
+        or_(
+            VettingCommittee.approver_email == current_user.email,
+            VettingCommittee.approver_id == current_user.id
+        )
+    ).all()
+    committees.extend(approver_committees)
+    
+    # Remove duplicates
+    unique_committees = {}
+    for committee in committees:
+        unique_committees[committee.id] = committee
+    committees = list(unique_committees.values())
     
     # Get event details for each committee
     vetting_events = []
     for committee in committees:
         event = db.query(Event).filter(Event.id == committee.event_id).first()
         if event:
+            # Determine user's role in this committee
+            role = "unknown"
+            if current_user.role == UserRole.VETTING_COMMITTEE or any(
+                member.email == current_user.email for member in committee.members
+            ):
+                role = "committee_member"
+            elif (current_user.role == UserRole.VETTING_APPROVER or 
+                  committee.approver_email == current_user.email or 
+                  committee.approver_id == current_user.id):
+                role = "approver"
+            
             vetting_events.append({
                 "event_id": event.id,
                 "event_title": event.title,
@@ -145,7 +181,7 @@ def get_my_vetting_events(
                 "event_end_date": event.end_date,
                 "committee_id": committee.id,
                 "committee_status": committee.status.value,
-                "role": "committee_member" if current_user.role == UserRole.VETTING_COMMITTEE else "approver",
+                "role": role,
                 "selection_start_date": committee.selection_start_date,
                 "selection_end_date": committee.selection_end_date
             })
