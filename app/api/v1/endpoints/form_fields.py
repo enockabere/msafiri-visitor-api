@@ -236,7 +236,6 @@ def restore_complete_form_fields(
         {"field_name": "badgeName", "field_label": "Badge Name", "field_type": "text", "is_required": False, "order_index": 402, "section": "final"},
         {"field_name": "motivationLetter", "field_label": "Motivation Letter", "field_type": "richtext", "is_required": False, "order_index": 403, "section": "final"},
         {"field_name": "codeOfConductConfirm", "field_label": "Code of Conduct Confirmation", "field_type": "select", "field_options": json.dumps(["I agree"]), "is_required": True, "order_index": 404, "section": "final"},
-        {"field_name": "travelRequirementsConfirm", "field_label": "Travel Requirements Confirmation", "field_type": "select", "field_options": json.dumps(["I agree"]), "is_required": False, "order_index": 405, "section": "final"},
     ]
     
     # Get existing field names
