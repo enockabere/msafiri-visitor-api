@@ -44,7 +44,7 @@ class Event(BaseModel):
     created_by = Column(String(255), nullable=False)
     
     # Relationships
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant = relationship("Tenant", primaryjoin="Event.tenant_id == Tenant.id")
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
     attachments = relationship("EventAttachment", back_populates="event", cascade="all, delete-orphan")
     certificates = relationship("EventCertificate", back_populates="event", cascade="all, delete-orphan")
