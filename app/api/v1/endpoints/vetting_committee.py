@@ -113,6 +113,45 @@ def get_my_committees(
     
     return committees
 
+@router.get("/my-vetting-events")
+def get_my_vetting_events(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get events where current user has vetting roles with event details"""
+    
+    from app.models.event import Event
+    from sqlalchemy import or_
+    
+    # Get committees where user is member or approver
+    committees = []
+    
+    if current_user.role == UserRole.VETTING_COMMITTEE:
+        committees = crud_vetting.get_committee_for_user(db, current_user.email)
+    elif current_user.role == UserRole.VETTING_APPROVER:
+        committees = db.query(VettingCommittee).filter(
+            VettingCommittee.approver_email == current_user.email
+        ).all()
+    
+    # Get event details for each committee
+    vetting_events = []
+    for committee in committees:
+        event = db.query(Event).filter(Event.id == committee.event_id).first()
+        if event:
+            vetting_events.append({
+                "event_id": event.id,
+                "event_title": event.title,
+                "event_start_date": event.start_date,
+                "event_end_date": event.end_date,
+                "committee_id": committee.id,
+                "committee_status": committee.status.value,
+                "role": "committee_member" if current_user.role == UserRole.VETTING_COMMITTEE else "approver",
+                "selection_start_date": committee.selection_start_date,
+                "selection_end_date": committee.selection_end_date
+            })
+    
+    return {"vetting_events": vetting_events}
+
 @router.get("/{committee_id}/participants")
 def get_committee_participants(
     committee_id: int,
