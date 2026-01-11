@@ -40,11 +40,11 @@ class Event(BaseModel):
     double_rooms = Column(Integer)
     
     # Metadata
-    tenant_id = Column(Integer, nullable=False)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_by = Column(String(255), nullable=False)
     
     # Relationships
-    tenant = relationship("Tenant", primaryjoin="Event.tenant_id == Tenant.id")
+    tenant = relationship("Tenant")
     participants = relationship("EventParticipant", back_populates="event", cascade="all, delete-orphan")
     attachments = relationship("EventAttachment", back_populates="event", cascade="all, delete-orphan")
     certificates = relationship("EventCertificate", back_populates="event", cascade="all, delete-orphan")
