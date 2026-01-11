@@ -279,6 +279,13 @@ def create_event(
         
         logger.info(f"✅ Creating event for tenant: {target_tenant} (ID: {tenant_obj.id})")
         
+        # Clean up orphaned vetting roles before creating new event
+        try:
+            from app.services.vetting_role_cleanup_service import cleanup_orphaned_vetting_roles
+            cleanup_orphaned_vetting_roles(db)
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to cleanup orphaned vetting roles: {str(e)}")
+        
         # Create event
         try:
             event = crud.event.create_with_tenant(
@@ -713,6 +720,13 @@ def delete_event(
         connection.commit()
         cursor.close()
         connection.close()
+        
+        # Clean up vetting roles for users who were part of this event's vetting committee
+        try:
+            from app.services.vetting_role_cleanup_service import cleanup_orphaned_vetting_roles_for_deleted_event
+            cleanup_orphaned_vetting_roles_for_deleted_event(db, event_id)
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to cleanup vetting roles for deleted event: {str(e)}")
         
         logger.info(f"🎉 Event deleted successfully using raw SQL: {event_id}")
         
