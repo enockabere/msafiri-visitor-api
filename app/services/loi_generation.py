@@ -205,7 +205,8 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 font-size: 10px;
                 line-height: 1.3;
                 justify-self: end;
-                max-width: 180px;
+                max-width: 250px;  /* Increased from 180px */
+                min-width: 200px;  /* Added minimum width */
             }
             .address p, .address a {
                 margin: 2px 0;
