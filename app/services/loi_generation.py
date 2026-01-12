@@ -163,31 +163,33 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         css_string = """
             @page {
                 size: A4;
-                margin: 1.5cm 1.2cm;  /* Reduced margins for mobile */
+                margin: 1.2cm 1.2cm 1cm 1.2cm;  /* Reduced top margin further */
             }
             body {
                 font-family: 'Arial', 'Helvetica', sans-serif;
-                line-height: 1.4;  /* Reduced line height */
+                line-height: 1.4;
                 color: #333;
-                font-size: 11px;  /* Reduced base font size */
+                font-size: 11px;
+                margin: 0;
+                padding: 0;
             }
             h1, h2, h3 {
                 color: #dc2626;
-                margin: 8px 0;  /* Reduced margins */
+                margin: 6px 0;  /* Further reduced margins */
             }
             p {
-                margin: 6px 0;  /* Reduced paragraph margins */
+                margin: 5px 0;  /* Further reduced paragraph margins */
             }
             .letterhead {
                 display: grid;
                 grid-template-columns: auto 1fr auto;
-                align-items: start;  /* Changed from center to start */
+                align-items: start;
                 gap: 10px;
-                margin-bottom: 15px;  /* Reduced margin */
+                margin-bottom: 10px;  /* Reduced from 15px */
             }
             .logo img {
-                height: 80px;  /* Reduced from 120px */
-                max-width: 150px;  /* Reduced from 200px */
+                height: 80px;
+                max-width: 150px;
             }
             .qr {
                 display: flex;
@@ -195,18 +197,18 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 align-items: flex-start;
             }
             .qr img {
-                width: 50px;  /* Fixed small size */
-                height: 50px;
+                width: 55px;  /* Increased from 50px to 55px */
+                height: 55px;
             }
             .address {
                 text-align: left;
-                font-size: 10px;  /* Reduced font size */
+                font-size: 10px;
                 line-height: 1.3;
                 justify-self: end;
-                max-width: 180px;  /* Constrain width */
+                max-width: 180px;
             }
             .address p, .address a {
-                margin: 2px 0;  /* Reduced margins */
+                margin: 2px 0;
                 display: block;
             }
             .address .org {
@@ -227,11 +229,11 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
             }
             /* Signature section styling */
             .signature-section {
-                margin-top: 30px;
+                margin-top: 25px;  /* Reduced from 30px */
                 page-break-inside: avoid;
             }
             .signature-footer {
-                margin-top: 8px;
+                margin-top: 4px;  /* Reduced from 8px */
                 font-size: 10px;
                 line-height: 1.3;
                 clear: both;
@@ -371,12 +373,12 @@ async def generate_loi_document(
         if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
             # Add QR code section in letterhead if not already present
             if qr_code_base64 and '<div class="letterhead">' in personalized_html:
-                qr_html = f'<img src="{qr_code_base64}" style="width: 50px; height: 50px;" alt="QR Code" />'
+                qr_html = f'<img src="{qr_code_base64}" style="width: 55px; height: 55px;" alt="QR Code" />'
                 personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
         else:
             # Replace QR code placeholders if they exist in template
             if qr_code_base64:
-                qr_html = f'<img src="{qr_code_base64}" style="width: 50px; height: 50px;" alt="QR Code" />'
+                qr_html = f'<img src="{qr_code_base64}" style="width: 55px; height: 55px;" alt="QR Code" />'
                 personalized_html = personalized_html.replace('{{qrCode}}', qr_html)
                 personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
             else:
