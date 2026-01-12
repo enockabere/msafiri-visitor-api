@@ -32,9 +32,8 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
     import re
     result = template_html
     
-    # Log what template variables exist in the template
+    # Find template variables in the template
     template_vars = re.findall(r'\{\{\s*([^}]+)\s*\}\}', template_html)
-    logger.info(f"📄 TEMPLATE VARS FOUND: {template_vars}")
 
     # Define all supported variables with multiple naming conventions
     variables = {
@@ -72,10 +71,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         ]
         for pattern in patterns:
             if pattern.replace('{{', '').replace('}}', '').strip() in template_vars or key in template_vars:
-                old_result = result
                 result = result.replace(pattern, str(value))
-                if old_result != result:
-                    logger.info(f"📄 REPLACED: {pattern} -> {value}")
 
     # Also try regex replacement for whitespace variations
     for key, value in variables.items():
@@ -83,7 +79,6 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         matches = re.findall(pattern, result, re.IGNORECASE)
         if matches:
             result = re.sub(pattern, str(value), result, flags=re.IGNORECASE)
-            logger.info(f"📄 REGEX REPLACED: {key} -> {value}")
 
     return result
 
@@ -276,12 +271,7 @@ async def generate_loi_document(
         public_url = f"{FRONTEND_URL}/public/loi/{loi_slug}"
 
         # Generate QR code
-        logger.info(f"📄 Generating QR code for URL: {public_url}")
         qr_code_base64 = generate_qr_code(public_url)
-        if qr_code_base64:
-            logger.info(f"✅ QR code generated successfully")
-        else:
-            logger.warning(f"⚠️ QR code generation failed")
 
         # Prepare data for template
         template_data = {
@@ -298,9 +288,7 @@ async def generate_loi_document(
         }
 
         # Replace variables in template
-        logger.info(f"📄 Template data: {template_data}")
         personalized_html = replace_template_variables(template_html, template_data)
-        logger.info(f"📄 Template variables replaced, HTML length: {len(personalized_html)}")
         
         # Ensure QR code placeholder is handled even if not in original template
         if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
@@ -343,8 +331,7 @@ async def generate_loi_document(
         # Upload to Cloudinary
         pdf_url = await upload_pdf_to_cloudinary(pdf_bytes, filename)
 
-        logger.info(f"✅ LOI generated: {pdf_url}")
-        logger.info(f"📄 Public verification URL: {public_url}")
+
 
         return pdf_url, loi_slug
 

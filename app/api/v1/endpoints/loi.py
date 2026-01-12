@@ -282,7 +282,7 @@ async def generate_loi_pdf(
     from datetime import datetime
     
     try:
-        logger.info(f"📄 LOI GEN: Generating LOI PDF for event {event_id}, participant {participant_id}")
+        logger.info(f"Generating LOI PDF for event {event_id}, participant {participant_id}")
         
         # Get the active invitation template
         template = db.query(InvitationTemplate).filter(
@@ -319,12 +319,9 @@ async def generate_loi_pdf(
             ).first()
             
             if passport_record:
-                logger.info(f"📄 PASSPORT: Found passport record with record_id: {passport_record.record_id}")
                 
                 API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
                 API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-                
-                logger.info(f"📄 PASSPORT: Making API call to: {API_URL}")
                 
                 headers = {
                     'x-api-key': API_KEY,
@@ -333,30 +330,22 @@ async def generate_loi_pdf(
                 }
                 
                 payload = {"passport_id": passport_record.record_id}
-                logger.info(f"📄 PASSPORT: Request payload: {payload}")
-                
                 response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-                logger.info(f"📄 PASSPORT: API response status: {response.status_code}")
-                logger.info(f"📄 PASSPORT: API response content: {response.text[:500]}...")
                 
                 if response.status_code == 200:
                     response_data = response.json()
-                    logger.info(f"📄 PASSPORT: Parsed response data: {response_data}")
                     
                     if response_data.get('result', {}).get('status') == 'success':
                         passport_data = response_data['result']['data']
-                        logger.info(f"📄 PASSPORT: Extracted passport data: {passport_data}")
-                        logger.info(f"✅ PASSPORT: Data fetched successfully")
+                        logger.info(f"Passport data fetched successfully")
                     else:
-                        logger.warning(f"⚠️ PASSPORT: External API returned unsuccessful status: {response_data.get('result', {})}")
+                        logger.warning(f"External API returned unsuccessful status")
                 else:
-                    logger.warning(f"⚠️ PASSPORT: External API returned status {response.status_code}: {response.text}")
+                    logger.warning(f"External API returned status {response.status_code}")
             else:
-                logger.warning(f"⚠️ PASSPORT: No passport record found for email {participant.email} and event {event_id}")
+                logger.warning(f"No passport record found for email {participant.email} and event {event_id}")
         except Exception as e:
-            logger.error(f"❌ PASSPORT: Error fetching passport data: {str(e)}")
-            import traceback
-            logger.error(f"❌ PASSPORT: Traceback: {traceback.format_exc()}")
+            logger.error(f"Error fetching passport data: {str(e)}")
         
         # Prepare event details
         event_name = event.title if event else f"Event {event_id}"
@@ -371,12 +360,6 @@ async def generate_loi_pdf(
         passport_expiry_date = passport_data.get('date_of_expiry') or 'N/A'
         
         # Log what passport data fields we found
-        logger.info(f"📄 PASSPORT FIELDS: passport_no={passport_data.get('passport_no')}")
-        logger.info(f"📄 PASSPORT FIELDS: nationality={passport_data.get('nationality')}")
-        logger.info(f"📄 PASSPORT FIELDS: date_of_birth={passport_data.get('date_of_birth')}")
-        logger.info(f"📄 PASSPORT FIELDS: date_of_issue={passport_data.get('date_of_issue')}")
-        logger.info(f"📄 PASSPORT FIELDS: date_of_expiry={passport_data.get('date_of_expiry')}")
-        logger.info(f"📄 PASSPORT FIELDS: All available keys: {list(passport_data.keys())}")
         
         # Get accommodation details from location_id if available
         accommodation_details = 'N/A'
@@ -385,14 +368,7 @@ async def generate_loi_pdf(
         elif event and event.location:
             accommodation_details = event.location
         
-        # Log the data being used
-        logger.info(f"📄 LOI DATA: participant_name={participant.full_name}")
-        logger.info(f"📄 LOI DATA: passport_number={passport_number}")
-        logger.info(f"📄 LOI DATA: nationality={nationality}")
-        logger.info(f"📄 LOI DATA: event_name={event_name}")
-        logger.info(f"📄 LOI DATA: event_dates={event_dates}")
-        logger.info(f"📄 LOI DATA: event_location={event_location}")
-        logger.info(f"📄 LOI DATA: template_content_length={len(template.template_content or '')}")
+
         
         # Prepare enhanced template HTML with logos, signatures, and proper styling
         template_html = template.template_content or ''
@@ -468,13 +444,13 @@ async def generate_loi_pdf(
             organization_name='MSF'
         )
         
-        logger.info(f"📄 LOI GEN: PDF generated and uploaded: {pdf_url}")
+        logger.info(f"PDF generated and uploaded: {pdf_url}")
         
         # Return redirect to Cloudinary PDF URL for direct viewing
         return RedirectResponse(url=pdf_url, status_code=302)
         
     except Exception as e:
-        logger.error(f"📄 LOI GEN ERROR: {str(e)}")
+        logger.error(f"LOI generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/debug/template")
