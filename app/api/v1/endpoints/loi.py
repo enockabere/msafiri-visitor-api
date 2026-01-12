@@ -349,6 +349,8 @@ async def generate_loi_pdf(
         
         # Prepare event details
         event_name = event.title if event else f"Event {event_id}"
+        event_start_date = event.start_date.strftime('%B %d, %Y') if event and event.start_date else "TBD"
+        event_end_date = event.end_date.strftime('%B %d, %Y') if event and event.end_date else "TBD"
         event_dates = f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD"
         event_location = event.location if event else "TBD"
         

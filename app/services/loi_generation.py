@@ -25,7 +25,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
 
 def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
     """
-    Replace template variables with actual participant data.
+    Replace template variables with actual participant data and make them bold.
 
     Template variables format: {{variableName}}
     """
@@ -56,29 +56,38 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'event_dates': data.get('event_dates', ''),
         'eventLocation': data.get('event_location', ''),
         'event_location': data.get('event_location', ''),
+        'event_start_date': data.get('event_start_date', ''),
+        'event_end_date': data.get('event_end_date', ''),
+        'accommodation_details': data.get('accommodation_details', ''),
         # Organization data
         'organizationName': data.get('organization_name', 'MSF'),
         'organization_name': data.get('organization_name', 'MSF'),
+        'organizer_name': data.get('organizer_name', ''),
+        'organizer_title': data.get('organizer_title', ''),
         'currentDate': datetime.now().strftime('%B %d, %Y'),
         'current_date': datetime.now().strftime('%B %d, %Y'),
     }
 
-    # Replace each variable with multiple patterns
+    # Replace each variable with bold formatting
     for key, value in variables.items():
-        patterns = [
-            f'{{{{{key}}}}}',  # {{variable}}
-            f'{{{{ {key} }}}}',  # {{ variable }}
-        ]
-        for pattern in patterns:
-            if pattern.replace('{{', '').replace('}}', '').strip() in template_vars or key in template_vars:
-                result = result.replace(pattern, str(value))
+        if value:  # Only replace if value is not empty
+            bold_value = f'<span class="variable">{value}</span>'
+            patterns = [
+                f'{{{{{key}}}}}',  # {{variable}}
+                f'{{{{ {key} }}}}',  # {{ variable }}
+            ]
+            for pattern in patterns:
+                if pattern.replace('{{', '').replace('}}', '').strip() in template_vars or key in template_vars:
+                    result = result.replace(pattern, bold_value)
 
     # Also try regex replacement for whitespace variations
     for key, value in variables.items():
-        pattern = f'{{{{\s*{re.escape(key)}\s*}}}}'
-        matches = re.findall(pattern, result, re.IGNORECASE)
-        if matches:
-            result = re.sub(pattern, str(value), result, flags=re.IGNORECASE)
+        if value:  # Only replace if value is not empty
+            bold_value = f'<span class="variable">{value}</span>'
+            pattern = f'{{{{\s*{re.escape(key)}\s*}}}}'
+            matches = re.findall(pattern, result, re.IGNORECASE)
+            if matches:
+                result = re.sub(pattern, bold_value, result, flags=re.IGNORECASE)
 
     return result
 
@@ -112,18 +121,18 @@ def generate_qr_code(url: str) -> str:
         import qrcode
         from qrcode.image.pure import PyPNGImage
 
-        # Create QR code instance
+        # Create QR code instance with smaller size for mobile
         qr = qrcode.QRCode(
             version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=10,
-            border=4,
+            box_size=6,  # Reduced from 10 to 6
+            border=2,    # Reduced from 4 to 2
         )
 
         qr.add_data(url)
         qr.make(fit=True)
 
-        # Create image
+        # Create image with smaller dimensions
         img = qr.make_image(fill_color="black", back_color="white")
 
         # Convert to bytes
@@ -146,7 +155,7 @@ def generate_qr_code(url: str) -> str:
 
 async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     """
-    Convert HTML to PDF bytes using WeasyPrint.
+    Convert HTML to PDF bytes using WeasyPrint with mobile-optimized settings.
     """
     try:
         from weasyprint import HTML, CSS
@@ -154,19 +163,82 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         css_string = """
             @page {
                 size: A4;
-                margin: 2.5cm;
+                margin: 1.5cm 1.2cm;  /* Reduced margins for mobile */
             }
             body {
                 font-family: 'Arial', 'Helvetica', sans-serif;
-                line-height: 1.6;
+                line-height: 1.4;  /* Reduced line height */
                 color: #333;
+                font-size: 11px;  /* Reduced base font size */
             }
             h1, h2, h3 {
                 color: #dc2626;
+                margin: 8px 0;  /* Reduced margins */
             }
-            .qr-code {
-                max-width: 200px;
-                height: auto;
+            p {
+                margin: 6px 0;  /* Reduced paragraph margins */
+            }
+            .letterhead {
+                display: grid;
+                grid-template-columns: auto 1fr auto;
+                align-items: start;  /* Changed from center to start */
+                gap: 10px;
+                margin-bottom: 15px;  /* Reduced margin */
+            }
+            .logo img {
+                height: 80px;  /* Reduced from 120px */
+                max-width: 150px;  /* Reduced from 200px */
+            }
+            .qr {
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+            }
+            .qr img {
+                width: 50px;  /* Fixed small size */
+                height: 50px;
+            }
+            .address {
+                text-align: left;
+                font-size: 10px;  /* Reduced font size */
+                line-height: 1.3;
+                justify-self: end;
+                max-width: 180px;  /* Constrain width */
+            }
+            .address p, .address a {
+                margin: 2px 0;  /* Reduced margins */
+                display: block;
+            }
+            .address .org {
+                font-weight: bold;
+                font-size: 11px;
+            }
+            .address .tel {
+                margin-top: 4px;
+            }
+            .address a {
+                color: #1a73e8;
+                text-decoration: none;
+            }
+            /* Make variables bold */
+            .variable {
+                font-weight: bold;
+                color: #000;
+            }
+            /* Signature section styling */
+            .signature-section {
+                margin-top: 30px;
+                page-break-inside: avoid;
+            }
+            .signature-footer {
+                margin-top: 8px;
+                font-size: 10px;
+                line-height: 1.3;
+                clear: both;
+            }
+            /* Ensure single page */
+            .content {
+                page-break-inside: avoid;
             }
         """
 
@@ -283,38 +355,28 @@ async def generate_loi_document(
             'passport_expiry_date': passport_expiry_date or 'N/A',
             'event_name': event_name,
             'event_dates': event_dates,
+            'event_start_date': event_dates.split(' - ')[0] if ' - ' in event_dates else event_dates,
+            'event_end_date': event_dates.split(' - ')[1] if ' - ' in event_dates else event_dates,
             'event_location': event_location,
+            'accommodation_details': 'MSF approved accommodation',
             'organization_name': organization_name,
+            'organizer_name': 'Isaac Kimani',
+            'organizer_title': 'Admin Transit',
         }
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Ensure QR code placeholder is handled even if not in original template
+        # Ensure QR code placeholder is handled with smaller size
         if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
-            # Add QR code section before closing body tag if not already present
-            if qr_code_base64 and '</body>' in personalized_html:
-                qr_html = f'''
-                <div style="margin-top: 30px; text-align: center; page-break-inside: avoid;">
-                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">
-                        Scan QR code to verify this document online:
-                    </p>
-                    <img src="{qr_code_base64}" class="qr-code" alt="QR Code for verification" />
-                    <p style="font-size: 10px; color: #999; margin-top: 5px;">
-                        {public_url}
-                    </p>
-                </div>
-                '''
-                personalized_html = personalized_html.replace('</body>', f'{qr_html}</body>')
+            # Add QR code section in letterhead if not already present
+            if qr_code_base64 and '<div class="letterhead">' in personalized_html:
+                qr_html = f'<img src="{qr_code_base64}" style="width: 50px; height: 50px;" alt="QR Code" />'
+                personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
         else:
             # Replace QR code placeholders if they exist in template
             if qr_code_base64:
-                qr_html = f'''
-                <div style="text-align: center; margin: 10px 0;">
-                    <img src="{qr_code_base64}" class="qr-code" alt="QR Code for verification" />
-                    <p style="font-size: 10px; color: #999; margin-top: 5px;">Scan to verify document</p>
-                </div>
-                '''
+                qr_html = f'<img src="{qr_code_base64}" style="width: 50px; height: 50px;" alt="QR Code" />'
                 personalized_html = personalized_html.replace('{{qrCode}}', qr_html)
                 personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
             else:
