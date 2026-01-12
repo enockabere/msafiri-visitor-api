@@ -275,10 +275,16 @@ async def public_register_for_event(
         if registration.lineManagerEmail and registration.lineManagerEmail.strip():
             recommendation_contacts.append(("Line Manager", registration.lineManagerEmail))
         
+        print(f"🔥 DEBUG: Found {len(recommendation_contacts)} recommendation contacts: {recommendation_contacts}")
+        
         if recommendation_contacts:
+            print(f"🔥 DEBUG: Calling send_recommendation_emails function")
             await send_recommendation_emails(
                 db, event_id, participant.id, registration, event, recommendation_contacts
             )
+            print(f"🔥 DEBUG: send_recommendation_emails function completed")
+        else:
+            print(f"🔥 DEBUG: No recommendation contacts found, skipping email sending")
         
         db.commit()
         
@@ -303,108 +309,135 @@ async def send_recommendation_emails(
     import uuid
     from sqlalchemy import text
     
+    print(f"🔥 DEBUG: send_recommendation_emails called with {len(contacts)} contacts")
+    
     try:
         for contact_type, email in contacts:
+            print(f"🔥 DEBUG: Processing {contact_type}: {email}")
+            
             # Generate unique token for each recommendation
             recommendation_token = str(uuid.uuid4())
+            print(f"🔥 DEBUG: Generated token: {recommendation_token}")
             
             # Insert recommendation record for each contact
-            db.execute(
-                text("""
-                    INSERT INTO line_manager_recommendations (
-                        registration_id, event_id, participant_name, participant_email,
-                        line_manager_email, operation_center, event_title, event_dates,
-                        event_location, recommendation_token, contact_type, created_at
-                    ) VALUES (
-                        :registration_id, :event_id, :participant_name, :participant_email,
-                        :line_manager_email, :operation_center, :event_title, :event_dates,
-                        :event_location, :recommendation_token, :contact_type, CURRENT_TIMESTAMP
-                    )
-                """),
-                {
-                    "registration_id": participant_id,
-                    "event_id": event_id,
-                    "participant_name": f"{registration.firstName} {registration.lastName}",
-                    "participant_email": registration.personalEmail,
-                    "line_manager_email": email,
-                    "operation_center": registration.oc,
-                    "event_title": event.title,
-                    "event_dates": f"{event.start_date} to {event.end_date}",
-                    "event_location": event.location,
-                    "recommendation_token": recommendation_token,
-                    "contact_type": contact_type
-                }
-            )
+            try:
+                db.execute(
+                    text("""
+                        INSERT INTO line_manager_recommendations (
+                            registration_id, event_id, participant_name, participant_email,
+                            line_manager_email, operation_center, event_title, event_dates,
+                            event_location, recommendation_token, contact_type, created_at
+                        ) VALUES (
+                            :registration_id, :event_id, :participant_name, :participant_email,
+                            :line_manager_email, :operation_center, :event_title, :event_dates,
+                            :event_location, :recommendation_token, :contact_type, CURRENT_TIMESTAMP
+                        )
+                    """),
+                    {
+                        "registration_id": participant_id,
+                        "event_id": event_id,
+                        "participant_name": f"{registration.firstName} {registration.lastName}",
+                        "participant_email": registration.personalEmail,
+                        "line_manager_email": email,
+                        "operation_center": registration.oc,
+                        "event_title": event.title,
+                        "event_dates": f"{event.start_date} to {event.end_date}",
+                        "event_location": event.location,
+                        "recommendation_token": recommendation_token,
+                        "contact_type": contact_type
+                    }
+                )
+                print(f"🔥 DEBUG: Database record inserted for {contact_type}")
+            except Exception as db_error:
+                print(f"🔥 DEBUG: Database error for {contact_type}: {db_error}")
+                continue
             
             # Send email to contact
-            from app.core.email_service import email_service
-            import os
+            try:
+                from app.core.email_service import email_service
+                import os
 
-            # Get base URL from environment variable
-            base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-            
-            # Use different paths for different contact types
-            if contact_type == "HRCO":
-                recommendation_url = f"{base_url}/public/hrco-recommendation/{recommendation_token}"
-            elif contact_type == "Career Manager":
-                recommendation_url = f"{base_url}/public/career-manager-recommendation/{recommendation_token}"
-            else:  # Line Manager
-                recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
-            
-            subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
-            
-            message = f"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #dc2626;">{contact_type} Recommendation Request</h2>
+                # Get base URL from environment variable
+                base_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+                print(f"🔥 DEBUG: Using base URL: {base_url}")
                 
-                <p>Dear {contact_type},</p>
+                # Use different paths for different contact types
+                if contact_type == "HRCO":
+                    recommendation_url = f"{base_url}/public/hrco-recommendation/{recommendation_token}"
+                elif contact_type == "Career Manager":
+                    recommendation_url = f"{base_url}/public/career-manager-recommendation/{recommendation_token}"
+                else:  # Line Manager
+                    recommendation_url = f"{base_url}/public/line-manager-recommendation/{recommendation_token}"
                 
-                <p><strong>{registration.firstName} {registration.lastName}</strong> has registered for the following event and listed you as their {contact_type.lower()}:</p>
+                print(f"🔥 DEBUG: Recommendation URL: {recommendation_url}")
                 
-                <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <h3 style="margin-top: 0; color: #374151;">Event Details</h3>
-                    <p><strong>Event:</strong> {event.title}</p>
-                    <p><strong>Dates:</strong> {event.start_date} to {event.end_date}</p>
-                    <p><strong>Location:</strong> {event.location}</p>
-                    <p><strong>Operation Center:</strong> {registration.oc}</p>
+                subject = f"Recommendation Request - {registration.firstName} {registration.lastName} for {event.title}"
+                
+                message = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #dc2626;">{contact_type} Recommendation Request</h2>
+                    
+                    <p>Dear {contact_type},</p>
+                    
+                    <p><strong>{registration.firstName} {registration.lastName}</strong> has registered for the following event and listed you as their {contact_type.lower()}:</p>
+                    
+                    <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #374151;">Event Details</h3>
+                        <p><strong>Event:</strong> {event.title}</p>
+                        <p><strong>Dates:</strong> {event.start_date} to {event.end_date}</p>
+                        <p><strong>Location:</strong> {event.location}</p>
+                        <p><strong>Operation Center:</strong> {registration.oc}</p>
+                    </div>
+                    
+                    <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="margin-top: 0; color: #92400e;">Participant Information</h3>
+                        <p><strong>Name:</strong> {registration.firstName} {registration.lastName}</p>
+                        <p><strong>Email:</strong> {registration.personalEmail}</p>
+                        <p><strong>Position:</strong> {registration.currentPosition}</p>
+                        <p><strong>Country of Work:</strong> {registration.countryOfWork or 'Not specified'}</p>
+                    </div>
+                    
+                    <p>Please click the link below to provide your recommendation:</p>
+                    
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{recommendation_url}" 
+                           style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                           Provide Recommendation
+                        </a>
+                    </div>
+                    
+                    <p style="color: #6b7280; font-size: 14px;">
+                        This link is unique to this request and will expire after the event registration deadline.
+                        If you have any questions, please contact the event organizers.
+                    </p>
                 </div>
+                """
                 
-                <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <h3 style="margin-top: 0; color: #92400e;">Participant Information</h3>
-                    <p><strong>Name:</strong> {registration.firstName} {registration.lastName}</p>
-                    <p><strong>Email:</strong> {registration.personalEmail}</p>
-                    <p><strong>Position:</strong> {registration.currentPosition}</p>
-                    <p><strong>Country of Work:</strong> {registration.countryOfWork or 'Not specified'}</p>
-                </div>
+                print(f"🔥 DEBUG: Sending email to {email} with subject: {subject}")
                 
-                <p>Please click the link below to provide your recommendation:</p>
+                email_result = email_service.send_notification_email(
+                    to_email=email,
+                    user_name=contact_type,
+                    title=subject,
+                    message=message
+                )
                 
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="{recommendation_url}" 
-                       style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                       Provide Recommendation
-                    </a>
-                </div>
+                print(f"🔥 DEBUG: Email send result for {contact_type}: {email_result}")
                 
-                <p style="color: #6b7280; font-size: 14px;">
-                    This link is unique to this request and will expire after the event registration deadline.
-                    If you have any questions, please contact the event organizers.
-                </p>
-            </div>
-            """
-            
-            email_service.send_notification_email(
-                to_email=email,
-                user_name=contact_type,
-                title=subject,
-                message=message
-            )
-            
-            logger.info(f"✅ Recommendation email sent to {contact_type}: {email}")
+                if email_result:
+                    logger.info(f"✅ Recommendation email sent to {contact_type}: {email}")
+                else:
+                    logger.error(f"❌ Failed to send recommendation email to {contact_type}: {email}")
+                    
+            except Exception as email_error:
+                print(f"🔥 DEBUG: Email error for {contact_type}: {email_error}")
+                logger.error(f"❌ Email error for {contact_type}: {email_error}")
         
         db.commit()
+        print(f"🔥 DEBUG: Database committed successfully")
         
     except Exception as e:
+        print(f"🔥 DEBUG: General error in send_recommendation_emails: {e}")
         logger.error(f"❌ Error sending recommendation emails: {e}")
         # Don't fail the registration if email fails
         pass
