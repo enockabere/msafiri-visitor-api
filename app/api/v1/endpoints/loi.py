@@ -273,7 +273,7 @@ async def generate_loi_pdf(
     participant_id: int,
     db: Session = Depends(get_db)
 ):
-    """Generate LOI PDF and upload to Cloudinary for mobile app access"""
+    """Generate LOI PDF and upload to Cloudinary for mobile app access - PUBLIC ENDPOINT"""
     from fastapi.responses import RedirectResponse
     from app.services.loi_generation import generate_loi_document
     from app.models.invitation_template import InvitationTemplate

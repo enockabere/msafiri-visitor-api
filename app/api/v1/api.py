@@ -227,12 +227,13 @@ api_router.include_router(
     tags=["loi-generation"]
 )
 
-# LOI generation for events
+# LOI generation for events (PUBLIC ACCESS)
 from app.api.v1.endpoints import loi_generation
 api_router.include_router(
     loi_generation.router,
     prefix="",
-    tags=["loi-generation"]
+    tags=["loi-generation"],
+    dependencies=[]  # No authentication required
 )
 
 # POA (Proof of Accommodation) templates
@@ -643,7 +644,8 @@ from app.api.v1.endpoints import loi
 api_router.include_router(
     loi.router,
     prefix="/loi",
-    tags=["loi"]
+    tags=["loi"],
+    dependencies=[]  # No authentication required for mobile access
 )
 
 from app.api.v1.endpoints import mobile_allocations
