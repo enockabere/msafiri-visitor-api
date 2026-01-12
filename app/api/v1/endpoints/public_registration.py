@@ -149,6 +149,9 @@ async def public_register_for_event(
     
     print(f"🔥 BACKEND DEBUG: Public registration endpoint called for event {event_id}")
     print(f"🔥 BACKEND DEBUG: Registration data received: {registration}")
+    print(f"🔥 BACKEND DEBUG: HRCO Email: '{registration.hrcoEmail}'")
+    print(f"🔥 BACKEND DEBUG: Career Manager Email: '{registration.careerManagerEmail}'")
+    print(f"🔥 BACKEND DEBUG: Line Manager Email: '{registration.lineManagerEmail}'")
     
     logger.info(f"🌐 Public registration request for event {event_id}")
     logger.info(f"   Name: {registration.firstName} {registration.lastName}")
