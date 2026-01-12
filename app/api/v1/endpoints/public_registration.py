@@ -322,43 +322,7 @@ async def send_recommendation_emails(
             recommendation_token = str(uuid.uuid4())
             print(f"🔥 DEBUG: Generated token: {recommendation_token}")
             
-            # Insert recommendation record for each contact
-            try:
-                db.execute(
-                    text("""
-                        INSERT INTO line_manager_recommendations (
-                            registration_id, event_id, participant_name, participant_email,
-                            line_manager_email, operation_center, event_title, event_dates,
-                            event_location, recommendation_token, contact_type, created_at
-                        ) VALUES (
-                            :registration_id, :event_id, :participant_name, :participant_email,
-                            :line_manager_email, :operation_center, :event_title, :event_dates,
-                            :event_location, :recommendation_token, :contact_type, CURRENT_TIMESTAMP
-                        )
-                    """),
-                    {
-                        "registration_id": participant_id,
-                        "event_id": event_id,
-                        "participant_name": f"{registration.firstName} {registration.lastName}",
-                        "participant_email": registration.personalEmail,
-                        "line_manager_email": email,
-                        "operation_center": registration.oc,
-                        "event_title": event.title,
-                        "event_dates": f"{event.start_date} to {event.end_date}",
-                        "event_location": event.location,
-                        "recommendation_token": recommendation_token,
-                        "contact_type": contact_type
-                    }
-                )
-                db.commit()  # Commit each record individually
-                print(f"🔥 DEBUG: Database record inserted for {contact_type}")
-            except Exception as db_error:
-                print(f"🔥 DEBUG: Database error for {contact_type}: {db_error}")
-                db.rollback()  # Rollback failed transaction
-                # Continue with email sending even if database fails
-                pass
-            
-            # Send email to contact
+            # Send email to contact without database dependency
             try:
                 from app.core.email_service import email_service
                 import os
