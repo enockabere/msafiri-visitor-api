@@ -222,7 +222,7 @@ def restore_complete_form_fields(
         {"field_name": "hrcoEmail", "field_label": "HRCO Email Address", "field_type": "email", "is_required": False, "order_index": 203, "section": "contact"},
         {"field_name": "careerManagerEmail", "field_label": "Career Manager Email", "field_type": "email", "is_required": False, "order_index": 204, "section": "contact"},
         {"field_name": "lineManagerEmail", "field_label": "Line Manager Email", "field_type": "email", "is_required": False, "order_index": 205, "section": "contact"},
-        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
+        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
         
         # Travel & Accommodation Section
         {"field_name": "travellingInternationally", "field_label": "Will you be travelling internationally?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 301, "section": "travel"},
@@ -374,7 +374,42 @@ def update_country_fields_to_api(
         "message": f"Updated {len(updated_fields)} country fields to use API",
         "updated_fields": updated_fields
     }
-@router.post("/events/{event_id}/initialize-default-fields")
+@router.post("/events/{event_id}/update-phone-fields")
+def update_phone_fields_to_phone_type(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update existing phone number fields to use phone input type"""
+    # Check if event exists
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    updated_fields = []
+    
+    # Update phone number field
+    phone_field = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.field_name == "phoneNumber",
+        FormField.is_active == True
+    ).first()
+    
+    if phone_field:
+        print(f"🔄 Updating phoneNumber field: {phone_field.field_type} -> phone")
+        phone_field.field_label = "Phone Number"
+        phone_field.field_type = "phone"
+        phone_field.field_options = None  # Phone fields don't need options
+        updated_fields.append("phoneNumber")
+        print(f"✅ Updated phoneNumber field to: {phone_field.field_type}")
+    
+    db.commit()
+    print(f"💾 Database committed. Updated fields: {updated_fields}")
+    
+    return {
+        "message": f"Updated {len(updated_fields)} phone fields to use phone input type",
+        "updated_fields": updated_fields
+    }
 def initialize_default_form_fields(
     event_id: int,
     db: Session = Depends(get_db),
@@ -410,7 +445,7 @@ def initialize_default_form_fields(
         
         # Contact Details Section
         {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
-        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 202, "section": "contact", "is_protected": True},
+        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 202, "section": "contact", "is_protected": True},
         
         # Travel & Accommodation Section
         {"field_name": "travellingInternationally", "field_label": "Will you be travelling internationally?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 301, "section": "travel"},
