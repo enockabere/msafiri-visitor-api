@@ -350,10 +350,13 @@ async def send_recommendation_emails(
                         "contact_type": contact_type
                     }
                 )
+                db.commit()  # Commit each record individually
                 print(f"🔥 DEBUG: Database record inserted for {contact_type}")
             except Exception as db_error:
                 print(f"🔥 DEBUG: Database error for {contact_type}: {db_error}")
-                continue
+                db.rollback()  # Rollback failed transaction
+                # Continue with email sending even if database fails
+                pass
             
             # Send email to contact
             try:
@@ -436,8 +439,8 @@ async def send_recommendation_emails(
                 print(f"🔥 DEBUG: Email error for {contact_type}: {email_error}")
                 logger.error(f"❌ Email error for {contact_type}: {email_error}")
         
-        db.commit()
-        print(f"🔥 DEBUG: Database committed successfully")
+        # Don't commit here since we're committing individually above
+        print(f"🔥 DEBUG: send_recommendation_emails function completed")
         
     except Exception as e:
         print(f"🔥 DEBUG: General error in send_recommendation_emails: {e}")
