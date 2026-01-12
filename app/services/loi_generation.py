@@ -29,27 +29,61 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     Template variables format: {{variableName}}
     """
+    import re
     result = template_html
+    
+    # Log what template variables exist in the template
+    template_vars = re.findall(r'\{\{\s*([^}]+)\s*\}\}', template_html)
+    logger.info(f"📄 TEMPLATE VARS FOUND: {template_vars}")
 
-    # Define all supported variables
+    # Define all supported variables with multiple naming conventions
     variables = {
+        # Participant data
         'participantName': data.get('participant_name', ''),
+        'participant_name': data.get('participant_name', ''),
         'passportNumber': data.get('passport_number', ''),
+        'passport_number': data.get('passport_number', ''),
         'nationality': data.get('nationality', ''),
         'dateOfBirth': data.get('date_of_birth', ''),
+        'date_of_birth': data.get('date_of_birth', ''),
         'passportIssueDate': data.get('passport_issue_date', ''),
+        'passport_issue_date': data.get('passport_issue_date', ''),
         'passportExpiryDate': data.get('passport_expiry_date', ''),
+        'passport_expiry_date': data.get('passport_expiry_date', ''),
+        # Event data
         'eventName': data.get('event_name', ''),
+        'event_name': data.get('event_name', ''),
         'eventDates': data.get('event_dates', ''),
+        'event_dates': data.get('event_dates', ''),
         'eventLocation': data.get('event_location', ''),
+        'event_location': data.get('event_location', ''),
+        # Organization data
         'organizationName': data.get('organization_name', 'MSF'),
+        'organization_name': data.get('organization_name', 'MSF'),
         'currentDate': datetime.now().strftime('%B %d, %Y'),
+        'current_date': datetime.now().strftime('%B %d, %Y'),
     }
 
-    # Replace each variable
+    # Replace each variable with multiple patterns
     for key, value in variables.items():
-        placeholder = f'{{{{{key}}}}}'
-        result = result.replace(placeholder, str(value))
+        patterns = [
+            f'{{{{{key}}}}}',  # {{variable}}
+            f'{{{{ {key} }}}}',  # {{ variable }}
+        ]
+        for pattern in patterns:
+            if pattern.replace('{{', '').replace('}}', '').strip() in template_vars or key in template_vars:
+                old_result = result
+                result = result.replace(pattern, str(value))
+                if old_result != result:
+                    logger.info(f"📄 REPLACED: {pattern} -> {value}")
+
+    # Also try regex replacement for whitespace variations
+    for key, value in variables.items():
+        pattern = f'{{{{\s*{re.escape(key)}\s*}}}}'
+        matches = re.findall(pattern, result, re.IGNORECASE)
+        if matches:
+            result = re.sub(pattern, str(value), result, flags=re.IGNORECASE)
+            logger.info(f"📄 REGEX REPLACED: {key} -> {value}")
 
     return result
 
