@@ -410,7 +410,8 @@ def update_phone_fields_to_phone_type(
         "message": f"Updated {len(updated_fields)} phone fields to use phone input type",
         "updated_fields": updated_fields
     }
-def initialize_default_form_fields(
+
+@router.post("/events/{event_id}/initialize-default-fields")
     event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
