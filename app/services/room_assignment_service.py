@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.models.guesthouse import AccommodationAllocation, VendorAccommodation
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
@@ -9,17 +10,28 @@ logger = logging.getLogger(__name__)
 def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, tenant_id: int):
     """
     Assign room with intelligent sharing logic:
-    1. Check for existing participants of same gender in same event
-    2. If found and they have single room, convert to shared double room
-    3. Otherwise assign single room
+    1. Check accommodation preference - only assign if staying_at_venue
+    2. Check for existing participants of same gender in same event
+    3. If found and they have single room, convert to shared double room
+    4. Otherwise assign single room
     
     🔥 CRITICAL: Uses the event's specifically selected hotel, not just any hotel
+    🔥 GENDER RULE: Only same gender participants can share rooms
     """
     
     # Get participant details
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id
     ).first()
+    
+    if not participant:
+        logger.warning(f"Participant {participant_id} not found")
+        return None
+    
+    # Check accommodation preference - only assign if staying at venue
+    if participant.accommodation_preference != 'staying_at_venue':
+        logger.info(f"Participant {participant_id} not staying at venue (preference: {participant.accommodation_preference}), skipping accommodation assignment")
+        return None
     
     # Get event details to ensure we use the correct hotel
     event = db.query(Event).filter(Event.id == event_id).first()
@@ -29,8 +41,10 @@ def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, te
     
     logger.info(f"Assigning room for participant {participant_id} in event {event_id} using hotel ID {event.vendor_accommodation_id}")
     
-    if not participant or not participant.gender:
-        logger.warning(f"Participant {participant_id} not found or missing gender")
+    # Use gender_identity as primary gender field, fallback to sex or gender
+    participant_gender = participant.gender_identity or participant.sex or participant.gender
+    if not participant_gender:
+        logger.warning(f"Participant {participant_id} missing gender information")
         return create_single_room_allocation(db, participant_id, event_id, tenant_id)
     
     # 🔥 CRITICAL FIX: Find other participants of same gender in same event AND same hotel with single rooms
@@ -42,13 +56,18 @@ def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, te
         AccommodationAllocation.status.in_(['booked', 'checked_in']),
         AccommodationAllocation.room_type == 'single',
         AccommodationAllocation.number_of_guests == 1,
-        EventParticipant.gender == participant.gender,
+        # Check gender compatibility using multiple gender fields
+        or_(
+            EventParticipant.gender_identity == participant_gender,
+            EventParticipant.sex == participant_gender,
+            EventParticipant.gender == participant_gender
+        ),
         AccommodationAllocation.participant_id != participant_id
     ).first()
     
     if same_gender_participants:
         # Convert existing single room to shared double room
-        logger.info(f"Converting single room to shared for participants {same_gender_participants.participant_id} and {participant_id}")
+        logger.info(f"Converting single room to shared for participants {same_gender_participants.participant_id} and {participant_id} (same gender: {participant_gender})")
         
         # Update existing allocation to double room with 2 guests
         same_gender_participants.room_type = 'double'
@@ -69,7 +88,7 @@ def assign_room_with_sharing(db: Session, participant_id: int, event_id: int, te
             number_of_guests=2,
             room_type='double',
             status='booked',
-            notes=f"Shared with participant {same_gender_participants.participant_id}"
+            notes=f"Shared with participant {same_gender_participants.participant_id} (same gender: {participant_gender})"
         )
         
         db.add(new_allocation)
