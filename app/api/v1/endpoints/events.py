@@ -1483,7 +1483,7 @@ def test_simulate_selection(
         return {"message": f"Created new participation as selected", "participant_id": new_participation.id}
 
 @router.post("/{event_id}/generate-poa")
-def generate_poa_for_event(
+async def generate_poa_for_event(
     *,
     db: Session = Depends(get_db),
     event_id: int,
