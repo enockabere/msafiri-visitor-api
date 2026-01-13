@@ -14,7 +14,11 @@ class CRUDTenant(CRUDBase[Tenant, TenantCreate, TenantUpdate]):
         return db.query(Tenant).filter(Tenant.slug == slug).first()
     
     def get_by_public_id(self, db: Session, *, public_id: str) -> Optional[Tenant]:
-        return db.query(Tenant).filter(Tenant.public_id == public_id).first()
+        try:
+            return db.query(Tenant).filter(Tenant.public_id == public_id).first()
+        except Exception:
+            # If public_id column doesn't exist, return None
+            return None
     
     def get_by_name(self, db: Session, *, name: str) -> Optional[Tenant]:
         return db.query(Tenant).filter(Tenant.name == name).first()

@@ -299,10 +299,13 @@ def read_tenant_by_public_id(
     """Get tenant by public_id (no auth required for dashboard)."""
     tenant = crud.tenant.get_by_public_id(db, public_id=public_id)
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
-        )
+        # Fallback: try to get by slug if public_id lookup fails
+        tenant = crud.tenant.get_by_slug(db, slug=public_id)
+        if not tenant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tenant not found"
+            )
     
     # Add statistics
     total_users = len(crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000))
