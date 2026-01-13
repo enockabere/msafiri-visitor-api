@@ -1610,7 +1610,7 @@ def generate_poa_for_event(
                 'participantEmail': participant.email or '',
                 'participantPhone': getattr(participant, 'phone_number', 'N/A'),
                 'participantNationality': participant.nationality or participant.country or '',
-                'participantPassport': participant.passport_number or '',
+                'participantPassport': getattr(participant, 'passport_document', '') or '',
                 'participantGender': participant.gender or '',
                 
                 # Vendor/Hotel details
