@@ -35,10 +35,11 @@ def refresh_automatic_room_booking(db: Session, event_id: int, tenant_id: int):
         
         logger.info(f"📊 Current setup: {vendor_setup.single_rooms} single, {vendor_setup.double_rooms} double rooms")
         
-        # Get all confirmed participants for this event
+        # Get all confirmed participants for this event who want to stay at venue
         confirmed_participants = db.query(EventParticipant).filter(
             EventParticipant.event_id == event_id,
-            EventParticipant.status == "confirmed"
+            EventParticipant.status == "confirmed",
+            EventParticipant.accommodation_preference == "staying_at_venue"
         ).all()
         
         logger.info(f"👥 Found {len(confirmed_participants)} confirmed participants")
@@ -64,18 +65,20 @@ def refresh_automatic_room_booking(db: Session, event_id: int, tenant_id: int):
         # Group participants by gender for room sharing
         participants_by_gender = {}
         for participant in confirmed_participants:
-            # Get gender from registration
-            gender_result = db.execute(text(
-                "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
-            ), {"participant_id": participant.id}).fetchone()
+            # Use gender_identity as primary, fallback to sex or gender
+            participant_gender = participant.gender_identity or participant.sex or participant.gender
             
+            if not participant_gender:
+                logger.warning(f"Participant {participant.id} missing gender information, skipping")
+                continue
+            
+            # Normalize gender values
             gender = "other"  # Default
-            if gender_result and gender_result[0]:
-                reg_gender = gender_result[0].lower()
-                if reg_gender in ['man', 'male']:
-                    gender = 'male'
-                elif reg_gender in ['woman', 'female']:
-                    gender = 'female'
+            gender_lower = participant_gender.lower()
+            if gender_lower in ['man', 'male']:
+                gender = 'male'
+            elif gender_lower in ['woman', 'female']:
+                gender = 'female'
             
             if gender not in participants_by_gender:
                 participants_by_gender[gender] = []
