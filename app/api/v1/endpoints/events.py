@@ -1554,6 +1554,7 @@ def generate_poa_for_event(
         )
     
     # Get confirmed participants only
+    from app.models.event_participant import EventParticipant
     participants = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
         EventParticipant.status == "confirmed"
