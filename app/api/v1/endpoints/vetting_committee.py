@@ -163,6 +163,10 @@ def get_my_vetting_events(
     for committee in committees:
         event = db.query(Event).filter(Event.id == committee.event_id).first()
         if event:
+            # Get tenant information
+            from app.models.tenant import Tenant
+            tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first() if event.tenant_id else None
+            
             # Determine user's role in this committee
             role = "unknown"
             if current_user.role == UserRole.VETTING_COMMITTEE or any(
@@ -183,7 +187,10 @@ def get_my_vetting_events(
                 "committee_status": committee.status.value,
                 "role": role,
                 "selection_start_date": committee.selection_start_date,
-                "selection_end_date": committee.selection_end_date
+                "selection_end_date": committee.selection_end_date,
+                "tenant_id": tenant.id if tenant else event.tenant_id,
+                "tenant_name": tenant.name if tenant else "Unknown Tenant",
+                "tenant_slug": tenant.slug if tenant else event.tenant_id
             })
     
     return {"vetting_events": vetting_events}
