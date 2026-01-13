@@ -738,6 +738,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 from app.api.v1.vetting import router as vetting_router
 app.include_router(vetting_router, prefix=settings.API_V1_STR, tags=["vetting"])
 
+# Include per diem router
+from app.api.v1.perdiem import router as perdiem_router
+app.include_router(perdiem_router, prefix=f"{settings.API_V1_STR}/perdiem", tags=["perdiem"])
+
 # Basic routes
 @app.get("/")
 def read_root():

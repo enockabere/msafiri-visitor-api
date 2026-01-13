@@ -8,6 +8,12 @@ class PerdiemRequestCreate(BaseModel):
     departure_date: date
     requested_days: Optional[int] = None
     justification: Optional[str] = None
+    phone_number: str
+    email: str
+    payment_method: str  # "cash" or "mobile_money"
+    cash_pickup_date: Optional[date] = None
+    cash_hours: Optional[str] = None  # "morning" or "afternoon"
+    mpesa_number: Optional[str] = None
     
     @validator('requested_days', always=True)
     def set_requested_days(cls, v, values):
@@ -31,15 +37,28 @@ class PerdiemRequest(BaseModel):
     status: str
     justification: Optional[str] = None
     admin_notes: Optional[str] = None
-    approved_by: Optional[str] = None
+    phone_number: str
+    email: str
+    payment_method: str
+    cash_pickup_date: Optional[date] = None
+    cash_hours: Optional[str] = None
+    mpesa_number: Optional[str] = None
+    line_manager_approved_by: Optional[str] = None
+    line_manager_approved_at: Optional[datetime] = None
+    budget_owner_approved_by: Optional[str] = None
+    budget_owner_approved_at: Optional[datetime] = None
+    rejected_by: Optional[str] = None
+    rejected_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
     created_at: datetime
     
     class Config:
         from_attributes = True
 
 class PerdiemApprovalAction(BaseModel):
-    status: str  # "approved" or "rejected"
-    admin_notes: Optional[str] = None
+    action: str  # "approve" or "reject"
+    notes: Optional[str] = None
+    rejection_reason: Optional[str] = None
 
 class PerdiemPaymentAction(BaseModel):
     payment_reference: str
@@ -57,3 +76,23 @@ class ParticipantPerdiemSummary(BaseModel):
     total_amount: Decimal
     can_request_perdiem: bool
     perdiem_status: Optional[str] = None
+
+class PerdiemPublicView(BaseModel):
+    id: int
+    participant_name: str
+    participant_email: str
+    event_name: str
+    event_dates: str
+    arrival_date: date
+    departure_date: date
+    requested_days: int
+    daily_rate: Decimal
+    total_amount: Decimal
+    justification: Optional[str] = None
+    phone_number: str
+    payment_method: str
+    cash_pickup_date: Optional[date] = None
+    cash_hours: Optional[str] = None
+    mpesa_number: Optional[str] = None
+    status: str
+    created_at: datetime

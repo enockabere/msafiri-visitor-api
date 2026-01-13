@@ -1,13 +1,22 @@
-from sqlalchemy import Column, Integer, String, Numeric, Date, ForeignKey, Boolean, Text, Enum
+from sqlalchemy import Column, Integer, String, Numeric, Date, ForeignKey, Boolean, Text, Enum, DateTime
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import enum
 
 class PerdiemStatus(enum.Enum):
     PENDING = "pending"
-    APPROVED = "approved"
+    LINE_MANAGER_APPROVED = "line_manager_approved"
+    BUDGET_OWNER_APPROVED = "budget_owner_approved"
     REJECTED = "rejected"
     PAID = "paid"
+
+class PaymentMethod(enum.Enum):
+    CASH = "cash"
+    MOBILE_MONEY = "mobile_money"
+
+class CashHours(enum.Enum):
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
 
 class PerdiemRequest(BaseModel):
     __tablename__ = "perdiem_requests"
@@ -22,7 +31,30 @@ class PerdiemRequest(BaseModel):
     status = Column(Enum(PerdiemStatus), default=PerdiemStatus.PENDING)
     justification = Column(Text)  # Why user adjusted days
     admin_notes = Column(Text)
-    approved_by = Column(String(255))
+    
+    # Contact details
+    phone_number = Column(String(20), nullable=False)
+    email = Column(String(255), nullable=False)
+    
+    # Payment method
+    payment_method = Column(Enum(PaymentMethod), nullable=False)
+    
+    # Cash payment details
+    cash_pickup_date = Column(Date)
+    cash_hours = Column(Enum(CashHours))
+    
+    # Mobile money details
+    mpesa_number = Column(String(20))
+    
+    # Approval workflow
+    line_manager_approved_by = Column(String(255))
+    line_manager_approved_at = Column(DateTime)
+    budget_owner_approved_by = Column(String(255))
+    budget_owner_approved_at = Column(DateTime)
+    rejected_by = Column(String(255))
+    rejected_at = Column(DateTime)
+    rejection_reason = Column(Text)
+    
     payment_reference = Column(String(255))
     
     # Relationships
