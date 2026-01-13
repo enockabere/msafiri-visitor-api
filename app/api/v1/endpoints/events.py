@@ -1577,10 +1577,27 @@ def generate_poa_for_event(
             # Generate actual POA document using the same service as vendor setup
             from app.services.proof_of_accommodation import generate_proof_of_accommodation
             
-            poa_url = generate_proof_of_accommodation(
+            # Format dates
+            check_in_date = event.start_date.strftime('%B %d, %Y') if event.start_date else 'TBD'
+            check_out_date = event.end_date.strftime('%B %d, %Y') if event.end_date else 'TBD'
+            event_dates = f"{check_in_date} - {check_out_date}"
+            
+            poa_url = await generate_proof_of_accommodation(
                 participant_id=participant.id,
-                vendor_accommodation_id=vendor.id,
-                event_id=event_id
+                event_id=event_id,
+                template_html=template.template_content,
+                hotel_name=vendor.vendor_name,
+                hotel_address=vendor.location,
+                check_in_date=check_in_date,
+                check_out_date=check_out_date,
+                room_type="Standard",  # Default room type
+                event_name=event.title,
+                event_dates=event_dates,
+                participant_name=participant.full_name,
+                room_number=None,
+                logo_url=template.logo_url,
+                signature_url=template.signature_url,
+                enable_qr_code=template.enable_qr_code
             )
             
             # Update participant with actual POA URL
