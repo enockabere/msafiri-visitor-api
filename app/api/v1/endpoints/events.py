@@ -1553,20 +1553,19 @@ def generate_poa_for_event(
             detail=f"No POA template found for vendor '{vendor.vendor_name}'. Please create a template first."
         )
     
-    # Get all selected/confirmed participants for the event
-    from app.models.event_participant import EventParticipant
+    # Get confirmed participants only
     participants = db.query(EventParticipant).filter(
         EventParticipant.event_id == event_id,
-        EventParticipant.status.in_(['selected', 'confirmed', 'approved'])
+        EventParticipant.status == "confirmed"
     ).all()
     
     if not participants:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No selected/confirmed participants found for this event"
+            status_code=404,
+            detail="No confirmed participants found for POA generation"
         )
     
-    logger.info(f"🎯 Generating POA for {len(participants)} participants in event {event_id}")
+    logger.info(f"🎯 Generating POA for {len(participants)} confirmed participants in event {event_id}")
     
     successful = 0
     failed = 0
@@ -1608,7 +1607,7 @@ def generate_poa_for_event(
             variables = {
                 'participantName': participant.full_name or '',
                 'participantEmail': participant.email or '',
-                'participantPhone': participant.phone or participant.phone_number or '',
+                'participantPhone': getattr(participant, 'phone_number', 'N/A'),
                 'participantNationality': participant.nationality or participant.country or '',
                 'participantPassport': participant.passport_number or '',
                 'participantGender': participant.gender or '',
