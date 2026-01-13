@@ -411,6 +411,13 @@ api_router.include_router(
     tags=["public-qr"]
 )
 
+from app.api.v1.endpoints import public_poa
+api_router.include_router(
+    public_poa.router,
+    prefix="",
+    tags=["public-poa"]
+)
+
 api_router.include_router(
     auto_booking.router,
     prefix="/auto-booking",

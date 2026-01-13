@@ -264,8 +264,8 @@ async def generate_proof_of_accommodation(
         qr_code_base64 = ""
         if enable_qr_code:
             poa_slug = generate_poa_slug(participant_id, event_id)
-            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
-            public_url = f"{frontend_url}/public/poa/{poa_slug}"
+            api_url = os.getenv("NEXT_PUBLIC_API_URL", "http://localhost:8000")
+            public_url = f"{api_url}/api/v1/poa/{poa_slug}"
             qr_code_base64 = generate_qr_code(public_url)
 
         # Prepare data for template
