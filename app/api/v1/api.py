@@ -1,7 +1,7 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
 from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset, upload, vetting_committee, code_of_conduct, participant_response, form_fields, user_preferences
-from app.api.v1 import vetting
+from app.api.v1 import vetting, perdiem
 from app.api import deps
 
 # Create main API router
@@ -102,6 +102,13 @@ api_router.include_router(
     vetting.router,
     prefix="",
     tags=["vetting"]
+)
+
+# Per diem requests
+api_router.include_router(
+    perdiem.router,
+    prefix="/per-diem-requests",
+    tags=["per-diem-requests"]
 )
 
 from app.api.v1.endpoints import vetting_export
