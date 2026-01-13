@@ -652,8 +652,25 @@ def update_event(
     # Convert dict to EventUpdate schema
     event_update_schema = schemas.EventUpdate(**event_update)
     
+    # Check if room configuration changed
+    room_config_changed = (
+        'single_rooms' in event_update or 
+        'double_rooms' in event_update or 
+        'vendor_accommodation_id' in event_update
+    )
+    
     # Update the event
     updated_event = crud.event.update(db, db_obj=event, obj_in=event_update_schema)
+    
+    # If room configuration changed, trigger automatic room reallocation
+    if room_config_changed:
+        try:
+            from app.services.automatic_room_booking_service import refresh_automatic_room_booking
+            logger.info(f"🏨 Room configuration changed for event {event_id}, triggering reallocation...")
+            refresh_automatic_room_booking(db, event_id, updated_event.tenant_id)
+            logger.info(f"✅ Room reallocation completed for event {event_id}")
+        except Exception as e:
+            logger.warning(f"[WARNING] Failed to refresh room booking after event update: {str(e)}")
     
     return updated_event
 

@@ -65,11 +65,20 @@ def refresh_automatic_room_booking(db: Session, event_id: int, tenant_id: int):
         # Group participants by gender for room sharing
         participants_by_gender = {}
         for participant in confirmed_participants:
-            # Use gender_identity as primary, fallback to sex or gender
-            participant_gender = participant.gender_identity or participant.sex or participant.gender
+            # Get gender from public_registrations table (most reliable source)
+            gender_result = db.execute(text(
+                "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
+            ), {"participant_id": participant.id}).fetchone()
+            
+            participant_gender = None
+            if gender_result and gender_result[0]:
+                participant_gender = gender_result[0]
+            else:
+                # Fallback to participant table fields
+                participant_gender = participant.gender_identity or participant.sex or participant.gender
             
             if not participant_gender:
-                logger.warning(f"Participant {participant.id} missing gender information, skipping")
+                logger.warning(f"Participant {participant.id} ({participant.full_name}) missing gender information, skipping")
                 continue
             
             # Normalize gender values
