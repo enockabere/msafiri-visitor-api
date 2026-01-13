@@ -23,71 +23,78 @@ def get_my_profile(
 ) -> Any:
     """Get current user's detailed profile"""
     
-    # Get full user object with all profile fields
-    full_user = crud.user.get(db, id=current_user.id)
-    if not full_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+    try:
+        # Get full user object with all profile fields
+        full_user = crud.user.get(db, id=current_user.id)
+        if not full_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Calculate security indicators
+        has_strong_password = False
+        password_age_days = None
+        
+        if full_user.auth_provider == AuthProvider.LOCAL and full_user.hashed_password:
+            has_strong_password = True
+            if full_user.password_changed_at:
+                now_tz = datetime.now(timezone.utc)
+                if full_user.password_changed_at.tzinfo is None:
+                    password_changed_tz = full_user.password_changed_at.replace(tzinfo=timezone.utc)
+                else:
+                    password_changed_tz = full_user.password_changed_at
+                password_age_days = (now_tz - password_changed_tz).days
+        
+        # Create UserProfile response with safe defaults
+        return schemas.UserProfile(
+            # Core identification
+            id=full_user.id,
+            email=full_user.email,
+            full_name=full_user.full_name or "",
+            role=full_user.role,
+            status=full_user.status,
+            tenant_id=full_user.tenant_id,
+            
+            # Core user properties with safe defaults
+            is_active=getattr(full_user, 'is_active', True),
+            auth_provider=getattr(full_user, 'auth_provider', AuthProvider.LOCAL),
+            external_id=getattr(full_user, 'external_id', None),
+            auto_registered=getattr(full_user, 'auto_registered', False),
+            
+            # Basic profile information
+            phone_number=getattr(full_user, 'phone_number', None),
+            department=getattr(full_user, 'department', None),
+            job_title=getattr(full_user, 'job_title', None),
+            
+            # Enhanced profile information
+            gender=getattr(full_user, 'gender', None),
+            nationality=getattr(full_user, 'nationality', None),
+            passport_number=getattr(full_user, 'passport_number', None),
+            passport_issue_date=getattr(full_user, 'passport_issue_date', None),
+            passport_expiry_date=getattr(full_user, 'passport_expiry_date', None),
+            whatsapp_number=getattr(full_user, 'whatsapp_number', None),
+            email_work=getattr(full_user, 'email_work', None),
+            
+            # Timestamps
+            last_login=getattr(full_user, 'last_login', None),
+            created_at=full_user.created_at,
+            updated_at=getattr(full_user, 'updated_at', None),
+            approved_by=getattr(full_user, 'approved_by', None),
+            approved_at=getattr(full_user, 'approved_at', None),
+            profile_updated_at=getattr(full_user, 'profile_updated_at', None),
+            email_verified_at=getattr(full_user, 'email_verified_at', None),
+            
+            # Security indicators
+            has_strong_password=has_strong_password,
+            password_age_days=password_age_days
         )
-    
-    # Calculate security indicators
-    has_strong_password = False
-    password_age_days = None
-    
-    if full_user.auth_provider == AuthProvider.LOCAL and full_user.hashed_password:
-        has_strong_password = True
-        if full_user.password_changed_at:
-            now_tz = datetime.now(timezone.utc)
-            if full_user.password_changed_at.tzinfo is None:
-                password_changed_tz = full_user.password_changed_at.replace(tzinfo=timezone.utc)
-            else:
-                password_changed_tz = full_user.password_changed_at
-            password_age_days = (now_tz - password_changed_tz).days
-    
-    # Create UserProfile response - FIXED to include all required fields
-    return schemas.UserProfile(
-        # Core identification
-        id=full_user.id,
-        email=full_user.email,
-        full_name=full_user.full_name or "",
-        role=full_user.role,
-        status=full_user.status,
-        tenant_id=full_user.tenant_id,
-        
-        # CRITICAL: Core user properties (previously missing)
-        is_active=full_user.is_active,
-        auth_provider=full_user.auth_provider,
-        external_id=full_user.external_id,
-        auto_registered=full_user.auto_registered or False,
-        
-        # Basic profile information
-        phone_number=full_user.phone_number,
-        department=full_user.department,
-        job_title=full_user.job_title,
-        
-        # Enhanced profile information
-        gender=full_user.gender,
-        nationality=full_user.nationality,
-        passport_number=full_user.passport_number,
-        passport_issue_date=full_user.passport_issue_date,
-        passport_expiry_date=full_user.passport_expiry_date,
-        whatsapp_number=full_user.whatsapp_number,
-        email_work=full_user.email_work,
-        
-        # Timestamps
-        last_login=full_user.last_login,
-        created_at=full_user.created_at,
-        updated_at=full_user.updated_at,
-        approved_by=full_user.approved_by,
-        approved_at=full_user.approved_at,
-        profile_updated_at=full_user.profile_updated_at,
-        email_verified_at=full_user.email_verified_at,
-        
-        # Security indicators
-        has_strong_password=has_strong_password,
-        password_age_days=password_age_days
-    )
+    except Exception as e:
+        logger.error(f"Error getting user profile for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user profile: {str(e)}"
+        )
 
 @router.put("/me", response_model=schemas.User)
 def update_my_profile(
