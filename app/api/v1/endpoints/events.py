@@ -615,12 +615,28 @@ def update_event(
         ).count()
         
         single_rooms = event_update.get('single_rooms', event.single_rooms or 0)
+        expected_participants = event_update.get('expected_participants', event.expected_participants or 0)
         
-        if single_rooms < confirmed_participants:
+        # Use the higher of confirmed participants or expected participants
+        participants_to_accommodate = max(confirmed_participants, expected_participants)
+        
+        if single_rooms < participants_to_accommodate:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot set double rooms to 0: Single rooms ({single_rooms}) must be at least equal to confirmed participants staying at venue ({confirmed_participants})"
+                detail=f"Cannot set double rooms to 0: Single rooms ({single_rooms}) must be at least equal to expected participants ({participants_to_accommodate})"
             )
+    
+    # General room capacity validation
+    single_rooms = event_update.get('single_rooms', event.single_rooms or 0)
+    double_rooms = event_update.get('double_rooms', event.double_rooms or 0)
+    expected_participants = event_update.get('expected_participants', event.expected_participants or 0)
+    
+    total_capacity = single_rooms + (double_rooms * 2)
+    if total_capacity < expected_participants:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Room capacity ({total_capacity}) cannot be less than expected participants ({expected_participants})"
+        )
     
     # Convert registration_deadline string to datetime if provided
     if 'registration_deadline' in event_update and event_update['registration_deadline']:
