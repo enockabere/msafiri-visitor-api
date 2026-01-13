@@ -10,6 +10,7 @@ class Tenant(BaseModel):
     
     name = Column(String(255), nullable=False)
     slug = Column(String(100), unique=True, nullable=False, index=True)
+    public_id = Column(String(12), unique=True, nullable=False, index=True)  # Random string for URLs
     domain = Column(String(255), unique=True, nullable=True)
     is_active = Column(Boolean, default=True)
     contact_email = Column(String(255), nullable=False)

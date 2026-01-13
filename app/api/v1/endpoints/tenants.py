@@ -290,7 +290,37 @@ def deactivate_tenant(
     
     return updated_tenant
 
-@router.get("/slug/{tenant_slug}", response_model=schemas.TenantWithStats)
+@router.get("/public/{public_id}", response_model=schemas.TenantWithStats)
+def read_tenant_by_public_id(
+    *,
+    db: Session = Depends(get_db),
+    public_id: str,
+) -> Any:
+    """Get tenant by public_id (no auth required for dashboard)."""
+    tenant = crud.tenant.get_by_public_id(db, public_id=public_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    # Add statistics
+    total_users = len(crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000))
+    active_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.is_active])
+    pending_users = len([u for u in crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=1000) if u.status.value == "pending_approval"])
+    
+    users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=5)
+    last_activity = max([u.last_login for u in users if u.last_login], default=None)
+    
+    tenant_data = {
+        **tenant.__dict__,
+        "total_users": total_users,
+        "active_users": active_users,
+        "pending_users": pending_users,
+        "last_user_activity": last_activity
+    }
+    
+    return schemas.TenantWithStats(**tenant_data)
 def read_tenant_by_slug(
     *,
     db: Session = Depends(get_db),
