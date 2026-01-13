@@ -12,7 +12,7 @@ import random
 
 # revision identifiers
 revision = 'add_tenant_public_id'
-down_revision = None
+down_revision = '024_invitation_templates'
 depends_on = None
 
 def generate_random_id(length=12):
