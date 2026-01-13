@@ -6,6 +6,7 @@ from datetime import datetime
 class TenantBase(BaseModel):
     name: str
     slug: str
+    public_id: Optional[str] = None
     domain: Optional[str] = None
     contact_email: EmailStr
     description: Optional[str] = None
