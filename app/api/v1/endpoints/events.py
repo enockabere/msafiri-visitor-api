@@ -337,7 +337,7 @@ def create_event(
                     
                     # Contact Details Section
                     {"field_name": "personalEmail", "field_label": "Personal Email", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
-                    {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "text", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
+                    {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
                     
                     # Final Details Section
                     {"field_name": "codeOfConductConfirm", "field_label": "I confirm that I have read and agree to abide by the MSF Code of Conduct", "field_type": "select", "field_options": '["I agree", "I do not agree"]', "is_required": True, "order_index": 401, "section": "final"},
