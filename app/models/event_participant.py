@@ -120,4 +120,5 @@ class EventParticipant(BaseModel):
     
     # Relationships
     event = relationship("Event", back_populates="participants")
+    perdiem_requests = relationship("PerdiemRequest", back_populates="participant")
     # user = relationship("User", foreign_keys=[user_id])
