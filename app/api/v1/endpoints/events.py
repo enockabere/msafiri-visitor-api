@@ -1482,15 +1482,21 @@ def test_simulate_selection(
         db.refresh(new_participation)
         return {"message": f"Created new participation as selected", "participant_id": new_participation.id}
 
-@router.post("/{event_id}/refresh-room-booking")
-def refresh_event_room_booking(
+@router.post("/{event_id}/generate-poa")
+def generate_poa_for_event(
     *,
     db: Session = Depends(get_db),
     event_id: int,
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
-    """Manually refresh automatic room booking for an event"""
+    """Generate POA documents for all participants in an event"""
     import logging
+    from datetime import datetime
+    import qrcode
+    from io import BytesIO
+    import base64
+    import os
+    
     logger = logging.getLogger(__name__)
     
     # Check permissions
@@ -1505,7 +1511,7 @@ def refresh_event_room_booking(
     if not has_single_role_permission and not has_relationship_role_permission:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin roles can refresh room booking"
+            detail="Only admin roles can generate POA documents"
         )
     
     # Get event
@@ -1516,28 +1522,152 @@ def refresh_event_room_booking(
             detail="Event not found"
         )
     
-    logger.info(f"🔄 Manual room booking refresh requested for event {event_id}: {event.title}")
-    
-    try:
-        from app.services.automatic_room_booking_service import refresh_automatic_room_booking
-        
-        success = refresh_automatic_room_booking(db, event_id, event.tenant_id)
-        
-        if success:
-            return {
-                "message": "Room booking refreshed successfully",
-                "event_id": event_id,
-                "event_title": event.title
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to refresh room booking"
-            )
-            
-    except Exception as e:
-        logger.error(f"💥 Error refreshing room booking for event {event_id}: {str(e)}")
+    # Get tenant
+    tenant = crud.tenant.get(db, id=event.tenant_id)
+    if not tenant:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error refreshing room booking: {str(e)}"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
         )
+    
+    # Get vendor accommodation if specified
+    vendor = None
+    if event.vendor_accommodation_id:
+        from app.models.guesthouse import VendorAccommodation
+        vendor = db.query(VendorAccommodation).filter(
+            VendorAccommodation.id == event.vendor_accommodation_id
+        ).first()
+    
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event must have a vendor accommodation assigned to generate POA documents"
+        )
+    
+    # Get POA template for the vendor
+    from app.crud.poa_template import poa_template
+    template = poa_template.get_by_vendor(db, vendor_accommodation_id=vendor.id)
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No POA template found for vendor '{vendor.vendor_name}'. Please create a template first."
+        )
+    
+    # Get all selected/confirmed participants for the event
+    from app.models.event_participant import EventParticipant
+    participants = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.status.in_(['selected', 'confirmed', 'approved'])
+    ).all()
+    
+    if not participants:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No selected/confirmed participants found for this event"
+        )
+    
+    logger.info(f"🎯 Generating POA for {len(participants)} participants in event {event_id}")
+    
+    successful = 0
+    failed = 0
+    errors = []
+    
+    for participant in participants:
+        try:
+            # Generate POA HTML content
+            html_content = template.template_content
+            
+            # Replace logo placeholder
+            if template.logo_url and '{{hotelLogo}}' in html_content:
+                logo_html = f'<img src="{template.logo_url}" alt="Hotel Logo" style="max-height: 100px; max-width: 300px; display: block; margin: 0 auto;" />'
+                html_content = html_content.replace('{{hotelLogo}}', logo_html)
+            
+            # Replace signature placeholder
+            if template.signature_url and '{{signature}}' in html_content:
+                signature_html = f'<img src="{template.signature_url}" alt="Signature" style="max-height: 60px; max-width: 200px;" />'
+                html_content = html_content.replace('{{signature}}', signature_html)
+            
+            # Generate QR code if enabled
+            if template.enable_qr_code and '{{qrCode}}' in html_content:
+                api_url = os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+                poa_url = f"{api_url}/api/v1/poa-templates/vendor/{vendor.id}/generate/{participant.id}"
+                
+                qr = qrcode.QRCode(version=1, box_size=10, border=2)
+                qr.add_data(poa_url)
+                qr.make(fit=True)
+                qr_img = qr.make_image(fill_color="black", back_color="white")
+                
+                buffer = BytesIO()
+                qr_img.save(buffer, format='PNG')
+                qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+                qr_img_tag = f'<img src="data:image/png;base64,{qr_base64}" alt="QR Code" style="width: 100px; height: 100px;" />'
+                
+                html_content = html_content.replace('{{qrCode}}', qr_img_tag)
+            
+            # Replace participant variables
+            variables = {
+                'participantName': participant.full_name or '',
+                'participantEmail': participant.email or '',
+                'participantPhone': participant.phone or participant.phone_number or '',
+                'participantNationality': participant.nationality or participant.country or '',
+                'participantPassport': participant.passport_number or '',
+                'participantGender': participant.gender or '',
+                
+                # Vendor/Hotel details
+                'hotelName': vendor.vendor_name,
+                'hotelLocation': vendor.location or '',
+                'hotelAddress': vendor.location or '',
+                'hotelPhone': getattr(vendor, 'contact_phone', '') or '',
+                'hotelEmail': getattr(vendor, 'contact_email', '') or '',
+                'hotelContactPerson': getattr(vendor, 'contact_person', '') or '',
+                
+                # Event details
+                'eventTitle': event.title,
+                'eventName': event.title,
+                'eventStartDate': event.start_date.strftime('%B %d, %Y') if event.start_date else '',
+                'eventEndDate': event.end_date.strftime('%B %d, %Y') if event.end_date else '',
+                'eventLocation': event.location or '',
+                'eventDates': f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event.start_date and event.end_date else '',
+                'checkInDate': event.start_date.strftime('%B %d, %Y') if event.start_date else '',
+                'checkOutDate': event.end_date.strftime('%B %d, %Y') if event.end_date else '',
+                
+                # Room details (placeholder)
+                'roomType': 'Single',
+                'roomNumber': 'TBD',
+                
+                # Document info
+                'documentDate': datetime.now().strftime('%B %d, %Y'),
+                'tenantName': tenant.name or '',
+                'confirmationNumber': f'MSF-{event.id}-{participant.id}',
+            }
+            
+            # Replace all placeholders
+            for key, value in variables.items():
+                html_content = html_content.replace(f'{{{{{key}}}}}', str(value))
+            
+            # Store the generated POA URL/content in participant record
+            # For now, we'll just mark that POA was generated
+            participant.proof_of_accommodation_url = f"/api/v1/poa-templates/vendor/{vendor.id}/generate/{participant.id}"
+            participant.proof_generated_at = datetime.now()
+            
+            successful += 1
+            logger.info(f"✅ Generated POA for participant {participant.id}: {participant.full_name}")
+            
+        except Exception as e:
+            failed += 1
+            error_msg = f"Failed to generate POA for participant {participant.id} ({participant.full_name}): {str(e)}"
+            errors.append(error_msg)
+            logger.error(f"❌ {error_msg}")
+    
+    # Commit all changes
+    db.commit()
+    
+    logger.info(f"🎉 POA generation completed - Success: {successful}, Failed: {failed}")
+    
+    return {
+        "message": "POA generation completed",
+        "total_participants": len(participants),
+        "successful": successful,
+        "failed": failed,
+        "errors": errors if errors else None
+    }
