@@ -324,6 +324,7 @@ def read_tenant_by_public_id(
     }
     
     return schemas.TenantWithStats(**tenant_data)
+@router.get("/slug/{tenant_slug}", response_model=schemas.TenantWithStats)
 def read_tenant_by_slug(
     *,
     db: Session = Depends(get_db),
@@ -345,15 +346,22 @@ def read_tenant_by_slug(
     users = crud.user.get_by_tenant(db, tenant_id=tenant.slug, limit=5)
     last_activity = max([u.last_login for u in users if u.last_login], default=None)
     
-    tenant_data = {
-        **tenant.__dict__,
-        "total_users": total_users,
-        "active_users": active_users,
-        "pending_users": pending_users,
-        "last_user_activity": last_activity
-    }
-    
-    return schemas.TenantWithStats(**tenant_data)
+    return schemas.TenantWithStats(
+        id=tenant.id,
+        name=tenant.name,
+        slug=tenant.slug,
+        domain=tenant.domain,
+        contact_email=tenant.contact_email,
+        description=tenant.description,
+        admin_email=tenant.admin_email,
+        is_active=tenant.is_active,
+        created_at=tenant.created_at,
+        updated_at=tenant.updated_at,
+        total_users=total_users,
+        active_users=active_users,
+        pending_users=pending_users,
+        last_user_activity=last_activity
+    )
 
 @router.get("/{tenant_slug}", response_model=schemas.TenantWithStats)
 def read_tenant_by_slug_simple(
