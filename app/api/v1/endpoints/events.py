@@ -1574,80 +1574,17 @@ def generate_poa_for_event(
     
     for participant in participants:
         try:
-            # Generate POA HTML content
-            html_content = template.template_content
+            # Generate actual POA document using the same service as vendor setup
+            from app.services.proof_of_accommodation import generate_proof_of_accommodation
             
-            # Replace logo placeholder
-            if template.logo_url and '{{hotelLogo}}' in html_content:
-                logo_html = f'<img src="{template.logo_url}" alt="Hotel Logo" style="max-height: 100px; max-width: 300px; display: block; margin: 0 auto;" />'
-                html_content = html_content.replace('{{hotelLogo}}', logo_html)
+            poa_url = generate_proof_of_accommodation(
+                participant_id=participant.id,
+                vendor_accommodation_id=vendor.id,
+                event_id=event_id
+            )
             
-            # Replace signature placeholder
-            if template.signature_url and '{{signature}}' in html_content:
-                signature_html = f'<img src="{template.signature_url}" alt="Signature" style="max-height: 60px; max-width: 200px;" />'
-                html_content = html_content.replace('{{signature}}', signature_html)
-            
-            # Generate QR code if enabled
-            if template.enable_qr_code and '{{qrCode}}' in html_content:
-                api_url = os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
-                poa_url = f"{api_url}/api/v1/poa-templates/vendor/{vendor.id}/generate/{participant.id}"
-                
-                qr = qrcode.QRCode(version=1, box_size=10, border=2)
-                qr.add_data(poa_url)
-                qr.make(fit=True)
-                qr_img = qr.make_image(fill_color="black", back_color="white")
-                
-                buffer = BytesIO()
-                qr_img.save(buffer, format='PNG')
-                qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-                qr_img_tag = f'<img src="data:image/png;base64,{qr_base64}" alt="QR Code" style="width: 100px; height: 100px;" />'
-                
-                html_content = html_content.replace('{{qrCode}}', qr_img_tag)
-            
-            # Replace participant variables
-            variables = {
-                'participantName': participant.full_name or '',
-                'participantEmail': participant.email or '',
-                'participantPhone': getattr(participant, 'phone_number', 'N/A'),
-                'participantNationality': participant.nationality or participant.country or '',
-                'participantPassport': getattr(participant, 'passport_document', '') or '',
-                'participantGender': participant.gender or '',
-                
-                # Vendor/Hotel details
-                'hotelName': vendor.vendor_name,
-                'hotelLocation': vendor.location or '',
-                'hotelAddress': vendor.location or '',
-                'hotelPhone': getattr(vendor, 'contact_phone', '') or '',
-                'hotelEmail': getattr(vendor, 'contact_email', '') or '',
-                'hotelContactPerson': getattr(vendor, 'contact_person', '') or '',
-                
-                # Event details
-                'eventTitle': event.title,
-                'eventName': event.title,
-                'eventStartDate': event.start_date.strftime('%B %d, %Y') if event.start_date else '',
-                'eventEndDate': event.end_date.strftime('%B %d, %Y') if event.end_date else '',
-                'eventLocation': event.location or '',
-                'eventDates': f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event.start_date and event.end_date else '',
-                'checkInDate': event.start_date.strftime('%B %d, %Y') if event.start_date else '',
-                'checkOutDate': event.end_date.strftime('%B %d, %Y') if event.end_date else '',
-                
-                # Room details (placeholder)
-                'roomType': 'Single',
-                'roomNumber': 'TBD',
-                
-                # Document info
-                'documentDate': datetime.now().strftime('%B %d, %Y'),
-                'tenantName': tenant.name or '',
-                'confirmationNumber': f'MSF-{event.id}-{participant.id}',
-            }
-            
-            # Replace all placeholders
-            for key, value in variables.items():
-                html_content = html_content.replace(f'{{{{{key}}}}}', str(value))
-            
-            # Store the generated POA URL/content in participant record
-            # For now, we'll just mark that POA was generated
-            participant.proof_of_accommodation_url = f"/api/v1/poa-templates/vendor/{vendor.id}/generate/{participant.id}"
+            # Update participant with actual POA URL
+            participant.proof_of_accommodation_url = poa_url
             participant.proof_generated_at = datetime.now()
             
             successful += 1
