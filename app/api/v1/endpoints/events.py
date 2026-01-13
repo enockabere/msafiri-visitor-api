@@ -604,6 +604,24 @@ def update_event(
             detail="Event not found"
         )
     
+    # Validate room capacity if double_rooms is set to 0
+    if 'double_rooms' in event_update and event_update['double_rooms'] == 0:
+        # Count confirmed participants staying at venue
+        from app.models.event_participant import EventParticipant
+        confirmed_participants = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.status == "confirmed",
+            EventParticipant.accommodation_preference == "staying_at_venue"
+        ).count()
+        
+        single_rooms = event_update.get('single_rooms', event.single_rooms or 0)
+        
+        if single_rooms < confirmed_participants:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot set double rooms to 0: Single rooms ({single_rooms}) must be at least equal to confirmed participants staying at venue ({confirmed_participants})"
+            )
+    
     # Convert registration_deadline string to datetime if provided
     if 'registration_deadline' in event_update and event_update['registration_deadline']:
         from datetime import datetime
