@@ -142,6 +142,16 @@ def update_event_certificate(
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
     
+    # Print statement to show certificate date update
+    print("\n" + "="*80)
+    print(f"[CERT UPDATE] Certificate Issue Date Edit")
+    print(f"   Event ID: {event_id}")
+    print(f"   Certificate ID: {certificate_id}")
+    print(f"   Old certificate_date: {certificate.certificate_date}")
+    print(f"   New certificate_date: {certificate_data.certificate_date}")
+    print(f"   Date changed: {certificate.certificate_date != certificate_data.certificate_date}")
+    print("="*80 + "\n")
+    
     # Update certificate fields
     update_data = certificate_data.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -149,6 +159,9 @@ def update_event_certificate(
     
     db.commit()
     db.refresh(certificate)
+    
+    print(f"[CERT UPDATE] ✓ Certificate updated successfully")
+    print(f"   Updated certificate_date: {certificate.certificate_date}\n")
     
     return certificate
 
