@@ -11,7 +11,7 @@ from app.models.event_certificate import EventCertificate, ParticipantCertificat
 from app.models.event_badge import EventBadge, ParticipantBadge
 from app.models.certificate_template import CertificateTemplate
 from app.models.badge_template import BadgeTemplate
-from app.schemas.event_certificate import EventCertificateCreate, EventCertificateUpdate, EventCertificateResponse, ParticipantCertificateResponse
+from app.schemas.event_certificate import EventCertificateCreate, EventCertificateUpdate, EventCertificateResponse, ParticipantCertificateResponse, AssignCertificatesRequest
 from app.schemas.event_badge import EventBadgeCreate, EventBadgeUpdate, EventBadgeResponse, ParticipantBadgeResponse
 import qrcode
 from io import BytesIO
@@ -56,7 +56,7 @@ def create_event_certificate(
     current_user: User = Depends(get_current_user),
     tenant_slug: str = Depends(get_tenant_context)
 ):
-    """Create a certificate for an event"""
+    """Create a certificate for an event (does NOT auto-assign to participants)"""
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -81,6 +81,8 @@ def create_event_certificate(
         event_id=event_id,
         certificate_template_id=certificate_data.certificate_template_id,
         template_variables=certificate_data.template_variables,
+        certificate_date=certificate_data.certificate_date,
+        is_published=False,  # Not published until admin assigns participants
         tenant_id=tenant.id,
         created_by=current_user.id
     )
@@ -89,17 +91,7 @@ def create_event_certificate(
     db.commit()
     db.refresh(event_certificate)
     
-    # Create participant certificates for all event participants
-    participants = db.query(EventParticipant).filter(EventParticipant.event_id == event_id).all()
-    
-    for participant in participants:
-        participant_cert = ParticipantCertificate(
-            event_certificate_id=event_certificate.id,
-            participant_id=participant.id
-        )
-        db.add(participant_cert)
-    
-    db.commit()
+    # DO NOT auto-assign to participants - admin must manually assign
     
     return event_certificate
 
@@ -796,32 +788,54 @@ def generate_participant_badge(
 def assign_participants_to_certificate(
     event_id: int,
     certificate_id: int,
-    db: Session = Depends(get_db)
+    assignment_data: AssignCertificatesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_slug: str = Depends(get_tenant_context)
 ):
-    """Manually assign all event participants to an existing certificate"""
+    """Assign certificate to selected participants (does NOT publish immediately)"""
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
     # Get the event certificate
     event_certificate = db.query(EventCertificate).filter(
         EventCertificate.id == certificate_id,
-        EventCertificate.event_id == event_id
+        EventCertificate.event_id == event_id,
+        EventCertificate.tenant_id == tenant.id
     ).first()
     
     if not event_certificate:
         raise HTTPException(status_code=404, detail="Event certificate not found")
     
-    # Get all participants for this event
-    participants = db.query(EventParticipant).filter(EventParticipant.event_id == event_id).all()
+    # Verify all participants exist and belong to this event
+    participants = db.query(EventParticipant).filter(
+        EventParticipant.id.in_(assignment_data.participant_ids),
+        EventParticipant.event_id == event_id
+    ).all()
     
-    # Delete existing participant certificates for this event certificate
+    if len(participants) != len(assignment_data.participant_ids):
+        raise HTTPException(status_code=400, detail="Some participants not found or don't belong to this event")
+    
+    # Only assign to confirmed participants
+    confirmed_participants = [p for p in participants if p.status == 'confirmed']
+    
+    if not confirmed_participants:
+        raise HTTPException(status_code=400, detail="No confirmed participants in selection")
+    
+    # Delete existing assignments for these participants (if any)
     db.query(ParticipantCertificate).filter(
-        ParticipantCertificate.event_certificate_id == certificate_id
-    ).delete()
+        ParticipantCertificate.event_certificate_id == certificate_id,
+        ParticipantCertificate.participant_id.in_([p.id for p in confirmed_participants])
+    ).delete(synchronize_session=False)
     
     # Create new participant certificates
     created_count = 0
-    for participant in participants:
+    for participant in confirmed_participants:
         participant_cert = ParticipantCertificate(
             event_certificate_id=certificate_id,
-            participant_id=participant.id
+            participant_id=participant.id,
+            email_sent=False
         )
         db.add(participant_cert)
         created_count += 1
@@ -829,8 +843,9 @@ def assign_participants_to_certificate(
     db.commit()
     
     return {
-        "message": f"Successfully assigned {created_count} participants to certificate",
-        "participants_assigned": created_count
+        "message": f"Successfully assigned certificate to {created_count} confirmed participants",
+        "participants_assigned": created_count,
+        "note": "Certificates will be visible on certificate_date and emails will be sent automatically"
     }
 
 @router.get("/{event_id}/certificates/participant/{participant_id}", response_model=ParticipantCertificateResponse)
@@ -839,63 +854,73 @@ def get_event_participant_certificate(
     participant_id: int,
     db: Session = Depends(get_db)
 ):
-    """Get certificate for a specific participant in an event"""
-    # Debug: Check what certificates exist for this event
-    event_certificates = db.query(EventCertificate).filter(EventCertificate.event_id == event_id).all()
-    print(f"[FIND] DEBUG: Found {len(event_certificates)} event certificates for event {event_id}")
-    
-    for cert in event_certificates:
-        print(f"[INFO] Event Certificate ID: {cert.id}, Template ID: {cert.certificate_template_id}")
-        
-        # Check participant certificates for this event certificate
-        participant_certs = db.query(ParticipantCertificate).filter(
-            ParticipantCertificate.event_certificate_id == cert.id
-        ).all()
-        print(f" Found {len(participant_certs)} participant certificates for event cert {cert.id}")
-        
-        for pc in participant_certs:
-            print(f"   - Participant ID: {pc.participant_id}")
+    """Get certificate for a specific participant in an event (only if published and date reached)"""
+    from datetime import datetime, timezone
     
     # Get participant certificate through event certificate
     participant_cert = db.query(ParticipantCertificate).join(EventCertificate).filter(
         ParticipantCertificate.participant_id == participant_id,
-        EventCertificate.event_id == event_id
+        EventCertificate.event_id == event_id,
+        EventCertificate.is_published == True  # Only show published certificates
     ).first()
-    
-    print(f"[CERT] Looking for participant {participant_id} in event {event_id}")
-    print(f"[OK] Found participant certificate: {participant_cert is not None}")
-    
-    # If no participant certificate found, but event certificates exist, auto-assign
-    if not participant_cert and event_certificates:
-        print(f"[AUTO] No participant certificate found, attempting auto-assignment...")
-        
-        # Verify participant exists in this event
-        participant = db.query(EventParticipant).filter(
-            EventParticipant.id == participant_id,
-            EventParticipant.event_id == event_id
-        ).first()
-        
-        if participant:
-            print(f"[AUTO] Participant {participant_id} exists in event {event_id}, creating certificate...")
-            
-            # Create participant certificate for the first available event certificate
-            first_cert = event_certificates[0]
-            participant_cert = ParticipantCertificate(
-                event_certificate_id=first_cert.id,
-                participant_id=participant_id
-            )
-            db.add(participant_cert)
-            db.commit()
-            db.refresh(participant_cert)
-            
-            print(f"[AUTO] Created participant certificate: Event Cert {first_cert.id} -> Participant {participant_id}")
-        else:
-            print(f"[AUTO] Participant {participant_id} not found in event {event_id}")
     
     if not participant_cert:
         raise HTTPException(status_code=404, detail="Certificate not found for participant")
     
+    # Check if certificate date has been reached
+    event_cert = participant_cert.event_certificate
+    if event_cert.certificate_date:
+        # Make certificate_date timezone-aware if it isn't
+        cert_date = event_cert.certificate_date
+        if cert_date.tzinfo is None:
+            cert_date = cert_date.replace(tzinfo=timezone.utc)
+        
+        now = datetime.now(timezone.utc)
+        if now < cert_date:
+            raise HTTPException(status_code=404, detail="Certificate not yet available")
+    
     return participant_cert
+
+@router.post("/{event_id}/certificates/{certificate_id}/publish")
+def publish_certificate(
+    event_id: int,
+    certificate_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_slug: str = Depends(get_tenant_context)
+):
+    """Manually publish certificate (make visible on mobile app based on certificate_date)"""
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    event_certificate = db.query(EventCertificate).filter(
+        EventCertificate.id == certificate_id,
+        EventCertificate.event_id == event_id,
+        EventCertificate.tenant_id == tenant.id
+    ).first()
+    
+    if not event_certificate:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    
+    # Check if participants are assigned
+    participant_count = db.query(ParticipantCertificate).filter(
+        ParticipantCertificate.event_certificate_id == certificate_id
+    ).count()
+    
+    if participant_count == 0:
+        raise HTTPException(status_code=400, detail="No participants assigned to this certificate")
+    
+    # Publish the certificate
+    event_certificate.is_published = True
+    db.commit()
+    
+    return {
+        "message": "Certificate published successfully",
+        "participants_count": participant_count,
+        "certificate_date": event_certificate.certificate_date,
+        "note": f"Certificate will be visible to participants on {event_certificate.certificate_date.strftime('%Y-%m-%d %H:%M')}" if event_certificate.certificate_date else "Certificate is now visible to participants"
+    }
 
 @router.get("/certificates/events/{event_id}/participant/{participant_id}/generate")
 def generate_participant_certificate_direct(

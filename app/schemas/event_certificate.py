@@ -1,10 +1,11 @@
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 class EventCertificateBase(BaseModel):
     certificate_template_id: int
     template_variables: Dict[str, Any]
+    certificate_date: Optional[datetime] = None
 
 class EventCertificateCreate(EventCertificateBase):
     pass
@@ -12,12 +13,15 @@ class EventCertificateCreate(EventCertificateBase):
 class EventCertificateUpdate(BaseModel):
     certificate_template_id: Optional[int] = None
     template_variables: Optional[Dict[str, Any]] = None
+    certificate_date: Optional[datetime] = None
+    is_published: Optional[bool] = None
 
 class EventCertificateResponse(EventCertificateBase):
     id: int
     event_id: int
     tenant_id: int
     created_by: int
+    is_published: bool
     created_at: datetime
     updated_at: datetime
 
@@ -30,7 +34,12 @@ class ParticipantCertificateResponse(BaseModel):
     participant_id: int
     certificate_url: Optional[str] = None
     certificate_public_id: Optional[str] = None
+    email_sent: bool
+    email_sent_at: Optional[datetime] = None
     issued_at: datetime
 
     class Config:
         from_attributes = True
+
+class AssignCertificatesRequest(BaseModel):
+    participant_ids: List[int]  # List of participant IDs to assign certificates to

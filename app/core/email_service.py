@@ -416,5 +416,104 @@ class EmailService:
         
         return self.send_email([to_email], "Password Reset Request - MSF Msafiri Admin Portal", html_content, text_content)
 
+    def send_certificate_notification_email(
+        self,
+        to_email: str,
+        participant_name: str,
+        event_title: str,
+        certificate_url: str
+    ):
+        """Send certificate availability notification email."""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Your Event Certificate is Ready</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 30px; border-radius: 10px; }}
+                .logo {{ color: white; font-size: 28px; font-weight: bold; }}
+                .title {{ color: #1f2937; font-size: 22px; margin: 20px 0; text-align: center; }}
+                .message {{ color: #4b5563; line-height: 1.8; margin: 20px 0; }}
+                .button {{ display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3); }}
+                .certificate-icon {{ font-size: 64px; text-align: center; margin: 20px 0; }}
+                .info-box {{ background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">🎓 MSF Msafiri</div>
+                </div>
+                
+                <div class="certificate-icon">🏆</div>
+                
+                <h2 class="title">Your Certificate is Ready!</h2>
+                
+                <div class="message">
+                    <p>Dear {participant_name},</p>
+                    <p>Congratulations! Your certificate for <strong>{event_title}</strong> is now available.</p>
+                    <p>You can view and download your certificate from the MSF Msafiri mobile app.</p>
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="{certificate_url}" class="button" style="color: white;">View Certificate</a>
+                </div>
+                
+                <div class="info-box">
+                    <p><strong>📱 How to access your certificate:</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>Open the MSF Msafiri mobile app</li>
+                        <li>Go to your event details</li>
+                        <li>Navigate to the "Event Files" section</li>
+                        <li>Your certificate will be available for download</li>
+                    </ul>
+                </div>
+                
+                <div class="message">
+                    <p>If you have any questions, please contact your event coordinator.</p>
+                    <p>Thank you for your participation!</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated message from MSF Msafiri</p>
+                    <p>Médecins Sans Frontières (MSF) - Kenya</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_content = f"""
+        Your Certificate is Ready! - MSF Msafiri
+        
+        Dear {participant_name},
+        
+        Congratulations! Your certificate for {event_title} is now available.
+        
+        You can view and download your certificate from the MSF Msafiri mobile app.
+        
+        View your certificate: {certificate_url}
+        
+        How to access your certificate:
+        1. Open the MSF Msafiri mobile app
+        2. Go to your event details
+        3. Navigate to the "Event Files" section
+        4. Your certificate will be available for download
+        
+        If you have any questions, please contact your event coordinator.
+        
+        Thank you for your participation!
+        
+        Best regards,
+        MSF Msafiri Team
+        """
+        
+        return self.send_email([to_email], f"Your Certificate is Ready - {event_title}", html_content, text_content)
+
 # Global email service instance
 email_service = EmailService()
