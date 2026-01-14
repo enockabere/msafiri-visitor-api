@@ -7,7 +7,7 @@ from app.core.email_service import email_service
 from app.models.user import UserRole
 import secrets
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def request_password_reset(
     
     # Generate reset token
     reset_token = secrets.token_urlsafe(32)
-    reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)  # Token expires in 1 hour
     
     # Store reset token in user record
     user.password_reset_token = reset_token
@@ -106,7 +106,7 @@ def reset_password(
         )
     
     # Check if token is expired
-    if not user.password_reset_expires or user.password_reset_expires < datetime.utcnow():
+    if not user.password_reset_expires or user.password_reset_expires < datetime.now(timezone.utc):
         logger.warning(f"❌ Expired password reset token for user: {user.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
