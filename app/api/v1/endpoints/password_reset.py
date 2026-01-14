@@ -43,7 +43,7 @@ def request_password_reset(
     
     # Generate reset token
     reset_token = secrets.token_urlsafe(32)
-    reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)  # Token expires in 1 hour
+    reset_expires = datetime.now(timezone.utc) + timedelta(hours=24)  # Token expires in 24 hours
     
     # Store reset token in user record
     user.password_reset_token = reset_token
@@ -60,7 +60,7 @@ def request_password_reset(
             to_email=user.email,
             user_name=user.full_name,
             reset_url=reset_url,
-            expires_in_hours=1
+            expires_in_hours=24
         )
         
         logger.info(f"📧 Password reset email sent to: {email}")
