@@ -152,14 +152,16 @@ def update_event_certificate(
         raise HTTPException(status_code=404, detail="Certificate not found")
     
     # Print statement to show certificate date update
-    print("\n" + "="*80)
-    print(f"[CERT UPDATE] Certificate Issue Date Edit")
-    print(f"   Event ID: {event_id}")
-    print(f"   Certificate ID: {certificate_id}")
-    print(f"   Old certificate_date: {certificate.certificate_date}")
-    print(f"   New certificate_date: {certificate_data.certificate_date}")
-    print(f"   Date changed: {certificate.certificate_date != certificate_data.certificate_date}")
-    print("="*80 + "\n")
+    import sys
+    print("\n" + "="*80, flush=True)
+    print(f"[CERT UPDATE] Certificate Issue Date Edit", flush=True)
+    print(f"   Event ID: {event_id}", flush=True)
+    print(f"   Certificate ID: {certificate_id}", flush=True)
+    print(f"   Old certificate_date: {certificate.certificate_date}", flush=True)
+    print(f"   New certificate_date: {certificate_data.certificate_date}", flush=True)
+    print(f"   Date changed: {certificate.certificate_date != certificate_data.certificate_date}", flush=True)
+    print("="*80 + "\n", flush=True)
+    sys.stdout.flush()
     
     # Update certificate fields
     update_data = certificate_data.dict(exclude_unset=True)
@@ -169,8 +171,9 @@ def update_event_certificate(
     db.commit()
     db.refresh(certificate)
     
-    print(f"[CERT UPDATE] ✓ Certificate updated successfully")
-    print(f"   Updated certificate_date: {certificate.certificate_date}\n")
+    print(f"[CERT UPDATE] ✓ Certificate updated successfully", flush=True)
+    print(f"   Updated certificate_date: {certificate.certificate_date}\n", flush=True)
+    sys.stdout.flush()
     
     return certificate
 
