@@ -129,6 +129,15 @@ def update_event_certificate(
     tenant_slug: str = Depends(get_tenant_context)
 ):
     """Update an event certificate"""
+    import sys
+    print("\n" + "="*80, flush=True)
+    print(f"[CERT UPDATE] UPDATE ENDPOINT CALLED", flush=True)
+    print(f"   Event ID: {event_id}", flush=True)
+    print(f"   Certificate ID: {certificate_id}", flush=True)
+    print(f"   Incoming data: {certificate_data.dict()}", flush=True)
+    print("="*80 + "\n", flush=True)
+    sys.stdout.flush()
+    
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
