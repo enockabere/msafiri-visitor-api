@@ -34,7 +34,7 @@ api_router.include_router(
 
 api_router.include_router(
     password_reset.router,
-    prefix="/password",
+    prefix="/auth",
     tags=["password-reset"]
 )
 
