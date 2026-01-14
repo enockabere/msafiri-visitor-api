@@ -129,15 +129,6 @@ def update_event_certificate(
     tenant_slug: str = Depends(get_tenant_context)
 ):
     """Update an event certificate"""
-    import sys
-    print("\n" + "="*80, flush=True)
-    print(f"[CERT UPDATE] UPDATE ENDPOINT CALLED", flush=True)
-    print(f"   Event ID: {event_id}", flush=True)
-    print(f"   Certificate ID: {certificate_id}", flush=True)
-    print(f"   Incoming data: {certificate_data.dict()}", flush=True)
-    print("="*80 + "\n", flush=True)
-    sys.stdout.flush()
-    
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -151,18 +142,6 @@ def update_event_certificate(
     if not certificate:
         raise HTTPException(status_code=404, detail="Certificate not found")
     
-    # Print statement to show certificate date update
-    import sys
-    print("\n" + "="*80, flush=True)
-    print(f"[CERT UPDATE] Certificate Issue Date Edit", flush=True)
-    print(f"   Event ID: {event_id}", flush=True)
-    print(f"   Certificate ID: {certificate_id}", flush=True)
-    print(f"   Old certificate_date: {certificate.certificate_date}", flush=True)
-    print(f"   New certificate_date: {certificate_data.certificate_date}", flush=True)
-    print(f"   Date changed: {certificate.certificate_date != certificate_data.certificate_date}", flush=True)
-    print("="*80 + "\n", flush=True)
-    sys.stdout.flush()
-    
     # Update certificate fields
     update_data = certificate_data.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -170,10 +149,6 @@ def update_event_certificate(
     
     db.commit()
     db.refresh(certificate)
-    
-    print(f"[CERT UPDATE] ✓ Certificate updated successfully", flush=True)
-    print(f"   Updated certificate_date: {certificate.certificate_date}\n", flush=True)
-    sys.stdout.flush()
     
     return certificate
 
