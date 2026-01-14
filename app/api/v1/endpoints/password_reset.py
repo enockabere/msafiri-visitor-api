@@ -114,7 +114,8 @@ def reset_password(
         )
     
     # Update password
-    user.hashed_password = crud.user.get_password_hash(new_password)
+    from app.core.security import get_password_hash
+    user.hashed_password = get_password_hash(new_password)
     user.password_reset_token = None
     user.password_reset_expires = None
     db.commit()
