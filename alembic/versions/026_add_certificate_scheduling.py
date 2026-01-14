@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '026_certificate_scheduling'
-down_revision = '025'  # Update this to your latest migration
+down_revision = 'add_tenant_public_id'
 branch_labels = None
 depends_on = None
 
