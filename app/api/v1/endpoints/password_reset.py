@@ -1,154 +1,129 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
 from app.db.database import get_db
-from app.models.user import User
-from app.core.security import get_password_hash
+from app import crud
 from app.core.email_service import email_service
+from app.models.user import UserRole
 import secrets
-import string
-from datetime import datetime, timedelta
 import logging
-
-logger = logging.getLogger(__name__)
+from datetime import datetime, timedelta
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
-class PasswordResetTokenRequest(BaseModel):
-    email: EmailStr
-
-class PasswordResetRequest(BaseModel):
-    email: EmailStr
-    token: str
-
-# Store reset tokens temporarily (in production, use Redis or database)
-reset_tokens = {}
-
-@router.post("/send-reset-token")
-async def send_password_reset_token(
-    request: PasswordResetTokenRequest,
-    db: Session = Depends(get_db)
-):
-    """Send password reset token to user email"""
+@router.post("/request-password-reset")
+def request_password_reset(
+    *,
+    db: Session = Depends(get_db),
+    email_data: dict
+) -> Any:
+    """Request password reset for super admin users only"""
+    
+    email = email_data.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email address is required"
+        )
+    
+    logger.info(f"🔐 Password reset requested for email: {email}")
+    
+    # Get user by email
+    user = crud.user.get_by_email(db, email=email)
+    if not user:
+        # Don't reveal if user exists or not for security
+        logger.info(f"❌ Password reset requested for non-existent user: {email}")
+        return {"message": "If the email exists in our system, you will receive a password reset link shortly."}
+    
+    # Only allow password reset for super admins
+    if user.role != UserRole.SUPER_ADMIN:
+        logger.warning(f"❌ Password reset attempted for non-super-admin user: {email} (role: {user.role})")
+        return {"message": "If the email exists in our system, you will receive a password reset link shortly."}
+    
+    # Generate reset token
+    reset_token = secrets.token_urlsafe(32)
+    reset_expires = datetime.utcnow() + timedelta(hours=1)  # Token expires in 1 hour
+    
+    # Store reset token in user record
+    user.password_reset_token = reset_token
+    user.password_reset_expires = reset_expires
+    db.commit()
+    
+    logger.info(f"✅ Generated password reset token for user: {email}")
+    
+    # Send reset email
     try:
-        # Check if user exists
-        user = db.query(User).filter(User.email == request.email).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        reset_url = f"{get_frontend_url()}/reset-password?token={reset_token}"
         
-        # Generate 6-digit token
-        token = ''.join(secrets.choice(string.digits) for _ in range(6))
+        email_service.send_password_reset_email(
+            to_email=user.email,
+            user_name=user.full_name,
+            reset_url=reset_url,
+            expires_in_hours=1
+        )
         
-        # Store token with expiry (10 minutes)
-        reset_tokens[request.email] = {
-            'token': token,
-            'expires_at': datetime.utcnow() + timedelta(minutes=10)
-        }
+        logger.info(f"📧 Password reset email sent to: {email}")
         
-        # Send email with token
-        try:
-            email_service.send_notification_email(
-                to_email=request.email,
-                user_name=user.full_name or request.email,
-                title="Password Reset Token",
-                message=f"""
-Hello {user.full_name or 'User'},
-
-You requested a password reset for your MSafiri account.
-
-Your reset token is: {token}
-
-This token will expire in 10 minutes.
-
-If you didn't request this reset, please ignore this email.
-
-Best regards,
-MSF Kenya Team
-                """
-            )
-            
-            logger.info(f"Password reset token sent to {request.email}")
-            return {"message": "Reset token sent to your email"}
-            
-        except Exception as e:
-            logger.error(f"Failed to send reset token email: {str(e)}")
-            raise HTTPException(status_code=500, detail="Failed to send reset token")
-            
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error sending reset token: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"💥 Failed to send password reset email to {email}: {str(e)}")
+        # Don't fail the request if email fails, but log the error
+    
+    return {"message": "If the email exists in our system, you will receive a password reset link shortly."}
 
-@router.post("/reset-with-token")
-async def reset_password_with_token(
-    request: PasswordResetRequest,
-    db: Session = Depends(get_db)
-):
+@router.post("/reset-password")
+def reset_password(
+    *,
+    db: Session = Depends(get_db),
+    reset_data: dict
+) -> Any:
     """Reset password using token"""
-    try:
-        # Check if user exists
-        user = db.query(User).filter(User.email == request.email).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Check if token exists and is valid
-        token_data = reset_tokens.get(request.email)
-        if not token_data:
-            raise HTTPException(status_code=400, detail="Invalid or expired token")
-        
-        # Check if token matches
-        if token_data['token'] != request.token:
-            raise HTTPException(status_code=400, detail="Invalid token")
-        
-        # Check if token is expired
-        if datetime.utcnow() > token_data['expires_at']:
-            # Clean up expired token
-            del reset_tokens[request.email]
-            raise HTTPException(status_code=400, detail="Token has expired")
-        
-        # Generate new random password
-        new_password = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12))
-        
-        # Update user password
-        user.hashed_password = get_password_hash(new_password)
-        db.commit()
-        
-        # Clean up used token
-        del reset_tokens[request.email]
-        
-        # Send new password via email
-        try:
-            email_service.send_notification_email(
-                to_email=request.email,
-                user_name=user.full_name or request.email,
-                title="Password Reset Successful",
-                message=f"""
-Hello {user.full_name or 'User'},
+    
+    token = reset_data.get("token", "").strip()
+    new_password = reset_data.get("password", "").strip()
+    
+    if not token or not new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token and new password are required"
+        )
+    
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long"
+        )
+    
+    logger.info(f"🔐 Password reset attempt with token: {token[:8]}...")
+    
+    # Find user by reset token
+    user = crud.user.get_by_reset_token(db, token=token)
+    if not user:
+        logger.warning(f"❌ Invalid password reset token: {token[:8]}...")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    # Check if token is expired
+    if not user.password_reset_expires or user.password_reset_expires < datetime.utcnow():
+        logger.warning(f"❌ Expired password reset token for user: {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired. Please request a new one."
+        )
+    
+    # Update password
+    user.hashed_password = crud.user.get_password_hash(new_password)
+    user.password_reset_token = None
+    user.password_reset_expires = None
+    db.commit()
+    
+    logger.info(f"✅ Password reset successful for user: {user.email}")
+    
+    return {"message": "Password has been reset successfully. You can now login with your new password."}
 
-Your password has been successfully reset.
-
-Your new password is: {new_password}
-
-Please login with this password and change it to something memorable.
-
-For security reasons, please change your password after logging in.
-
-Best regards,
-MSF Kenya Team
-                """
-            )
-            
-            logger.info(f"Password reset successful for {request.email}")
-            return {"message": "Password reset successful. Check your email for the new password."}
-            
-        except Exception as e:
-            logger.error(f"Failed to send new password email: {str(e)}")
-            # Password was changed but email failed
-            return {"message": "Password reset successful but failed to send email. Please contact support."}
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error resetting password: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+def get_frontend_url() -> str:
+    """Get frontend URL for reset links"""
+    import os
+    return os.getenv("FRONTEND_URL", "http://localhost:3000/portal")

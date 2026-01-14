@@ -22,6 +22,10 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             User.external_id == external_id,
             User.auth_provider == auth_provider
         ).first()
+    
+    def get_by_reset_token(self, db: Session, *, token: str) -> Optional[User]:
+        """Get user by password reset token"""
+        return db.query(User).filter(User.password_reset_token == token).first()
 
     def get_by_tenant(self, db: Session, *, tenant_id: str, skip: int = 0, limit: int = 100) -> List[User]:
         return (

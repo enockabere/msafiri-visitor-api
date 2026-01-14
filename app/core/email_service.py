@@ -327,5 +327,98 @@ class EmailService:
         
         return self.send_email([email], "Your role has been updated - MSF Msafiri Admin Portal", html_content, text_content)
 
+    def send_password_reset_email(
+        self,
+        to_email: str,
+        user_name: str,
+        reset_url: str,
+        expires_in_hours: int = 1
+    ):
+        """Send password reset email to super admin users."""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Password Reset Request</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ text-align: center; margin-bottom: 30px; }}
+                .logo {{ color: #dc2626; font-size: 24px; font-weight: bold; }}
+                .title {{ color: #1f2937; font-size: 20px; margin: 20px 0; }}
+                .message {{ color: #4b5563; line-height: 1.6; margin: 20px 0; }}
+                .button {{ display: inline-block; background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .warning {{ background-color: #fef3c7; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #f59e0b; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <div class="logo">🔐 MSF Msafiri Admin Portal</div>
+                </div>
+                
+                <h2 class="title">Password Reset Request</h2>
+                
+                <div class="message">
+                    <p>Dear {user_name},</p>
+                    <p>We received a request to reset your password for the MSF Msafiri Admin Portal.</p>
+                    <p>To reset your password, please click the button below:</p>
+                </div>
+                
+                <div style="text-align: center;">
+                    <a href="{reset_url}" class="button">Reset Password</a>
+                </div>
+                
+                <div class="warning">
+                    <p><strong>⚠️ Important Security Information:</strong></p>
+                    <ul>
+                        <li>This link will expire in {expires_in_hours} hour(s)</li>
+                        <li>If you didn't request this reset, please ignore this email</li>
+                        <li>For security, this link can only be used once</li>
+                        <li>Never share this link with anyone</li>
+                    </ul>
+                </div>
+                
+                <div class="message">
+                    <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; background-color: #f3f4f6; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px;">{reset_url}</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated security message from MSF Msafiri Admin Portal</p>
+                    <p>Médecins Sans Frontières (MSF)</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_content = f"""
+        Password Reset Request - MSF Msafiri Admin Portal
+        
+        Dear {user_name},
+        
+        We received a request to reset your password for the MSF Msafiri Admin Portal.
+        
+        To reset your password, please visit the following link:
+        {reset_url}
+        
+        IMPORTANT SECURITY INFORMATION:
+        - This link will expire in {expires_in_hours} hour(s)
+        - If you didn't request this reset, please ignore this email
+        - For security, this link can only be used once
+        - Never share this link with anyone
+        
+        If you have any questions, please contact your system administrator.
+        
+        Best regards,
+        MSF Msafiri Team
+        """
+        
+        return self.send_email([to_email], "Password Reset Request - MSF Msafiri Admin Portal", html_content, text_content)
+
 # Global email service instance
 email_service = EmailService()
