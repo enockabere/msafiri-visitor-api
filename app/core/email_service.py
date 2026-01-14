@@ -356,10 +356,6 @@ class EmailService:
         </head>
         <body>
             <div class="container">
-                <div class="header">
-                    <div class="logo">🔐 MSF Msafiri Admin Portal</div>
-                </div>
-                
                 <h2 class="title">Password Reset Request</h2>
                 
                 <div class="message">
@@ -369,7 +365,7 @@ class EmailService:
                 </div>
                 
                 <div style="text-align: center;">
-                    <a href="{reset_url}" class="button">Reset Password</a>
+                    <a href="{reset_url}" class="button" style="color: white;">Reset Password</a>
                 </div>
                 
                 <div class="warning">
