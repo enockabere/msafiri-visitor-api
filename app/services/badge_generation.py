@@ -48,7 +48,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="QR Code" style="width:26px;height:26px;max-width:26px;max-height:26px;object-fit:contain" />'
+            img_tag = f'<img src="{value}" alt="QR Code" style="width:28px;height:28px;display:block" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key == 'avatar' and value and value.startswith('http'):
@@ -159,7 +159,7 @@ async def generate_badge(
         # Generate QR code URL that points to the badge itself
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=50x50&data={badge_view_url}"
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={badge_view_url}"
 
         # Prepare data for template - only use template variables, no text replacement
         template_data = {
@@ -188,7 +188,7 @@ async def generate_badge(
         
         # Fallback: Replace static "QR" text with QR code image if no variable was found
         if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
-            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:26px;height:26px;max-width:26px;max-height:26px;object-fit:contain" />'
+            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:28px;height:28px;display:block" />'
             # Replace standalone "QR" text (not part of variables)
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
         
