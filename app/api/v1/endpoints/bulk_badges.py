@@ -135,9 +135,9 @@ async def generate_bulk_badges(
             }}
             .page {{
                 page-break-after: always;
-                display: grid;
-                grid-template-columns: {'repeat(2, 1fr)' if badges_per_page == 4 else '1fr'};
-                grid-template-rows: {'repeat(2, 1fr)' if badges_per_page == 4 else 'repeat(2, 1fr)'};
+                display: flex;
+                flex-direction: {'row' if badges_per_page == 4 else 'column'};
+                flex-wrap: wrap;
                 gap: 0.5cm;
                 width: 100%;
                 height: 100%;
@@ -146,9 +146,17 @@ async def generate_bulk_badges(
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
+                flex: {'0 0 calc(50% - 0.25cm)' if badges_per_page == 4 else '0 0 calc(50% - 0.25cm)'};
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                page-break-inside: avoid;
+            }}
+            /* Override any page-break styles from badge template */
+            .badge-wrapper * {{
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
             }}
         </style>
     </head>
