@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 
-from app.database import get_db
+from app.db.database import get_db
 from app.models import EventBadge, EventParticipant, Event
 from app.services.badge_generation import replace_template_variables
 from io import BytesIO
