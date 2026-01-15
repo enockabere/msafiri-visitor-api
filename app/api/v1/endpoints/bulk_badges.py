@@ -160,12 +160,8 @@ async def generate_bulk_badges(
         page_badges = badge_htmls[i:i + badges_per_page]
         combined_html += '<div class="page">'
         for badge_html in page_badges:
-            # Extract just the badge div from the full HTML
-            start = badge_html.find('<div class="badge"')
-            end = badge_html.find('</body>')
-            if start != -1 and end != -1:
-                badge_content = badge_html[start:badge_html.find('</div>', start) + 6]
-                combined_html += f'<div class="badge-wrapper">{badge_content}</div>'
+            # Include the full badge HTML with its styles
+            combined_html += f'<div class="badge-wrapper">{badge_html}</div>'
         combined_html += '</div>'
     
     combined_html += """
