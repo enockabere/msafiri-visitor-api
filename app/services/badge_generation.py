@@ -48,7 +48,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
-            img_tag = f'<img src="{value}" alt="QR Code" style="width:18px;height:18px;max-width:18px;max-height:18px;object-fit:contain" />'
+            img_tag = f'<img src="{value}" alt="QR Code" style="width:26px;height:26px;max-width:26px;max-height:26px;object-fit:contain" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
         elif key == 'avatar' and value and value.startswith('http'):
@@ -188,7 +188,7 @@ async def generate_badge(
         
         # Fallback: Replace static "QR" text with QR code image if no variable was found
         if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
-            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:18px;height:18px;max-width:18px;max-height:18px;object-fit:contain" />'
+            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:26px;height:26px;max-width:26px;max-height:26px;object-fit:contain" />'
             # Replace standalone "QR" text (not part of variables)
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
         
