@@ -814,7 +814,8 @@ def assign_participants_to_certificate(
         raise HTTPException(status_code=404, detail="Event certificate not found")
     
     # Verify all participants exist and belong to this event
-    participants = db.query(EventParticipant).filter(
+    from sqlalchemy.orm import noload
+    participants = db.query(EventParticipant).options(noload('*')).filter(
         EventParticipant.id.in_(assignment_data.participant_ids),
         EventParticipant.event_id == event_id
     ).all()
