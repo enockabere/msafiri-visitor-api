@@ -42,7 +42,7 @@ class ParticipantProfile(BaseModel):
     emergency_contact_relationship = Column(String(100))
     
     # Relationships
-    participant = relationship("EventParticipant", back_populates="profile")
+    participant = relationship("EventParticipant")
 
 class MessageStatus(enum.Enum):
     SENT = "sent"
