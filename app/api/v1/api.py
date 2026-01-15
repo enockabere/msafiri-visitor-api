@@ -745,6 +745,14 @@ api_router.include_router(
     tags=["event-badge-generation"]
 )
 
+# Bulk badge printing
+from app.api.v1.endpoints import bulk_badges
+api_router.include_router(
+    bulk_badges.router,
+    prefix="",
+    tags=["bulk-badges"]
+)
+
 # Participant documents (certificates and badges)
 from app.api.v1.endpoints import participant_documents
 api_router.include_router(
