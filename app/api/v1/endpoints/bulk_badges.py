@@ -136,8 +136,7 @@ async def generate_bulk_badges(
             .page {{
                 page-break-after: always;
                 display: flex;
-                flex-direction: {'row' if badges_per_page == 4 else 'column'};
-                flex-wrap: wrap;
+                flex-direction: column;
                 gap: 0.5cm;
                 width: 100%;
                 height: 100%;
@@ -146,17 +145,18 @@ async def generate_bulk_badges(
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
-                flex: {'0 0 calc(50% - 0.25cm)' if badges_per_page == 4 else '0 0 calc(50% - 0.25cm)'};
+                flex: 1;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                page-break-inside: avoid;
+                overflow: hidden;
+                max-height: calc(50% - 0.25cm);
             }}
-            /* Override any page-break styles from badge template */
-            .badge-wrapper * {{
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
+            .badge-wrapper > * {{
+                transform: scale(0.48);
+                transform-origin: center center;
+                width: 10cm;
+                height: 15cm;
             }}
         </style>
     </head>
