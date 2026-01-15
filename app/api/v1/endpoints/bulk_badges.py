@@ -32,9 +32,11 @@ async def generate_bulk_badges(
     db: Session = Depends(get_db),
     x_tenant_id: str = Header(None)
 ):
-    """Generate multiple badges in a single PDF for printing"""
-    from app.services.badge_generation import generate_badge
-    from PyPDF2 import PdfMerger
+    """Generate multiple badges in a single PDF with 2 badges per page"""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+    from weasyprint import HTML
     import tempfile
     
     # Get event
@@ -74,42 +76,49 @@ async def generate_bulk_badges(
     template_vars = badge_result.template_variables or {}
     tagline = template_vars.get('tagline', '') or template_vars.get('badgeTagline', '')
     
-    # Generate individual badge PDFs
-    merger = PdfMerger()
-    
+    # Generate badge HTML for each participant
+    badge_htmls = []
     for participant in participants:
-        try:
-            badge_url = await generate_badge(
-                participant_id=participant.id,
-                event_id=event_id,
-                template_html=badge_result.template_content,
-                participant_name=participant.full_name,
-                badge_name=participant.badge_name or participant.full_name,
-                event_name=event.title,
-                event_dates=f"{event.start_date.strftime('%B %d, %Y')} - {event.end_date.strftime('%B %d, %Y')}",
-                start_date=event.start_date.strftime('%B %d, %Y'),
-                end_date=event.end_date.strftime('%B %d, %Y'),
-                tagline=tagline,
-                participant_role=participant.role or 'Participant',
-                logo_url=badge_result.logo_url
-            )
-            
-            # Download the badge PDF and add to merger
-            import requests
-            response = requests.get(badge_url)
-            if response.status_code == 200:
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
-                    tmp.write(response.content)
-                    tmp.flush()
-                    merger.append(tmp.name)
-        except Exception as e:
-            print(f"Error generating badge for {participant.full_name}: {e}")
-            continue
+        template_data = {
+            'participant_name': participant.full_name,
+            'badge_name': participant.badge_name or participant.full_name,
+            'event_name': event.title,
+            'event_dates': f"{event.start_date.strftime('%B %d, %Y')} - {event.end_date.strftime('%B %d, %Y')}",
+            'start_date': event.start_date.strftime('%B %d, %Y'),
+            'end_date': event.end_date.strftime('%B %d, %Y'),
+            'tagline': tagline,
+            'participant_role': participant.role or 'Participant',
+            'logo': badge_result.logo_url or '',
+            'qr_code': f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={os.getenv('API_BASE_URL', 'http://localhost:8000')}/api/v1/events/{event_id}/participant/{participant.id}/badge/generate"
+        }
+        badge_html = replace_template_variables(badge_result.template_content, template_data)
+        badge_htmls.append(badge_html)
     
-    # Write merged PDF
+    # Create PDF with reportlab - A4 landscape, 2 badges per page
     output = BytesIO()
-    merger.write(output)
-    merger.close()
+    page_width, page_height = landscape(A4)
+    badge_width = page_width / 2
+    
+    c = canvas.Canvas(output, pagesize=landscape(A4))
+    
+    for i, badge_html in enumerate(badge_htmls):
+        # Generate badge as image using WeasyPrint
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+            HTML(string=badge_html).write_png(tmp.name)
+            
+            # Position: left or right half of page
+            x_pos = 0 if i % 2 == 0 else badge_width
+            
+            # Draw badge
+            c.drawImage(tmp.name, x_pos, 0, width=badge_width, height=page_height, preserveAspectRatio=True)
+            
+            # New page after every 2 badges
+            if i % 2 == 1 and i < len(badge_htmls) - 1:
+                c.showPage()
+            
+            os.unlink(tmp.name)
+    
+    c.save()
     output.seek(0)
     
     from fastapi.responses import Response
