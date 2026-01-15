@@ -134,7 +134,7 @@ async def generate_bulk_badges(
         <style>
             @page {{
                 size: A4 portrait;
-                margin: 0;
+                margin: 1cm;
             }}
             * {{
                 box-sizing: border-box;
@@ -146,38 +146,31 @@ async def generate_bulk_badges(
             }}
             .page {{
                 page-break-after: always;
-                width: 100%;
-                height: 100%;
-                display: flex;
-                flex-direction: column;
+                width: 19cm;
+                height: 27.7cm;
+                position: relative;
             }}
             .page:last-child {{
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
-                flex: 1;
-                width: 100%;
-                height: 50%;
-                overflow: hidden;
-                position: relative;
+                position: absolute;
+                width: 15cm;
+                height: 10cm;
+                left: 2cm;
                 display: flex;
                 align-items: center;
                 justify-content: center;
             }}
-            .badge-wrapper > * {{
-                transform: rotate(90deg) scale(0.7);
-                transform-origin: center center;
-                max-width: none;
-                max-height: none;
+            .badge-wrapper:first-child {{
+                top: 1cm;
             }}
-            /* Remove all page breaks from badge content */
-            .badge-wrapper, .badge-wrapper * {{
-                page-break-before: avoid !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
-                break-before: avoid !important;
-                break-after: avoid !important;
-                break-inside: avoid !important;
+            .badge-wrapper:nth-child(2) {{
+                top: 14.85cm;
+            }}
+            .badge-wrapper > * {{
+                transform: rotate(90deg);
+                transform-origin: center center;
             }}
         </style>
     </head>
