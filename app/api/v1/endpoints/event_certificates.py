@@ -795,13 +795,15 @@ def assign_participants_to_certificate(
 ):
     """Assign certificate to selected participants and auto-publish if date is today or past"""
     from datetime import datetime, timezone
-    from app.core.notifications import queue_notification
-    from app.models.visitor_enhancements import NotificationType
     import os
+    
+    print(f"[CERT] Step 1: Starting certificate assignment")
     
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    print(f"[CERT] Step 2: Tenant found: {tenant.slug}")
     
     # Get the event certificate
     event_certificate = db.query(EventCertificate).filter(
@@ -813,18 +815,28 @@ def assign_participants_to_certificate(
     if not event_certificate:
         raise HTTPException(status_code=404, detail="Event certificate not found")
     
+    print(f"[CERT] Step 3: Event certificate found: {certificate_id}")
+    print(f"[CERT] Step 4: Querying participants with IDs: {assignment_data.participant_ids}")
+    
     # Verify all participants exist and belong to this event
     from sqlalchemy.orm import noload
-    participants = db.query(EventParticipant).options(noload('*')).filter(
-        EventParticipant.id.in_(assignment_data.participant_ids),
-        EventParticipant.event_id == event_id
-    ).all()
+    try:
+        participants = db.query(EventParticipant).options(noload('*')).filter(
+            EventParticipant.id.in_(assignment_data.participant_ids),
+            EventParticipant.event_id == event_id
+        ).all()
+        print(f"[CERT] Step 5: Found {len(participants)} participants")
+    except Exception as e:
+        print(f"[CERT] ERROR in Step 5: {str(e)}")
+        raise
     
     if len(participants) != len(assignment_data.participant_ids):
         raise HTTPException(status_code=400, detail="Some participants not found or don't belong to this event")
     
+    print(f"[CERT] Step 6: Filtering confirmed participants")
     # Only assign to confirmed participants
     confirmed_participants = [p for p in participants if p.status == 'confirmed']
+    print(f"[CERT] Step 7: Found {len(confirmed_participants)} confirmed participants")
     
     if not confirmed_participants:
         raise HTTPException(status_code=400, detail="No confirmed participants in selection")
@@ -835,6 +847,7 @@ def assign_participants_to_certificate(
         ParticipantCertificate.participant_id.in_([p.id for p in confirmed_participants])
     ).delete(synchronize_session=False)
     
+    print(f"[CERT] Step 8: Creating participant certificates")
     # Create new participant certificates
     created_count = 0
     for participant in confirmed_participants:
@@ -846,6 +859,7 @@ def assign_participants_to_certificate(
         db.add(participant_cert)
         created_count += 1
     
+    print(f"[CERT] Step 9: Checking if should auto-publish")
     # Check if certificate should be auto-published
     should_publish = False
     now = datetime.now(timezone.utc)
@@ -859,11 +873,14 @@ def assign_participants_to_certificate(
         # No date set, publish immediately
         should_publish = True
     
+    print(f"[CERT] Step 10: Should publish: {should_publish}")
     # Auto-publish if date is reached
     if should_publish and not event_certificate.is_published:
         event_certificate.is_published = True
     
+    print(f"[CERT] Step 11: Committing to database")
     db.commit()
+    print(f"[CERT] Step 12: Success!")
     
     return {
         "message": f"Successfully assigned certificate to {created_count} confirmed participants",
