@@ -125,7 +125,7 @@ async def generate_bulk_badges(
         <title>Bulk Badges</title>
         <style>
             @page {{
-                size: A5 landscape;
+                size: A4 portrait;
                 margin: 0;
             }}
             * {{
@@ -141,17 +141,24 @@ async def generate_bulk_badges(
                 width: 100%;
                 height: 100%;
                 display: flex;
-                flex-direction: row;
+                flex-direction: column;
             }}
             .page:last-child {{
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
                 flex: 1;
-                width: 50%;
-                height: 100%;
+                width: 100%;
+                height: 50%;
                 overflow: hidden;
                 position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }}
+            .badge-wrapper > * {{
+                transform: rotate(90deg);
+                transform-origin: center center;
             }}
             /* Remove all page breaks from badge content */
             .badge-wrapper, .badge-wrapper * {{
