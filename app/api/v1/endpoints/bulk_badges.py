@@ -116,11 +116,17 @@ async def generate_bulk_badges(
         
         # Remove style tags and page-break styles from the badge HTML
         import re
-        # Remove <style> tags and their content
-        personalized_html = re.sub(r'<style[^>]*>.*?</style>', '', personalized_html, flags=re.DOTALL)
-        # Remove inline page-break styles
-        personalized_html = re.sub(r'page-break-[^:;]+:[^;]+;?', '', personalized_html)
-        personalized_html = re.sub(r'break-[^:;]+:[^;]+;?', '', personalized_html)
+        # Remove @page rules from style tags but keep other styles
+        def remove_page_rules(match):
+            style_content = match.group(1)
+            # Remove @page blocks
+            style_content = re.sub(r'@page\s*{[^}]*}', '', style_content)
+            # Remove page-break properties
+            style_content = re.sub(r'page-break-[^:;]+:[^;]+;?', '', style_content)
+            style_content = re.sub(r'break-[^:;]+:[^;]+;?', '', style_content)
+            return f'<style>{style_content}</style>'
+        
+        personalized_html = re.sub(r'<style[^>]*>(.*?)</style>', remove_page_rules, personalized_html, flags=re.DOTALL)
         
         badge_htmls.append(personalized_html)
     
