@@ -10,7 +10,9 @@ from typing import List
 from pydantic import BaseModel
 
 from app.db.database import get_db
-from app.models import EventBadge, EventParticipant, Event
+from app.models.event_badge import EventBadge
+from app.models.event_participant import EventParticipant
+from app.models.event import Event
 from app.services.badge_generation import replace_template_variables
 from io import BytesIO
 import os
