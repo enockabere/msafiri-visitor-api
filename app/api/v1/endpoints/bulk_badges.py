@@ -125,7 +125,7 @@ async def generate_bulk_badges(
         <title>Bulk Badges</title>
         <style>
             @page {{
-                size: A5 {'landscape' if badge_result.badge_size == 'standard' else 'portrait'};
+                size: A5 landscape;
                 margin: 0;
             }}
             * {{
@@ -141,15 +141,15 @@ async def generate_bulk_badges(
                 width: 100%;
                 height: 100%;
                 display: flex;
-                flex-direction: column;
+                flex-direction: row;
             }}
             .page:last-child {{
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
                 flex: 1;
-                width: 100%;
-                height: 50%;
+                width: 50%;
+                height: 100%;
                 overflow: hidden;
                 position: relative;
             }}
