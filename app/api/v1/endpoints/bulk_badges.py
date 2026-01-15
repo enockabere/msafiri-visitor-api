@@ -126,7 +126,10 @@ async def generate_bulk_badges(
         <style>
             @page {{
                 size: A5 {'landscape' if badge_result.badge_size == 'standard' else 'portrait'};
-                margin: 0.5cm;
+                margin: 0;
+            }}
+            * {{
+                box-sizing: border-box;
             }}
             body {{
                 margin: 0;
@@ -135,28 +138,29 @@ async def generate_bulk_badges(
             }}
             .page {{
                 page-break-after: always;
-                display: flex;
-                flex-direction: column;
-                gap: 0.5cm;
                 width: 100%;
                 height: 100%;
+                display: flex;
+                flex-direction: column;
             }}
             .page:last-child {{
                 page-break-after: avoid;
             }}
             .badge-wrapper {{
                 flex: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
+                width: 100%;
+                height: 50%;
                 overflow: hidden;
-                max-height: calc(50% - 0.25cm);
+                position: relative;
             }}
-            .badge-wrapper > * {{
-                transform: scale(0.48);
-                transform-origin: center center;
-                width: 10cm;
-                height: 15cm;
+            /* Remove all page breaks from badge content */
+            .badge-wrapper, .badge-wrapper * {{
+                page-break-before: avoid !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                break-before: avoid !important;
+                break-after: avoid !important;
+                break-inside: avoid !important;
             }}
         </style>
     </head>
