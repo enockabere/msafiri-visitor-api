@@ -200,6 +200,47 @@ def delete_event_badge(
     db.commit()
     return {"message": "Badge deleted successfully"}
 
+@router.post("/{event_id}/participant/{participant_id}/badge/assign")
+def assign_badge_to_participant(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Manually assign a badge to a participant"""
+    try:
+        # Get the event badge
+        event_badge = db.query(EventBadge).filter(
+            EventBadge.event_id == event_id
+        ).first()
+        
+        if not event_badge:
+            raise HTTPException(status_code=404, detail="No badge configured for this event")
+        
+        # Check if participant already has a badge
+        existing_badge = db.query(ParticipantBadge).filter(
+            ParticipantBadge.event_badge_id == event_badge.id,
+            ParticipantBadge.participant_id == participant_id
+        ).first()
+        
+        if existing_badge:
+            return {"message": "Badge already assigned", "badge_id": existing_badge.id}
+        
+        # Create participant badge
+        participant_badge = ParticipantBadge(
+            event_badge_id=event_badge.id,
+            participant_id=participant_id
+        )
+        db.add(participant_badge)
+        db.commit()
+        db.refresh(participant_badge)
+        
+        return {"message": "Badge assigned successfully", "badge_id": participant_badge.id}
+        
+    except Exception as e:
+        logger.error(f"Error assigning badge: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{event_id}/participant/{participant_id}/badge/check")
 def check_participant_badge(
     event_id: int,
@@ -209,6 +250,8 @@ def check_participant_badge(
 ):
     """Check if a participant has a badge assigned"""
     try:
+        logger.info(f"🏷️ Checking badge for participant {participant_id} in event {event_id}")
+        
         # Check if participant has a badge record
         badge_query = text("""
             SELECT pb.id 
@@ -223,6 +266,8 @@ def check_participant_badge(
             "participant_id": participant_id,
             "event_id": event_id
         }).fetchone()
+        
+        logger.info(f"🏷️ Badge found: {badge is not None}")
         
         return {"has_badge": badge is not None}
         
