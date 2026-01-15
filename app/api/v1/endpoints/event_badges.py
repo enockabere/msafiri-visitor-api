@@ -200,6 +200,36 @@ def delete_event_badge(
     db.commit()
     return {"message": "Badge deleted successfully"}
 
+@router.get("/{event_id}/participant/{participant_id}/badge/check")
+def check_participant_badge(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Check if a participant has a badge assigned"""
+    try:
+        # Check if participant has a badge record
+        badge_query = text("""
+            SELECT pb.id 
+            FROM participant_badges pb
+            JOIN event_badges eb ON pb.event_badge_id = eb.id
+            WHERE pb.participant_id = :participant_id
+            AND eb.event_id = :event_id
+            LIMIT 1
+        """)
+        
+        badge = db.execute(badge_query, {
+            "participant_id": participant_id,
+            "event_id": event_id
+        }).fetchone()
+        
+        return {"has_badge": badge is not None}
+        
+    except Exception as e:
+        logger.error(f"Error checking participant badge: {e}")
+        return {"has_badge": False}
+
 @router.get("/{event_id}/participant/{participant_id}/badge/generate")
 async def generate_participant_badge(
     event_id: int,
