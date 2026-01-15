@@ -183,13 +183,13 @@ async def generate_bulk_badges(
     <body>
     """
     
-    # Group badges into pages
+    # Group badges into pages (2 per page for large badges)
     for i in range(0, len(badge_htmls), badges_per_page):
         page_badges = badge_htmls[i:i + badges_per_page]
         combined_html += '<div class="page">'
-        for badge_html in page_badges:
+        for idx, badge_html in enumerate(page_badges):
             # Include the full badge HTML with its styles
-            combined_html += f'<div class="badge-wrapper">{badge_html}</div>'
+            combined_html += f'<div class="badge-wrapper" style="top: {1 if idx == 0 else 14.85}cm;">{badge_html}</div>'
         combined_html += '</div>'
     
     combined_html += """
