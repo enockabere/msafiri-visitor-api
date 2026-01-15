@@ -114,6 +114,11 @@ async def generate_bulk_badges(
             qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:100%;height:100%;padding:8px;background:white;display:block;object-fit:contain" />'
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
         
+        # Remove page-break styles from the badge HTML
+        import re
+        personalized_html = re.sub(r'page-break-[^:;]+:[^;]+;?', '', personalized_html)
+        personalized_html = re.sub(r'break-[^:;]+:[^;]+;?', '', personalized_html)
+        
         badge_htmls.append(personalized_html)
     
     # Create combined HTML with proper layout
