@@ -898,12 +898,77 @@ def assign_participants_to_certificate(
                 ).first()
                 
                 if template:
+                    # Get template variables from event certificate
+                    template_vars = event_certificate.template_variables or {}
+                    
+                    # Build complete HTML with all variables replaced
+                    html_content = template.template_content
+                    
+                    # Replace participant name
+                    participant_name = participant.certificate_name or participant.full_name
+                    html_content = html_content.replace('{{participantName}}', participant_name)
+                    
+                    # Replace event details
+                    if event:
+                        html_content = html_content.replace('{{eventTitle}}', event.title or '')
+                        if event.start_date:
+                            html_content = html_content.replace('{{startDate}}', event.start_date.strftime('%B %d, %Y'))
+                        if event.end_date:
+                            html_content = html_content.replace('{{endDate}}', event.end_date.strftime('%B %d, %Y'))
+                    
+                    # Replace template variables
+                    for key, value in template_vars.items():
+                        html_content = html_content.replace(f'{{{{{key}}}}}', str(value) if value else '')
+                    
+                    # Handle logo
+                    if template.logo_url:
+                        logo_html = f'<img src="{template.logo_url}" alt="Logo" style="max-height: 100px; max-width: 300px;" />'
+                        html_content = html_content.replace('{{logo}}', logo_html)
+                        html_content = html_content.replace('{{logoWatermark}}', f'<img src="{template.logo_url}" alt="Watermark" style="max-width: 400px; max-height: 400px;" />')
+                    
+                    # Handle course objectives and contents lists
+                    import re
+                    objectives = template_vars.get('courseObjectives', '')
+                    if objectives:
+                        if '<li>' in objectives:
+                            objectives_html = objectives
+                        else:
+                            objectives_html = '\n'.join([f'<li>{obj.strip()}</li>' for obj in objectives.split('\n') if obj.strip()])
+                            objectives_html = f'<ul>{objectives_html}</ul>'
+                        html_content = re.sub(r'{{#each courseObjectives}}.*?{{/each}}', objectives_html, html_content, flags=re.DOTALL)
+                    
+                    contents = template_vars.get('courseContents', '')
+                    if contents:
+                        if '<li>' in contents:
+                            contents_html = contents
+                        else:
+                            contents_html = '\n'.join([f'<li>{content.strip()}</li>' for content in contents.split('\n') if content.strip()])
+                            contents_html = f'<ul>{contents_html}</ul>'
+                        html_content = re.sub(r'{{#each courseContents}}.*?{{/each}}', contents_html, html_content, flags=re.DOTALL)
+                    
+                    # Generate QR code
+                    import qrcode
+                    from io import BytesIO
+                    import base64
+                    api_url = os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+                    cert_url = f"{api_url}/api/v1/events/{event_id}/certificates/{event_certificate.id}/generate/{participant.id}"
+                    qr = qrcode.QRCode(version=1, box_size=10, border=2)
+                    qr.add_data(cert_url)
+                    qr.make(fit=True)
+                    qr_img = qr.make_image(fill_color="black", back_color="white")
+                    buffer = BytesIO()
+                    qr_img.save(buffer, format='PNG')
+                    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+                    qr_img_tag = f'<img src="data:image/png;base64,{qr_base64}" alt="QR Code" style="width: 80px; height: 80px;" />'
+                    html_content = html_content.replace('{{qrCode}}', qr_img_tag)
+                    
+                    # Now generate PDF from the complete HTML
                     pdf_url = asyncio.run(generate_certificate(
                         participant_id=participant.id,
                         event_id=event_id,
-                        template_html=template.template_content,
-                        participant_name=participant.certificate_name or participant.full_name,
-                        certificate_name=participant.certificate_name or participant.full_name,
+                        template_html=html_content,  # Pass the already-processed HTML
+                        participant_name=participant_name,
+                        certificate_name=participant_name,
                         event_name=event.title if event else '',
                         event_dates=f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else '',
                         event_location=event.location if event else '',
