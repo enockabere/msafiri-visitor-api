@@ -159,7 +159,7 @@ async def generate_badge(
         # Generate QR code URL that points to the badge itself
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=60x60&data={badge_view_url}"
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=50x50&data={badge_view_url}"
 
         # Prepare data for template - only use template variables, no text replacement
         template_data = {
