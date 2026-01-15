@@ -869,18 +869,13 @@ def assign_participants_to_certificate(
         event = db.query(Event).filter(Event.id == event_id).first()
         
         for participant in confirmed_participants:
-            if not participant.user_id:
-                continue
-            
-            # Get user email
-            user = db.query(User).filter(User.id == participant.user_id).first()
-            if not user or not user.email:
+            if not participant.email:
                 continue
                 
             try:
                 # Send notification
                 queue_notification(
-                    recipient_email=user.email,
+                    recipient_email=participant.email,
                     notification_type=NotificationType.EVENT_REMINDER,
                     title="Certificate Available",
                     message=f"Your certificate for {event.title if event else 'the event'} is now available!",
