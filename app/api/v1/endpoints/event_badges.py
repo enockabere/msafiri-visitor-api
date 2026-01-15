@@ -108,8 +108,11 @@ def create_event_badge(
     db.commit()
     db.refresh(event_badge)
     
-    # Create participant badges for all event participants
-    participants = db.query(EventParticipant).filter(EventParticipant.event_id == event_id).all()
+    # Create participant badges for all confirmed participants
+    participants = db.query(EventParticipant).filter(
+        EventParticipant.event_id == event_id,
+        EventParticipant.status == 'confirmed'
+    ).all()
     
     for participant in participants:
         participant_badge = ParticipantBadge(
