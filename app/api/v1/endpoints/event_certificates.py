@@ -795,8 +795,8 @@ def assign_participants_to_certificate(
 ):
     """Assign certificate to selected participants and auto-publish if date is today or past"""
     from datetime import datetime, timezone
-    from app.core.notifications import send_push_notification
-    from app.models.notification import Notification
+    from app.core.notifications import queue_notification
+    from app.models.visitor_enhancements import NotificationType
     import os
     
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
@@ -867,30 +867,23 @@ def assign_participants_to_certificate(
     # Send notifications if published
     if should_publish:
         event = db.query(Event).filter(Event.id == event_id).first()
-        api_url = os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
         
         for participant in confirmed_participants:
             if not participant.user_id:
                 continue
+            
+            # Get user email
+            user = db.query(User).filter(User.id == participant.user_id).first()
+            if not user or not user.email:
+                continue
                 
             try:
-                # Create in-app notification
-                notification = Notification(
-                    user_id=participant.user_id,
+                # Send notification
+                queue_notification(
+                    recipient_email=user.email,
+                    notification_type=NotificationType.EVENT_REMINDER,
                     title="Certificate Available",
                     message=f"Your certificate for {event.title if event else 'the event'} is now available!",
-                    notification_type="certificate",
-                    related_id=certificate_id,
-                    is_read=False
-                )
-                db.add(notification)
-                
-                # Send push notification
-                send_push_notification(
-                    db=db,
-                    user_id=participant.user_id,
-                    title="Certificate Available",
-                    body=f"Your certificate for {event.title if event else 'the event'} is now available!",
                     data={"type": "certificate", "event_id": event_id, "certificate_id": certificate_id}
                 )
             except Exception as e:
