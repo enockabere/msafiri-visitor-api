@@ -47,7 +47,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startsWith('http'):
+        elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
             img_tag = f'<img src="{value}" alt="QR Code" style="width:100%;height:100%;padding:8px;background:white;display:block;object-fit:contain" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
