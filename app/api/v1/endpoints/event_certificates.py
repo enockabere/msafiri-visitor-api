@@ -950,8 +950,8 @@ def assign_participants_to_certificate(
                     import qrcode
                     from io import BytesIO
                     import base64
-                    # Use API_URL for server, fallback to NEXT_PUBLIC_API_URL for local dev
-                    api_url = os.getenv('API_URL') or os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+                    # Use API_BASE_URL for server deployment
+                    api_url = os.getenv('API_BASE_URL') or os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
                     cert_url = f"{api_url}/api/v1/events/{event_id}/certificates/{event_certificate.id}/generate/{participant.id}"
                     qr = qrcode.QRCode(version=1, box_size=10, border=2)
                     qr.add_data(cert_url)
