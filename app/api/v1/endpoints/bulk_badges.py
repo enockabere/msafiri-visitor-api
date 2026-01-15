@@ -165,8 +165,10 @@ async def generate_bulk_badges(
                 justify-content: center;
             }}
             .badge-wrapper > * {{
-                transform: rotate(90deg);
+                transform: rotate(90deg) scale(0.7);
                 transform-origin: center center;
+                max-width: none;
+                max-height: none;
             }}
             /* Remove all page breaks from badge content */
             .badge-wrapper, .badge-wrapper * {{
