@@ -793,7 +793,12 @@ def assign_participants_to_certificate(
     current_user: User = Depends(get_current_user),
     tenant_slug: str = Depends(get_tenant_context)
 ):
-    """Assign certificate to selected participants (does NOT publish immediately)"""
+    """Assign certificate to selected participants and auto-publish if date is today or past"""
+    from datetime import datetime, timezone
+    from app.core.notifications import send_push_notification
+    from app.models.notification import Notification
+    import os
+    
     tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -840,12 +845,64 @@ def assign_participants_to_certificate(
         db.add(participant_cert)
         created_count += 1
     
+    # Check if certificate should be auto-published
+    should_publish = False
+    now = datetime.now(timezone.utc)
+    
+    if event_certificate.certificate_date:
+        cert_date = event_certificate.certificate_date
+        if cert_date.tzinfo is None:
+            cert_date = cert_date.replace(tzinfo=timezone.utc)
+        should_publish = now >= cert_date
+    else:
+        # No date set, publish immediately
+        should_publish = True
+    
+    # Auto-publish if date is reached
+    if should_publish and not event_certificate.is_published:
+        event_certificate.is_published = True
+    
     db.commit()
+    
+    # Send notifications if published
+    if should_publish:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        api_url = os.getenv('NEXT_PUBLIC_API_URL', 'http://localhost:8000')
+        
+        for participant in confirmed_participants:
+            if not participant.user_id:
+                continue
+                
+            try:
+                # Create in-app notification
+                notification = Notification(
+                    user_id=participant.user_id,
+                    title="Certificate Available",
+                    message=f"Your certificate for {event.title if event else 'the event'} is now available!",
+                    notification_type="certificate",
+                    related_id=certificate_id,
+                    is_read=False
+                )
+                db.add(notification)
+                
+                # Send push notification
+                send_push_notification(
+                    db=db,
+                    user_id=participant.user_id,
+                    title="Certificate Available",
+                    body=f"Your certificate for {event.title if event else 'the event'} is now available!",
+                    data={"type": "certificate", "event_id": event_id, "certificate_id": certificate_id}
+                )
+            except Exception as e:
+                print(f"Failed to send notification to participant {participant.id}: {e}")
+        
+        db.commit()
     
     return {
         "message": f"Successfully assigned certificate to {created_count} confirmed participants",
         "participants_assigned": created_count,
-        "note": "Certificates will be visible on certificate_date and emails will be sent automatically"
+        "published": should_publish,
+        "note": "Certificate published and notifications sent" if should_publish else f"Certificate will be published on {event_certificate.certificate_date}"
     }
 
 @router.get("/{event_id}/certificates/participant/{participant_id}", response_model=ParticipantCertificateResponse)
