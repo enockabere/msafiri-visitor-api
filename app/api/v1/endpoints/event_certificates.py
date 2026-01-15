@@ -980,6 +980,38 @@ def get_event_participant_certificate(
     
     return participant_cert
 
+@router.get("/{event_id}/certificates/participant/{participant_id}/pdf")
+def get_participant_certificate_pdf(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_slug: str = Depends(get_tenant_context)
+):
+    """Get certificate PDF URL for admin portal view"""
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get participant certificate
+    participant_cert = db.query(ParticipantCertificate).join(EventCertificate).filter(
+        ParticipantCertificate.participant_id == participant_id,
+        EventCertificate.event_id == event_id,
+        EventCertificate.tenant_id == tenant.id
+    ).first()
+    
+    if not participant_cert:
+        raise HTTPException(status_code=404, detail="Certificate not found for participant")
+    
+    if not participant_cert.certificate_url:
+        raise HTTPException(status_code=404, detail="Certificate PDF not yet generated")
+    
+    return {
+        "certificate_url": participant_cert.certificate_url,
+        "participant_id": participant_id,
+        "event_id": event_id
+    }
+
 @router.post("/{event_id}/certificates/{certificate_id}/publish")
 def publish_certificate(
     event_id: int,
