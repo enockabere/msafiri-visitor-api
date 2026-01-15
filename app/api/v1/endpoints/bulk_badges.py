@@ -39,13 +39,27 @@ async def generate_bulk_badges(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Get badge template assigned to event
-    badge = db.query(EventBadge).filter(
-        EventBadge.event_id == event_id,
-        EventBadge.is_active == True
-    ).first()
+    # Get badge template assigned to event via event_badges
+    from sqlalchemy import text
     
-    if not badge:
+    badge_query = text("""
+        SELECT 
+            eb.id as event_badge_id,
+            bt.id as template_id,
+            bt.template_content,
+            bt.logo_url,
+            bt.badge_size,
+            eb.template_variables
+        FROM event_badges eb
+        JOIN badge_templates bt ON eb.badge_template_id = bt.id
+        WHERE eb.event_id = :event_id
+        AND bt.is_active = true
+        LIMIT 1
+    """)
+    
+    badge_result = db.execute(badge_query, {"event_id": event_id}).fetchone()
+    
+    if not badge_result:
         raise HTTPException(status_code=404, detail="No badge template assigned to this event")
     
     # Get participants
@@ -58,11 +72,15 @@ async def generate_bulk_badges(
         raise HTTPException(status_code=404, detail="No participants found")
     
     # Determine layout based on badge size
-    badges_per_page = 4 if badge.badge_size == 'standard' else 2
+    badges_per_page = 4 if badge_result.badge_size == 'standard' else 2
     
     # Generate HTML for all badges
     badge_htmls = []
     base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
+    
+    # Get tagline from template variables
+    template_vars = badge_result.template_variables or {}
+    tagline = template_vars.get('tagline', '') or template_vars.get('badgeTagline', '')
     
     for participant in participants:
         # Generate QR code URL
@@ -71,7 +89,7 @@ async def generate_bulk_badges(
         # Prepare template data
         template_data = {
             'participant_name': participant.full_name,
-            'badge_name': participant.full_name,
+            'badge_name': participant.badge_name or participant.full_name,
             'event_name': event.title,
             'event_title': event.title,
             'event_dates': f"{event.start_date.strftime('%B %d, %Y')} - {event.end_date.strftime('%B %d, %Y')}",
@@ -79,17 +97,17 @@ async def generate_bulk_badges(
             'end_date': event.end_date.strftime('%B %d, %Y'),
             'organization_name': 'MSF',
             'participant_role': participant.role or 'Participant',
-            'tagline': badge.tagline or '',
-            'badge_tagline': badge.tagline or '',
+            'tagline': tagline,
+            'badge_tagline': tagline,
             'qr_code': qr_code_url,
             'qrCode': qr_code_url,
             'QR': qr_code_url,
-            'logo': badge.logo_url if badge.logo_url else '',
+            'logo': badge_result.logo_url if badge_result.logo_url else '',
             'avatar': '',
         }
         
         # Replace variables in template
-        personalized_html = replace_template_variables(badge.template_content, template_data)
+        personalized_html = replace_template_variables(badge_result.template_content, template_data)
         
         # Replace QR placeholder
         if 'QR' in personalized_html and qr_code_url:
@@ -107,7 +125,7 @@ async def generate_bulk_badges(
         <title>Bulk Badges</title>
         <style>
             @page {{
-                size: A5 {'landscape' if badge.badge_size == 'standard' else 'portrait'};
+                size: A5 {'landscape' if badge_result.badge_size == 'standard' else 'portrait'};
                 margin: 0.5cm;
             }}
             body {{
