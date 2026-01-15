@@ -882,6 +882,64 @@ def assign_participants_to_certificate(
     db.commit()
     print(f"[CERT] Step 12: Success!")
     
+    # Generate PDFs and send notifications if published
+    if should_publish:
+        print(f"[CERT] Step 13: Generating PDFs and sending notifications")
+        event = db.query(Event).filter(Event.id == event_id).first()
+        
+        for participant in confirmed_participants:
+            try:
+                # Generate PDF certificate
+                from app.services.certificate_generation import generate_certificate
+                import asyncio
+                
+                template = db.query(CertificateTemplate).filter(
+                    CertificateTemplate.id == event_certificate.certificate_template_id
+                ).first()
+                
+                if template:
+                    pdf_url = asyncio.run(generate_certificate(
+                        participant_id=participant.id,
+                        event_id=event_id,
+                        template_html=template.template_content,
+                        participant_name=participant.certificate_name or participant.full_name,
+                        certificate_name=participant.certificate_name or participant.full_name,
+                        event_name=event.title if event else '',
+                        event_dates=f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else '',
+                        event_location=event.location if event else '',
+                        organization_name='MSF'
+                    ))
+                    
+                    # Update participant certificate with PDF URL
+                    participant_cert = db.query(ParticipantCertificate).filter(
+                        ParticipantCertificate.event_certificate_id == certificate_id,
+                        ParticipantCertificate.participant_id == participant.id
+                    ).first()
+                    
+                    if participant_cert:
+                        participant_cert.certificate_url = pdf_url
+                        print(f"[CERT] PDF generated for participant {participant.id}: {pdf_url}")
+                
+                # Send notification
+                if participant.email:
+                    from app.core.notifications import queue_notification
+                    from app.models.visitor_enhancements import NotificationType
+                    
+                    queue_notification(
+                        recipient_email=participant.email,
+                        notification_type=NotificationType.EVENT_REMINDER,
+                        title="Certificate Available",
+                        message=f"Your certificate for {event.title if event else 'the event'} is now available!",
+                        data={"type": "certificate", "event_id": event_id, "certificate_id": certificate_id}
+                    )
+                    print(f"[CERT] Notification sent to {participant.email}")
+                    
+            except Exception as e:
+                print(f"[CERT] Error processing participant {participant.id}: {e}")
+        
+        db.commit()
+        print(f"[CERT] Step 14: All PDFs generated and notifications sent")
+    
     return {
         "message": f"Successfully assigned certificate to {created_count} confirmed participants",
         "participants_assigned": created_count,
