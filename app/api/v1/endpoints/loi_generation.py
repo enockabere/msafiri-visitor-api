@@ -59,23 +59,23 @@ async def generate_loi_for_event(
             detail="Event not found"
         )
     
-    # Get active invitation template
+    # Get event's assigned invitation template
     template_query = text("""
         SELECT 
             it.id,
             it.template_content,
             it.name as template_name
         FROM invitation_templates it
-        WHERE it.is_active = true
-        LIMIT 1
+        JOIN events e ON e.invitation_template_id = it.id
+        WHERE e.id = :event_id
     """)
     
-    template = db.execute(template_query).fetchone()
+    template = db.execute(template_query, {"event_id": event_id}).fetchone()
     
     if not template:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active invitation template found"
+            detail="No invitation template assigned to this event. Please assign a template in the LOI tab."
         )
     
     # Get participants who have passport records
