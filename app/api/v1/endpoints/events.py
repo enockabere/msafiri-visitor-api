@@ -1676,3 +1676,64 @@ async def generate_poa_for_event(
         "failed": failed,
         "errors": errors if errors else None
     }
+
+
+@router.get("/{event_id}/loi-template")
+def get_event_loi_template(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get the LOI template assigned to an event"""
+    event = crud.event.get(db, id=event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    return {
+        "invitation_template_id": event.invitation_template_id
+    }
+
+@router.put("/{event_id}/loi-template")
+def update_event_loi_template(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    template_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Assign an LOI template to an event"""
+    event = crud.event.get(db, id=event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Check permissions
+    user_roles = db.query(UserRoleModel).filter(
+        UserRoleModel.user_id == current_user.id,
+        UserRoleModel.is_active == True
+    ).all()
+    
+    has_single_role_permission = can_create_events(current_user.role)
+    has_relationship_role_permission = can_create_events_by_relationship_roles(user_roles)
+    
+    if not has_single_role_permission and not has_relationship_role_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin roles can update event LOI template"
+        )
+    
+    # Update the event's invitation template
+    event.invitation_template_id = template_data.get("invitation_template_id")
+    db.commit()
+    db.refresh(event)
+    
+    return {
+        "message": "LOI template updated successfully",
+        "invitation_template_id": event.invitation_template_id
+    }
