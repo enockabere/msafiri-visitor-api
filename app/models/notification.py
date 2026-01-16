@@ -41,7 +41,7 @@ class Notification(BaseModel):
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     notification_type = Column(Enum(NotificationType, name='notificationtype'), nullable=True)
-    priority = Column(Enum('LOW', 'MEDIUM', 'HIGH', 'URGENT', name='notificationpriority'), nullable=True)
+    priority = Column(String(20), nullable=True, default='MEDIUM')
     send_in_app = Column(Boolean, default=True)
     send_email = Column(Boolean, default=False)
     send_push = Column(Boolean, default=False)
