@@ -46,10 +46,13 @@
     <div style="margin: 20px 0;">
       {{signature}}
     </div>
-    <p style="font-weight: bold; font-size: 14px;">{{eventName}} Event Team</p>
+    <p style="font-weight: bold; font-size: 14px;">{{tenantName}} Event Team</p>
   </div>
   
-  <div style="text-align: center; margin-top: 40px;">
-    {{qrCode}}
+  <div style="position: relative; margin-top: 30px; min-height: 120px;">
+    <div style="position: absolute; bottom: 0; right: 0; text-align: center;">
+      <p style="font-size: 10px; color: #6b7280; margin: 0 0 5px 0; font-weight: 600;">SCAN TO AUTHENTICATE</p>
+      {{qrCode}}
+    </div>
   </div>
 </div>
