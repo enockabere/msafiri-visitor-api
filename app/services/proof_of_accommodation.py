@@ -42,11 +42,11 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'hotelAddress': data.get('hotel_address', ''),
         'checkInDate': data.get('check_in_date', ''),
         'checkOutDate': data.get('check_out_date', ''),
-        'roomNumber': data.get('room_number', 'TBD'),
         'roomType': data.get('room_type', ''),
         'eventName': data.get('event_name', ''),
         'eventDates': data.get('event_dates', ''),
         'confirmationNumber': data.get('confirmation_number', ''),
+        'tenantName': data.get('tenant_name', ''),
         # Note: qrCode, hotelLogo, signature are handled separately as images
     }
 
@@ -131,19 +131,39 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         css_string = """
             @page {
                 size: A4;
-                margin: 2cm;
+                margin: 1.5cm;
             }
             body {
                 font-family: Arial, sans-serif;
-                line-height: 1.6;
+                line-height: 1.4;
                 color: #333;
+                font-size: 11pt;
             }
-            h1, h2, h3 {
+            h1 {
                 color: #dc2626;
+                font-size: 18pt;
+                margin: 10px 0;
+            }
+            h2 {
+                color: #333;
+                font-size: 14pt;
+                margin: 8px 0;
+            }
+            h3 {
+                color: #dc2626;
+                font-size: 12pt;
+                margin: 8px 0;
+            }
+            p {
+                margin: 6px 0;
             }
             table {
                 width: 100%;
                 border-collapse: collapse;
+                margin: 10px 0;
+            }
+            td {
+                padding: 4px 0;
             }
             .protected-url {
                 display: none !important;
@@ -229,6 +249,7 @@ async def generate_proof_of_accommodation(
     event_name: str,
     event_dates: str,
     participant_name: str,
+    tenant_name: str = "Organization",
     logo_url: Optional[str] = None,
     signature_url: Optional[str] = None,
     enable_qr_code: bool = True
@@ -263,7 +284,7 @@ async def generate_proof_of_accommodation(
         qr_code_base64 = ""
         if enable_qr_code:
             poa_slug = generate_poa_slug(participant_id, event_id)
-            api_url = os.getenv("NEXT_PUBLIC_API_URL", "http://localhost:8000")
+            api_url = os.getenv("API_BASE_URL", "http://localhost:8000")
             public_url = f"{api_url}/api/v1/poa/{poa_slug}"
             qr_code_base64 = generate_qr_code(public_url)
 
@@ -278,6 +299,7 @@ async def generate_proof_of_accommodation(
             'event_name': event_name,
             'event_dates': event_dates,
             'confirmation_number': confirmation_number,
+            'tenant_name': tenant_name,
             'qr_code': qr_code_base64,
             'logo_url': logo_url or '',
             'signature_url': signature_url or '',
@@ -341,11 +363,11 @@ def validate_template_variables(template_html: str) -> Dict[str, bool]:
         'hotelAddress',
         'checkInDate',
         'checkOutDate',
-        'roomNumber',
         'roomType',
         'eventName',
         'eventDates',
         'confirmationNumber',
+        'tenantName',
     ]
 
     result = {}

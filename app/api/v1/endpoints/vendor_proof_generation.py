@@ -71,9 +71,10 @@ async def generate_proofs_for_vendor_hotel(
 
     # Get event details
     event_query = text("""
-        SELECT id, title, start_date, end_date
-        FROM events
-        WHERE id = :event_id
+        SELECT e.id, e.title, e.start_date, e.end_date, t.name as tenant_name
+        FROM events e
+        LEFT JOIN tenants t ON e.tenant_id = t.id
+        WHERE e.id = :event_id
     """)
     event = db.execute(event_query, {"event_id": event_id}).fetchone()
 
@@ -152,6 +153,7 @@ async def generate_proofs_for_vendor_hotel(
                 event_name=event.title,
                 event_dates=event_dates,
                 participant_name=participant.full_name,
+                tenant_name=event.tenant_name if event.tenant_name else "Organization",
                 logo_url=vendor.logo_url,
                 signature_url=vendor.signature_url,
                 enable_qr_code=vendor.enable_qr_code
