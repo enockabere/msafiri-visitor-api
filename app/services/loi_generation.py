@@ -103,17 +103,28 @@ def format_address_links(html: str) -> str:
     """
     import re
     
-    # Only format URLs that appear on their own line or after whitespace
-    # and are not already inside href or src attributes
-    url_pattern = r'(?<!href=")(?<!src=")(?<!</a>)(?<=\s|>|^)(https?://[^\s<>"]+)(?=\s|<|$)'
+    # Simple pattern to find URLs not already in href or src
+    # Split by common delimiters and check each part
+    lines = html.split('\n')
+    result_lines = []
     
-    def replace_url(match):
-        url = match.group(1)
-        return f'<a href="{url}" class="website" target="_blank">{url}</a>'
+    for line in lines:
+        # Skip if line already contains href or src (already formatted)
+        if 'href="' in line or 'src="' in line or '</a>' in line:
+            result_lines.append(line)
+            continue
+        
+        # Find and replace standalone URLs
+        url_pattern = r'(https?://[^\s<>"]+)'
+        
+        def replace_url(match):
+            url = match.group(1)
+            return f'<a href="{url}" class="website" target="_blank">{url}</a>'
+        
+        line = re.sub(url_pattern, replace_url, line)
+        result_lines.append(line)
     
-    html = re.sub(url_pattern, replace_url, html)
-    
-    return html
+    return '\n'.join(result_lines)
 
 
 def auto_format_contact_info(html: str) -> str:
