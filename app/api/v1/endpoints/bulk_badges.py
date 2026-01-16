@@ -33,12 +33,7 @@ async def generate_bulk_badges(
     x_tenant_id: str = Header(None)
 ):
     """Generate multiple badges in a single PDF with 2 badges per page"""
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
-    from weasyprint import HTML
-    from PyPDF2 import PdfReader, PdfWriter
-    import tempfile
+    from weasyprint import HTML, CSS
     
     # Get event
     event = db.query(Event).filter(Event.id == event_id).first()
@@ -77,8 +72,8 @@ async def generate_bulk_badges(
     template_vars = badge_result.template_variables or {}
     tagline = template_vars.get('tagline', '') or template_vars.get('badgeTagline', '')
     
-    # Generate individual badge PDFs
-    badge_pdfs = []
+    # Build combined HTML with 2 badges per page
+    badges_html = []
     for participant in participants:
         template_data = {
             'participant_name': participant.full_name,
@@ -93,66 +88,51 @@ async def generate_bulk_badges(
             'qr_code': f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={os.getenv('API_BASE_URL', 'http://localhost:8000')}/api/v1/events/{event_id}/participant/{participant.id}/badge/generate"
         }
         badge_html = replace_template_variables(badge_result.template_content, template_data)
-        badge_pdf = HTML(string=badge_html).write_pdf()
-        badge_pdfs.append(badge_pdf)
+        badges_html.append(f'<div class="badge-container">{badge_html}</div>')
     
-    # Create output PDF with 2 badges per page
-    writer = PdfWriter()
+    # Combine all badges with grid layout
+    combined_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @page {{
+                size: A4 landscape;
+                margin: 0;
+            }}
+            body {{
+                margin: 0;
+                padding: 0;
+            }}
+            .badge-container {{
+                width: 50%;
+                height: 100vh;
+                float: left;
+                page-break-inside: avoid;
+            }}
+            .badge-container:nth-child(2n+1) {{
+                page-break-after: avoid;
+            }}
+            .badge-container:nth-child(2n) {{
+                page-break-after: always;
+            }}
+            .badge-container:last-child {{
+                page-break-after: auto;
+            }}
+        </style>
+    </head>
+    <body>
+        {''.join(badges_html)}
+    </body>
+    </html>
+    """
     
-    for i in range(0, len(badge_pdfs), 2):
-        # Read first badge
-        badge1_reader = PdfReader(BytesIO(badge_pdfs[i]))
-        if len(badge1_reader.pages) == 0:
-            continue
-        
-        page = badge1_reader.pages[0]
-        
-        # If there's a second badge, place it side-by-side
-        if i + 1 < len(badge_pdfs):
-            badge2_reader = PdfReader(BytesIO(badge_pdfs[i + 1]))
-            if len(badge2_reader.pages) > 0:
-                # Create landscape page with both badges
-                from reportlab.lib.pagesizes import A4, landscape
-                from reportlab.pdfgen import canvas
-                
-                packet = BytesIO()
-                c = canvas.Canvas(packet, pagesize=landscape(A4))
-                c.save()
-                packet.seek(0)
-                
-                # Use blank landscape page as base
-                base_page = PdfReader(packet).pages[0]
-                
-                # Scale and position badges
-                page_width = landscape(A4)[0]
-                badge1_page = badge1_reader.pages[0]
-                badge2_page = badge2_reader.pages[0]
-                
-                # Scale to half width
-                badge1_page.scale_to(page_width / 2, landscape(A4)[1])
-                badge2_page.scale_to(page_width / 2, landscape(A4)[1])
-                
-                # Position second badge to the right
-                from PyPDF2.generic import Transformation
-                badge2_page.add_transformation(Transformation().translate(tx=page_width / 2, ty=0))
-                
-                # Merge both onto base page
-                base_page.merge_page(badge1_page)
-                base_page.merge_page(badge2_page)
-                
-                writer.add_page(base_page)
-            else:
-                writer.add_page(page)
-        else:
-            writer.add_page(page)
-    
-    output = BytesIO()
-    writer.write(output)
-    output.seek(0)
+    # Generate PDF
+    pdf_bytes = HTML(string=combined_html).write_pdf()
     
     from fastapi.responses import Response
     return Response(
-        content=output.getvalue(),
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={
             "Content-Disposition": f"attachment; filename=bulk-badges-event-{event_id}.pdf"
