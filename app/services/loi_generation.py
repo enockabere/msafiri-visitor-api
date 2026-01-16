@@ -105,9 +105,22 @@ def add_link_styles(html: str) -> str:
     """
     import re
     
+    logger.info("=" * 80)
+    logger.info("DEBUG: add_link_styles - BEFORE")
+    logger.info(f"HTML length: {len(html)}")
+    # Log first 500 chars of HTML to see structure
+    logger.info(f"HTML sample: {html[:500]}")
+    
+    # Find all <a> tags
+    a_tags = re.findall(r'<a\s+[^>]*>', html)
+    logger.info(f"Found {len(a_tags)} <a> tags")
+    for i, tag in enumerate(a_tags[:5]):  # Log first 5 tags
+        logger.info(f"  Tag {i+1}: {tag}")
+    
     # Pattern to find <a> tags that don't already have inline color style
     def add_style(match):
         tag = match.group(0)
+        original_tag = tag
         # If already has style attribute, add to it
         if 'style="' in tag:
             # Add color and text-decoration if not present
@@ -118,10 +131,20 @@ def add_link_styles(html: str) -> str:
         else:
             # Add new style attribute before the closing >
             tag = tag.replace('>', ' style="color: #1a73e8; text-decoration: underline;">', 1)
+        
+        if original_tag != tag:
+            logger.info(f"  MODIFIED: {original_tag} -> {tag}")
         return tag
     
     # Find all <a> opening tags
     html = re.sub(r'<a\s+[^>]*>', add_style, html)
+    
+    logger.info("DEBUG: add_link_styles - AFTER")
+    a_tags_after = re.findall(r'<a\s+[^>]*>', html)
+    logger.info(f"Found {len(a_tags_after)} <a> tags after modification")
+    for i, tag in enumerate(a_tags_after[:5]):  # Log first 5 tags
+        logger.info(f"  Tag {i+1}: {tag}")
+    logger.info("=" * 80)
     
     return html
 
@@ -500,6 +523,17 @@ async def generate_loi_document(
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
+        
+        logger.info("=" * 80)
+        logger.info("DEBUG: Final HTML before PDF conversion")
+        logger.info(f"HTML length: {len(personalized_html)}")
+        # Find and log all <a> tags in final HTML
+        import re
+        a_tags_final = re.findall(r'<a[^>]*>.*?</a>', personalized_html, re.DOTALL)
+        logger.info(f"Found {len(a_tags_final)} complete <a> tags in final HTML")
+        for i, tag in enumerate(a_tags_final[:10]):  # Log first 10 complete tags
+            logger.info(f"  Link {i+1}: {tag[:200]}...")  # First 200 chars
+        logger.info("=" * 80)
         
         # Ensure QR code placeholder is handled with smaller size
         if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
