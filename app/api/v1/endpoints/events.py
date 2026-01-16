@@ -1633,19 +1633,30 @@ async def generate_poa_for_event(
             check_out_date = event.end_date.strftime('%B %d, %Y') if event.end_date else 'TBD'
             event_dates = f"{check_in_date} - {check_out_date}"
             
+            # Get allocation ID from accommodation_allocations table
+            from app.models.guesthouse import AccommodationAllocation
+            allocation = db.query(AccommodationAllocation).filter(
+                AccommodationAllocation.participant_id == participant.id,
+                AccommodationAllocation.event_id == event_id
+            ).first()
+            
+            allocation_id = allocation.id if allocation else 0
+            room_type = allocation.room_type if allocation and allocation.room_type else "Standard"
+            
             poa_url = await generate_proof_of_accommodation(
                 participant_id=participant.id,
                 event_id=event_id,
+                allocation_id=allocation_id,
                 template_html=template.template_content,
                 hotel_name=vendor.vendor_name,
                 hotel_address=vendor.location,
                 check_in_date=check_in_date,
                 check_out_date=check_out_date,
-                room_type="Standard",  # Default room type
+                room_type=room_type,
                 event_name=event.title,
                 event_dates=event_dates,
                 participant_name=participant.full_name,
-                room_number=None,
+                tenant_name=tenant.name,
                 logo_url=template.logo_url,
                 signature_url=template.signature_url,
                 enable_qr_code=template.enable_qr_code
