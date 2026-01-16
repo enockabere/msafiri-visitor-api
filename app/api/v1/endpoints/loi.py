@@ -456,25 +456,36 @@ async def generate_loi_pdf(
             fields = template.address_fields if isinstance(template.address_fields, list) else []
             
             logger.info(f"DEBUG: Processing {len(fields)} address fields")
+            logger.info(f"DEBUG: Raw fields: {fields}")
             
             for field in fields:
+                text = ''
+                field_type = 'text'
+                
                 if isinstance(field, dict):
                     text = field.get('text', '')
                     field_type = field.get('type', 'text')
-                    
-                    logger.info(f"DEBUG: Field type={field_type}, text={text}")
-                    
-                    if field_type == 'link':
-                        address_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
-                    elif field_type == 'email':
-                        address_lines.append(f'<a href="mailto:{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
-                    elif field_type == 'phone':
-                        phone_href = text.replace('Tel:', '').strip() if text.startswith('Tel:') else text
-                        address_lines.append(f'<a href="tel:{phone_href}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
-                    else:
-                        address_lines.append(f'<p>{text}</p>')
                 elif isinstance(field, str):
-                    address_lines.append(f'<p>{field}</p>')
+                    text = field
+                    # Auto-detect type from content
+                    if text.startswith('http://') or text.startswith('https://') or text.startswith('www.'):
+                        field_type = 'link'
+                    elif '@' in text and '.' in text and ' ' not in text:
+                        field_type = 'email'
+                    elif text.startswith('Tel:') or text.startswith('+'):
+                        field_type = 'phone'
+                
+                logger.info(f"DEBUG: Field type={field_type}, text={text}")
+                
+                if field_type == 'link':
+                    address_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                elif field_type == 'email':
+                    address_lines.append(f'<a href="mailto:{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                elif field_type == 'phone':
+                    phone_href = text.replace('Tel:', '').strip() if text.startswith('Tel:') else text
+                    address_lines.append(f'<a href="tel:{phone_href}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                else:
+                    address_lines.append(f'<p>{text}</p>')
             
             address_html = ''.join(address_lines)
             logger.info(f"DEBUG: Generated address HTML: {address_html}")
