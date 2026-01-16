@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '032_add_invitation_template_id'
-down_revision = '030_fix_participant_certificates'
+down_revision = ('030_fix_participant_certificates', '031_add_badge_public_id')
 branch_labels = None
 depends_on = None
 
