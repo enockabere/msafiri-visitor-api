@@ -284,15 +284,29 @@ async def generate_loi_pdf(
     try:
         logger.info(f"Generating LOI PDF for event {event_id}, participant {participant_id}")
         
-        # Get the active invitation template
+        # Get the event's assigned invitation template
+        event = db.query(Event).filter(Event.id == event_id).first()
+        
+        if not event:
+            raise HTTPException(
+                status_code=404,
+                detail="Event not found"
+            )
+        
+        if not event.invitation_template_id:
+            raise HTTPException(
+                status_code=404,
+                detail="No invitation template assigned to this event"
+            )
+        
         template = db.query(InvitationTemplate).filter(
-            InvitationTemplate.is_active == True
+            InvitationTemplate.id == event.invitation_template_id
         ).first()
         
         if not template:
             raise HTTPException(
                 status_code=404,
-                detail="No active invitation template found"
+                detail="Invitation template not found"
             )
         
         # Get the participant
@@ -308,7 +322,7 @@ async def generate_loi_pdf(
             )
         
         # Get event details
-        event = db.query(Event).filter(Event.id == event_id).first()
+        # event already fetched above
         
         # Get passport data from external API if available
         passport_data = {}
