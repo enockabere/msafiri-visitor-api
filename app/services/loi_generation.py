@@ -511,21 +511,28 @@ async def generate_loi_document(
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Ensure QR code placeholder is handled with smaller size
-        if '{{qrCode}}' not in personalized_html and '{{qr_code}}' not in personalized_html:
-            # Add QR code section in letterhead if not already present
-            if qr_code_base64 and '<div class="letterhead">' in personalized_html:
-                qr_html = f'<img src="{qr_code_base64}" style="width: 55px; height: 55px;" alt="QR Code" />'
-                personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
+        # Add QR code and footer if not present in template
+        if '<div class="qr">' not in personalized_html and '{{qr_code}}' not in personalized_html:
+            # Inject QR code before closing body or at end
+            qr_html = f'<div class="qr"><img src="{qr_code_base64}" style="width: 80px; height: 80px;" alt="QR Code" /></div>'
+            if '</body>' in personalized_html:
+                personalized_html = personalized_html.replace('</body>', f'{qr_html}</body>')
+            else:
+                personalized_html += qr_html
         else:
-            # Replace QR code placeholders if they exist in template
+            # Replace QR code placeholder
             if qr_code_base64:
-                qr_html = f'<img src="{qr_code_base64}" style="width: 55px; height: 55px;" alt="QR Code" />'
+                qr_html = f'<img src="{qr_code_base64}" style="width: 80px; height: 80px;" alt="QR Code" />'
                 personalized_html = personalized_html.replace('{{qrCode}}', qr_html)
                 personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
+        
+        # Add footer if not present
+        if '<div class="page-footer">' not in personalized_html:
+            footer_html = '<div class="page-footer">MEDECINS SANS FRONTIERES IS A PRIVATE INTERNATIONAL HUMANITARIAN ORGANISATION</div>'
+            if '</body>' in personalized_html:
+                personalized_html = personalized_html.replace('</body>', f'{footer_html}</body>')
             else:
-                personalized_html = personalized_html.replace('{{qrCode}}', '')
-                personalized_html = personalized_html.replace('{{qr_code}}', '')
+                personalized_html += footer_html
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
