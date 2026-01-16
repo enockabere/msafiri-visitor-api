@@ -117,6 +117,7 @@ class EventParticipant(BaseModel):
     # Proof of accommodation tracking
     proof_of_accommodation_url = Column(String(500), nullable=True)
     proof_generated_at = Column(DateTime, nullable=True)
+    poa_slug = Column(String(100), nullable=True, unique=True)
     
     # Relationships
     event = relationship("Event", back_populates="participants")
