@@ -92,8 +92,38 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Format standalone URLs in address section only (not in src/href attributes)
     result = format_address_links(result)
+    
+    # Add inline styles to all <a> tags to ensure they are blue and underlined
+    result = add_link_styles(result)
 
     return result
+
+
+def add_link_styles(html: str) -> str:
+    """
+    Add inline styles to all <a> tags to ensure they are blue and underlined in PDF.
+    """
+    import re
+    
+    # Pattern to find <a> tags that don't already have inline color style
+    def add_style(match):
+        tag = match.group(0)
+        # If already has style attribute, add to it
+        if 'style="' in tag:
+            # Add color and text-decoration if not present
+            if 'color:' not in tag:
+                tag = tag.replace('style="', 'style="color: #1a73e8; ')
+            if 'text-decoration:' not in tag:
+                tag = tag.replace('style="', 'style="text-decoration: underline; ')
+        else:
+            # Add new style attribute before the closing >
+            tag = tag.replace('>', ' style="color: #1a73e8; text-decoration: underline;">', 1)
+        return tag
+    
+    # Find all <a> opening tags
+    html = re.sub(r'<a\s+[^>]*>', add_style, html)
+    
+    return html
 
 
 def format_address_links(html: str) -> str:
