@@ -1,7 +1,7 @@
 """fix notification priority type
 
 Revision ID: 034_fix_priority
-Revises: 033_add_poa_slug_to_event_participants
+Revises: 033_add_poa_slug
 Create Date: 2025-01-16
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '034_fix_priority'
-down_revision = '033_add_poa_slug_to_event_participants'
+down_revision = '033_add_poa_slug'
 branch_labels = None
 depends_on = None
 
