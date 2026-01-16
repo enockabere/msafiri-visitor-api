@@ -90,10 +90,30 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             if matches:
                 result = re.sub(pattern, bold_value, result, flags=re.IGNORECASE)
 
-    # Don't auto-format contact info - it breaks the layout
-    # Users should format emails/phones/links manually in the template
+    # Format standalone URLs in address section only (not in src/href attributes)
+    result = format_address_links(result)
 
     return result
+
+
+def format_address_links(html: str) -> str:
+    """
+    Format standalone URLs in the address section to be clickable links.
+    Only formats URLs that are not already in HTML tags.
+    """
+    import re
+    
+    # Only format URLs that appear on their own line or after whitespace
+    # and are not already inside href or src attributes
+    url_pattern = r'(?<!href=")(?<!src=")(?<!</a>)(?<=\s|>|^)(https?://[^\s<>"]+)(?=\s|<|$)'
+    
+    def replace_url(match):
+        url = match.group(1)
+        return f'<a href="{url}" class="website" target="_blank">{url}</a>'
+    
+    html = re.sub(url_pattern, replace_url, html)
+    
+    return html
 
 
 def auto_format_contact_info(html: str) -> str:
