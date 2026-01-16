@@ -302,10 +302,18 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 bottom: 1.5cm;
                 right: 1.5cm;
                 z-index: 10;
+                width: 80px;
+                text-align: center;
             }
             .qr img {
                 width: 80px;
                 height: 80px;
+                display: block;
+            }
+            .qr p {
+                font-weight: bold;
+                font-size: 9px;
+                margin: 0 0 5px 0;
             }
             .address {
                 text-align: left;
@@ -514,7 +522,7 @@ async def generate_loi_document(
         # Add QR code and footer if not present in template
         if '<div class="qr">' not in personalized_html and '{{qr_code}}' not in personalized_html:
             # Inject QR code before closing body or at end
-            qr_html = f'<div class="qr"><img src="{qr_code_base64}" style="width: 80px; height: 80px;" alt="QR Code" /></div>'
+            qr_html = f'<div class="qr"><p>Scan To Authenticate</p><img src="{qr_code_base64}" alt="QR Code" /></div>'
             if '</body>' in personalized_html:
                 personalized_html = personalized_html.replace('</body>', f'{qr_html}</body>')
             else:
@@ -522,7 +530,7 @@ async def generate_loi_document(
         else:
             # Replace QR code placeholder
             if qr_code_base64:
-                qr_html = f'<img src="{qr_code_base64}" style="width: 80px; height: 80px;" alt="QR Code" />'
+                qr_html = f'<p>Scan To Authenticate</p><img src="{qr_code_base64}" alt="QR Code" />'
                 personalized_html = personalized_html.replace('{{qrCode}}', qr_html)
                 personalized_html = personalized_html.replace('{{qr_code}}', qr_html)
         
