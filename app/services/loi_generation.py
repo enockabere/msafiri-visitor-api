@@ -90,8 +90,8 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             if matches:
                 result = re.sub(pattern, bold_value, result, flags=re.IGNORECASE)
 
-    # Auto-format emails, phones, and URLs in the content
-    result = auto_format_contact_info(result)
+    # Don't auto-format contact info - it breaks the layout
+    # Users should format emails/phones/links manually in the template
 
     return result
 
@@ -99,16 +99,24 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 def auto_format_contact_info(html: str) -> str:
     """
     Auto-detect and format emails, phone numbers, and URLs with proper styling and links.
+    Only formats plain text, not content already in HTML tags or attributes.
     """
     import re
     
-    # Format email addresses (not already in <a> tags)
-    email_pattern = r'(?<!href=")(?<!mailto:)\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
-    html = re.sub(email_pattern, r'<a href="mailto:\1" class="email">\1</a>', html)
+    # Format email addresses (not already in <a> tags or attributes)
+    # Negative lookbehind to avoid emails in href, src, or already linked
+    email_pattern = r'(?<!href=")(?<!src=")(?<!mailto:)(?<!</a>)(?<!=")\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b(?![^<]*>)(?![^<]*</a>)'
     
-    # Format phone numbers (various formats)
-    # Matches: +254 123 456 789, +254-123-456-789, +254123456789, 0123456789, etc.
-    phone_pattern = r'(?<!\d)(\+?\d{1,4}[\s-]?\(?\d{1,4}\)?[\s-]?\d{1,4}[\s-]?\d{1,4}[\s-]?\d{1,9})(?!\d)'
+    def format_email(match):
+        email = match.group(1)
+        # Check if this email is inside an HTML tag
+        return f'<a href="mailto:{email}" class="email">{email}</a>'
+    
+    html = re.sub(email_pattern, format_email, html)
+    
+    # Format phone numbers (not in attributes)
+    # Only format if it's plain text, not inside HTML tags
+    phone_pattern = r'(?<!href=")(?<!src=")(?<!=")(?<!\d)(\+?\d{1,4}[\s-]?\(?\d{1,4}\)?[\s-]?\d{1,4}[\s-]?\d{1,4}[\s-]?\d{1,9})(?!\d)(?![^<]*>)'
     
     def format_phone(match):
         phone = match.group(1)
@@ -119,11 +127,13 @@ def auto_format_contact_info(html: str) -> str:
     
     html = re.sub(phone_pattern, format_phone, html)
     
-    # Format URLs (not already in <a> tags)
-    url_pattern = r'(?<!href=")(?<!src=")(https?://[^\s<>"]+|www\.[^\s<>"]+)'
+    # Format URLs (not already in href, src, or <a> tags)
+    # Much more restrictive - only format standalone URLs in plain text
+    url_pattern = r'(?<!href=")(?<!src=")(?<!</a>)(?<!=")\b(https?://[^\s<>"]+|www\.[^\s<>"]+)\b(?![^<]*>)(?![^<]*</a>)(?![^<]*")'
     
     def format_url(match):
         url = match.group(1)
+        # Don't format if it looks like it's part of an HTML attribute
         href = url if url.startswith('http') else f'http://{url}'
         return f'<a href="{href}" class="website" target="_blank">{url}</a>'
     
