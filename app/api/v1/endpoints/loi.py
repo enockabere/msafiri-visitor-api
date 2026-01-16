@@ -451,12 +451,8 @@ async def generate_loi_pdf(
         
         # Add address fields
         if hasattr(template, 'address_fields') and template.address_fields:
-            # Handle address fields which may be objects with text/type or plain strings
             address_lines = []
             fields = template.address_fields if isinstance(template.address_fields, list) else []
-            
-            logger.info(f"DEBUG: Processing {len(fields)} address fields")
-            logger.info(f"DEBUG: Raw fields: {fields}")
             
             for field in fields:
                 text = ''
@@ -475,8 +471,6 @@ async def generate_loi_pdf(
                     elif text.startswith('Tel:') or text.startswith('+'):
                         field_type = 'phone'
                 
-                logger.info(f"DEBUG: Field type={field_type}, text={text}")
-                
                 if field_type == 'link':
                     address_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
                 elif field_type == 'email':
@@ -488,10 +482,8 @@ async def generate_loi_pdf(
                     address_lines.append(f'<p>{text}</p>')
             
             address_html = ''.join(address_lines)
-            logger.info(f"DEBUG: Generated address HTML: {address_html}")
             template_html = template_html.replace('{{organizationAddress}}', address_html)
             template_html = template_html.replace('{{organization_address}}', address_html)
-            logger.info(f"DEBUG: Template HTML after address replacement contains {template_html.count('<a')} <a> tags")
         else:
             template_html = template_html.replace('{{organizationAddress}}', '<p>MSF Kenya, Nairobi</p>')
             template_html = template_html.replace('{{organization_address}}', '<p>MSF Kenya, Nairobi</p>')
