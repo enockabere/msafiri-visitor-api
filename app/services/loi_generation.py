@@ -319,14 +319,14 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 text-decoration: underline;
             }
             .address .website {
-                color: #1a73e8;
-                text-decoration: underline;
+                color: #1a73e8 !important;
+                text-decoration: underline !important;
                 font-weight: 500;
             }
             /* General link styling */
             a {
-                color: #1a73e8;
-                text-decoration: underline;
+                color: #1a73e8 !important;
+                text-decoration: underline !important;
             }
             /* Make variables bold */
             .variable {
