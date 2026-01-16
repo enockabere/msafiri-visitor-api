@@ -455,10 +455,14 @@ async def generate_loi_pdf(
             address_lines = []
             fields = template.address_fields if isinstance(template.address_fields, list) else []
             
+            logger.info(f"DEBUG: Processing {len(fields)} address fields")
+            
             for field in fields:
                 if isinstance(field, dict):
                     text = field.get('text', '')
                     field_type = field.get('type', 'text')
+                    
+                    logger.info(f"DEBUG: Field type={field_type}, text={text}")
                     
                     if field_type == 'link':
                         address_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
@@ -473,8 +477,10 @@ async def generate_loi_pdf(
                     address_lines.append(f'<p>{field}</p>')
             
             address_html = ''.join(address_lines)
+            logger.info(f"DEBUG: Generated address HTML: {address_html}")
             template_html = template_html.replace('{{organizationAddress}}', address_html)
             template_html = template_html.replace('{{organization_address}}', address_html)
+            logger.info(f"DEBUG: Template HTML after address replacement contains {template_html.count('<a')} <a> tags")
         else:
             template_html = template_html.replace('{{organizationAddress}}', '<p>MSF Kenya, Nairobi</p>')
             template_html = template_html.replace('{{organization_address}}', '<p>MSF Kenya, Nairobi</p>')
