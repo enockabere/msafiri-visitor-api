@@ -9,18 +9,17 @@ import cloudinary.utils
 import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+from azure.storage.blob import BlobServiceClient, ContentSettings
 
 # Load environment variables
 load_dotenv()
 
 router = APIRouter()
 
-# Configure Cloudinary
+# Configure Cloudinary (for logos and avatars)
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
-
-print(f"DEBUG: Cloudinary config - Cloud Name: {CLOUDINARY_CLOUD_NAME}, API Key: {CLOUDINARY_API_KEY}")
 
 cloudinary.config(
     cloud_name=CLOUDINARY_CLOUD_NAME,
@@ -28,13 +27,17 @@ cloudinary.config(
     api_secret=CLOUDINARY_API_SECRET
 )
 
+# Configure Azure Storage (for code of conduct documents)
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_STORAGE_CONTAINER_NAME = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "code-of-conduct")
+
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload document to Cloudinary using unsigned preset"""
+    """Upload document to Azure Blob Storage"""
     
     print(f"DEBUG: Upload attempt - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
     
@@ -49,54 +52,62 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="File size must be less than 10MB")
     
     try:
-        print("DEBUG: Starting Cloudinary upload...")
-        print(f"DEBUG: Cloud Name: {CLOUDINARY_CLOUD_NAME}")
+        print("DEBUG: Starting Azure Storage upload...")
 
-        # Validate Cloudinary cloud name at minimum
-        if not CLOUDINARY_CLOUD_NAME:
+        # Validate Azure Storage configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
             raise HTTPException(
                 status_code=500,
-                detail="Cloudinary cloud name is not configured."
+                detail="Azure Storage connection string is not configured."
             )
 
         # Read file content
         file_content = await file.read()
 
-        # Create a temporary file-like object with the desired filename
-        import io
-        file_obj = io.BytesIO(file_content)
-        file_obj.name = "code_of_conduct.pdf"  # Set the filename that Cloudinary will use
-
-        # Use same format as working cloud.py script
-        result = cloudinary.uploader.upload(
-            file_obj,
-            public_id="code_of_conduct",
-            folder="msafiri-documents/code-of-conduct",
-            resource_type="raw",  # Use raw for PDF files
-            use_filename=True,
-            unique_filename=False,
-            overwrite=True
-        )
-
-        print(f"DEBUG: Upload successful: {result['secure_url']}")
-        print(f"DEBUG: Public ID: {result['public_id']}")
-        print(f"DEBUG: Resource type: {result.get('resource_type', 'N/A')}")
-
-        # Use the secure_url directly from Cloudinary response
-        pdf_url = result["secure_url"]
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
         
-        print(f"DEBUG: Final PDF URL: {pdf_url}")
+        # Get container client
+        container_client = blob_service_client.get_container_client(AZURE_STORAGE_CONTAINER_NAME)
+        
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container()
+        except Exception:
+            pass  # Container already exists
+        
+        # Generate blob name with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        blob_name = f"code_of_conduct_{timestamp}.pdf"
+        
+        # Get blob client
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        # Upload file
+        blob_client.upload_blob(
+            file_content, 
+            overwrite=True, 
+            content_settings=ContentSettings(content_type='application/pdf')
+        )
+        
+        # Generate blob URL
+        blob_url = blob_client.url
+        
+        print(f"DEBUG: Upload successful: {blob_url}")
+        print(f"DEBUG: Blob name: {blob_name}")
 
         return {
             "success": True,
-            "url": pdf_url,
-            "public_id": result["public_id"],
-            "format": result.get("format", "pdf"),
-            "resource_type": result.get("resource_type", "image")
+            "url": blob_url,
+            "public_id": blob_name,
+            "format": "pdf",
+            "resource_type": "raw"
         }
         
     except Exception as e:
         print(f"DEBUG: Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 @router.post("/upload-logo")
 async def upload_logo(
     file: UploadFile = File(...),
@@ -184,15 +195,18 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete document from Cloudinary"""
+    """Delete document from Azure Blob Storage"""
 
     try:
-        result = cloudinary.uploader.destroy(public_id)
-
-        if result["result"] == "ok":
-            return {"success": True, "message": "Document deleted successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="Document not found")
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        container_client = blob_service_client.get_container_client(AZURE_STORAGE_CONTAINER_NAME)
+        blob_client = container_client.get_blob_client(public_id)
+        
+        # Delete blob
+        blob_client.delete_blob()
+        
+        return {"success": True, "message": "Document deleted successfully"}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
