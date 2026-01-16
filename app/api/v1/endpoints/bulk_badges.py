@@ -98,33 +98,53 @@ async def generate_bulk_badges(
     
     # Create output PDF with 2 badges per page
     writer = PdfWriter()
-    page_width, page_height = landscape(A4)
     
     for i in range(0, len(badge_pdfs), 2):
-        # Create new page
-        c = canvas.Canvas(BytesIO(), pagesize=landscape(A4))
-        c.showPage()
+        # Read first badge
+        badge1_reader = PdfReader(BytesIO(badge_pdfs[i]))
+        if len(badge1_reader.pages) == 0:
+            continue
         
-        # Get page from canvas
-        packet = BytesIO()
-        c = canvas.Canvas(packet, pagesize=landscape(A4))
-        c.save()
-        packet.seek(0)
+        page = badge1_reader.pages[0]
         
-        page = PdfReader(packet).pages[0]
-        
-        # Merge first badge (left side)
-        badge1 = PdfReader(BytesIO(badge_pdfs[i])).pages[0]
-        page.merge_page(badge1)
-        
-        # Merge second badge (right side) if exists
+        # If there's a second badge, place it side-by-side
         if i + 1 < len(badge_pdfs):
-            badge2 = PdfReader(BytesIO(badge_pdfs[i + 1])).pages[0]
-            badge2.scale_to(page_width / 2, page_height)
-            badge2.add_transformation([1, 0, 0, 1, page_width / 2, 0])
-            page.merge_page(badge2)
-        
-        writer.add_page(page)
+            badge2_reader = PdfReader(BytesIO(badge_pdfs[i + 1]))
+            if len(badge2_reader.pages) > 0:
+                # Create landscape page with both badges
+                from reportlab.lib.pagesizes import A4, landscape
+                from reportlab.pdfgen import canvas
+                
+                packet = BytesIO()
+                c = canvas.Canvas(packet, pagesize=landscape(A4))
+                c.save()
+                packet.seek(0)
+                
+                # Use blank landscape page as base
+                base_page = PdfReader(packet).pages[0]
+                
+                # Scale and position badges
+                page_width = landscape(A4)[0]
+                badge1_page = badge1_reader.pages[0]
+                badge2_page = badge2_reader.pages[0]
+                
+                # Scale to half width
+                badge1_page.scale_to(page_width / 2, landscape(A4)[1])
+                badge2_page.scale_to(page_width / 2, landscape(A4)[1])
+                
+                # Position second badge to the right
+                from PyPDF2.generic import Transformation
+                badge2_page.add_transformation(Transformation().translate(tx=page_width / 2, ty=0))
+                
+                # Merge both onto base page
+                base_page.merge_page(badge1_page)
+                base_page.merge_page(badge2_page)
+                
+                writer.add_page(base_page)
+            else:
+                writer.add_page(page)
+        else:
+            writer.add_page(page)
     
     output = BytesIO()
     writer.write(output)
