@@ -265,7 +265,7 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         css_string = """
             @page {
                 size: A4;
-                margin: 1.2cm 1.2cm 1cm 1.2cm;  /* Reduced top margin further */
+                margin: 1.2cm 1.2cm 1cm 1.2cm;
             }
             body {
                 font-family: 'Arial', 'Helvetica', sans-serif;
@@ -274,33 +274,38 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 font-size: 11px;
                 margin: 0;
                 padding: 0;
+                position: relative;
+                min-height: 100vh;
             }
             h1, h2, h3 {
                 color: #dc2626;
-                margin: 6px 0;  /* Further reduced margins */
+                margin: 6px 0;
             }
             p {
-                margin: 5px 0;  /* Further reduced paragraph margins */
+                margin: 5px 0;
             }
             .letterhead {
                 display: grid;
                 grid-template-columns: auto 1fr auto;
                 align-items: start;
                 gap: 10px;
-                margin-bottom: 10px;  /* Reduced from 15px */
+                margin-bottom: 10px;
             }
             .logo img {
-                height: 80px;
-                max-width: 150px;
+                height: auto;
+                max-height: 100px;
+                width: auto;
+                max-width: 200px;
             }
             .qr {
-                display: flex;
-                justify-content: center;
-                align-items: flex-start;
+                position: fixed;
+                bottom: 1.5cm;
+                right: 1.5cm;
+                z-index: 10;
             }
             .qr img {
-                width: 55px;  /* Increased from 50px to 55px */
-                height: 55px;
+                width: 80px;
+                height: 80px;
             }
             .address {
                 text-align: left;
@@ -344,30 +349,40 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 text-decoration: underline !important;
                 font-weight: 500;
             }
-            /* General link styling */
             a {
                 color: #1a73e8 !important;
                 text-decoration: underline !important;
             }
-            /* Make variables bold */
             .variable {
                 font-weight: bold;
                 color: #000;
             }
-            /* Signature section styling */
             .signature-section {
-                margin-top: 25px;  /* Reduced from 30px */
+                margin-top: 25px;
                 page-break-inside: avoid;
             }
             .signature-footer {
-                margin-top: 4px;  /* Reduced from 8px */
+                margin-top: 4px;
                 font-size: 10px;
                 line-height: 1.3;
                 clear: both;
             }
-            /* Ensure single page */
             .content {
                 page-break-inside: avoid;
+                padding-bottom: 100px;
+            }
+            .page-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                text-align: center;
+                font-size: 9px;
+                color: #666;
+                font-weight: bold;
+                padding: 10px 0;
+                border-top: 2px solid #000;
+                background: white;
             }
         """
 
