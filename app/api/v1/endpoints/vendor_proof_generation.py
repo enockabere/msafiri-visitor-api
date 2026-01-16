@@ -89,7 +89,11 @@ async def generate_proofs_for_vendor_hotel(
             ep.id,
             ep.full_name,
             ep.email,
+            ep.accommodation_preference,
+            ep.room_type_preference,
+            ep.room_sharing_preference,
             aa.room_type,
+            aa.room_number,
             aa.id as allocation_id
         FROM event_participants ep
         JOIN accommodation_allocations aa ON ep.id = aa.participant_id
@@ -126,20 +130,28 @@ async def generate_proofs_for_vendor_hotel(
         try:
             logger.info(f"Generating proof for participant {participant.id}: {participant.full_name}")
 
+            # Determine room type from allocation or preference
+            room_type = participant.room_type if participant.room_type else (
+                participant.room_type_preference.capitalize() if participant.room_type_preference else "Standard"
+            )
+            
+            # Room number from allocation or TBD
+            room_number = participant.room_number if participant.room_number else "TBD"
+
             # Generate proof PDF
             pdf_url = await generate_proof_of_accommodation(
                 participant_id=participant.id,
                 event_id=event.id,
+                allocation_id=participant.allocation_id,
                 template_html=vendor.template_content,
                 hotel_name=vendor.vendor_name,
                 hotel_address=vendor.location,
                 check_in_date=check_in_date,
                 check_out_date=check_out_date,
-                room_type=participant.room_type.capitalize() if participant.room_type else "Standard",
+                room_type=room_type,
                 event_name=event.title,
                 event_dates=event_dates,
                 participant_name=participant.full_name,
-                room_number=None,
                 logo_url=vendor.logo_url,
                 signature_url=vendor.signature_url,
                 enable_qr_code=vendor.enable_qr_code

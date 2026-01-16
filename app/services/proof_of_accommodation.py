@@ -104,15 +104,14 @@ def generate_qr_code(url: str) -> str:
         return ""
 
 
-def generate_confirmation_number(participant_id: int, event_id: int) -> str:
+def generate_confirmation_number(participant_id: int, event_id: int, allocation_id: int) -> str:
     """
     Generate a unique confirmation number for the booking.
 
-    Format: MSF-EVENT{eventId}-PART{participantId}-{random}
-    Example: MSF-EVENT123-PART456-A7B9
+    Format: MSF-EVENT{eventId}-PART{participantId}-{allocationId}
+    Example: MSF-EVENT12-PART22-567
     """
-    random_part = str(uuid.uuid4())[:4].upper()
-    return f"MSF-EVENT{event_id}-PART{participant_id}-{random_part}"
+    return f"MSF-EVENT{event_id}-PART{participant_id}-{allocation_id}"
 
 
 async def html_to_pdf_bytes(html_content: str) -> BytesIO:
@@ -220,6 +219,7 @@ async def upload_pdf_to_cloudinary(pdf_bytes: BytesIO, filename: str) -> str:
 async def generate_proof_of_accommodation(
     participant_id: int,
     event_id: int,
+    allocation_id: int,
     template_html: str,
     hotel_name: str,
     hotel_address: str,
@@ -229,7 +229,6 @@ async def generate_proof_of_accommodation(
     event_name: str,
     event_dates: str,
     participant_name: str,
-    room_number: Optional[str] = None,
     logo_url: Optional[str] = None,
     signature_url: Optional[str] = None,
     enable_qr_code: bool = True
@@ -240,6 +239,7 @@ async def generate_proof_of_accommodation(
     Args:
         participant_id: ID of the participant
         event_id: ID of the event
+        allocation_id: ID of the accommodation allocation
         template_html: HTML template from vendor hotel
         hotel_name: Name of the hotel
         hotel_address: Full address of the hotel
@@ -249,7 +249,6 @@ async def generate_proof_of_accommodation(
         event_name: Name of the event
         event_dates: Event date range (formatted string)
         participant_name: Full name of participant
-        room_number: Room number (optional, default TBD)
 
     Returns:
         Public URL of the generated PDF
@@ -258,7 +257,7 @@ async def generate_proof_of_accommodation(
         logger.info(f"Generating proof of accommodation for participant {participant_id}, event {event_id}")
 
         # Generate confirmation number
-        confirmation_number = generate_confirmation_number(participant_id, event_id)
+        confirmation_number = generate_confirmation_number(participant_id, event_id, allocation_id)
         
         # Generate QR code if enabled
         qr_code_base64 = ""
@@ -275,7 +274,6 @@ async def generate_proof_of_accommodation(
             'hotel_address': hotel_address,
             'check_in_date': check_in_date,
             'check_out_date': check_out_date,
-            'room_number': room_number or 'TBD',
             'room_type': room_type,
             'event_name': event_name,
             'event_dates': event_dates,
