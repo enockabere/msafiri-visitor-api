@@ -377,20 +377,15 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
             }
             .content {
                 page-break-inside: avoid;
-                padding-bottom: 100px;
             }
             .page-footer {
-                position: fixed;
-                bottom: 0;
-                left: 0;
-                right: 0;
+                margin-top: 30px;
                 text-align: center;
                 font-size: 9px;
                 color: #666;
                 font-weight: bold;
                 padding: 10px 0;
                 border-top: 2px solid #000;
-                background: white;
             }
         """
 
