@@ -10,23 +10,15 @@ router = APIRouter()
 def get_public_poa(poa_slug: str, db: Session = Depends(get_db)):
     """Public endpoint to access POA documents via QR code"""
     
-    # The slug is generated from participant_id and event_id
-    # We need to find participants with POA URLs and check if the slug matches
-    participants = db.query(EventParticipant).filter(
-        EventParticipant.proof_of_accommodation_url.isnot(None)
-    ).all()
+    # Find participant by poa_slug
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.poa_slug == poa_slug
+    ).first()
     
-    # Generate slug for each participant and check for match
-    for participant in participants:
-        if participant.proof_of_accommodation_url:
-            # Generate the same slug that would be created for this participant
-            from app.services.proof_of_accommodation import generate_poa_slug
-            expected_slug = generate_poa_slug(participant.id, participant.event_id)
-            
-            if expected_slug == poa_slug:
-                # Found matching participant, redirect to their POA document
-                if participant.proof_of_accommodation_url.startswith("http"):
-                    return RedirectResponse(url=participant.proof_of_accommodation_url)
+    if participant and participant.proof_of_accommodation_url:
+        # Redirect to the POA document
+        if participant.proof_of_accommodation_url.startswith("http"):
+            return RedirectResponse(url=participant.proof_of_accommodation_url)
     
     # No matching POA found
     raise HTTPException(status_code=404, detail="POA document not found")

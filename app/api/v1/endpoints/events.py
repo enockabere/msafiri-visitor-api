@@ -1643,7 +1643,7 @@ async def generate_poa_for_event(
             allocation_id = allocation.id if allocation else 0
             room_type = allocation.room_type if allocation and allocation.room_type else "Standard"
             
-            poa_url = await generate_proof_of_accommodation(
+            poa_url, poa_slug = await generate_proof_of_accommodation(
                 participant_id=participant.id,
                 event_id=event_id,
                 allocation_id=allocation_id,
@@ -1662,8 +1662,9 @@ async def generate_poa_for_event(
                 enable_qr_code=template.enable_qr_code
             )
             
-            # Update participant with actual POA URL
+            # Update participant with actual POA URL and slug
             participant.proof_of_accommodation_url = poa_url
+            participant.poa_slug = poa_slug
             participant.proof_generated_at = datetime.now()
             
             successful += 1

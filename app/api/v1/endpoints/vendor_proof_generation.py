@@ -140,7 +140,7 @@ async def generate_proofs_for_vendor_hotel(
             room_number = participant.room_number if participant.room_number else "TBD"
 
             # Generate proof PDF
-            pdf_url = await generate_proof_of_accommodation(
+            pdf_url, poa_slug = await generate_proof_of_accommodation(
                 participant_id=participant.id,
                 event_id=event.id,
                 allocation_id=participant.allocation_id,
@@ -159,15 +159,17 @@ async def generate_proofs_for_vendor_hotel(
                 enable_qr_code=vendor.enable_qr_code
             )
 
-            # Update participant record with proof URL
+            # Update participant record with proof URL and slug
             db.execute(text("""
                 UPDATE event_participants
                 SET proof_of_accommodation_url = :proof_url,
-                    proof_generated_at = :generated_at
+                    proof_generated_at = :generated_at,
+                    poa_slug = :poa_slug
                 WHERE id = :participant_id
             """), {
                 "proof_url": pdf_url,
                 "generated_at": datetime.utcnow(),
+                "poa_slug": poa_slug,
                 "participant_id": participant.id
             })
 

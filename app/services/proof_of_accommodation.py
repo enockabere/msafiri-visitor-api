@@ -253,26 +253,12 @@ async def generate_proof_of_accommodation(
     logo_url: Optional[str] = None,
     signature_url: Optional[str] = None,
     enable_qr_code: bool = True
-) -> str:
+) -> tuple[str, str]:
     """
     Generate complete proof of accommodation PDF and upload to Azure.
 
-    Args:
-        participant_id: ID of the participant
-        event_id: ID of the event
-        allocation_id: ID of the accommodation allocation
-        template_html: HTML template from vendor hotel
-        hotel_name: Name of the hotel
-        hotel_address: Full address of the hotel
-        check_in_date: Check-in date (formatted string)
-        check_out_date: Check-out date (formatted string)
-        room_type: Type of room (Single/Double)
-        event_name: Name of the event
-        event_dates: Event date range (formatted string)
-        participant_name: Full name of participant
-
     Returns:
-        Public URL of the generated PDF
+        Tuple of (pdf_url, poa_slug)
     """
     try:
         logger.info(f"Generating proof of accommodation for participant {participant_id}, event {event_id}")
@@ -343,7 +329,7 @@ async def generate_proof_of_accommodation(
 
         logger.info(f"✅ Proof of accommodation generated: {pdf_url}")
 
-        return pdf_url
+        return pdf_url, poa_slug
 
     except Exception as e:
         logger.error(f"❌ Failed to generate proof of accommodation: {str(e)}")
