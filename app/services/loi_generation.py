@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 # Azure configuration
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 AZURE_LOI_CONTAINER = os.getenv("AZURE_LOI_DOCUMENTS_CONTAINER", "loi-documents")
-# Use FRONTEND_URL from environment, fallback to localhost for development
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
+# Use API_BASE_URL from environment for QR code generation
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 
 def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
@@ -103,23 +103,19 @@ def format_address_links(html: str) -> str:
     """
     import re
     
-    # Simple pattern to find URLs not already in href or src
-    # Split by common delimiters and check each part
     lines = html.split('\n')
     result_lines = []
     
     for line in lines:
-        # Skip if line already contains href or src (already formatted)
         if 'href="' in line or 'src="' in line or '</a>' in line:
             result_lines.append(line)
             continue
         
-        # Find and replace standalone URLs
         url_pattern = r'(https?://[^\s<>"]+)'
         
         def replace_url(match):
             url = match.group(1)
-            return f'<a href="{url}" class="website" target="_blank">{url}</a>'
+            return f'<a href="{url}" style="color: #1a73e8; text-decoration: underline;" target="_blank">{url}</a>'
         
         line = re.sub(url_pattern, replace_url, line)
         result_lines.append(line)
@@ -447,8 +443,8 @@ async def generate_loi_document(
         # Generate unique slug for public access
         loi_slug = generate_loi_slug(participant_id, event_id)
 
-        # Construct public URL
-        public_url = f"{FRONTEND_URL}/public/loi/{loi_slug}"
+        # Construct API URL for QR code
+        public_url = f"{API_BASE_URL}/api/v1/loi/events/{event_id}/participant/{participant_id}/generate"
 
         # Generate QR code
         qr_code_base64 = generate_qr_code(public_url)
