@@ -294,11 +294,25 @@ async def generate_proof_of_accommodation(
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
         
-        # Handle QR code insertion if enabled and QR code was generated
-        if enable_qr_code and qr_code_base64 and '{{qrCode}}' in personalized_html:
-            # Replace {{qrCode}} with proper HTML img tag (80x80px like LOI)
-            qr_img_tag = f'<img src="{qr_code_base64}" style="width: 80px; height: 80px; display: block;" alt="QR Code" />'
-            personalized_html = personalized_html.replace('{{qrCode}}', qr_img_tag)
+        # Handle QR code insertion
+        if enable_qr_code and qr_code_base64:
+            # QR code HTML with positioning (80x80px like LOI)
+            qr_code_html = f'''
+            <div style="position: fixed; bottom: 1.5cm; right: 1.5cm; width: 80px; text-align: center;">
+                <p style="font-weight: bold; font-size: 9px; margin: 0 0 5px 0; color: #333;">Scan To Authenticate</p>
+                <img src="{qr_code_base64}" style="width: 80px; height: 80px; display: block;" alt="QR Code" />
+            </div>
+            '''
+            
+            # If template has {{qrCode}} placeholder, replace it
+            if '{{qrCode}}' in personalized_html:
+                personalized_html = personalized_html.replace('{{qrCode}}', qr_code_html)
+            else:
+                # Otherwise, inject before closing body tag or at the end
+                if '</body>' in personalized_html:
+                    personalized_html = personalized_html.replace('</body>', f'{qr_code_html}</body>')
+                else:
+                    personalized_html += qr_code_html
         elif '{{qrCode}}' in personalized_html:
             # Remove QR code placeholder if no QR code generated
             personalized_html = personalized_html.replace('{{qrCode}}', '')
