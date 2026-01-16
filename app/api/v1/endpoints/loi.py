@@ -451,18 +451,58 @@ async def generate_loi_pdf(
         
         # Add address fields
         if hasattr(template, 'address_fields') and template.address_fields:
-            address_text = '<br>'.join(template.address_fields) if isinstance(template.address_fields, list) else str(template.address_fields).replace('\n', '<br>')
-            template_html = template_html.replace('{{organizationAddress}}', address_text)
-            template_html = template_html.replace('{{organization_address}}', address_text)
+            # Handle address fields which may be objects with text/type or plain strings
+            address_lines = []
+            fields = template.address_fields if isinstance(template.address_fields, list) else []
+            
+            for field in fields:
+                if isinstance(field, dict):
+                    text = field.get('text', '')
+                    field_type = field.get('type', 'text')
+                    
+                    if field_type == 'link':
+                        address_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    elif field_type == 'email':
+                        address_lines.append(f'<a href="mailto:{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    elif field_type == 'phone':
+                        phone_href = text.replace('Tel:', '').strip() if text.startswith('Tel:') else text
+                        address_lines.append(f'<a href="tel:{phone_href}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    else:
+                        address_lines.append(f'<p>{text}</p>')
+                elif isinstance(field, str):
+                    address_lines.append(f'<p>{field}</p>')
+            
+            address_html = ''.join(address_lines)
+            template_html = template_html.replace('{{organizationAddress}}', address_html)
+            template_html = template_html.replace('{{organization_address}}', address_html)
         else:
-            template_html = template_html.replace('{{organizationAddress}}', 'MSF Kenya, Nairobi')
-            template_html = template_html.replace('{{organization_address}}', 'MSF Kenya, Nairobi')
+            template_html = template_html.replace('{{organizationAddress}}', '<p>MSF Kenya, Nairobi</p>')
+            template_html = template_html.replace('{{organization_address}}', '<p>MSF Kenya, Nairobi</p>')
         
         # Add signature footer
         if hasattr(template, 'signature_footer_fields') and template.signature_footer_fields:
-            footer_text = '<br>'.join(template.signature_footer_fields) if isinstance(template.signature_footer_fields, list) else str(template.signature_footer_fields).replace('\n', '<br>')
-            template_html = template_html.replace('{{signatureFooter}}', footer_text)
-            template_html = template_html.replace('{{signature_footer}}', footer_text)
+            footer_lines = []
+            fields = template.signature_footer_fields if isinstance(template.signature_footer_fields, list) else []
+            
+            for field in fields:
+                if isinstance(field, dict):
+                    text = field.get('text', '')
+                    field_type = field.get('type', 'text')
+                    
+                    if field_type == 'link':
+                        footer_lines.append(f'<a href="{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    elif field_type == 'email':
+                        footer_lines.append(f'<a href="mailto:{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    elif field_type == 'phone':
+                        footer_lines.append(f'<a href="tel:{text}" style="color: #1a73e8; text-decoration: underline;">{text}</a>')
+                    else:
+                        footer_lines.append(text)
+                elif isinstance(field, str):
+                    footer_lines.append(field)
+            
+            footer_html = '<br>'.join(footer_lines)
+            template_html = template_html.replace('{{signatureFooter}}', footer_html)
+            template_html = template_html.replace('{{signature_footer}}', footer_html)
         else:
             template_html = template_html.replace('{{signatureFooter}}', '')
             template_html = template_html.replace('{{signature_footer}}', '')
