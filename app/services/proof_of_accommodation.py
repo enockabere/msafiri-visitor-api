@@ -296,8 +296,8 @@ async def generate_proof_of_accommodation(
         
         # Handle QR code insertion if enabled and QR code was generated
         if enable_qr_code and qr_code_base64 and '{{qrCode}}' in personalized_html:
-            # Replace {{qrCode}} with proper HTML img tag (100x100px like LOI)
-            qr_img_tag = f'<img src="{qr_code_base64}" style="width: 100px; height: 100px;" alt="QR Code" />'
+            # Replace {{qrCode}} with proper HTML img tag (80x80px like LOI)
+            qr_img_tag = f'<img src="{qr_code_base64}" style="width: 80px; height: 80px; display: block;" alt="QR Code" />'
             personalized_html = personalized_html.replace('{{qrCode}}', qr_img_tag)
         elif '{{qrCode}}' in personalized_html:
             # Remove QR code placeholder if no QR code generated
