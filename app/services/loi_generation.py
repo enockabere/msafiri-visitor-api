@@ -26,6 +26,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000/portal")
 def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
     """
     Replace template variables with actual participant data and make them bold.
+    Also auto-format emails, phones, and URLs.
 
     Template variables format: {{variableName}}
     """
@@ -89,7 +90,46 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             if matches:
                 result = re.sub(pattern, bold_value, result, flags=re.IGNORECASE)
 
+    # Auto-format emails, phones, and URLs in the content
+    result = auto_format_contact_info(result)
+
     return result
+
+
+def auto_format_contact_info(html: str) -> str:
+    """
+    Auto-detect and format emails, phone numbers, and URLs with proper styling and links.
+    """
+    import re
+    
+    # Format email addresses (not already in <a> tags)
+    email_pattern = r'(?<!href=")(?<!mailto:)\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b'
+    html = re.sub(email_pattern, r'<a href="mailto:\1" class="email">\1</a>', html)
+    
+    # Format phone numbers (various formats)
+    # Matches: +254 123 456 789, +254-123-456-789, +254123456789, 0123456789, etc.
+    phone_pattern = r'(?<!\d)(\+?\d{1,4}[\s-]?\(?\d{1,4}\)?[\s-]?\d{1,4}[\s-]?\d{1,4}[\s-]?\d{1,9})(?!\d)'
+    
+    def format_phone(match):
+        phone = match.group(1)
+        # Only format if it looks like a phone number (has enough digits)
+        if len(re.sub(r'[^\d]', '', phone)) >= 9:
+            return f'<a href="tel:{phone}" class="phone">{phone}</a>'
+        return phone
+    
+    html = re.sub(phone_pattern, format_phone, html)
+    
+    # Format URLs (not already in <a> tags)
+    url_pattern = r'(?<!href=")(?<!src=")(https?://[^\s<>"]+|www\.[^\s<>"]+)'
+    
+    def format_url(match):
+        url = match.group(1)
+        href = url if url.startswith('http') else f'http://{url}'
+        return f'<a href="{href}" class="website" target="_blank">{url}</a>'
+    
+    html = re.sub(url_pattern, format_url, html)
+    
+    return html
 
 
 def generate_loi_slug(participant_id: int, event_id: int) -> str:
@@ -205,8 +245,8 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 font-size: 10px;
                 line-height: 1.3;
                 justify-self: end;
-                max-width: 250px;  /* Increased from 180px */
-                min-width: 200px;  /* Added minimum width */
+                max-width: 250px;
+                min-width: 200px;
             }
             .address p, .address a {
                 margin: 2px 0;
@@ -216,12 +256,31 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 font-weight: bold;
                 font-size: 11px;
             }
-            .address .tel {
+            .address .tel, .address .phone {
                 margin-top: 4px;
+                color: #059669;
+                font-weight: 500;
+            }
+            .address .email {
+                color: #1a73e8;
+                text-decoration: none;
+                font-weight: 500;
+            }
+            .address .email:hover {
+                text-decoration: underline;
             }
             .address a {
                 color: #1a73e8;
                 text-decoration: none;
+                font-weight: 500;
+            }
+            .address a:hover {
+                text-decoration: underline;
+            }
+            .address .website {
+                color: #7c3aed;
+                text-decoration: none;
+                font-weight: 500;
             }
             /* Make variables bold */
             .variable {
