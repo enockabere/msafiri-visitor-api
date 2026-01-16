@@ -326,40 +326,57 @@ async def generate_loi_pdf(
         
         # Get passport data from external API if available
         passport_data = {}
+        passport_record = None
         try:
             passport_record = db.query(PassportRecord).filter(
                 PassportRecord.user_email == participant.email,
                 PassportRecord.event_id == event_id
             ).first()
             
-            if passport_record:
+            if not passport_record:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No passport data found. Please upload passport details first."
+                )
+            
+            API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
+            API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
+            
+            headers = {
+                'x-api-key': API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            }
+            
+            payload = {"passport_id": passport_record.record_id}
+            response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                response_data = response.json()
                 
-                API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
-                API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-                
-                headers = {
-                    'x-api-key': API_KEY,
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                }
-                
-                payload = {"passport_id": passport_record.record_id}
-                response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-                
-                if response.status_code == 200:
-                    response_data = response.json()
-                    
-                    if response_data.get('result', {}).get('status') == 'success':
-                        passport_data = response_data['result']['data']
-                        logger.info(f"Passport data fetched successfully")
-                    else:
-                        logger.warning(f"External API returned unsuccessful status")
+                if response_data.get('result', {}).get('status') == 'success':
+                    passport_data = response_data['result']['data']
+                    logger.info(f"Passport data fetched successfully")
                 else:
-                    logger.warning(f"External API returned status {response.status_code}")
+                    logger.warning(f"External API returned unsuccessful status")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Could not retrieve passport data from external system"
+                    )
             else:
-                logger.warning(f"No passport record found for email {participant.email} and event {event_id}")
+                logger.warning(f"External API returned status {response.status_code}")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not retrieve passport data from external system"
+                )
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error fetching passport data: {str(e)}")
+            raise HTTPException(
+                status_code=400,
+                detail="Could not retrieve passport data. Please ensure passport details are uploaded."
+            )
         
         # Prepare event details
         event_name = event.title if event else f"Event {event_id}"
@@ -368,12 +385,19 @@ async def generate_loi_pdf(
         event_dates = f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD"
         event_location = event.location if event else "TBD"
         
-        # Use passport data if available, otherwise use participant data
-        passport_number = passport_data.get('passport_no') or getattr(participant, 'passport_number', None) or 'N/A'
-        nationality = passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A'
-        date_of_birth = passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A'
-        passport_issue_date = passport_data.get('date_of_issue') or 'N/A'
-        passport_expiry_date = passport_data.get('date_of_expiry') or 'N/A'
+        # Use passport data - all fields are required
+        passport_number = passport_data.get('passport_no')
+        nationality = passport_data.get('nationality')
+        date_of_birth = passport_data.get('date_of_birth')
+        passport_issue_date = passport_data.get('date_of_issue')
+        passport_expiry_date = passport_data.get('date_of_expiry')
+        
+        # Validate that we have the essential passport data
+        if not passport_number or not nationality:
+            raise HTTPException(
+                status_code=400,
+                detail="Incomplete passport data. Passport number and nationality are required."
+            )
         
         # Log what passport data fields we found
         
