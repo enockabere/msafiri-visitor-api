@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '035_add_budget_account_code'
-down_revision = '034_fix_notification_priority_type'
+down_revision = 'dd7f47274857'
 branch_labels = None
 depends_on = None
 
