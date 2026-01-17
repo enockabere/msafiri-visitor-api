@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_user
@@ -227,6 +227,23 @@ async def delete_logo(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
+@router.delete("/delete-event-attachment/{public_id:path}")
+async def delete_event_attachment(
+    public_id: str,
+    resource_type: str = "raw",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete event attachment from Cloudinary"""
+    try:
+        result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+        if result["result"] == "ok":
+            return {"success": True, "message": "Event attachment deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Event attachment not found")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
 @router.post("/upload-avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
@@ -278,3 +295,56 @@ async def upload_avatar(
     except Exception as e:
         print(f"DEBUG: Avatar upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Avatar upload failed: {str(e)}")
+
+@router.post("/upload-event-attachment")
+async def upload_event_attachment(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload event attachment to Cloudinary"""
+    
+    print(f"DEBUG: Event attachment upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    
+    # Validate file size (10MB limit)
+    if file.size and file.size > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be less than 10MB")
+    
+    try:
+        if not CLOUDINARY_CLOUD_NAME:
+            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured.")
+
+        # Read file content
+        file_content = await file.read()
+        import io
+        file_obj = io.BytesIO(file_content)
+        file_obj.name = file.filename
+
+        # Determine resource type based on file type
+        resource_type = "image" if file.content_type and file.content_type.startswith('image/') else "raw"
+        
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            file_obj,
+            folder="msafiri-documents/event-attachments",
+            resource_type=resource_type,
+            use_filename=True,
+            unique_filename=True,
+            overwrite=False
+        )
+
+        print(f"DEBUG: Event attachment upload successful: {result['secure_url']}")
+
+        return {
+            "success": True,
+            "url": result["secure_url"],
+            "public_id": result["public_id"],
+            "format": result.get("format"),
+            "resource_type": resource_type,
+            "file_type": file.content_type,
+            "original_filename": file.filename
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Event attachment upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Event attachment upload failed: {str(e)}")
