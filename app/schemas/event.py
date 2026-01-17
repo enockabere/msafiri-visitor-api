@@ -23,6 +23,7 @@ class EventBase(BaseModel):
     expected_participants: Optional[int] = None
     single_rooms: Optional[int] = None
     double_rooms: Optional[int] = None
+    budget_account_code: Optional[str] = None
 
 class EventCreate(EventBase):
     pass
@@ -50,6 +51,7 @@ class EventUpdate(BaseModel):
     expected_participants: Optional[Union[int, str]] = None      # Accept both int and str
     single_rooms: Optional[Union[int, str]] = None               # Accept both int and str
     double_rooms: Optional[Union[int, str]] = None               # Accept both int and str
+    budget_account_code: Optional[str] = None
     
 
 

@@ -42,6 +42,9 @@ class Event(BaseModel):
     single_rooms = Column(Integer)
     double_rooms = Column(Integer)
     
+    # Budget
+    budget_account_code = Column(String(10))
+    
     # Metadata
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     created_by = Column(String(255), nullable=False)
