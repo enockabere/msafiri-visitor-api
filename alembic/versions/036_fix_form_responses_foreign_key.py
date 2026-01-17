@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '036_fix_form_responses_foreign_key'
-down_revision = '035_add_budget_account_code_to_events'
+down_revision = '035_add_budget_account_code'
 branch_labels = None
 depends_on = None
 
