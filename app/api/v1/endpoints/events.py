@@ -605,7 +605,7 @@ def update_event(
         )
     
     # Validate room capacity if double_rooms is set to 0
-    if 'double_rooms' in event_update and event_update['double_rooms'] == 0:
+    if 'double_rooms' in event_update and int(event_update['double_rooms']) == 0:
         # Count confirmed participants staying at venue
         from app.models.event_participant import EventParticipant
         confirmed_participants = db.query(EventParticipant).filter(
@@ -614,8 +614,8 @@ def update_event(
             EventParticipant.accommodation_preference == "staying_at_venue"
         ).count()
         
-        single_rooms = event_update.get('single_rooms', event.single_rooms or 0)
-        expected_participants = event_update.get('expected_participants', event.expected_participants or 0)
+        single_rooms = int(event_update.get('single_rooms', event.single_rooms or 0))
+        expected_participants = int(event_update.get('expected_participants', event.expected_participants or 0))
         
         # Use the higher of confirmed participants or expected participants
         participants_to_accommodate = max(confirmed_participants, expected_participants)
@@ -627,9 +627,9 @@ def update_event(
             )
     
     # General room capacity validation
-    single_rooms = event_update.get('single_rooms', event.single_rooms or 0)
-    double_rooms = event_update.get('double_rooms', event.double_rooms or 0)
-    expected_participants = event_update.get('expected_participants', event.expected_participants or 0)
+    single_rooms = int(event_update.get('single_rooms', event.single_rooms or 0))
+    double_rooms = int(event_update.get('double_rooms', event.double_rooms or 0))
+    expected_participants = int(event_update.get('expected_participants', event.expected_participants or 0))
     
     total_capacity = single_rooms + (double_rooms * 2)
     if total_capacity < expected_participants:
