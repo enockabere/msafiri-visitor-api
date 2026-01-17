@@ -26,10 +26,11 @@ class FormResponse(Base):
     __tablename__ = "form_responses"
     
     id = Column(Integer, primary_key=True, index=True)
-    registration_id = Column(Integer, nullable=False)
+    registration_id = Column(Integer, ForeignKey("event_participants.id", ondelete="CASCADE"), nullable=False)
     field_id = Column(Integer, ForeignKey("form_fields.id", ondelete="CASCADE"), nullable=False)
     field_value = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default="CURRENT_TIMESTAMP")
     
     # Relationships
     field = relationship("FormField", back_populates="responses")
+    participant = relationship("EventParticipant", foreign_keys=[registration_id])
