@@ -768,6 +768,14 @@ api_router.include_router(
     tags=["form-fields"]
 )
 
+# Form responses for dynamic forms
+from app.api.v1.endpoints import form_responses
+api_router.include_router(
+    form_responses.router,
+    prefix="/form-responses",
+    tags=["form-responses"]
+)
+
 api_router.include_router(
     user_preferences.router,
     prefix="/user-preferences",
