@@ -9,6 +9,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 @router.get("/confirm/{participant_id}")
@@ -86,6 +88,12 @@ async def confirm_attendance(
             current_user=mock_user,
             tenant_context=tenant_context
         )
+        
+        # Auto-generate proof of accommodation after successful booking
+        try:
+            await _generate_proof_after_booking(participant.id, participant.event_id, db)
+        except Exception as proof_error:
+            logger.error(f"Proof generation failed for participant {participant_id}: {str(proof_error)}")
         
         return {
             "message": "Attendance confirmed successfully",
@@ -172,6 +180,89 @@ async def decline_attendance(
         "message": "Attendance declined successfully",
         "warning": "Your registration details will be deleted in 24 hours"
     }
+
+async def _generate_proof_after_booking(participant_id: int, event_id: int, db: Session):
+    """Generate proof of accommodation after successful booking"""
+    try:
+        from sqlalchemy import text
+        from app.services.proof_of_accommodation import generate_proof_of_accommodation
+        from datetime import datetime
+        
+        # Get accommodation allocation details
+        allocation_query = text("""
+            SELECT aa.id as allocation_id, aa.vendor_accommodation_id, aa.room_type,
+                   aa.check_in_date, aa.check_out_date,
+                   va.vendor_name, va.location,
+                   ep.full_name, ep.email,
+                   e.title as event_name, e.start_date, e.end_date,
+                   t.name as tenant_name,
+                   pt.template_content, pt.logo_url, pt.signature_url, pt.enable_qr_code
+            FROM accommodation_allocations aa
+            JOIN vendor_accommodations va ON aa.vendor_accommodation_id = va.id
+            JOIN event_participants ep ON aa.participant_id = ep.id
+            JOIN events e ON aa.event_id = e.id
+            LEFT JOIN tenants t ON e.tenant_id = t.id
+            LEFT JOIN poa_templates pt ON va.id = pt.vendor_accommodation_id
+            WHERE aa.participant_id = :participant_id AND aa.event_id = :event_id
+            AND aa.status != 'cancelled'
+            ORDER BY aa.created_at DESC
+            LIMIT 1
+        """)
+        
+        allocation = db.execute(allocation_query, {
+            "participant_id": participant_id,
+            "event_id": event_id
+        }).fetchone()
+        
+        if not allocation or not allocation.template_content:
+            logger.info(f"No allocation or template found for participant {participant_id}")
+            return
+        
+        # Format dates
+        check_in_date = allocation.check_in_date.strftime('%B %d, %Y') if allocation.check_in_date else 'TBD'
+        check_out_date = allocation.check_out_date.strftime('%B %d, %Y') if allocation.check_out_date else 'TBD'
+        event_dates = f"{check_in_date} - {check_out_date}"
+        
+        # Generate proof PDF
+        pdf_url, poa_slug = await generate_proof_of_accommodation(
+            participant_id=participant_id,
+            event_id=event_id,
+            allocation_id=allocation.allocation_id,
+            template_html=allocation.template_content,
+            hotel_name=allocation.vendor_name,
+            hotel_address=allocation.location or "Address TBD",
+            check_in_date=check_in_date,
+            check_out_date=check_out_date,
+            room_type=allocation.room_type.capitalize() if allocation.room_type else "Standard",
+            event_name=allocation.event_name,
+            event_dates=event_dates,
+            participant_name=allocation.full_name,
+            tenant_name=allocation.tenant_name or "Organization",
+            logo_url=allocation.logo_url,
+            signature_url=allocation.signature_url,
+            enable_qr_code=allocation.enable_qr_code or True
+        )
+        
+        # Update participant record with proof URL
+        db.execute(text("""
+            UPDATE event_participants
+            SET proof_of_accommodation_url = :proof_url,
+                proof_generated_at = :generated_at,
+                poa_slug = :poa_slug
+            WHERE id = :participant_id
+        """), {
+            "proof_url": pdf_url,
+            "generated_at": datetime.utcnow(),
+            "poa_slug": poa_slug,
+            "participant_id": participant_id
+        })
+        
+        db.commit()
+        logger.info(f"✅ Auto-generated proof for participant {participant_id}: {pdf_url}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to auto-generate proof for participant {participant_id}: {str(e)}")
+        raise
 
 async def send_decline_notification(participant, decline_reason, db):
     """Send email notification when participant declines"""
