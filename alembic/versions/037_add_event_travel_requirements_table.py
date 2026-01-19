@@ -17,9 +17,12 @@ depends_on = None
 
 
 def upgrade():
-    # Create enum type for requirement_type
-    requirement_type_enum = postgresql.ENUM('eta', 'health', name='requirementtype')
-    requirement_type_enum.create(op.get_bind())
+    # Create enum type for requirement_type if it doesn't exist
+    connection = op.get_bind()
+    result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'requirementtype'"))
+    if not result.fetchone():
+        requirement_type_enum = postgresql.ENUM('eta', 'health', name='requirementtype')
+        requirement_type_enum.create(connection)
     
     # Create event_travel_requirements table
     op.create_table('event_travel_requirements',
@@ -27,7 +30,7 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('event_id', sa.Integer(), nullable=False),
-        sa.Column('requirement_type', requirement_type_enum, nullable=False),
+        sa.Column('requirement_type', postgresql.ENUM('eta', 'health', name='requirementtype'), nullable=False),
         sa.Column('title', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=False),
         sa.Column('is_mandatory', sa.Boolean(), nullable=True),
