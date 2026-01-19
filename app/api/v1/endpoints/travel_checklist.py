@@ -158,7 +158,7 @@ async def save_checklist_progress(
     if existing_progress:
         # Update existing progress with server-calculated completion
         existing_progress.checklist_items = checklist_items
-        existing_progress.is_completed = server_calculated_completed
+        existing_progress.is_completed = bool(server_calculated_completed)
         print(f"🔍 API DEBUG: Updated existing progress - completed: {server_calculated_completed}")
     else:
         # Create new progress record with server-calculated completion
@@ -166,7 +166,7 @@ async def save_checklist_progress(
             event_id=event_id,
             user_email=current_user.email,
             checklist_items=checklist_items,
-            is_completed=server_calculated_completed
+            is_completed=bool(server_calculated_completed)
         )
         db.add(new_progress)
         print(f"🔍 API DEBUG: Created new progress - completed: {server_calculated_completed}")
