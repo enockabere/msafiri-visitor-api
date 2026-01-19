@@ -447,7 +447,7 @@ async def update_participant_status(
     participant.updated_at = datetime.utcnow()
     
     # Update vetting comments if provided
-    if status_update.comments:
+    if status_update.comments is not None:  # Allow empty string to clear comments
         participant.vetting_comments = status_update.comments
 
     # If status is selected, send invitation email and push notification (only if not suppressed)
