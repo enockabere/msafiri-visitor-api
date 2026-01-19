@@ -26,6 +26,10 @@ def create_perdiem_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print(f"🔧 DEBUG - Per Diem Request Data: {request.dict()}")
+    print(f"🔧 DEBUG - Payment Method: {request.payment_method}")
+    print(f"🔧 DEBUG - Cash Hours: {request.cash_hours}")
+    
     # Get participant and validate
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
     if not participant:

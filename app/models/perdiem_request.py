@@ -11,12 +11,12 @@ class PerdiemStatus(enum.Enum):
     PAID = "paid"
 
 class PaymentMethod(enum.Enum):
-    CASH = "cash"
-    MOBILE_MONEY = "mobile_money"
+    CASH = "CASH"
+    MOBILE_MONEY = "MOBILE_MONEY"
 
 class CashHours(enum.Enum):
-    MORNING = "morning"
-    AFTERNOON = "afternoon"
+    MORNING = "MORNING"
+    AFTERNOON = "AFTERNOON"
 
 class PerdiemRequest(BaseModel):
     __tablename__ = "perdiem_requests"
