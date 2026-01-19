@@ -15,6 +15,59 @@ def read_user_me(
     """Get current user."""
     return current_user
 
+@router.get("/me/tenants")
+def get_user_tenants(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Get current user's tenant associations."""
+    try:
+        from app.models.user_tenants import UserTenant
+        from app.models.tenant import Tenant
+        
+        user_tenants = db.query(UserTenant).join(Tenant).filter(
+            UserTenant.user_id == current_user.id,
+            UserTenant.is_active == True
+        ).all()
+        
+        tenants = [{
+            "tenant_id": ut.tenant_id,
+            "tenant_name": ut.tenant.name if ut.tenant else ut.tenant_id,
+            "tenant_slug": ut.tenant.slug if ut.tenant else ut.tenant_id,
+            "role": ut.role.value if ut.role else None
+        } for ut in user_tenants]
+        
+        # If user has no tenant associations but has a primary tenant_id, include it
+        if not tenants and current_user.tenant_id:
+            tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+            if tenant:
+                tenants.append({
+                    "tenant_id": tenant.slug,
+                    "tenant_name": tenant.name,
+                    "tenant_slug": tenant.slug,
+                    "role": current_user.role.value
+                })
+        
+        return {"tenants": tenants}
+        
+    except Exception as e:
+        # Fallback: return user's primary tenant if available
+        if current_user.tenant_id:
+            try:
+                from app.models.tenant import Tenant
+                tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+                if tenant:
+                    return {"tenants": [{
+                        "tenant_id": tenant.slug,
+                        "tenant_name": tenant.name,
+                        "tenant_slug": tenant.slug,
+                        "role": current_user.role.value
+                    }]}
+            except:
+                pass
+        
+        return {"tenants": []}
+
 @router.post("/", response_model=schemas.User)
 def create_user(
     *,
