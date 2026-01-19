@@ -76,16 +76,77 @@ async def save_checklist_progress(
     print(f"🔍 TRAVEL CHECKLIST DEBUG: Endpoint called for event {event_id}, user {current_user.email}")
     print(f"🔍 TRAVEL CHECKLIST DEBUG: Raw progress data: {progress_data}")
     
-    # Server-side validation of completion status
-    # Don't trust the client's completed flag - calculate it ourselves
+    # Get user registration to check passport and flight status
+    from app.models.event_participant import EventParticipant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.email == current_user.email,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    # Get travel requirements to understand what needs to be completed
+    from app.models.travel_requirements import TravelRequirement
+    travel_reqs = db.query(TravelRequirement).filter(
+        TravelRequirement.event_id == event_id
+    ).first()
+    
+    # Check for active reminders
+    active_reminder = db.query(ItineraryReminder).filter(
+        ItineraryReminder.event_id == event_id,
+        ItineraryReminder.user_email == current_user.email,
+        ItineraryReminder.is_active == True,
+        ItineraryReminder.reminder_date > func.now()
+    ).first()
+    
     checklist_items = progress_data.checklist_items
     
-    # Calculate actual completion based on all items being true
-    server_calculated_completed = all(checklist_items.values()) if checklist_items else False
+    # Calculate actual completion using the same logic as mobile app
+    passport_completed = participant.passport_document if participant else False
+    flight_completed = participant.ticket_document if participant else False
+    has_active_reminder = active_reminder is not None
+    
+    # Flight is considered completed if actually completed OR has active reminder
+    effective_flight_completed = flight_completed or has_active_reminder
+    
+    # Check completion based on travel requirements
+    server_calculated_completed = True
+    incomplete_items = []
+    
+    if travel_reqs and travel_reqs.requirements:
+        requirements = travel_reqs.requirements.get('requirements', [])
+        
+        for req in requirements:
+            req_name = req.get('name', '').lower()
+            
+            if 'passport' in req_name:
+                if not passport_completed:
+                    server_calculated_completed = False
+                    incomplete_items.append('Passport Required')
+            elif 'flight' in req_name or 'ticket' in req_name:
+                if not effective_flight_completed:
+                    server_calculated_completed = False
+                    incomplete_items.append('Flight Ticket Required')
+            else:
+                # Check other requirements from checklist items
+                key = req_name.replace(' ', '_').replace(r'[^a-z0-9_]', '')
+                if not checklist_items.get(key, False):
+                    server_calculated_completed = False
+                    incomplete_items.append(req.get('name', key))
+    else:
+        # Default: passport + flight
+        server_calculated_completed = passport_completed and effective_flight_completed
+        if not passport_completed:
+            incomplete_items.append('Passport Required')
+        if not effective_flight_completed:
+            incomplete_items.append('Flight Ticket Required')
     
     print(f"🔍 API DEBUG: Saving checklist progress for event {event_id}, user {current_user.email}")
     print(f"🔍 API DEBUG: Client sent completed: {progress_data.completed}")
     print(f"🔍 API DEBUG: Server calculated completed: {server_calculated_completed}")
+    print(f"🔍 API DEBUG: Passport completed: {passport_completed}")
+    print(f"🔍 API DEBUG: Flight completed: {flight_completed}")
+    print(f"🔍 API DEBUG: Has active reminder: {has_active_reminder}")
+    print(f"🔍 API DEBUG: Effective flight completed: {effective_flight_completed}")
+    print(f"🔍 API DEBUG: Incomplete items: {incomplete_items}")
     print(f"🔍 API DEBUG: Checklist items: {checklist_items}")
     
     # Check if progress already exists
@@ -115,7 +176,10 @@ async def save_checklist_progress(
         "message": "Progress saved successfully",
         "completed": server_calculated_completed,
         "items_count": len(checklist_items),
-        "completed_count": sum(1 for v in checklist_items.values() if v)
+        "completed_count": sum(1 for v in checklist_items.values() if v),
+        "passport_completed": passport_completed,
+        "flight_completed": effective_flight_completed,
+        "incomplete_items": incomplete_items
     }
 
 @router.get("/progress/{event_id}/{participant_email}")
