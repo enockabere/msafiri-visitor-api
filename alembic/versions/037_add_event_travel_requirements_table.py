@@ -7,7 +7,6 @@ Create Date: 2024-01-19 19:30:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '037_add_event_travel_requirements_table'
@@ -17,20 +16,13 @@ depends_on = None
 
 
 def upgrade():
-    # Create enum type for requirement_type if it doesn't exist
-    connection = op.get_bind()
-    result = connection.execute(sa.text("SELECT 1 FROM pg_type WHERE typname = 'requirementtype'"))
-    if not result.fetchone():
-        requirement_type_enum = postgresql.ENUM('eta', 'health', name='requirementtype')
-        requirement_type_enum.create(connection)
-    
-    # Create event_travel_requirements table
+    # Create event_travel_requirements table using String for requirement_type
     op.create_table('event_travel_requirements',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('event_id', sa.Integer(), nullable=False),
-        sa.Column('requirement_type', postgresql.ENUM('eta', 'health', name='requirementtype'), nullable=False),
+        sa.Column('requirement_type', sa.String(50), nullable=False),
         sa.Column('title', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=False),
         sa.Column('is_mandatory', sa.Boolean(), nullable=True),
@@ -63,7 +55,3 @@ def downgrade():
     op.drop_table('participant_requirement_status')
     op.drop_index(op.f('ix_event_travel_requirements_id'), table_name='event_travel_requirements')
     op.drop_table('event_travel_requirements')
-    
-    # Drop enum type
-    requirement_type_enum = postgresql.ENUM('eta', 'health', name='requirementtype')
-    requirement_type_enum.drop(op.get_bind())

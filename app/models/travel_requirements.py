@@ -1,17 +1,12 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
-import enum
-
-class RequirementType(enum.Enum):
-    ETA = "eta"
-    HEALTH = "health"
 
 class EventTravelRequirement(BaseModel):
     __tablename__ = "event_travel_requirements"
     
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
-    requirement_type = Column(Enum(RequirementType), nullable=False)
+    requirement_type = Column(String(50), nullable=False)  # 'eta', 'health', etc.
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
     is_mandatory = Column(Boolean, default=True)
