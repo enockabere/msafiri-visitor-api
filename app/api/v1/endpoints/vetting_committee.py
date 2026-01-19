@@ -443,22 +443,118 @@ def update_vetting_committee(
     for member_data in committee_data.members:
         if member_data.email in member_passwords:
             try:
-                message = f"""You have been invited as a member of the vetting committee for {event_title}.
+                # Create well-structured email content
+                subject = f"Vetting Committee Approver - {event_title}"
+                
+                # Create HTML email content
+                html_message = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>{subject}</title>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                        .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                        .header {{ text-align: center; margin-bottom: 30px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 20px; border-radius: 8px; }}
+                        .logo {{ color: white; font-size: 24px; font-weight: bold; }}
+                        .title {{ color: #1f2937; font-size: 20px; margin: 20px 0; text-align: center; }}
+                        .section {{ margin: 20px 0; padding: 15px; background-color: #f9fafb; border-radius: 8px; border-left: 4px solid #dc2626; }}
+                        .section-title {{ font-weight: bold; color: #374151; margin-bottom: 10px; }}
+                        .credentials {{ background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #f59e0b; }}
+                        .credential-item {{ margin: 8px 0; font-family: monospace; font-size: 14px; }}
+                        .credential-label {{ font-weight: bold; color: #92400e; display: inline-block; width: 120px; }}
+                        .credential-value {{ background-color: #fffbeb; padding: 4px 8px; border-radius: 4px; border: 1px solid #fbbf24; }}
+                        .button {{ display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: bold; }}
+                        .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+                        .warning {{ background-color: #fef2f2; padding: 15px; border-radius: 8px; border: 1px solid #fecaca; margin: 20px 0; }}
+                        .warning-text {{ color: #991b1b; font-size: 14px; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <div class="logo">🌍 MSF Msafiri</div>
+                        </div>
+                        
+                        <h2 class="title">Vetting Committee Approver Invitation</h2>
+                        
+                        <div class="section">
+                            <div class="section-title">Event Information</div>
+                            <p><strong>Event:</strong> {event_title}</p>
+                            <p><strong>Selection Period:</strong> {committee_data.selection_start_date.strftime('%Y-%m-%d')} to {committee_data.selection_end_date.strftime('%Y-%m-%d')}</p>
+                        </div>
+                        
+                        <div class="section">
+                            <div class="section-title">Your Role</div>
+                            <p>You have been invited as an <strong>approver</strong> for the vetting committee for this event. You will review and approve participant selections made by the committee members.</p>
+                        </div>
+                        
+                        <div class="credentials">
+                            <div class="section-title" style="color: #92400e; margin-bottom: 15px;">🔐 Login Credentials</div>
+                            <div class="credential-item">
+                                <span class="credential-label">Email:</span>
+                                <span class="credential-value">{member_data.email}</span>
+                            </div>
+                            <div class="credential-item">
+                                <span class="credential-label">Password:</span>
+                                <span class="credential-value">{member_passwords[member_data.email]}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="warning">
+                            <div class="warning-text">
+                                <strong>⚠️ Important:</strong> Please log in and change your password on first login for security.
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <a href="{portal_url}/auth/login" class="button" style="color: white;">Login to Portal</a>
+                        </div>
+                        
+                        <div class="footer">
+                            <p>This is an automated message from MSF Msafiri Admin Portal</p>
+                            <p>Médecins Sans Frontières (MSF)</p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """
+                
+                # Create plain text version
+                text_message = f"""
+{subject}
+{'=' * len(subject)}
 
+EVENT INFORMATION
+-----------------
+Event: {event_title}
 Selection Period: {committee_data.selection_start_date.strftime('%Y-%m-%d')} to {committee_data.selection_end_date.strftime('%Y-%m-%d')}
 
-Your login credentials:
+YOUR ROLE
+---------
+You have been invited as an approver for the vetting committee for this event. You will review and approve participant selections made by the committee members.
+
+LOGIN CREDENTIALS
+-----------------
 Email: {member_data.email}
 Temporary Password: {member_passwords[member_data.email]}
 
-Please log in and change your password on first login.
-Login at: {portal_url}/auth/login"""
+IMPORTANT: Please log in and change your password on first login for security.
+
+Login at: {portal_url}/auth/login
+
+---
+This is an automated message from MSF Msafiri Admin Portal
+Médecins Sans Frontières (MSF)
+                """
                 
-                email_service.send_notification_email(
-                    to_email=member_data.email,
-                    user_name=member_data.full_name or member_data.email.split('@')[0],
-                    title=f"Vetting Committee Member - {event_title}",
-                    message=message
+                # Send the email using the email service
+                email_service.send_email(
+                    to_emails=[member_data.email],
+                    subject=subject,
+                    html_content=html_message,
+                    text_content=text_message
                 )
             except Exception as e:
                 print(f"Failed to send member notification email to {member_data.email}: {e}")
