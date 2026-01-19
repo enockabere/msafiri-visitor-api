@@ -84,9 +84,9 @@ async def save_checklist_progress(
     ).first()
     
     # Get travel requirements to understand what needs to be completed
-    from app.models.travel_requirements import TravelRequirement
-    travel_reqs = db.query(TravelRequirement).filter(
-        TravelRequirement.event_id == event_id
+    from app.models.travel_requirements import EventTravelRequirement
+    travel_reqs = db.query(EventTravelRequirement).filter(
+        EventTravelRequirement.event_id == event_id
     ).first()
     
     # Check for active reminders
