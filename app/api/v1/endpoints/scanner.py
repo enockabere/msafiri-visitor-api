@@ -8,7 +8,7 @@ from app.models.event import Event
 from app.models.event_participant import EventParticipant
 from app.models.allocation import EventAllocation
 from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-from app.models.user_roles import UserRole, RoleType
+from app.models.user_roles import UserRole
 from pydantic import BaseModel
 from datetime import datetime
 import logging
@@ -55,7 +55,7 @@ async def get_scanner_events(
         # Check if user has voucher scanner role
         has_scanner_role = db.query(UserRole).filter(
             UserRole.user_id == user.id,
-            UserRole.role == RoleType.VOUCHER_SCANNER
+            UserRole.role == 'VOUCHER_SCANNER'
         ).first()
         
         if not has_scanner_role:
