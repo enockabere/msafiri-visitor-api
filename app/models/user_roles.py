@@ -1,43 +1,22 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime, Enum
+# File: app/models/user_roles.py
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.models.base import BaseModel
-import enum
-
-class RoleType(enum.Enum):
-    SUPER_ADMIN = "SUPER_ADMIN"
-    MT_ADMIN = "MT_ADMIN"
-    HR_ADMIN = "HR_ADMIN"
-    EVENT_ADMIN = "EVENT_ADMIN"
-    STAFF = "STAFF"
-    USER = "USER"
-    GUEST = "GUEST"
-    VOUCHER_SCANNER = "VOUCHER_SCANNER"
-    VETTING_APPROVER = "VETTING_APPROVER"
-    VETTING_COMMITTEE = "VETTING_COMMITTEE"
+from app.models.user import UserRole as UserRoleEnum
 
 class UserRole(BaseModel):
     __tablename__ = "user_roles"
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role = Column(Enum(RoleType), nullable=False)
-    granted_by = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
-    granted_at = Column(DateTime, nullable=False)
-    revoked_at = Column(DateTime)
-    revoked_by = Column(String(255))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(UserRoleEnum, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by = Column(String(255), nullable=True)
     
     # Relationships
-    user = relationship("User")
-
-class RoleChangeLog(BaseModel):
-    __tablename__ = "role_change_logs"
+    user = relationship("User", back_populates="user_roles")
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user_email = Column(String(255), nullable=False)
-    role = Column(Enum(RoleType), nullable=False)
-    action = Column(String(20), nullable=False)  # "granted", "revoked"
-    performed_by = Column(String(255), nullable=False)
-    reason = Column(String(500))
-    
-    # Relationships
-    user = relationship("User")
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint('user_id', 'role', name='unique_user_role'),
+    )

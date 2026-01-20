@@ -387,11 +387,12 @@ def update_vetting_committee(
     committee.selection_end_date = committee_data.selection_end_date
     committee.approver_email = committee_data.approver_email
     
-    # Update approver role - Don't overwrite existing role, just ensure they can be an approver
+    # Add VETTING_APPROVER role without removing existing roles
     approver = db.query(User).filter(User.email == committee_data.approver_email).first()
     if approver:
-        # Don't change the user's primary role - they keep their existing role (e.g., SUPER_ADMIN)
-        # The vetting system will check both primary role and committee assignments
+        from app.crud.user_roles import add_user_role
+        from app.models.user import UserRole as UserRoleEnum
+        add_user_role(db, approver.id, UserRoleEnum.VETTING_APPROVER, current_user.email)
         approver.tenant_id = current_user.tenant_id
     
     # Delete existing members
@@ -426,7 +427,11 @@ def update_vetting_committee(
             )
             db.add(user)
             db.flush()
-        # Don't change existing user's role - they keep their original role
+        # Add VETTING_COMMITTEE role for existing users without removing their primary role
+        if user:
+            from app.crud.user_roles import add_user_role
+            from app.models.user import UserRole as UserRoleEnum
+            add_user_role(db, user.id, UserRoleEnum.VETTING_COMMITTEE, current_user.email)
         
         member = VettingCommitteeMember(
             committee_id=committee.id,
