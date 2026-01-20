@@ -58,10 +58,7 @@ def add_user_role(
         # Add new role
         new_role = UserRole(
             user_id=request.user_id,
-            role=request.role,
-            granted_by=current_user.email,
-            granted_at=datetime.utcnow(),
-            is_active=True
+            role=request.role
         )
         
         db.add(new_role)
@@ -185,10 +182,7 @@ def remove_user_role(
             if not existing_guest:
                 guest_role = UserRole(
                     user_id=request.user_id,
-                    role='GUEST',
-                    granted_by="system",
-                    granted_at=datetime.utcnow(),
-                    is_active=True
+                    role='GUEST'
                 )
                 db.add(guest_role)
             
@@ -261,10 +255,7 @@ def remove_user_from_tenant(
         # Assign Guest role
         guest_role = UserRole(
             user_id=request.user_id,
-            role='GUEST',
-            granted_by="system",
-            granted_at=datetime.utcnow(),
-            is_active=True
+            role='GUEST'
         )
         db.add(guest_role)
         
