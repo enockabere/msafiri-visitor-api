@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole as UserRoleEnum, User
-from app.models.user_roles import UserRole, RoleType
+from app.models.user_roles import UserRole
 from app.models.user_tenants import UserTenant
 from datetime import datetime
 import logging
@@ -44,7 +44,7 @@ def add_user_role(
         # Check if user already has this role
         existing_role = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.role == RoleType(request.role),
+            UserRole.role == request.role,
             UserRole.is_active == True
         ).first()
         
@@ -58,7 +58,7 @@ def add_user_role(
         # Add new role
         new_role = UserRole(
             user_id=request.user_id,
-            role=RoleType(request.role),
+            role=request.role,
             granted_by=current_user.email,
             granted_at=datetime.utcnow(),
             is_active=True
@@ -93,7 +93,7 @@ def get_user_roles(
         
         return [{
             "id": role.id,
-            "role": role.role.value,
+            "role": role.role,
             "granted_by": role.granted_by,
             "granted_at": role.granted_at
         } for role in user_roles]
@@ -129,7 +129,7 @@ def remove_user_role(
         print(f"DEBUG: Looking for role {request.role} for user {request.user_id}")
         role_to_remove = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.role == RoleType(request.role),
+            UserRole.role == request.role,
             UserRole.is_active == True
         ).first()
         
@@ -152,7 +152,7 @@ def remove_user_role(
             UserRole.user_id == request.user_id,
             UserRole.is_active == True,
             UserRole.id != role_to_remove.id,
-            UserRole.role != RoleType.GUEST
+            UserRole.role != 'GUEST'
         ).all()
         
         user = db.query(User).filter(User.id == request.user_id).first()
@@ -178,14 +178,14 @@ def remove_user_role(
             # Assign Guest role if no guest role exists
             existing_guest = db.query(UserRole).filter(
                 UserRole.user_id == request.user_id,
-                UserRole.role == RoleType.GUEST,
+                UserRole.role == 'GUEST',
                 UserRole.is_active == True
             ).first()
             
             if not existing_guest:
                 guest_role = UserRole(
                     user_id=request.user_id,
-                    role=RoleType.GUEST,
+                    role='GUEST',
                     granted_by="system",
                     granted_at=datetime.utcnow(),
                     is_active=True
@@ -259,7 +259,7 @@ def remove_user_from_tenant(
         # Assign Guest role
         guest_role = UserRole(
             user_id=request.user_id,
-            role=RoleType.GUEST,
+            role='GUEST',
             granted_by="system",
             granted_at=datetime.utcnow(),
             is_active=True
