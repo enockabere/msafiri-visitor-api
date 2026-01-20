@@ -7,7 +7,7 @@ import secrets
 
 from app.models.vetting_committee import VettingCommittee, VettingCommitteeMember, ParticipantSelection
 from app.models.user import User, UserRole as UserRoleEnum, UserStatus, AuthProvider
-from app.models.user_roles import UserRole, RoleType
+from app.models.user_roles import UserRole
 from app.models.user_tenants import UserTenant, UserTenantRole
 from app.models.vetting_role_assignment import VettingRoleAssignment
 from app.models.event_participant import EventParticipant
@@ -35,17 +35,17 @@ def assign_vetting_role_to_user(
     db.add(assignment)
 
     # Add role via user_roles table (secondary role)
-    role_enum = RoleType.VETTING_COMMITTEE if role_type == "VETTING_COMMITTEE" else RoleType.VETTING_APPROVER
+    role_value = "VETTING_COMMITTEE" if role_type == "VETTING_COMMITTEE" else "VETTING_APPROVER"
     existing_role = db.query(UserRole).filter(
         UserRole.user_id == user.id,
-        UserRole.role == role_enum,
+        UserRole.role == role_value,
         UserRole.is_active == True
     ).first()
 
     if not existing_role:
         new_role = UserRole(
             user_id=user.id,
-            role=role_enum,
+            role=role_value,
             granted_by="vetting_system",
             granted_at=datetime.utcnow(),
             is_active=True
@@ -123,10 +123,10 @@ def remove_vetting_roles_after_deadline(db: Session, committee_id: int) -> int:
 
         # Only remove role if not used in other committees
         if other_assignments == 0:
-            role_enum = RoleType.VETTING_COMMITTEE if assignment.role_type == "VETTING_COMMITTEE" else RoleType.VETTING_APPROVER
+            role_value = "VETTING_COMMITTEE" if assignment.role_type == "VETTING_COMMITTEE" else "VETTING_APPROVER"
             user_role = db.query(UserRole).filter(
                 UserRole.user_id == assignment.user_id,
-                UserRole.role == role_enum,
+                UserRole.role == role_value,
                 UserRole.is_active == True
             ).first()
 
