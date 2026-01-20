@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app import crud, schemas
 from app.api import deps
+import logging
+
+logger = logging.getLogger(__name__)
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.models.notification import NotificationPriority, NotificationType
@@ -59,17 +62,28 @@ def get_my_notifications(
     limit: int = 50,
 ) -> Any:
     """Get current user's notifications - supports mobile users without tenants"""
-    # For mobile users without tenant, get all notifications for the user
-    # For tenant users, filter by tenant
-    notifications = crud.notification.get_user_notifications(
-        db, 
-        user_id=current_user.id,
-        tenant_id=current_user.tenant_id,  # Can be None for mobile users
-        unread_only=unread_only,
-        skip=skip,
-        limit=limit
-    )
-    return notifications
+    print(f"🔔 GET /notifications - User: {current_user.email} (ID: {current_user.id})")
+    print(f"📊 User details - Role: {current_user.role}, Tenant: {current_user.tenant_id}")
+    print(f"🔍 Query params - unread_only: {unread_only}, skip: {skip}, limit: {limit}")
+    
+    try:
+        # For mobile users without tenant, get all notifications for the user
+        # For tenant users, filter by tenant
+        notifications = crud.notification.get_user_notifications(
+            db, 
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id,  # Can be None for mobile users
+            unread_only=unread_only,
+            skip=skip,
+            limit=limit
+        )
+        print(f"✅ Found {len(notifications)} notifications for user {current_user.email}")
+        return notifications
+    except Exception as e:
+        print(f"❌ Error getting notifications for user {current_user.email}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 @router.get("/sent")
 def get_sent_notifications(
