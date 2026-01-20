@@ -38,17 +38,13 @@ def assign_vetting_role_to_user(
     role_value = "VETTING_COMMITTEE" if role_type == "VETTING_COMMITTEE" else "VETTING_APPROVER"
     existing_role = db.query(UserRole).filter(
         UserRole.user_id == user.id,
-        UserRole.role == role_value,
-        UserRole.is_active == True
+        UserRole.role == role_value
     ).first()
 
     if not existing_role:
         new_role = UserRole(
             user_id=user.id,
-            role=role_value,
-            granted_by="vetting_system",
-            granted_at=datetime.utcnow(),
-            is_active=True
+            role=role_value
         )
         db.add(new_role)
 
@@ -126,14 +122,11 @@ def remove_vetting_roles_after_deadline(db: Session, committee_id: int) -> int:
             role_value = "VETTING_COMMITTEE" if assignment.role_type == "VETTING_COMMITTEE" else "VETTING_APPROVER"
             user_role = db.query(UserRole).filter(
                 UserRole.user_id == assignment.user_id,
-                UserRole.role == role_value,
-                UserRole.is_active == True
+                UserRole.role == role_value
             ).first()
 
             if user_role:
-                user_role.is_active = False
-                user_role.revoked_at = datetime.utcnow()
-                user_role.revoked_by = "vetting_system_deadline"
+                db.delete(user_role)
 
         # Mark assignment as inactive
         assignment.is_active = False
