@@ -553,31 +553,59 @@ def select_tenant(
         "email": current_user.email
     }
 
-@router.post("/update-fcm-token")
-def update_fcm_token(
-    token_data: schemas.FCMTokenUpdate,
-    db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(deps.get_current_user)
+@router.post("/check-user")
+def check_user(
+    user_data: dict,
+    db: Session = Depends(get_db)
 ) -> Any:
-    """Update FCM token for push notifications"""
-    try:
-        user = crud.user.get_by_email(db, email=current_user.email)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-        
-        # Update FCM token
-        user.fcm_token = token_data.fcm_token
-        db.commit()
-        
-        logger.info(f"🔔 FCM token updated for user: {user.email}")
-        return {"message": "FCM token updated successfully"}
-        
-    except Exception as e:
-        logger.error(f"Failed to update FCM token: {str(e)}")
+    """Check user for SSO authentication and return user data with access token"""
+    email = user_data.get("email")
+    provider = user_data.get("provider", "azure-ad")
+    
+    if not email:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update FCM token"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is required"
         )
+    
+    # Find user by email
+    user = crud.user.get_by_email(db, email=email.lower())
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+    
+    # Generate access token for SSO user
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        subject=user.email,
+        tenant_id=user.tenant_id,
+        expires_delta=access_token_expires
+    )
+    
+    # Get all user roles
+    all_roles = get_user_all_roles(db, user)
+    
+    # Get user's tenant associations
+    user_tenants = get_user_tenants(db, user)
+    
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role.value,
+        "all_roles": all_roles,
+        "tenant_id": user.tenant_id,
+        "user_tenants": user_tenants,
+        "is_active": user.is_active,
+        "access_token": access_token,
+        "refresh_token": access_token,  # Use same token for refresh
+        "first_login": crud.user.is_first_login(user)
+    }
