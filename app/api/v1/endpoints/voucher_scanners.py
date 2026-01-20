@@ -6,7 +6,7 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.tenant import Tenant
 from app.models.event import Event
-from app.models.user_roles import UserRole, RoleType
+from app.models.user_roles import UserRole
 from app.schemas.user import UserCreate
 # Direct database operations - no CRUD imports needed
 from pydantic import BaseModel, EmailStr
@@ -92,14 +92,14 @@ async def create_voucher_scanners_bulk(
                 # Check if user already has scanner role
                 existing_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
-                    UserRole.role == RoleType.VOUCHER_SCANNER
+                    UserRole.role == 'VOUCHER_SCANNER'
                 ).first()
                 
                 if not existing_role:
                     # Assign scanner role (additional role for existing users)
                     user_role = UserRole(
                         user_id=user_id,
-                        role=RoleType.VOUCHER_SCANNER,
+                        role='VOUCHER_SCANNER',
                         granted_by=created_by,
                         granted_at=datetime.utcnow()
                     )
@@ -359,7 +359,7 @@ async def delete_scanner(
             if remaining == 0:
                 user_role = db.query(UserRole).filter(
                     UserRole.user_id == scanner_id,
-                    UserRole.role == RoleType.VOUCHER_SCANNER
+                    UserRole.role == 'VOUCHER_SCANNER'
                 ).first()
 
                 if user_role:
