@@ -86,8 +86,7 @@ def get_user_roles(
         return [{
             "id": role.id,
             "role": role.role,
-            "created_at": role.created_at,
-            "created_by": role.created_by
+            "created_at": role.created_at
         } for role in user_roles]
         
     except Exception as e:

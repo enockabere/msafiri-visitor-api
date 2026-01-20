@@ -20,8 +20,7 @@ def add_user_role(db: Session, user_id: int, role: UserRoleEnum, created_by: Opt
     
     user_role = UserRole(
         user_id=user_id,
-        role=role,
-        created_by=created_by
+        role=role
     )
     db.add(user_role)
     db.commit()
