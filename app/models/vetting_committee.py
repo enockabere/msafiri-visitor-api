@@ -47,8 +47,8 @@ class VettingCommittee(BaseModel):
 
     # Email template references
     email_notifications_enabled = Column(Boolean, default=False)
-    selected_template_id = Column(Integer, ForeignKey("vetting_email_templates.id"), nullable=True)
-    not_selected_template_id = Column(Integer, ForeignKey("vetting_email_templates.id"), nullable=True)
+    selected_template_id = Column(Integer, nullable=True)
+    not_selected_template_id = Column(Integer, nullable=True)
 
     # Reminder tracking
     reminders_sent = Column(Boolean, default=False)
