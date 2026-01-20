@@ -1716,7 +1716,7 @@ def update_event_loi_template(
     # Check permissions
     user_roles = db.query(UserRoleModel).filter(
         UserRoleModel.user_id == current_user.id,
-        UserRoleModel.is_active == True
+        UserRoleModel.user_id == current_user.id
     ).all()
     
     has_single_role_permission = can_create_events(current_user.role)
