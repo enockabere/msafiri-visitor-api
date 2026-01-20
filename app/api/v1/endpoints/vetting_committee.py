@@ -391,7 +391,7 @@ def update_vetting_committee(
     approver = db.query(User).filter(User.email == committee_data.approver_email).first()
     if approver:
         from sqlalchemy import text
-        db.execute(text("UPDATE users SET role = 'vetting_approver' WHERE id = :user_id"), {"user_id": approver.id})
+        db.execute(text("UPDATE users SET role = 'VETTING_APPROVER' WHERE id = :user_id"), {"user_id": approver.id})
         approver.tenant_id = current_user.tenant_id
     
     # Delete existing members
