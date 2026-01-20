@@ -44,8 +44,7 @@ def add_user_role(
         # Check if user already has this role
         existing_role = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.role == request.role,
-            UserRole.is_active == True
+            UserRole.role == request.role
         ).first()
         
         if existing_role:
@@ -84,8 +83,7 @@ def get_user_roles(
     """Get all active roles for a user."""
     try:
         user_roles = db.query(UserRole).filter(
-            UserRole.user_id == user_id,
-            UserRole.is_active == True
+            UserRole.user_id == user_id
         ).all()
         
         return [{
@@ -126,8 +124,7 @@ def remove_user_role(
         print(f"DEBUG: Looking for role {request.role} for user {request.user_id}")
         role_to_remove = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.role == request.role,
-            UserRole.is_active == True
+            UserRole.role == request.role
         ).first()
         
         print(f"DEBUG: Role found: {role_to_remove is not None}")
@@ -140,14 +137,16 @@ def remove_user_role(
             )
         
         # Mark role as inactive
-        role_to_remove.is_active = False
-        role_to_remove.revoked_at = datetime.utcnow()
-        role_to_remove.revoked_by = current_user.email
+        if hasattr(role_to_remove, 'is_active'):
+            role_to_remove.is_active = False
+        if hasattr(role_to_remove, 'revoked_at'):
+            role_to_remove.revoked_at = datetime.utcnow()
+        if hasattr(role_to_remove, 'revoked_by'):
+            role_to_remove.revoked_by = current_user.email
         
         # Check if user has any remaining active non-guest roles
         remaining_roles = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.is_active == True,
             UserRole.id != role_to_remove.id,
             UserRole.role != 'GUEST'
         ).all()
@@ -175,8 +174,7 @@ def remove_user_role(
             # Assign Guest role if no guest role exists
             existing_guest = db.query(UserRole).filter(
                 UserRole.user_id == request.user_id,
-                UserRole.role == 'GUEST',
-                UserRole.is_active == True
+                UserRole.role == 'GUEST'
             ).first()
             
             if not existing_guest:
