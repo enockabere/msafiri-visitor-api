@@ -49,10 +49,7 @@ def add_user_role(
         
         if existing_role:
             logger.warning(f"❌ User {request.user_id} already has role {request.role}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User already has this role"
-            )
+            return {"message": "User already has this role"}
         
         # Add new role
         new_role = UserRole(
