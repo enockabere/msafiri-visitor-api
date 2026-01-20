@@ -78,6 +78,10 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 
         # Only log errors and specific endpoints
         if response.status_code >= 400:
+            print(f"🚨 ERROR DETAILS: {request.method} {request.url.path}")
+            print(f"📋 Headers: {dict(request.headers)}")
+            print(f"🔍 Query params: {dict(request.query_params)}")
+            print(f"⚠️ Status: {response.status_code}")
             logger.error(f"ERROR: {request.method} {request.url.path} - Status: {response.status_code}")
 
         return response
