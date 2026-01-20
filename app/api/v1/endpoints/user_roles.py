@@ -236,14 +236,16 @@ def remove_user_from_tenant(
         
         # Deactivate all user roles
         user_roles = db.query(UserRole).filter(
-            UserRole.user_id == request.user_id,
-            UserRole.is_active == True
+            UserRole.user_id == request.user_id
         ).all()
         
         for role in user_roles:
-            role.is_active = False
-            role.revoked_at = datetime.utcnow()
-            role.revoked_by = current_user.email
+            if hasattr(role, 'is_active'):
+                role.is_active = False
+            if hasattr(role, 'revoked_at'):
+                role.revoked_at = datetime.utcnow()
+            if hasattr(role, 'revoked_by'):
+                role.revoked_by = current_user.email
         
         # Deactivate user-tenant relationship
         user_tenant = db.query(UserTenant).filter(
