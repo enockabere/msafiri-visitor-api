@@ -20,7 +20,7 @@ def can_create_events(user_role: UserRole) -> bool:
 def can_create_events_by_relationship_roles(user_roles: List[UserRoleModel]) -> bool:
     """Check if user has admin roles in the relationship table"""
     admin_role_types = ['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN']
-    return any(role.role in admin_role_types for role in user_roles if hasattr(role, 'is_active') and getattr(role, 'is_active', True))
+    return any(role.role in admin_role_types for role in user_roles)
 
 @router.get("/published", response_model=List[schemas.Event])
 def get_published_events(
@@ -699,11 +699,10 @@ def delete_event(
     
     # Check permissions using both role systems
     user_roles = db.query(UserRoleModel).filter(
-        UserRoleModel.user_id == current_user.id,
-        UserRoleModel.is_active == True
+        UserRoleModel.user_id == current_user.id
     ).all()
     
-    logger.info(f"🔐 User roles from relationship: {[role.role.value for role in user_roles]}")
+    logger.info(f"🔐 User roles from relationship: {[role.role for role in user_roles]}")
     
     has_single_role_permission = can_create_events(current_user.role)
     has_relationship_role_permission = can_create_events_by_relationship_roles(user_roles)
@@ -818,8 +817,7 @@ def update_event_status(
     
     # Check permissions
     user_roles = db.query(UserRoleModel).filter(
-        UserRoleModel.user_id == current_user.id,
-        UserRoleModel.is_active == True
+        UserRoleModel.user_id == current_user.id
     ).all()
     
     has_single_role_permission = can_create_events(current_user.role)
@@ -1543,8 +1541,7 @@ async def generate_poa_for_event(
     
     # Check permissions
     user_roles = db.query(UserRoleModel).filter(
-        UserRoleModel.user_id == current_user.id,
-        UserRoleModel.is_active == True
+        UserRoleModel.user_id == current_user.id
     ).all()
     
     has_single_role_permission = can_create_events(current_user.role)
