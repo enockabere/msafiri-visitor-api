@@ -1,7 +1,7 @@
 from typing import List
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.models.user_roles import UserRole, RoleType
+from app.models.user_roles import UserRole
 
 def has_any_role(user: User, db: Session, required_roles: List[str]) -> bool:
     """Check if user has any of the required roles"""
@@ -15,7 +15,7 @@ def has_any_role(user: User, db: Session, required_roles: List[str]) -> bool:
         UserRole.is_active == True
     ).all()
     
-    user_role_names = [role.role.value for role in user_roles]
+    user_role_names = [role.role for role in user_roles]
     return any(role in required_roles for role in user_role_names)
 
 def has_transport_permissions(user: User, db: Session) -> bool:
