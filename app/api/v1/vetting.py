@@ -65,13 +65,11 @@ async def submit_vetting(
             # Fallback: find all users with vetting_approver role
             from app.models.user_roles import UserRole
             approver_role_records = db.query(UserRole).filter(
-                UserRole.role == "VETTING_APPROVER",
-                UserRole.is_active == True
+                UserRole.role == "VETTING_APPROVER"
             ).all()
             approver_ids = [record.user_id for record in approver_role_records]
             approvers = db.query(User).filter(
-                User.id.in_(approver_ids),
-                User.is_active == True
+                User.id.in_(approver_ids)
             ).all()
         
         # Send email notification to approvers
@@ -187,8 +185,7 @@ async def cancel_vetting_approval(
         if not is_approver:
             approver_role = db.query(UserRole).filter(
                 UserRole.user_id == current_user.id,
-                UserRole.role == "VETTING_APPROVER",
-                UserRole.is_active == True
+                UserRole.role == "VETTING_APPROVER"
             ).first()
             is_approver = approver_role is not None
 
@@ -250,8 +247,7 @@ async def approve_vetting(
             print(f"🔍 Checking secondary roles for user ID {current_user.id}")
             approver_role = db.query(UserRole).filter(
                 UserRole.user_id == current_user.id,
-                UserRole.role == "VETTING_APPROVER",
-                UserRole.is_active == True
+                UserRole.role == "VETTING_APPROVER"
             ).first()
             is_approver = approver_role is not None
             print(f"🔍 Secondary role check: {is_approver}")
