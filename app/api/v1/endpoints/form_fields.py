@@ -249,17 +249,35 @@ def restore_complete_form_fields(
         if field_data["field_name"] not in existing_field_names
     ]
     
-    # Create missing fields
+    # Create missing fields with duplicate handling
     created_count = 0
     for field_data in missing_fields:
-        form_field = FormField(
-            event_id=event_id,
-            **field_data
-        )
-        db.add(form_field)
-        created_count += 1
+        try:
+            form_field = FormField(
+                event_id=event_id,
+                **field_data
+            )
+            db.add(form_field)
+            db.flush()  # Flush to catch constraint violations before commit
+            created_count += 1
+        except Exception as e:
+            # Skip if field already exists (constraint violation)
+            db.rollback()
+            continue
     
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # Re-check existing fields after rollback
+        existing_field_names = set(
+            field.field_name for field in db.query(FormField).filter(FormField.event_id == event_id).all()
+        )
+        return {
+            "message": "Some fields already exist",
+            "created_count": 0,
+            "total_fields": len(existing_field_names)
+        }
     
     return {
         "message": f"Restored {created_count} missing form fields",
@@ -374,6 +392,49 @@ def update_country_fields_to_api(
         "message": f"Updated {len(updated_fields)} country fields to use API",
         "updated_fields": updated_fields
     }
+@router.post("/events/{event_id}/load-form-fields")
+def load_form_fields_safe(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Safely load form fields, skipping duplicates"""
+    # Check if event exists
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Get existing field names to avoid duplicates
+    existing_field_names = set(
+        field.field_name for field in db.query(FormField).filter(
+            FormField.event_id == event_id
+        ).all()
+    )
+    
+    # If fields already exist, just return them
+    if existing_field_names:
+        existing_fields = db.query(FormField).filter(
+            FormField.event_id == event_id,
+            FormField.is_active == True
+        ).order_by(FormField.order_index).all()
+        
+        return {
+            "message": "Form fields already exist",
+            "field_count": len(existing_fields),
+            "fields": [{
+                "id": field.id,
+                "field_name": field.field_name,
+                "field_label": field.field_label,
+                "field_type": field.field_type,
+                "is_required": field.is_required,
+                "order_index": field.order_index,
+                "section": field.section
+            } for field in existing_fields]
+        }
+    
+    # If no fields exist, create default ones
+    return initialize_default_form_fields(event_id, db, current_user)
+
 @router.post("/events/{event_id}/update-phone-fields")
 def update_phone_fields_to_phone_type(
     event_id: int,
