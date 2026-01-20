@@ -387,11 +387,11 @@ def update_vetting_committee(
     committee.selection_end_date = committee_data.selection_end_date
     committee.approver_email = committee_data.approver_email
     
-    # Update approver role
+    # Update approver role - Don't overwrite existing role, just ensure they can be an approver
     approver = db.query(User).filter(User.email == committee_data.approver_email).first()
     if approver:
-        from sqlalchemy import text
-        db.execute(text("UPDATE users SET role = 'VETTING_APPROVER' WHERE id = :user_id"), {"user_id": approver.id})
+        # Don't change the user's primary role - they keep their existing role (e.g., SUPER_ADMIN)
+        # The vetting system will check both primary role and committee assignments
         approver.tenant_id = current_user.tenant_id
     
     # Delete existing members
@@ -426,6 +426,7 @@ def update_vetting_committee(
             )
             db.add(user)
             db.flush()
+        # Don't change existing user's role - they keep their original role
         
         member = VettingCommitteeMember(
             committee_id=committee.id,
