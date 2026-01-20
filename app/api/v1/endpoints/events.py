@@ -20,7 +20,7 @@ def can_create_events(user_role: UserRole) -> bool:
 def can_create_events_by_relationship_roles(user_roles: List[UserRoleModel]) -> bool:
     """Check if user has admin roles in the relationship table"""
     admin_role_types = ['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN']
-    return any(role.role in admin_role_types and role.is_active for role in user_roles)
+    return any(role.role in admin_role_types for role in user_roles if hasattr(role, 'is_active') and getattr(role, 'is_active', True))
 
 @router.get("/published", response_model=List[schemas.Event])
 def get_published_events(
@@ -242,10 +242,9 @@ def create_event(
         
         # Check user roles from relationship table
         user_roles = db.query(UserRoleModel).filter(
-            UserRoleModel.user_id == current_user.id,
-            UserRoleModel.is_active == True
+            UserRoleModel.user_id == current_user.id
         ).all()
-        logger.info(f"🔐 User roles from relationship: {[role.role.value for role in user_roles]}")
+        logger.info(f"🔐 User roles from relationship: {[role.role for role in user_roles]}")
         
         # Check if user has admin roles in the relationship table
         admin_role_types = ['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN']
@@ -259,7 +258,7 @@ def create_event(
         if not has_single_role_permission and not has_admin_role_in_relationship:
             logger.error(f"❌ Role check failed")
             logger.error(f"❌ Single role: {current_user.role} (valid: {has_single_role_permission})")
-            logger.error(f"❌ Relationship roles: {[role.role.value for role in user_roles]} (valid: {has_admin_role_in_relationship})")
+            logger.error(f"❌ Relationship roles: {[role.role for role in user_roles]} (valid: {has_admin_role_in_relationship})")
             logger.error(f"❌ Expected single roles: {[UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]}")
             logger.error(f"❌ Expected relationship roles: {admin_role_types}")
             raise HTTPException(
