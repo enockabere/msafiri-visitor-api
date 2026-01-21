@@ -49,7 +49,8 @@ def generate_password(length: int = 12) -> str:
 
 def require_super_admin(user):
     """Require user to be super admin"""
-    if not user or user.role != 'SUPER_ADMIN':
+    from app.models.user import UserRole
+    if not user or user.role != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super admin access required"
