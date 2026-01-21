@@ -3,6 +3,7 @@ from typing import Optional, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
+from fastapi import HTTPException, status
 import secrets
 import string
 
@@ -45,3 +46,11 @@ def generate_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     password = ''.join(secrets.choice(alphabet) for _ in range(length))
     return password
+
+def require_super_admin(user):
+    """Require user to be super admin"""
+    if not user or user.role != 'SUPER_ADMIN':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
