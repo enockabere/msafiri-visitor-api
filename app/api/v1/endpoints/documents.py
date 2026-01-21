@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Form
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_user
@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, ContentSettings
+from typing import Optional
 
 # Load environment variables
 load_dotenv()
@@ -27,19 +28,20 @@ cloudinary.config(
     api_secret=CLOUDINARY_API_SECRET
 )
 
-# Configure Azure Storage (for code of conduct documents)
+# Configure Azure Storage (for documents)
 AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-AZURE_STORAGE_CONTAINER_NAME = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "code-of-conduct")
+AZURE_STORAGE_CONTAINER_NAME = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "msafiri-documents")
 
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
+    folder: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload document to Azure Blob Storage"""
     
-    print(f"DEBUG: Upload attempt - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    print(f"DEBUG: Upload attempt - File: {file.filename}, Folder: {folder}, Content-Type: {file.content_type}, Size: {file.size}")
     
     # Validate file type
     if not file.content_type or file.content_type != 'application/pdf':
@@ -76,9 +78,10 @@ async def upload_document(
         except Exception:
             pass  # Container already exists
         
-        # Generate blob name with timestamp
+        # Generate blob name with timestamp and folder
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        blob_name = f"code_of_conduct_{timestamp}.pdf"
+        folder_prefix = folder if folder else "documents"
+        blob_name = f"{folder_prefix}/{folder_prefix}_{timestamp}.pdf"
         
         # Get blob client
         blob_client = container_client.get_blob_client(blob_name)
