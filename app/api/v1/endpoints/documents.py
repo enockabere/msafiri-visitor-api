@@ -69,11 +69,8 @@ async def upload_document(
         # Create blob service client
         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
         
-        # Determine container based on folder
-        if folder == 'privacy-policy':
-            container_name = 'msafiri-documents'
-        else:
-            container_name = AZURE_STORAGE_CONTAINER_NAME  # Use default for code-of-conduct
+        # Use msafiri-documents container for all documents
+        container_name = 'msafiri-documents'
         
         # Get container client
         container_client = blob_service_client.get_container_client(container_name)
