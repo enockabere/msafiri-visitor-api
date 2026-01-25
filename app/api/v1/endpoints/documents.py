@@ -328,6 +328,84 @@ async def upload_avatar(
         print(f"DEBUG: Avatar upload failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Avatar upload failed: {str(e)}")
 
+@router.post("/upload-template-assets")
+async def upload_template_assets(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload template assets (logos, signatures) to Azure Blob Storage"""
+    
+    print(f"DEBUG: Template asset upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
+    
+    # Validate file type - accept common image formats
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if not file.content_type or file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only image files (JPEG, PNG, GIF, WEBP) are allowed")
+    
+    # Validate file size (5MB limit for images)
+    if file.size and file.size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size must be less than 5MB")
+    
+    try:
+        # Validate Azure Storage configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(
+                status_code=500,
+                detail="Azure Storage connection string is not configured."
+            )
+
+        # Read file content
+        file_content = await file.read()
+
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        
+        # Use msafiri-documents container for all documents
+        container_name = 'msafiri-documents'
+        
+        # Get container client
+        container_client = blob_service_client.get_container_client(container_name)
+        
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container()
+        except Exception:
+            pass  # Container already exists
+        
+        # Generate blob name with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else '.png'
+        blob_name = f"template-assets/asset_{timestamp}{file_extension}"
+        
+        # Get blob client
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        # Upload file
+        blob_client.upload_blob(
+            file_content, 
+            overwrite=True, 
+            content_settings=ContentSettings(content_type=file.content_type)
+        )
+        
+        # Generate blob URL
+        blob_url = blob_client.url
+        
+        print(f"DEBUG: Template asset upload successful: {blob_url}")
+        print(f"DEBUG: Blob name: {blob_name}")
+
+        return {
+            "success": True,
+            "url": blob_url,
+            "public_id": blob_name,
+            "format": file_extension.replace('.', ''),
+            "resource_type": "image"
+        }
+        
+    except Exception as e:
+        print(f"DEBUG: Template asset upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Template asset upload failed: {str(e)}")
+
 @router.post("/upload-event-attachment")
 async def upload_event_attachment(
     file: UploadFile = File(...),
