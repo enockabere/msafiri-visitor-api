@@ -120,8 +120,24 @@ def create_tenant(
     
     # Note: additional_admin_emails field has been removed
     
+    # Debug: Print tenant data before creation
+    print(f"DEBUG: Creating tenant with data: {tenant_data}")
+    
     # Create tenant
     tenant = crud.tenant.create(db, obj_in=schemas.TenantCreate(**tenant_data))
+    
+    # Debug: Print created tenant details
+    print(f"DEBUG: Created tenant details:")
+    print(f"  ID: {tenant.id}")
+    print(f"  Name: {tenant.name}")
+    print(f"  Slug: {tenant.slug}")
+    print(f"  Country: {tenant.country}")
+    print(f"  Timezone: {tenant.timezone}")
+    print(f"  Contact Email: {tenant.contact_email}")
+    print(f"  Admin Email: {tenant.admin_email}")
+    print(f"  Domain: {tenant.domain}")
+    print(f"  Description: {tenant.description}")
+    print(f"  Created By: {tenant.created_by}")
     
     # Auto-assign user to tenant if admin_email is provided
     if tenant.admin_email:
@@ -357,6 +373,7 @@ def read_tenant_by_slug(
         is_active=tenant.is_active,
         created_at=tenant.created_at,
         updated_at=tenant.updated_at,
+        country=tenant.country,
         total_users=total_users,
         active_users=active_users,
         pending_users=pending_users,
