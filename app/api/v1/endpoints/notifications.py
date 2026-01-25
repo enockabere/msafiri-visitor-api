@@ -62,10 +62,6 @@ def get_my_notifications(
     limit: int = 50,
 ) -> Any:
     """Get current user's notifications - supports mobile users without tenants"""
-    print(f"🔔 GET /notifications - User: {current_user.email} (ID: {current_user.id})")
-    print(f"📊 User details - Role: {current_user.role}, Tenant: {current_user.tenant_id}")
-    print(f"🔍 Query params - unread_only: {unread_only}, skip: {skip}, limit: {limit}")
-    
     try:
         # For mobile users without tenant, get all notifications for the user
         # For tenant users, filter by tenant
@@ -77,10 +73,8 @@ def get_my_notifications(
             skip=skip,
             limit=limit
         )
-        print(f"✅ Found {len(notifications)} notifications for user {current_user.email}")
         return notifications
     except Exception as e:
-        print(f"❌ Error getting notifications for user {current_user.email}: {str(e)}")
         import traceback
         traceback.print_exc()
         raise
@@ -192,8 +186,6 @@ def get_notification_stats(
         )
         return stats
     except Exception as e:
-        print(f"❌ Error getting notification stats for user {current_user.id}: {str(e)}")
-        print(f"📊 User details - ID: {current_user.id}, Email: {current_user.email}, Tenant: {current_user.tenant_id}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -643,11 +635,7 @@ def send_notification_to_super_admins(
     current_user: schemas.User = Depends(deps.get_current_user)
 ) -> Any:
     """Send notification to all super admins"""
-    print(f"🔔 Backend: Received notification request from {current_user.email}")
-    print(f"📝 Backend: Notification data: {notification_data}")
-    
     if current_user.role != UserRole.SUPER_ADMIN:
-        print(f"❌ Backend: User {current_user.email} does not have super admin role: {current_user.role}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
@@ -659,12 +647,9 @@ def send_notification_to_super_admins(
             crud.user.model.role == UserRole.SUPER_ADMIN
         ).all()
         
-        print(f"👥 Backend: Found {len(super_admins)} super admins")
-        
         # Create notification for each super admin
         notifications_created = 0
         for admin in super_admins:
-            print(f"📨 Backend: Creating notification for {admin.email} (ID: {admin.id})")
             from app.schemas.notification import NotificationCreate
             notification_obj = NotificationCreate(
                 user_id=admin.id,
@@ -680,13 +665,10 @@ def send_notification_to_super_admins(
             )
             notification = crud.notification.create_notification(db, notification_data=notification_obj)
             notifications_created += 1
-            print(f"✅ Backend: Created notification ID {notification.id} for {admin.email}")
         
-        print(f"🎉 Backend: Successfully created {notifications_created} notifications")
         return {"message": f"Notifications sent to {notifications_created} super admins"}
         
     except Exception as e:
-        print(f"💥 Backend: Error creating notifications: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send notifications: {str(e)}"

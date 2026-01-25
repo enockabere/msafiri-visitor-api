@@ -15,8 +15,6 @@ def get_current_user(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
-    print(f"🔐 AUTH: Starting authentication process")
-    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -24,44 +22,33 @@ def get_current_user(
     )
     
     token = credentials.credentials
-    print(f"🎫 AUTH: Token received (length: {len(token) if token else 0})")
-    
     payload = decode_token(token)
-    print(f"📋 AUTH: Token payload: {payload}")
     
     if payload is None:
-        print(f"❌ AUTH: Token decode failed")
         raise credentials_exception
         
     email: str = payload.get("sub")
     tenant_id: Optional[str] = payload.get("tenant_id")
-    print(f"👤 AUTH: Extracted email: {email}, tenant_id: {tenant_id}")
     
     if email is None:
-        print(f"❌ AUTH: No email in token")
         raise credentials_exception
         
     token_data = TokenData(email=email, tenant_id=tenant_id)
     
     # First, try to find user by email only
     user = db.query(User).filter(User.email == token_data.email).first()
-    print(f"🔍 AUTH: User lookup result: {user.email if user else 'None'} (Role: {user.role if user else 'None'})")
     
     if user is None:
-        print(f"❌ AUTH: User not found in database")
         raise credentials_exception
     
     # For super admins, don't restrict by tenant_id
     if user.role.value == "super_admin":
-        print(f"✅ AUTH: Super admin authenticated: {user.email}")
         return user
     
     # For other users, validate tenant_id if present in token
     if tenant_id and user.tenant_id != tenant_id:
-        print(f"❌ AUTH: Tenant mismatch - token: {tenant_id}, user: {user.tenant_id}")
         raise credentials_exception
     
-    print(f"✅ AUTH: User authenticated: {user.email} (Role: {user.role})")
     return user
 
 def get_current_user_allow_expired(
