@@ -101,6 +101,63 @@ class NotificationService:
             action_url="/dashboard",
             triggered_by="system"
         )
+    
+    @staticmethod
+    def notify_tenant_created(
+        db: Session,
+        *,
+        tenant,
+        created_by: str
+    ):
+        """Send notification about tenant creation to super admins"""
+        try:
+            # Get all super admins
+            super_admins = crud.user.get_users_by_role(db, role=UserRole.SUPER_ADMIN)
+            
+            for admin in super_admins:
+                if admin.email != created_by:  # Don't notify the creator
+                    NotificationService.send_notification_with_email(
+                        db,
+                        user_id=admin.id,
+                        tenant_id="system",
+                        title=f"New Tenant Created: {tenant.name}",
+                        message=f"A new tenant '{tenant.name}' has been created by {created_by}. Tenant slug: {tenant.slug}",
+                        notification_type=NotificationType.TENANT_CREATED,
+                        priority="MEDIUM",
+                        send_email=True,
+                        triggered_by=created_by
+                    )
+        except Exception as e:
+            logger.error(f"Failed to notify super admins about tenant creation: {e}")
+    
+    @staticmethod
+    def notify_tenant_status_changed(
+        db: Session,
+        *,
+        tenant,
+        action: str,
+        changed_by: str
+    ):
+        """Send notification about tenant status changes"""
+        try:
+            # Get all super admins
+            super_admins = crud.user.get_users_by_role(db, role=UserRole.SUPER_ADMIN)
+            
+            for admin in super_admins:
+                if admin.email != changed_by:  # Don't notify the person who made the change
+                    NotificationService.send_notification_with_email(
+                        db,
+                        user_id=admin.id,
+                        tenant_id="system",
+                        title=f"Tenant {action.title()}: {tenant.name}",
+                        message=f"Tenant '{tenant.name}' has been {action} by {changed_by}.",
+                        notification_type=NotificationType.TENANT_ACTIVATED if action == "activated" else NotificationType.TENANT_DEACTIVATED,
+                        priority="MEDIUM",
+                        send_email=True,
+                        triggered_by=changed_by
+                    )
+        except Exception as e:
+            logger.error(f"Failed to notify super admins about tenant status change: {e}")
 
 # Global notification service instance
 notification_service = NotificationService()
