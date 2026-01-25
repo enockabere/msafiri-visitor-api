@@ -256,7 +256,7 @@ async def upload_avatar(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload avatar image to Cloudinary"""
+    """Upload avatar image to Azure Blob Storage"""
     
     print(f"DEBUG: Avatar upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
     
@@ -270,32 +270,58 @@ async def upload_avatar(
         raise HTTPException(status_code=400, detail="File size must be less than 5MB")
     
     try:
-        if not CLOUDINARY_CLOUD_NAME:
-            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured.")
+        # Validate Azure Storage configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(
+                status_code=500,
+                detail="Azure Storage connection string is not configured."
+            )
 
         # Read file content
         file_content = await file.read()
-        import io
-        file_obj = io.BytesIO(file_content)
-        file_obj.name = file.filename
 
-        # Upload avatar to Cloudinary
-        result = cloudinary.uploader.upload(
-            file_obj,
-            folder="msafiri-documents/avatar",
-            resource_type="image",
-            use_filename=True,
-            unique_filename=True,
-            overwrite=False
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        
+        # Use msafiri-documents container for all documents
+        container_name = 'msafiri-documents'
+        
+        # Get container client
+        container_client = blob_service_client.get_container_client(container_name)
+        
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container()
+        except Exception:
+            pass  # Container already exists
+        
+        # Generate blob name with timestamp and user ID
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
+        blob_name = f"avatar/avatar_{current_user.id}_{timestamp}{file_extension}"
+        
+        # Get blob client
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        # Upload file
+        blob_client.upload_blob(
+            file_content, 
+            overwrite=True, 
+            content_settings=ContentSettings(content_type=file.content_type)
         )
-
-        print(f"DEBUG: Avatar upload successful: {result['secure_url']}")
+        
+        # Generate blob URL
+        blob_url = blob_client.url
+        
+        print(f"DEBUG: Avatar upload successful: {blob_url}")
+        print(f"DEBUG: Blob name: {blob_name}")
 
         return {
             "success": True,
-            "url": result["secure_url"],
-            "public_id": result["public_id"],
-            "format": result.get("format", "png")
+            "url": blob_url,
+            "public_id": blob_name,
+            "format": file_extension.replace('.', ''),
+            "resource_type": "image"
         }
         
     except Exception as e:
