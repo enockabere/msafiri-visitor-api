@@ -58,36 +58,19 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log requests with minimal output"""
     start_time = time.time()
 
-    # Log ALL certificate-related requests for debugging
-    if "certificates" in request.url.path:
-        print(f"\n{'='*80}")
-        print(f"[MIDDLEWARE] Incoming Request: {request.method} {request.url.path}")
-        print(f"[MIDDLEWARE] Headers: {dict(request.headers)}")
-        print(f"[MIDDLEWARE] Query Params: {dict(request.query_params)}")
-        print(f"{'='*80}\n")
-
     try:
         response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
 
-        # Log certificate-related responses
-        if "certificates" in request.url.path:
-            print(f"\n[MIDDLEWARE] Response Status: {response.status_code}")
-            print(f"[MIDDLEWARE] Response for: {request.method} {request.url.path}\n")
-
-        # Only log errors and specific endpoints
-        if response.status_code >= 400:
-            print(f"🚨 ERROR DETAILS: {request.method} {request.url.path}")
-            print(f"📋 Headers: {dict(request.headers)}")
-            print(f"🔍 Query params: {dict(request.query_params)}")
-            print(f"⚠️ Status: {response.status_code}")
-            logger.error(f"ERROR: {request.method} {request.url.path} - Status: {response.status_code}")
+        # Only log server errors (500+)
+        if response.status_code >= 500:
+            logger.error(f"SERVER ERROR: {request.method} {request.url.path} - Status: {response.status_code}")
 
         return response
         
     except Exception as e:
-        logger.error(f"ERROR: {request.method} {request.url.path} - Error: {str(e)}")
+        logger.error(f"REQUEST ERROR: {request.method} {request.url.path} - Error: {str(e)}")
         
         if "ValidationError" in str(type(e)) or "validation" in str(e).lower():
             return JSONResponse(
@@ -125,8 +108,6 @@ def test_connection():
 def create_default_roles():
     """Create default system roles for all tenants"""
     try:
-        print(">> Creating default system roles...")
-        
         engine = create_engine(settings.DATABASE_URL)
         with engine.connect() as conn:
             # Get all tenants
@@ -164,21 +145,17 @@ def create_default_roles():
                             "description": role_data["description"],
                             "tenant_id": tenant_id
                         })
-                        print(f"OK: Created role '{role_data['name']}' for tenant '{tenant_id}'")
             
             conn.commit()
-            print("OK: Default roles creation completed")
             
     except Exception as e:
-        print(f"ERROR: Error creating default roles: {str(e)}")
         # Don't fail startup if role creation fails
+        pass
 
 # Auto-migration function
 def run_auto_migration():
     """Run database migrations automatically on startup"""
     try:
-        print(">> Running auto-migration...")
-        
         # Try direct SQL migration first (safer)
         try:
             # Run direct SQL migration
@@ -253,12 +230,6 @@ def run_auto_migration():
                                 WHERE id = :tenant_id
                             """), {"timezone": timezone, "tenant_id": tenant.id})
                             updated_count += 1
-                            print(f"✅ Set timezone {timezone} for tenant {tenant.slug} ({tenant.country})")
-                    
-                    if updated_count > 0:
-                        print(f"✅ Updated {updated_count} tenants with automatic timezones")
-                    else:
-                        print("ℹ️ No tenants needed timezone updates")
                     
                     # Create inventory table
                     create_inventory_table = """
@@ -635,7 +606,6 @@ def run_auto_migration():
                             pass  # Constraint might already exist
                     
                     trans.commit()
-                    print("OK: Direct migration completed successfully")
                     
                     # Create default roles after successful migration
                     create_default_roles()
@@ -644,7 +614,7 @@ def run_auto_migration():
                     trans.rollback()
                     raise e
         except Exception as e:
-            print(f"Direct migration failed: {str(e)}, trying alembic...")
+            pass  # Try alembic fallback
         
         # Fallback to alembic
         import subprocess
@@ -661,17 +631,14 @@ def run_auto_migration():
         )
         
         if result.returncode == 0:
-            print("OK: Alembic migration completed successfully")
-            if result.stdout:
-                print(f"Migration output: {result.stdout}")
             # Create default roles after successful alembic migration
             create_default_roles()
         else:
-            print(f"ERROR: Alembic migration failed: {result.stderr}")
+            pass  # Migration failed
             
     except Exception as e:
-        print(f"ERROR: Auto-migration error: {str(e)}")
         # Don't fail startup if migration fails
+        pass
 
 # Database connection test on startup
 @app.on_event("startup")
@@ -683,7 +650,6 @@ async def startup_event():
         with engine.connect() as conn:
             result = conn.execute(text("SELECT version()"))
             version_info = result.fetchone()[0]
-            print(f"OK: Database connected: {version_info[:50]}...")
         
         # Run auto-migration in production
         if settings.ENVIRONMENT == "production":
@@ -703,7 +669,6 @@ async def startup_event():
         start_scheduler()
         
     except Exception as e:
-        print(f"ERROR: Database connection failed: {e}")
         # Don't exit in production - let the app start anyway
         if settings.ENVIRONMENT != "production":
             raise

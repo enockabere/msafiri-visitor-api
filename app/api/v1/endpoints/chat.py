@@ -31,8 +31,6 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
 
-print(f"DEBUG CHAT: Cloudinary config - Cloud Name: {os.getenv('CLOUDINARY_CLOUD_NAME')}, API Key: {os.getenv('CLOUDINARY_API_KEY')}")
-
 router = APIRouter()
 
 # Chat Room Management
@@ -288,7 +286,6 @@ async def upload_chat_attachment(
     try:
         # Validate Cloudinary configuration
         if not os.getenv("CLOUDINARY_CLOUD_NAME"):
-            print("DEBUG CHAT UPLOAD: Cloudinary cloud name not configured")
             raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured")
 
         # Read file content
@@ -327,9 +324,6 @@ async def upload_chat_attachment(
         }
 
     except Exception as e:
-        print(f"DEBUG CHAT UPLOAD: Upload failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.post("/messages/", response_model=MessageSchema)
