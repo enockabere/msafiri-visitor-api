@@ -240,6 +240,14 @@ def cancel_invitation(
     
     return {"message": "Invitation cancelled successfully"}
 
+@router.post("/test-endpoint", response_model=dict)
+def test_endpoint() -> Any:
+    """Simple test endpoint to verify API connectivity"""
+    print(f"\n🚨 TEST ENDPOINT HIT! 🚨")
+    print(f"🚨 Timestamp: {datetime.utcnow()}")
+    print(f"🚨 " + "="*30)
+    return {"message": "Test endpoint working", "timestamp": datetime.utcnow().isoformat()}
+
 @router.post("/accept/{token}", response_model=dict)
 def accept_invitation(
     *,
