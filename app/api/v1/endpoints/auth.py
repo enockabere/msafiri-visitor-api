@@ -1,7 +1,7 @@
 # File: app/api/v1/endpoints/auth.py
 # Copy this EXACT content to replace your current auth.py file
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordRequestForm
@@ -315,10 +315,44 @@ async def microsoft_sso_login(
             logger.info(f"Found pending invitation for {user_data['email']} with role {pending_invitation.role}")
             # Use invitation role instead of default GUEST
             user_data["role"] = pending_invitation.role
+            
+            # Mark invitation as accepted
+            pending_invitation.is_accepted = "true"
+            pending_invitation.accepted_at = datetime.utcnow()
+            db.commit()
+            logger.info(f"Marked invitation as accepted for {user_data['email']}")
         
         user = crud.user.create_or_update_sso_user(
             db, user_data=user_data, tenant_id=tenant_id
         )
+        
+        # If there was a pending invitation, ensure the role is properly assigned
+        if pending_invitation and pending_invitation.is_accepted == "true":
+            from app.models.user_roles import UserRole as UserRoleModel
+            
+            # Check if user already has this role in UserRole table
+            existing_role = db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == user.id,
+                UserRoleModel.role == pending_invitation.role.upper()
+            ).first()
+            
+            if not existing_role:
+                # Remove any Guest roles first
+                guest_roles = db.query(UserRoleModel).filter(
+                    UserRoleModel.user_id == user.id,
+                    UserRoleModel.role == "GUEST"
+                ).all()
+                for guest_role in guest_roles:
+                    db.delete(guest_role)
+                
+                # Add the invitation role
+                new_role = UserRoleModel(
+                    user_id=user.id,
+                    role=pending_invitation.role.upper()
+                )
+                db.add(new_role)
+                db.commit()
+                logger.info(f"Added role {pending_invitation.role} to user {user.email} from invitation")
         
         if user.status == UserStatus.PENDING_APPROVAL:
             raise HTTPException(
