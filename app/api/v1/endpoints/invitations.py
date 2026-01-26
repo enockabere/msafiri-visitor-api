@@ -240,6 +240,45 @@ def cancel_invitation(
     
     return {"message": "Invitation cancelled successfully"}
 
+@router.post("/create-test-invitation", response_model=dict)
+def create_test_invitation(
+    *,
+    db: Session = Depends(get_db)
+) -> Any:
+    """Create a test invitation for debugging"""
+    print(f"\n🧪 CREATING TEST INVITATION")
+    
+    import secrets
+    from datetime import datetime, timedelta
+    from app.models.invitation import Invitation
+    
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    
+    invitation_obj = Invitation(
+        email="test@example.com",
+        full_name="Test User",
+        role="staff",
+        tenant_id="msf-eastern-africa",
+        token=token,
+        expires_at=expires_at,
+        invited_by="system",
+        is_accepted="false"
+    )
+    
+    db.add(invitation_obj)
+    db.commit()
+    db.refresh(invitation_obj)
+    
+    test_url = f"{settings.FRONTEND_URL}/accept-invitation?token={token}"
+    print(f"🧪 Test invitation created: {test_url}")
+    
+    return {
+        "message": "Test invitation created",
+        "token": token,
+        "url": test_url
+    }
+
 @router.post("/test-endpoint", response_model=dict)
 def test_endpoint() -> Any:
     """Simple test endpoint to verify API connectivity"""
