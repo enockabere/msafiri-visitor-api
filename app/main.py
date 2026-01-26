@@ -647,12 +647,20 @@ def run_auto_migration():
 @app.on_event("startup")
 async def startup_event():
     """Test database connection and run migrations on startup"""
+    print(f"\n🚀 MSafiri Visitor API Starting Up! 🚀")
+    print(f"🚀 Environment: {settings.ENVIRONMENT}")
+    print(f"🚀 Database URL: {settings.DATABASE_URL[:50]}...")
+    print(f"🚀 CORS Origins: {allowed_origins}")
+    print(f"🚀 API Base URL: {settings.API_V1_STR}")
+    print(f"🚀 " + "="*50)
+    
     try:
         # Test database connection
         engine = create_engine(settings.DATABASE_URL)
         with engine.connect() as conn:
             result = conn.execute(text("SELECT version()"))
             version_info = result.fetchone()[0]
+            print(f"🗄️ Database connected: {version_info[:50]}...")
         
         # Run auto-migration in production
         if settings.ENVIRONMENT == "production":

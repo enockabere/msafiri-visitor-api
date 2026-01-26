@@ -247,6 +247,12 @@ def accept_invitation(
     token: str
 ) -> Any:
     """Accept an invitation using the token."""
+    print(f"\n🚨 INVITATION ACCEPTANCE ENDPOINT HIT! 🚨")
+    print(f"🚨 Token received: {token[:10]}...")
+    print(f"🚨 Full token: {token}")
+    print(f"🚨 Timestamp: {datetime.utcnow()}")
+    print(f"🚨 " + "="*50)
+    
     logger.info(f"🎯 Accept invitation called with token: {token[:10]}...")
     
     try:
