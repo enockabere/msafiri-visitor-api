@@ -126,6 +126,14 @@ def create_tenant(
     # Create tenant
     tenant = crud.tenant.create(db, obj_in=schemas.TenantCreate(**tenant_data))
     
+    # Create default roles for the new tenant
+    from app.services.default_roles_service import create_default_roles_for_tenant
+    try:
+        create_default_roles_for_tenant(db, tenant.slug)
+        logger.info(f"Default roles created for tenant: {tenant.slug}")
+    except Exception as e:
+        logger.error(f"Failed to create default roles for tenant {tenant.slug}: {e}")
+    
     # Debug: Print created tenant details
     print(f"DEBUG: Created tenant details:")
     print(f"  ID: {tenant.id}")
