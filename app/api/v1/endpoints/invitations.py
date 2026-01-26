@@ -398,9 +398,19 @@ def accept_invitation(
             from app.models.user_roles import UserRole as UserRoleModel
             
             # Check if user already has this role
+            role_value = invitation.role.lower()
+            if role_value == "finance_admin":
+                role_value = "finance_administrator"
+            elif role_value == "hr_admin":
+                role_value = "hr_administrator"
+            elif role_value == "event_admin":
+                role_value = "event_administrator"
+            elif role_value == "mt_admin":
+                role_value = "mt_administrator"
+            
             existing_role = db.query(UserRoleModel).filter(
                 UserRoleModel.user_id == existing_user.id,
-                UserRoleModel.role == invitation.role.upper()
+                UserRoleModel.role == role_value.upper()
             ).first()
             
             if not existing_role:
@@ -416,12 +426,12 @@ def accept_invitation(
                 # Add new role
                 new_role = UserRoleModel(
                     user_id=existing_user.id,
-                    role=invitation.role.upper()
+                    role=role_value.upper()
                 )
                 db.add(new_role)
-                logger.info(f"➕ Added role {invitation.role} to user {invitation.email}")
+                logger.info(f"➕ Added role {role_value} to user {invitation.email}")
             else:
-                logger.info(f"🔄 User already has role {invitation.role}")
+                logger.info(f"🔄 User already has role {role_value}")
                 
             # Update tenant if different
             if existing_user.tenant_id != invitation.tenant_id:
@@ -454,12 +464,24 @@ def accept_invitation(
             
             # Create corresponding UserRole entry
             from app.models.user_roles import UserRole as UserRoleModel
+            
+            # Map role names to database enum values
+            role_value = invitation.role.lower()
+            if role_value == "finance_admin":
+                role_value = "finance_administrator"
+            elif role_value == "hr_admin":
+                role_value = "hr_administrator"
+            elif role_value == "event_admin":
+                role_value = "event_administrator"
+            elif role_value == "mt_admin":
+                role_value = "mt_administrator"
+            
             user_role = UserRoleModel(
                 user_id=user_obj.id,
-                role=invitation.role.upper()
+                role=role_value.upper()
             )
             db.add(user_role)
-            logger.info(f"➕ Added role {invitation.role} to new user {invitation.email}")
+            logger.info(f"➕ Added role {role_value} to new user {invitation.email}")
         
         # Mark invitation as accepted
         invitation.is_accepted = "true"
