@@ -83,11 +83,21 @@ def get_user_roles(
             UserRole.user_id == user_id
         ).all()
         
+        # Filter out inactive roles if the column exists
+        active_roles = []
+        for role in user_roles:
+            if hasattr(role, 'is_active'):
+                if role.is_active:
+                    active_roles.append(role)
+            else:
+                # If no is_active column, include all roles
+                active_roles.append(role)
+        
         return [{
             "id": role.id,
             "role": role.role,
             "created_at": role.created_at
-        } for role in user_roles]
+        } for role in active_roles]
         
     except Exception as e:
         logger.error(f"💥 Error fetching user roles: {str(e)}")
@@ -132,13 +142,8 @@ def remove_user_role(
                 detail="Role not found for this user"
             )
         
-        # Mark role as inactive
-        if hasattr(role_to_remove, 'is_active'):
-            role_to_remove.is_active = False
-        if hasattr(role_to_remove, 'revoked_at'):
-            role_to_remove.revoked_at = datetime.utcnow()
-        if hasattr(role_to_remove, 'revoked_by'):
-            role_to_remove.revoked_by = current_user.email
+        # Delete the role record
+        db.delete(role_to_remove)
         
         # Check if user has any remaining active non-guest roles
         remaining_roles = db.query(UserRole).filter(
