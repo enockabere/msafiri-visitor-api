@@ -182,7 +182,30 @@ def resend_invitation(
     
     return {"message": "Invitation resent successfully"}
 
-@router.delete("/{invitation_id}/cancel", response_model=dict)
+@router.get("/debug/{token}", response_model=dict)
+def debug_invitation(
+    *,
+    db: Session = Depends(get_db),
+    token: str
+) -> Any:
+    """Debug endpoint to check invitation details"""
+    logger.info(f"🔍 DEBUG: Checking invitation token: {token[:10]}...")
+    
+    invitation = crud_invitation.get_by_token(db, token=token)
+    if not invitation:
+        logger.info(f"🔍 DEBUG: No invitation found for token")
+        return {"found": False, "token": token[:10] + "..."}
+    
+    logger.info(f"🔍 DEBUG: Found invitation - ID: {invitation.id}, Email: {invitation.email}, Role: {invitation.role}, Accepted: {invitation.is_accepted}")
+    return {
+        "found": True,
+        "id": invitation.id,
+        "email": invitation.email,
+        "role": invitation.role,
+        "tenant_id": invitation.tenant_id,
+        "is_accepted": invitation.is_accepted,
+        "expires_at": invitation.expires_at.isoformat() if invitation.expires_at else None
+    }
 def cancel_invitation(
     *,
     db: Session = Depends(get_db),
