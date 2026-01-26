@@ -170,7 +170,9 @@ class EmailService:
         role: str = None
     ):
         """Send invitation email to new admin user."""
-        invitation_url = f"{settings.FRONTEND_URL}/accept-invitation?token={token}"
+        # Remove /portal from frontend URL if present
+        frontend_url = settings.FRONTEND_URL.rstrip('/portal').rstrip('/')
+        invitation_url = f"{frontend_url}/accept-invitation?token={token}"
         
         print(f"\n📧 INVITATION EMAIL DEBUG:")
         print(f"📧 Frontend URL: {settings.FRONTEND_URL}")
