@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import os
 
 from app.db.database import get_db
-from app.core.deps import get_current_active_user
+from app.core.deps import get_current_active_user, get_tenant_context
 from app.crud.badge_template import badge_template
 from app.schemas.badge_template import BadgeTemplate, BadgeTemplateCreate, BadgeTemplateUpdate
 from app.models.user import User
@@ -16,17 +16,18 @@ router = APIRouter()
 def get_badge_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
     skip: int = 0,
     limit: int = 100,
 ) -> dict:
     """
-    Retrieve badge templates.
+    Retrieve badge templates for the current tenant.
     """
     try:
-        templates = badge_template.get_multi(db, skip=skip, limit=limit)
+        templates = badge_template.get_by_tenant(db, tenant_id=tenant_context.tenant.id, skip=skip, limit=limit)
         template_list = []
         for template in templates:
-            print(f"[BADGE] Template: '{template.name}'")
+            print(f"[BADGE] Template: '{template.name}' (Tenant: {template.tenant_id})")
             
             template_dict = {
                 "id": template.id,
@@ -49,7 +50,7 @@ def get_badge_templates(
             }
             template_list.append(template_dict)
         
-        print(f"[BADGE] Total templates found: {len(template_list)}")
+        print(f"[BADGE] Total templates found for tenant {tenant_context.tenant.id}: {len(template_list)}")
         return {"templates": template_list}
     except Exception as e:
         print(f"Error loading badge templates: {e}")
@@ -61,10 +62,16 @@ def create_badge_template(
     db: Session = Depends(get_db),
     template_in: BadgeTemplateCreate,
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
 ) -> BadgeTemplate:
     """
-    Create new badge template.
+    Create new badge template for the current tenant.
     """
+    # Add tenant_id to the template data
+    template_data = template_in.dict()
+    template_data['tenant_id'] = tenant_context.tenant.id
+    template_create = BadgeTemplateCreate(**template_data)
+    
     existing_template = badge_template.get_by_name(db, name=template_in.name)
     if existing_template:
         raise HTTPException(
@@ -72,14 +79,12 @@ def create_badge_template(
             detail="Template with this name already exists"
         )
     
-    template = badge_template.create(db=db, obj_in=template_in)
+    template = badge_template.create(db=db, obj_in=template_create)
     
-    # Print the saved template content for debugging
     print("=== BADGE TEMPLATE CREATED IN DB ===")
     print(f"Template ID: {template.id}")
     print(f"Template Name: {template.name}")
-    print(f"Template Content:")
-    print(template.template_content)
+    print(f"Tenant ID: {template.tenant_id}")
     print("=== END TEMPLATE CONTENT ===")
     
     return template
@@ -90,12 +95,13 @@ def get_badge_template(
     db: Session = Depends(get_db),
     template_id: int,
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
 ) -> BadgeTemplate:
     """
-    Get badge template by ID.
+    Get badge template by ID for the current tenant.
     """
     template = badge_template.get(db=db, id=template_id)
-    if not template:
+    if not template or template.tenant_id != tenant_context.tenant.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template not found"
@@ -109,12 +115,13 @@ def update_badge_template(
     template_id: int,
     template_in: BadgeTemplateUpdate,
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
 ) -> BadgeTemplate:
     """
-    Update badge template.
+    Update badge template for the current tenant.
     """
     template = badge_template.get(db=db, id=template_id)
-    if not template:
+    if not template or template.tenant_id != tenant_context.tenant.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template not found"
@@ -122,13 +129,11 @@ def update_badge_template(
     
     template = badge_template.update(db=db, db_obj=template, obj_in=template_in)
     
-    # Print the saved template content for debugging
-    print("=== BADGE TEMPLATE SAVED TO DB ===")
+    print("=== BADGE TEMPLATE UPDATED IN DB ===")
     print(f"Template ID: {template.id}")
     print(f"Template Name: {template.name}")
-    print(f"Template Content:")
-    print(template.template_content)
-    print("=== END TEMPLATE CONTENT ===")
+    print(f"Tenant ID: {template.tenant_id}")
+    print("=== END TEMPLATE UPDATE ===")
     
     return template
 
@@ -138,16 +143,17 @@ def delete_badge_template(
     db: Session = Depends(get_db),
     template_id: int,
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
 ) -> dict:
     """
-    Delete badge template and all related records.
+    Delete badge template for the current tenant.
     """
     from app.models.badge_template import BadgeTemplate
     from app.models.event_badge import EventBadge
     from app.models.participant_badge import ParticipantBadge
     
     template = badge_template.get(db=db, id=template_id)
-    if not template:
+    if not template or template.tenant_id != tenant_context.tenant.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Template not found"
@@ -182,11 +188,12 @@ def delete_badge_template(
 def get_active_badge_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    tenant_context = Depends(get_tenant_context),
 ) -> List[BadgeTemplate]:
     """
-    Get all active badge templates.
+    Get all active badge templates for the current tenant.
     """
-    return badge_template.get_active_templates(db)
+    return badge_template.get_active_by_tenant(db, tenant_id=tenant_context.tenant.id)
 
 @router.get("/generate/{template_id}/participant/{participant_id}")
 def generate_participant_badge(

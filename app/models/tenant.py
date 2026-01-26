@@ -50,3 +50,4 @@ class Tenant(BaseModel):
     news_updates = relationship("NewsUpdate", back_populates="tenant")
     certificate_templates = relationship("CertificateTemplate", back_populates="tenant")
     invitation_templates = relationship("InvitationTemplate", back_populates="tenant")
+    badge_templates = relationship("BadgeTemplate", back_populates="tenant")

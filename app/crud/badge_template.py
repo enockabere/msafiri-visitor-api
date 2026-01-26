@@ -11,6 +11,15 @@ class CRUDBadgeTemplate(CRUDBase[BadgeTemplate, BadgeTemplateCreate, BadgeTempla
     
     def get_active_templates(self, db: Session) -> List[BadgeTemplate]:
         return db.query(BadgeTemplate).filter(BadgeTemplate.is_active == True).all()
+    
+    def get_by_tenant(self, db: Session, *, tenant_id: int, skip: int = 0, limit: int = 100) -> List[BadgeTemplate]:
+        return db.query(BadgeTemplate).filter(BadgeTemplate.tenant_id == tenant_id).offset(skip).limit(limit).all()
+    
+    def get_active_by_tenant(self, db: Session, *, tenant_id: int) -> List[BadgeTemplate]:
+        return db.query(BadgeTemplate).filter(
+            BadgeTemplate.tenant_id == tenant_id,
+            BadgeTemplate.is_active == True
+        ).all()
 
 
 badge_template = CRUDBadgeTemplate(BadgeTemplate)

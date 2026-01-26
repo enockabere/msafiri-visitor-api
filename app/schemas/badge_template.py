@@ -22,7 +22,7 @@ class BadgeTemplateBase(BaseModel):
 
 
 class BadgeTemplateCreate(BadgeTemplateBase):
-    pass
+    tenant_id: Optional[int] = None  # Will be set by the API endpoint
 
 
 class BadgeTemplateUpdate(BadgeTemplateBase):
@@ -39,6 +39,7 @@ class BadgeTemplateUpdate(BadgeTemplateBase):
 
 class BadgeTemplate(BadgeTemplateBase):
     id: int
+    tenant_id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
