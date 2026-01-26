@@ -27,10 +27,9 @@ def get_user_all_roles(db: Session, user) -> list:
         # Secondary roles from user_roles table
         from app.models.user_roles import UserRole as UserRoleModel
         user_roles = db.query(UserRoleModel).filter(
-            UserRoleModel.user_id == user.id,
-            UserRoleModel.is_active == True
+            UserRoleModel.user_id == user.id
         ).all()
-        roles.extend([role.role.value for role in user_roles])
+        roles.extend([role.role for role in user_roles])
         
     except Exception as e:
         logger.warning(f"Error getting user roles: {e}")
@@ -44,8 +43,7 @@ def get_user_tenants(db: Session, user) -> list:
         from app.models.tenant import Tenant
         
         user_tenants = db.query(UserTenant).join(Tenant).filter(
-            UserTenant.user_id == user.id,
-            UserTenant.is_active == True
+            UserTenant.user_id == user.id
         ).all()
         
         return [{
@@ -102,12 +100,11 @@ def login_access_token(
             
             # Get relationship-based roles
             user_roles = db.query(UserRoleModel).filter(
-                UserRoleModel.user_id == user.id,
-                UserRoleModel.is_active == True
+                UserRoleModel.user_id == user.id
             ).all()
             
             print(f"DEBUG: Primary role: {user.role}")
-            print(f"DEBUG: Secondary roles: {[role.role.value for role in user_roles]}")
+            print(f"DEBUG: Secondary roles: {[role.role for role in user_roles]}")
             
         except Exception as e:
             print(f"DEBUG: Error getting roles: {e}")

@@ -166,10 +166,24 @@ class EmailService:
         full_name: str,
         tenant_name: str,
         token: str,
-        invited_by: str
+        invited_by: str,
+        role: str = None
     ):
         """Send invitation email to new admin user."""
         invitation_url = f"{settings.FRONTEND_URL}/accept-invitation?token={token}"
+        
+        # Format role for display
+        role_display = ""
+        if role:
+            role_map = {
+                "mt_admin": "MT Administrator",
+                "hr_admin": "HR Administrator", 
+                "event_admin": "Event Administrator",
+                "finance_admin": "Finance Administrator",
+                "staff": "Staff",
+                "guest": "Guest"
+            }
+            role_display = role_map.get(role.lower(), role.replace('_', ' ').title())
         
         html_content = f"""
         <!DOCTYPE html>
@@ -180,25 +194,21 @@ class EmailService:
             <style>
                 body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
                 .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                .header {{ text-align: center; margin-bottom: 30px; }}
-                .logo {{ color: #dc2626; font-size: 24px; font-weight: bold; }}
                 .title {{ color: #1f2937; font-size: 20px; margin: 20px 0; }}
                 .message {{ color: #4b5563; line-height: 1.6; margin: 20px 0; }}
                 .button {{ display: inline-block; background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .role-info {{ background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #dc2626; }}
                 .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
             </style>
         </head>
         <body>
             <div class="container">
-                <div class="header">
-                    <div class="logo">🌍 MSF Msafiri Admin Portal</div>
-                </div>
-                
                 <h2 class="title">You're invited to join {tenant_name}</h2>
                 
                 <div class="message">
                     <p>Dear {full_name},</p>
                     <p>You have been invited by {invited_by} to join the MSF Msafiri Admin Portal for {tenant_name}.</p>
+                    {f'<div class="role-info"><p><strong>Your assigned role:</strong> {role_display}</p></div>' if role_display else ''}
                     <p>To accept this invitation and set up your account, please click the button below:</p>
                 </div>
                 
@@ -226,6 +236,8 @@ class EmailService:
         Dear {full_name},
         
         You have been invited by {invited_by} to join the MSF Msafiri Admin Portal for {tenant_name}.
+        
+        {f'Your assigned role: {role_display}' if role_display else ''}
         
         To accept this invitation and set up your account, please visit:
         {invitation_url}

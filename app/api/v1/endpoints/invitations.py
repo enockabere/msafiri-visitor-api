@@ -110,7 +110,8 @@ def create_invitation(
             full_name=invitation_in.full_name,
             tenant_name=invitation_in.tenant_id,  # You might want to get actual tenant name
             token=token,
-            invited_by=current_user.full_name or current_user.email
+            invited_by=current_user.full_name or current_user.email,
+            role=invitation_in.role
         )
         
         logger.info(f"✅ Invitation created successfully for {invitation_in.email}")
@@ -175,7 +176,8 @@ def resend_invitation(
         full_name=invitation.full_name,
         tenant_name=invitation.tenant_id,
         token=invitation.token,
-        invited_by=current_user.full_name or current_user.email
+        invited_by=current_user.full_name or current_user.email,
+        role=invitation.role
     )
     
     return {"message": "Invitation resent successfully"}
@@ -280,13 +282,12 @@ def accept_invitation(
         if existing_user:
             # Add new role to existing user
             logger.info(f"🔄 Adding role to existing user: {invitation.email}")
-            from app.models.user_roles import UserRole as UserRoleModel, RoleType
+            from app.models.user_roles import UserRole as UserRoleModel
             
             # Check if user already has this role
             existing_role = db.query(UserRoleModel).filter(
                 UserRoleModel.user_id == existing_user.id,
-                UserRoleModel.role == RoleType(invitation.role.upper()),
-                UserRoleModel.is_active == True
+                UserRoleModel.role == invitation.role.upper()
             ).first()
             
             if not existing_role:
@@ -294,21 +295,15 @@ def accept_invitation(
                 if invitation.role.upper() != "GUEST":
                     guest_roles = db.query(UserRoleModel).filter(
                         UserRoleModel.user_id == existing_user.id,
-                        UserRoleModel.role == RoleType.GUEST,
-                        UserRoleModel.is_active == True
+                        UserRoleModel.role == "GUEST"
                     ).all()
                     for guest_role in guest_roles:
-                        guest_role.is_active = False
-                        guest_role.revoked_at = datetime.utcnow()
-                        guest_role.revoked_by = invitation.invited_by
+                        db.delete(guest_role)
                 
                 # Add new role
                 new_role = UserRoleModel(
                     user_id=existing_user.id,
-                    role=RoleType(invitation.role.upper()),
-                    granted_by=invitation.invited_by,
-                    granted_at=datetime.utcnow(),
-                    is_active=True
+                    role=invitation.role.upper()
                 )
                 db.add(new_role)
                 logger.info(f"➕ Added role {invitation.role} to user {invitation.email}")
@@ -345,13 +340,10 @@ def accept_invitation(
             db.flush()  # Get the user ID
             
             # Create corresponding UserRole entry
-            from app.models.user_roles import UserRole as UserRoleModel, RoleType
+            from app.models.user_roles import UserRole as UserRoleModel
             user_role = UserRoleModel(
                 user_id=user_obj.id,
-                role=RoleType(invitation.role.upper()),
-                granted_by=invitation.invited_by,
-                granted_at=datetime.utcnow(),
-                is_active=True
+                role=invitation.role.upper()
             )
             db.add(user_role)
             logger.info(f"➕ Added role {invitation.role} to new user {invitation.email}")
