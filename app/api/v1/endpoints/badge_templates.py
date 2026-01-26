@@ -84,13 +84,6 @@ def create_badge_template(
     template_data['tenant_id'] = tenant.id
     template_create = BadgeTemplateCreate(**template_data)
     
-    existing_template = badge_template.get_by_name(db, name=template_in.name)
-    if existing_template:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Template with this name already exists"
-        )
-    
     template = badge_template.create(db=db, obj_in=template_create)
     
     print("=== BADGE TEMPLATE CREATED IN DB ===")
