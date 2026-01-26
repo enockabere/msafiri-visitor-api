@@ -172,6 +172,13 @@ class EmailService:
         """Send invitation email to new admin user."""
         invitation_url = f"{settings.FRONTEND_URL}/accept-invitation?token={token}"
         
+        print(f"\n📧 INVITATION EMAIL DEBUG:")
+        print(f"📧 Frontend URL: {settings.FRONTEND_URL}")
+        print(f"📧 Full invitation URL: {invitation_url}")
+        print(f"📧 Token: {token[:10]}...")
+        print(f"📧 Recipient: {email}")
+        print(f"📧 " + "="*50)
+        
         # Format role for display
         role_display = ""
         if role:
