@@ -638,6 +638,14 @@ def check_user(
     # Get all user roles
     all_roles = get_user_all_roles(db, user)
     
+    # For SSO users, prioritize non-GUEST roles as primary role
+    primary_role = user.role.value
+    if primary_role == "GUEST" and all_roles:
+        # Find first non-GUEST role to use as primary
+        non_guest_roles = [role for role in all_roles if role != "GUEST"]
+        if non_guest_roles:
+            primary_role = non_guest_roles[0]
+    
     # Get user's tenant associations
     user_tenants = get_user_tenants(db, user)
     
@@ -645,7 +653,7 @@ def check_user(
         "user_id": user.id,
         "email": user.email,
         "full_name": user.full_name,
-        "role": user.role.value,
+        "role": primary_role,
         "all_roles": all_roles,
         "tenant_id": user.tenant_id,
         "user_tenants": user_tenants,
