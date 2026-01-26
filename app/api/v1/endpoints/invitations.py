@@ -242,6 +242,41 @@ def cancel_invitation(
     
     return {"message": "Invitation cancelled successfully"}
 
+@router.delete("/{invitation_id}/cancel", response_model=dict)
+def cancel_invitation(
+    *,
+    db: Session = Depends(get_db),
+    invitation_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Cancel an invitation."""
+    invitation = crud_invitation.get(db, id=invitation_id)
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found"
+        )
+    
+    # Check permissions
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    # If not super admin, can only cancel for own tenant
+    if current_user.role != UserRole.SUPER_ADMIN and current_user.tenant_id != invitation.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Can only cancel invitations for your own tenant"
+        )
+    
+    # Delete the invitation
+    db.delete(invitation)
+    db.commit()
+    
+    return {"message": "Invitation cancelled successfully"}
+
 @router.post("/create-test-invitation", response_model=dict)
 def create_test_invitation(
     *,
