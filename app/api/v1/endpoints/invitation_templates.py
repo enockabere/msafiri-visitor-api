@@ -5,9 +5,11 @@ import os
 
 from app.db.database import get_db
 from app.core.deps import get_current_active_user
+from app.api.deps import get_tenant_context
 from app.crud.invitation_template import invitation_template
 from app.schemas.invitation_template import InvitationTemplate, InvitationTemplateCreate, InvitationTemplateUpdate
 from app.models.user import User
+from app.models.tenant import Tenant
 from app.models.event_participant import EventParticipant
 from app.services.loi_generation import generate_loi_document
 
@@ -17,19 +19,25 @@ router = APIRouter()
 def get_invitation_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    tenant_slug: str = Depends(get_tenant_context),
     skip: int = 0,
     limit: int = 100,
 ) -> dict:
     """
-    Retrieve invitation templates.
+    Retrieve invitation templates for the current tenant.
     """
     try:
-        templates = invitation_template.get_multi(db, skip=skip, limit=limit)
+        # Get tenant ID from slug
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        templates = invitation_template.get_by_tenant(db, tenant_id=tenant.id, skip=skip, limit=limit)
         # Convert to dict to ensure proper serialization
         template_list = []
         for template in templates:
             # Log LOI template name and status
-            print(f"[LOI] Template: '{template.name}' - Status: {'ACTIVE' if template.is_active else 'INACTIVE'}")
+            print(f"[LOI] Template: '{template.name}' - Status: {'ACTIVE' if template.is_active else 'INACTIVE'} - Tenant: {tenant.slug}")
             
             template_dict = {
                 "id": template.id,
@@ -51,7 +59,7 @@ def get_invitation_templates(
             }
             template_list.append(template_dict)
         
-        print(f"[LOI] Total templates found: {len(template_list)}")
+        print(f"[LOI] Total templates found for tenant {tenant.slug}: {len(template_list)}")
         return {"templates": template_list}
     except Exception as e:
         print(f"Error loading templates: {e}")
@@ -63,19 +71,29 @@ def create_invitation_template(
     db: Session = Depends(get_db),
     template_in: InvitationTemplateCreate,
     current_user: User = Depends(get_current_active_user),
+    tenant_slug: str = Depends(get_tenant_context),
 ) -> InvitationTemplate:
     """
     Create new invitation template.
     """
-    # Check if template with same name exists
-    existing_template = invitation_template.get_by_name(db, name=template_in.name)
+    # Get tenant ID from slug
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Check if template with same name exists for this tenant
+    existing_template = invitation_template.get_by_name(db, name=template_in.name, tenant_id=tenant.id)
     if existing_template:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Template with this name already exists"
         )
     
-    template = invitation_template.create(db=db, obj_in=template_in)
+    # Add tenant_id to the template data
+    template_data = template_in.dict()
+    template_data['tenant_id'] = tenant.id
+    
+    template = invitation_template.create(db=db, obj_in=template_data)
     return template
 
 @router.get("/{template_id}", response_model=InvitationTemplate)
@@ -394,8 +412,14 @@ async def generate_loi_from_template(
 def get_active_invitation_templates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    tenant_slug: str = Depends(get_tenant_context),
 ) -> List[InvitationTemplate]:
     """
-    Get all active invitation templates.
+    Get all active invitation templates for the current tenant.
     """
-    return invitation_template.get_active_templates(db)
+    # Get tenant ID from slug
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    return invitation_template.get_active_templates(db, tenant_id=tenant.id)

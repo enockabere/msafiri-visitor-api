@@ -49,3 +49,4 @@ class Tenant(BaseModel):
     # roles = relationship("Role", back_populates="tenant")
     news_updates = relationship("NewsUpdate", back_populates="tenant")
     certificate_templates = relationship("CertificateTemplate", back_populates="tenant")
+    invitation_templates = relationship("InvitationTemplate", back_populates="tenant")
