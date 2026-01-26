@@ -397,41 +397,34 @@ def accept_invitation(
             logger.info(f"🔄 Adding role to existing user: {invitation.email}")
             from app.models.user_roles import UserRole as UserRoleModel
             
-            # Check if user already has this role
+            # Map role names to database enum values
             role_value = invitation.role.lower()
             if role_value == "finance_admin":
-                role_value = "finance_administrator"
+                role_value = "finance_admin"  # Keep as is
             elif role_value == "hr_admin":
-                role_value = "hr_administrator"
+                role_value = "hr_admin"  # Keep as is
             elif role_value == "event_admin":
-                role_value = "event_administrator"
+                role_value = "event_admin"  # Keep as is
             elif role_value == "mt_admin":
-                role_value = "mt_administrator"
+                role_value = "mt_admin"  # Keep as is
             
-            existing_role = db.query(UserRoleModel).filter(
-                UserRoleModel.user_id == existing_user.id,
-                UserRoleModel.role == role_value.upper()
-            ).first()
+            # Skip checking if role exists, just add it
+            # Remove Guest role if user is getting a real role
+            if role_value != "guest":
+                guest_roles = db.query(UserRoleModel).filter(
+                    UserRoleModel.user_id == existing_user.id,
+                    UserRoleModel.role == "GUEST"
+                ).all()
+                for guest_role in guest_roles:
+                    db.delete(guest_role)
             
-            if not existing_role:
-                # Remove Guest role if user is getting a real role
-                if invitation.role.upper() != "GUEST":
-                    guest_roles = db.query(UserRoleModel).filter(
-                        UserRoleModel.user_id == existing_user.id,
-                        UserRoleModel.role == "GUEST"
-                    ).all()
-                    for guest_role in guest_roles:
-                        db.delete(guest_role)
-                
-                # Add new role
-                new_role = UserRoleModel(
-                    user_id=existing_user.id,
-                    role=role_value.upper()
-                )
-                db.add(new_role)
-                logger.info(f"➕ Added role {role_value} to user {invitation.email}")
-            else:
-                logger.info(f"🔄 User already has role {role_value}")
+            # Add new role
+            new_role = UserRoleModel(
+                user_id=existing_user.id,
+                role=role_value.upper()
+            )
+            db.add(new_role)
+            logger.info(f"➕ Added role {role_value} to user {invitation.email}")
                 
             # Update tenant if different
             if existing_user.tenant_id != invitation.tenant_id:
@@ -468,13 +461,13 @@ def accept_invitation(
             # Map role names to database enum values
             role_value = invitation.role.lower()
             if role_value == "finance_admin":
-                role_value = "finance_administrator"
+                role_value = "finance_admin"  # Keep as is
             elif role_value == "hr_admin":
-                role_value = "hr_administrator"
+                role_value = "hr_admin"  # Keep as is
             elif role_value == "event_admin":
-                role_value = "event_administrator"
+                role_value = "event_admin"  # Keep as is
             elif role_value == "mt_admin":
-                role_value = "mt_administrator"
+                role_value = "mt_admin"  # Keep as is
             
             user_role = UserRoleModel(
                 user_id=user_obj.id,
