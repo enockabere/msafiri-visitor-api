@@ -236,17 +236,28 @@ async def delete_logo(
 @router.delete("/delete-event-attachment/{public_id:path}")
 async def delete_event_attachment(
     public_id: str,
-    resource_type: str = "raw",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete event attachment from Cloudinary"""
+    """Delete event attachment from Azure Blob Storage"""
     try:
-        result = cloudinary.uploader.destroy(public_id, resource_type=resource_type)
-        if result["result"] == "ok":
-            return {"success": True, "message": "Event attachment deleted successfully"}
-        else:
-            raise HTTPException(status_code=404, detail="Event attachment not found")
+        # Validate Azure Storage configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(
+                status_code=500,
+                detail="Azure Storage connection string is not configured."
+            )
+
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        container_client = blob_service_client.get_container_client('msafiri-documents')
+        blob_client = container_client.get_blob_client(public_id)
+        
+        # Delete blob
+        blob_client.delete_blob()
+        
+        return {"success": True, "message": "Event attachment deleted successfully"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
@@ -412,7 +423,7 @@ async def upload_event_attachment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload event attachment to Cloudinary"""
+    """Upload event attachment to Azure Blob Storage"""
     
     print(f"DEBUG: Event attachment upload - File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
     
@@ -421,36 +432,58 @@ async def upload_event_attachment(
         raise HTTPException(status_code=400, detail="File size must be less than 10MB")
     
     try:
-        if not CLOUDINARY_CLOUD_NAME:
-            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured.")
+        # Validate Azure Storage configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(
+                status_code=500,
+                detail="Azure Storage connection string is not configured."
+            )
 
         # Read file content
         file_content = await file.read()
-        import io
-        file_obj = io.BytesIO(file_content)
-        file_obj.name = file.filename
 
-        # Determine resource type based on file type
-        resource_type = "image" if file.content_type and file.content_type.startswith('image/') else "raw"
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
         
-        # Upload to Cloudinary
-        result = cloudinary.uploader.upload(
-            file_obj,
-            folder="msafiri-documents/event-attachments",
-            resource_type=resource_type,
-            use_filename=True,
-            unique_filename=True,
-            overwrite=False
+        # Use msafiri-documents container for all documents
+        container_name = 'msafiri-documents'
+        
+        # Get container client
+        container_client = blob_service_client.get_container_client(container_name)
+        
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container()
+        except Exception:
+            pass  # Container already exists
+        
+        # Generate blob name with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_extension = os.path.splitext(file.filename)[1] if file.filename else ''
+        blob_name = f"event-attachments/attachment_{timestamp}_{file.filename}"
+        
+        # Get blob client
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        # Upload file
+        blob_client.upload_blob(
+            file_content, 
+            overwrite=True, 
+            content_settings=ContentSettings(content_type=file.content_type)
         )
-
-        print(f"DEBUG: Event attachment upload successful: {result['secure_url']}")
+        
+        # Generate blob URL
+        blob_url = blob_client.url
+        
+        print(f"DEBUG: Event attachment upload successful: {blob_url}")
+        print(f"DEBUG: Blob name: {blob_name}")
 
         return {
             "success": True,
-            "url": result["secure_url"],
-            "public_id": result["public_id"],
-            "format": result.get("format"),
-            "resource_type": resource_type,
+            "url": blob_url,
+            "public_id": blob_name,
+            "format": file_extension.replace('.', '') if file_extension else '',
+            "resource_type": "image" if file.content_type and file.content_type.startswith('image/') else "raw",
             "file_type": file.content_type,
             "original_filename": file.filename
         }

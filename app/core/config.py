@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     AZURE_TENANT_ID: Optional[str] = os.getenv("AZURE_TENANT_ID")
     AZURE_CLIENT_ID: Optional[str] = os.getenv("AZURE_CLIENT_ID")
     AZURE_CLIENT_SECRET: Optional[str] = os.getenv("AZURE_CLIENT_SECRET")
+    AZURE_STORAGE_CONNECTION_STRING: Optional[str] = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    AZURE_STORAGE_CONTAINER_NAME: str = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "msafiri-documents")
 
 
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
