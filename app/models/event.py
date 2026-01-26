@@ -43,7 +43,10 @@ class Event(BaseModel):
     double_rooms = Column(Integer)
     
     # Budget
-    budget_account_code = Column(String(10))
+    section = Column(String(10))
+    budget_code = Column(String(50))
+    activity_code = Column(String(50))
+    cost_center = Column(String(50))
     
     # Metadata
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
