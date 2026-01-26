@@ -397,8 +397,8 @@ def accept_invitation(
             logger.info(f"🔄 Adding role to existing user: {invitation.email}")
             from app.models.user_roles import UserRole as UserRoleModel
             
-            # Use STAFF as fallback for all roles since enum values are unknown
-            role_value = "staff"
+            # Use original role names
+            role_value = invitation.role.lower()
             
             # Skip checking if role exists, just add it
             # Remove Guest role if user is getting a real role
@@ -450,8 +450,8 @@ def accept_invitation(
             # Create corresponding UserRole entry
             from app.models.user_roles import UserRole as UserRoleModel
             
-            # Use STAFF as fallback role
-            role_value = "staff"
+            # Use original role name
+            role_value = invitation.role.lower()
             
             user_role = UserRoleModel(
                 user_id=user_obj.id,
