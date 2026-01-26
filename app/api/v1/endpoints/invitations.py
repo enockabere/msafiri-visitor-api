@@ -397,16 +397,8 @@ def accept_invitation(
             logger.info(f"🔄 Adding role to existing user: {invitation.email}")
             from app.models.user_roles import UserRole as UserRoleModel
             
-            # Map role names to database enum values
-            role_value = invitation.role.lower()
-            if role_value == "finance_admin":
-                role_value = "finance_admin"  # Keep as is
-            elif role_value == "hr_admin":
-                role_value = "hr_admin"  # Keep as is
-            elif role_value == "event_admin":
-                role_value = "event_admin"  # Keep as is
-            elif role_value == "mt_admin":
-                role_value = "mt_admin"  # Keep as is
+            # Use STAFF as fallback for all roles since enum values are unknown
+            role_value = "staff"
             
             # Skip checking if role exists, just add it
             # Remove Guest role if user is getting a real role
@@ -458,16 +450,8 @@ def accept_invitation(
             # Create corresponding UserRole entry
             from app.models.user_roles import UserRole as UserRoleModel
             
-            # Map role names to database enum values
-            role_value = invitation.role.lower()
-            if role_value == "finance_admin":
-                role_value = "finance_admin"  # Keep as is
-            elif role_value == "hr_admin":
-                role_value = "hr_admin"  # Keep as is
-            elif role_value == "event_admin":
-                role_value = "event_admin"  # Keep as is
-            elif role_value == "mt_admin":
-                role_value = "mt_admin"  # Keep as is
+            # Use STAFF as fallback role
+            role_value = "staff"
             
             user_role = UserRoleModel(
                 user_id=user_obj.id,
