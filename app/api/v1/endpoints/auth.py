@@ -311,6 +311,11 @@ async def microsoft_sso_login(
             db, email=user_data["email"], tenant_id=tenant_id
         )
         
+        logger.info(f"🔍 DEBUG: Checking invitation for {user_data['email']} in tenant {tenant_id}")
+        logger.info(f"🔍 DEBUG: Found invitation: {pending_invitation is not None}")
+        if pending_invitation:
+            logger.info(f"🔍 DEBUG: Invitation details - ID: {pending_invitation.id}, Role: {pending_invitation.role}, Accepted: {pending_invitation.is_accepted}")
+        
         if pending_invitation and pending_invitation.is_accepted == "false":
             logger.info(f"Found pending invitation for {user_data['email']} with role {pending_invitation.role}")
             # Use invitation role instead of default GUEST
@@ -320,15 +325,19 @@ async def microsoft_sso_login(
             pending_invitation.is_accepted = "true"
             pending_invitation.accepted_at = datetime.utcnow()
             db.commit()
-            logger.info(f"Marked invitation as accepted for {user_data['email']}")
+            logger.info(f"✅ Marked invitation as accepted for {user_data['email']}")
         
+        logger.info(f"🔍 DEBUG: About to create/update SSO user with data: {user_data}")
         user = crud.user.create_or_update_sso_user(
             db, user_data=user_data, tenant_id=tenant_id
         )
+        logger.info(f"🔍 DEBUG: Created/updated user - ID: {user.id}, Role: {user.role}, Email: {user.email}")
         
         # If there was a pending invitation, ensure the role is properly assigned
         if pending_invitation and pending_invitation.is_accepted == "true":
             from app.models.user_roles import UserRole as UserRoleModel
+            
+            logger.info(f"🔍 DEBUG: Processing accepted invitation for user {user.id}")
             
             # Check if user already has this role in UserRole table
             existing_role = db.query(UserRoleModel).filter(
@@ -336,12 +345,15 @@ async def microsoft_sso_login(
                 UserRoleModel.role == pending_invitation.role.upper()
             ).first()
             
+            logger.info(f"🔍 DEBUG: Existing role check - Role: {pending_invitation.role.upper()}, Found: {existing_role is not None}")
+            
             if not existing_role:
                 # Remove any Guest roles first
                 guest_roles = db.query(UserRoleModel).filter(
                     UserRoleModel.user_id == user.id,
                     UserRoleModel.role == "GUEST"
                 ).all()
+                logger.info(f"🔍 DEBUG: Found {len(guest_roles)} guest roles to remove")
                 for guest_role in guest_roles:
                     db.delete(guest_role)
                 
@@ -352,7 +364,9 @@ async def microsoft_sso_login(
                 )
                 db.add(new_role)
                 db.commit()
-                logger.info(f"Added role {pending_invitation.role} to user {user.email} from invitation")
+                logger.info(f"✅ Added role {pending_invitation.role} to user {user.email} from invitation")
+            else:
+                logger.info(f"🔍 DEBUG: User already has role {pending_invitation.role}")
         
         if user.status == UserStatus.PENDING_APPROVAL:
             raise HTTPException(
