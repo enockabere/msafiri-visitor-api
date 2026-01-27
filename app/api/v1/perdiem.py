@@ -254,6 +254,54 @@ def issue_perdiem_request(
     
     return {"message": "Request issued successfully", "status": perdiem_request.status.value}
 
+@router.put("/{request_id}", response_model=PerdiemRequestSchema)
+def update_perdiem_request(
+    request_id: int,
+    request: PerdiemRequestCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    print("="*80)
+    print(f"🔧 UPDATE PERDIEM REQUEST - ID: {request_id}")
+    print(f"🔧 DEBUG - Update Data: {request.dict()}")
+    print("="*80)
+    
+    perdiem_request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not perdiem_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Only allow updates for open requests
+    if perdiem_request.status != "open":
+        raise HTTPException(status_code=400, detail=f"Can only update open requests. Current status: {perdiem_request.status}")
+    
+    # Update fields
+    perdiem_request.arrival_date = request.arrival_date
+    perdiem_request.departure_date = request.departure_date
+    perdiem_request.calculated_days = (request.departure_date - request.arrival_date).days + 1
+    perdiem_request.requested_days = request.requested_days
+    perdiem_request.justification = request.justification
+    perdiem_request.event_type = request.event_type
+    perdiem_request.purpose = request.purpose
+    perdiem_request.approver_title = request.approver_title
+    perdiem_request.approver_email = request.approver_email
+    perdiem_request.phone_number = request.phone_number
+    perdiem_request.email = request.email
+    perdiem_request.payment_method = request.payment_method
+    perdiem_request.cash_pickup_date = request.cash_pickup_date
+    perdiem_request.cash_hours = request.cash_hours
+    perdiem_request.mpesa_number = request.mpesa_number
+    
+    # Recalculate amounts
+    daily_rate = 50.00  # Default rate
+    perdiem_request.total_amount = daily_rate * request.requested_days
+    
+    db.commit()
+    db.refresh(perdiem_request)
+    
+    print(f"🔧 DEBUG - Per diem request updated successfully: {perdiem_request.id}")
+    
+    return perdiem_request
+
 @router.delete("/{request_id}")
 def delete_perdiem_request(
     request_id: int,
