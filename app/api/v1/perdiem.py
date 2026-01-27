@@ -58,7 +58,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status=PerdiemStatus.PENDING_APPROVAL,  # Set to pending when submitted
+        status=PerdiemStatus.PENDING_APPROVAL,  # This will use the enum value "pending_approval"
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
