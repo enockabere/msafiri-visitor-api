@@ -24,6 +24,12 @@ from app.services.notification_service import create_notification
 
 router = APIRouter()
 
+@router.get("/test")
+def test_endpoint():
+    """Test endpoint to verify server is running latest code"""
+    print("🔥 TEST ENDPOINT HIT - Server is running latest code!")
+    return {"message": "Per diem API is working", "timestamp": datetime.utcnow().isoformat()}
+
 @router.post("/", response_model=PerdiemRequestSchema)
 def create_perdiem_request(
     request: PerdiemRequestCreate,
@@ -32,6 +38,7 @@ def create_perdiem_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print("="*80)
     print(f"🚨 ENDPOINT HIT - Per Diem Request Creation Started")
     print(f"🔧 DEBUG - Per Diem Request Data: {request.dict()}")
     print(f"🔧 DEBUG - Payment Method: {request.payment_method}")
@@ -41,6 +48,7 @@ def create_perdiem_request(
     print(f"🔧 DEBUG - About to create PerdiemRequest with status: {PerdiemStatus.PENDING_APPROVAL}")
     print(f"🔧 DEBUG - Participant ID: {participant_id}")
     print(f"🔧 DEBUG - Current User: {current_user.email if current_user else 'None'}")
+    print("="*80)
     
     # Get participant and validate
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
@@ -80,8 +88,12 @@ def create_perdiem_request(
     
     print(f"🔧 DEBUG - Created PerdiemRequest object with status: {perdiem_request.status}")
     print(f"🔧 DEBUG - Status type: {type(perdiem_request.status)}")
+    print(f"🔧 DEBUG - Status repr: {repr(perdiem_request.status)}")
+    print(f"🔧 DEBUG - About to add to database...")
     
     db.add(perdiem_request)
+    
+    print(f"🔧 DEBUG - About to commit to database...")
     db.commit()
     db.refresh(perdiem_request)
     
