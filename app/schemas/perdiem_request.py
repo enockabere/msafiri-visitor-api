@@ -9,6 +9,7 @@ class PerdiemRequestCreate(BaseModel):
     requested_days: Optional[int] = None
     justification: Optional[str] = None
     event_type: Optional[str] = None
+    purpose: Optional[str] = None
     phone_number: str
     email: str
     payment_method: str  # "cash" or "mobile_money"
@@ -38,6 +39,7 @@ class PerdiemRequest(BaseModel):
     status: str
     justification: Optional[str] = None
     event_type: Optional[str] = None
+    purpose: Optional[str] = None
     admin_notes: Optional[str] = None
     phone_number: str
     email: str
@@ -92,6 +94,7 @@ class PerdiemPublicView(BaseModel):
     total_amount: Decimal
     justification: Optional[str] = None
     event_type: Optional[str] = None
+    purpose: Optional[str] = None
     phone_number: str
     payment_method: str
     cash_pickup_date: Optional[date] = None
