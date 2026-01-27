@@ -394,8 +394,10 @@ def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventPart
                 <li><strong>Purpose:</strong> {request.purpose}</li>
             </ul>
             
-            <p>Please log in to the admin portal to review and approve this request:</p>
-            <p><a href="{settings.FRONTEND_URL}/per-diem-approvals">Review Request</a></p>
+            <p>Please log in to the admin portal using Microsoft SSO to review and approve this request:</p>
+            <p><a href="{settings.FRONTEND_URL}/per-diem-approvals">Login to Admin Portal to Approve</a></p>
+            
+            <p><strong>Note:</strong> Use your Microsoft SSO credentials to login. You will be automatically assigned the Per Diem Approver role upon login.</p>
             
             <p>Best regards,<br>MSafiri Team</p>
             """
