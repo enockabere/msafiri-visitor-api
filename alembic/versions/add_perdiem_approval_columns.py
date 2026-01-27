@@ -16,11 +16,19 @@ depends_on = None
 
 
 def upgrade():
-    # Add approval tracking columns
-    op.add_column('perdiem_requests', sa.Column('approved_by', sa.String(), nullable=True))
-    op.add_column('perdiem_requests', sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True))
-    op.add_column('perdiem_requests', sa.Column('rejected_by', sa.String(), nullable=True))
-    op.add_column('perdiem_requests', sa.Column('rejected_at', sa.DateTime(timezone=True), nullable=True))
+    # Check and add columns only if they don't exist
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    columns = [col['name'] for col in inspector.get_columns('perdiem_requests')]
+    
+    if 'approved_by' not in columns:
+        op.add_column('perdiem_requests', sa.Column('approved_by', sa.String(), nullable=True))
+    if 'approved_at' not in columns:
+        op.add_column('perdiem_requests', sa.Column('approved_at', sa.DateTime(timezone=True), nullable=True))
+    if 'rejected_by' not in columns:
+        op.add_column('perdiem_requests', sa.Column('rejected_by', sa.String(), nullable=True))
+    if 'rejected_at' not in columns:
+        op.add_column('perdiem_requests', sa.Column('rejected_at', sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade():
