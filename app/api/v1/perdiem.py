@@ -17,6 +17,7 @@ from app.schemas.perdiem_request import (
     PerdiemPublicView
 )
 from app.core.deps import get_current_user
+from app.core.config import settings
 from app.models.user import User
 from app.services.email_service import send_email
 from app.services.notification_service import create_notification
@@ -219,63 +220,73 @@ def submit_perdiem_request(
     
     return {"message": "Request submitted for approval", "status": perdiem_request.status.value}
 
-async def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
+def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
     """Send email notifications for per diem approval request"""
     try:
-        # Get tenant and finance admins
-        tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
-        finance_admins = db.query(UserModel).filter(
-            UserModel.role.in_(["FINANCE_ADMIN", "finance_admin"])
-        ).all()
-        
         # Email to approver
         if request.approver_email:
-            await send_email(
-                to_email=request.approver_email,
-                subject=f"Per Diem Approval Request - {event.title}",
-                template="perdiem_approval_request",
-                context={
-                    "request": request,
-                    "participant": participant,
-                    "event": event,
-                    "is_approver": True
-                }
+            subject = f"Per Diem Approval Request - {event.title}"
+            body = f"""
+            <h2>Per Diem Approval Request</h2>
+            <p>Dear {request.approver_title},</p>
+            
+            <p>A new per diem request has been submitted for your approval:</p>
+            
+            <ul>
+                <li><strong>Participant:</strong> {participant.first_name} {participant.last_name}</li>
+                <li><strong>Email:</strong> {participant.email}</li>
+                <li><strong>Event:</strong> {event.title}</li>
+                <li><strong>Dates:</strong> {request.arrival_date} to {request.departure_date}</li>
+                <li><strong>Days:</strong> {request.requested_days}</li>
+                <li><strong>Total Amount:</strong> ${request.total_amount}</li>
+                <li><strong>Purpose:</strong> {request.purpose}</li>
+            </ul>
+            
+            <p>Please log in to the admin portal to review and approve this request:</p>
+            <p><a href="{settings.FRONTEND_URL}/per-diem-approvals">Review Request</a></p>
+            
+            <p>Best regards,<br>MSafiri Team</p>
+            """
+            
+            success = send_email(
+                to_emails=[request.approver_email],
+                subject=subject,
+                body=body,
+                is_html=True
             )
+            
+            if success:
+                print(f"✅ Email sent successfully to approver: {request.approver_email}")
+            else:
+                print(f"❌ Failed to send email to approver: {request.approver_email}")
         
         # Email to requester (confirmation)
-        await send_email(
-            to_email=request.email,
-            subject=f"Per Diem Request Submitted - {event.title}",
-            template="perdiem_request_confirmation",
-            context={
-                "request": request,
-                "participant": participant,
-                "event": event
-            }
+        confirmation_subject = f"Per Diem Request Submitted - {event.title}"
+        confirmation_body = f"""
+        <h2>Per Diem Request Confirmation</h2>
+        <p>Dear {participant.first_name} {participant.last_name},</p>
+        
+        <p>Your per diem request has been submitted successfully:</p>
+        
+        <ul>
+            <li><strong>Event:</strong> {event.title}</li>
+            <li><strong>Dates:</strong> {request.arrival_date} to {request.departure_date}</li>
+            <li><strong>Days:</strong> {request.requested_days}</li>
+            <li><strong>Total Amount:</strong> ${request.total_amount}</li>
+            <li><strong>Approver:</strong> {request.approver_title} ({request.approver_email})</li>
+        </ul>
+        
+        <p>Your request is now pending approval. You will be notified once it has been reviewed.</p>
+        
+        <p>Best regards,<br>MSafiri Team</p>
+        """
+        
+        send_email(
+            to_emails=[request.email],
+            subject=confirmation_subject,
+            body=confirmation_body,
+            is_html=True
         )
         
-        # Email to finance admins (CC)
-        for admin in finance_admins:
-            await send_email(
-                to_email=admin.email,
-                subject=f"Per Diem Request Submitted - {event.title}",
-                template="perdiem_approval_request",
-                context={
-                    "request": request,
-                    "participant": participant,
-                    "event": event,
-                    "is_admin": True
-                }
-            )
-            
-            # Create notification for admin
-            await create_notification(
-                user_id=admin.id,
-                title="New Per Diem Request",
-                message=f"Per diem request submitted for {event.title}",
-                type="perdiem_request",
-                tenant_id=tenant.id if tenant else None
-            )
-            
     except Exception as e:
-        print(f"Error sending per diem approval emails: {e}")
+        print(f"❌ Error sending per diem approval emails: {e}")
