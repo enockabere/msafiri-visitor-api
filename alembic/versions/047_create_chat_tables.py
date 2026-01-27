@@ -16,9 +16,9 @@ branch_labels = None
 depends_on = None
 
 def upgrade() -> None:
-    # Create chattype enum
-    chattype_enum = postgresql.ENUM('direct_message', 'event_chatroom', name='chattype')
-    chattype_enum.create(op.get_bind())
+    # Create chattype enum if it doesn't exist
+    op.execute("CREATE TYPE IF NOT EXISTS chattype AS ENUM ('direct_message', 'event_chatroom')")
+    chattype_enum = postgresql.ENUM('direct_message', 'event_chatroom', name='chattype', create_type=False)
     
     # Create chat_rooms table
     op.create_table('chat_rooms',
@@ -86,6 +86,5 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_chat_rooms_id'), table_name='chat_rooms')
     op.drop_table('chat_rooms')
     
-    # Drop chattype enum
-    chattype_enum = postgresql.ENUM('direct_message', 'event_chatroom', name='chattype')
-    chattype_enum.drop(op.get_bind())
+    # Only drop enum if no other tables use it
+    op.execute("DROP TYPE IF EXISTS chattype")
