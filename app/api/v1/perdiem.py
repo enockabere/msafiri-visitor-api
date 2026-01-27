@@ -121,7 +121,32 @@ def get_participant_perdiem_requests(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print("="*80)
+    print(f"🔍 GET PERDIEM REQUESTS - Participant ID: {participant_id}")
+    print(f"🔍 Current User: {current_user.email if current_user else 'None'}")
+    
     requests = db.query(PerdiemRequest).filter(PerdiemRequest.participant_id == participant_id).all()
+    
+    print(f"🔍 Found {len(requests)} per diem requests for participant {participant_id}")
+    
+    if requests:
+        for i, req in enumerate(requests):
+            print(f"🔍 Request {i+1}: ID={req.id}, Status={req.status}, Created={req.created_at}")
+    else:
+        print(f"🔍 No requests found. Checking if participant exists...")
+        participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
+        if participant:
+            print(f"🔍 Participant exists: {participant.first_name} {participant.last_name} ({participant.email})")
+        else:
+            print(f"🔍 Participant with ID {participant_id} does not exist!")
+        
+        # Check all per diem requests in database
+        all_requests = db.query(PerdiemRequest).all()
+        print(f"🔍 Total per diem requests in database: {len(all_requests)}")
+        for req in all_requests:
+            print(f"🔍   Request ID={req.id}, Participant={req.participant_id}, Status={req.status}")
+    
+    print("="*80)
     return requests
 
 @router.get("/public/{request_id}/{token}")
