@@ -60,7 +60,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status="PENDING_APPROVAL",  # Use actual database enum value
+        status=PerdiemStatus.PENDING_APPROVAL,  # Use enum instead of string
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
