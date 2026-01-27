@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
@@ -7,6 +7,8 @@ from app.db.database import get_db
 from app.models.perdiem_request import PerdiemRequest, PerdiemStatus
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
+from app.models.tenant import Tenant
+from app.models.user import User as UserModel
 from app.schemas.perdiem_request import (
     PerdiemRequestCreate, 
     PerdiemRequest as PerdiemRequestSchema,
@@ -16,6 +18,8 @@ from app.schemas.perdiem_request import (
 )
 from app.core.deps import get_current_user
 from app.models.user import User
+from app.services.email_service import send_email
+from app.services.notification_service import create_notification
 
 router = APIRouter()
 
@@ -23,6 +27,7 @@ router = APIRouter()
 def create_perdiem_request(
     request: PerdiemRequestCreate,
     participant_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -34,6 +39,11 @@ def create_perdiem_request(
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
+    
+    # Get event details
+    event = db.query(Event).filter(Event.id == participant.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
     
     # Calculate daily rate and total amount (simplified - should be based on event/location)
     daily_rate = 50.00  # Default rate
@@ -48,6 +58,10 @@ def create_perdiem_request(
         daily_rate=daily_rate,
         total_amount=total_amount,
         justification=request.justification,
+        event_type=request.event_type,
+        purpose=request.purpose,
+        approver_title=request.approver_title,
+        approver_email=request.approver_email,
         phone_number=request.phone_number,
         email=request.email,
         payment_method=request.payment_method,
@@ -59,6 +73,15 @@ def create_perdiem_request(
     db.add(perdiem_request)
     db.commit()
     db.refresh(perdiem_request)
+    
+    # Send approval request emails
+    background_tasks.add_task(
+        send_perdiem_approval_emails,
+        perdiem_request,
+        participant,
+        event,
+        db
+    )
     
     return perdiem_request
 
@@ -169,3 +192,64 @@ def get_all_perdiem_requests(
 ):
     requests = db.query(PerdiemRequest).all()
     return requests
+
+async def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
+    """Send email notifications for per diem approval request"""
+    try:
+        # Get tenant and finance admins
+        tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
+        finance_admins = db.query(UserModel).filter(
+            UserModel.role.in_(["FINANCE_ADMIN", "finance_admin"])
+        ).all()
+        
+        # Email to approver
+        if request.approver_email:
+            await send_email(
+                to_email=request.approver_email,
+                subject=f"Per Diem Approval Request - {event.title}",
+                template="perdiem_approval_request",
+                context={
+                    "request": request,
+                    "participant": participant,
+                    "event": event,
+                    "is_approver": True
+                }
+            )
+        
+        # Email to requester (confirmation)
+        await send_email(
+            to_email=request.email,
+            subject=f"Per Diem Request Submitted - {event.title}",
+            template="perdiem_request_confirmation",
+            context={
+                "request": request,
+                "participant": participant,
+                "event": event
+            }
+        )
+        
+        # Email to finance admins (CC)
+        for admin in finance_admins:
+            await send_email(
+                to_email=admin.email,
+                subject=f"Per Diem Request Submitted - {event.title}",
+                template="perdiem_approval_request",
+                context={
+                    "request": request,
+                    "participant": participant,
+                    "event": event,
+                    "is_admin": True
+                }
+            )
+            
+            # Create notification for admin
+            await create_notification(
+                user_id=admin.id,
+                title="New Per Diem Request",
+                message=f"Per diem request submitted for {event.title}",
+                type="perdiem_request",
+                tenant_id=tenant.id if tenant else None
+            )
+            
+    except Exception as e:
+        print(f"Error sending per diem approval emails: {e}")

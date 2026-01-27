@@ -111,6 +111,14 @@ api_router.include_router(
     tags=["per-diem-requests"]
 )
 
+# Per diem approvals
+from app.api.v1.endpoints import perdiem_approvals
+api_router.include_router(
+    perdiem_approvals.router,
+    prefix="/per-diem-approvals",
+    tags=["per-diem-approvals"]
+)
+
 from app.api.v1.endpoints import vetting_export
 api_router.include_router(
     vetting_export.router,

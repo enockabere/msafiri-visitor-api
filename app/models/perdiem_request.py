@@ -55,6 +55,8 @@ class PerdiemRequest(BaseModel):
     line_manager_approved_at = Column(DateTime)
     budget_owner_approved_by = Column(String(255))
     budget_owner_approved_at = Column(DateTime)
+    approved_by = Column(String(255))  # Approver email
+    approved_at = Column(DateTime)
     rejected_by = Column(String(255))
     rejected_at = Column(DateTime)
     rejection_reason = Column(Text)
