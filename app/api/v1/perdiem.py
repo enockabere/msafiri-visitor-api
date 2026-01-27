@@ -97,6 +97,10 @@ def create_perdiem_request(
     db.commit()
     db.refresh(perdiem_request)
     
+    print(f"🔧 DEBUG - Per diem request created successfully with ID: {perdiem_request.id}")
+    print(f"🔧 DEBUG - Refreshed object: {perdiem_request.__dict__}")
+    db.refresh(perdiem_request)
+    
     # Send approval request emails
     background_tasks.add_task(
         send_perdiem_approval_emails,
@@ -105,6 +109,9 @@ def create_perdiem_request(
         event,
         db
     )
+    
+    print(f"🔧 DEBUG - About to return per diem request: {perdiem_request}")
+    print(f"🔧 DEBUG - Return data type: {type(perdiem_request)}")
     
     return perdiem_request
 
