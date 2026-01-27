@@ -58,7 +58,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status=PerdiemStatus.PENDING,  # Set to pending when submitted
+        status=PerdiemStatus.PENDING_APPROVAL,  # Set to pending when submitted
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
@@ -145,7 +145,7 @@ def approve_perdiem_request(
     current_time = datetime.utcnow()
     
     if action.action == "approve":
-        perdiem_request.status = PerdiemStatus.LINE_MANAGER_APPROVED
+        perdiem_request.status = PerdiemStatus.APPROVED
         perdiem_request.approved_at = current_time
         perdiem_request.approved_by = "Approver"  # Should get from token
     elif action.action == "reject":
@@ -172,7 +172,7 @@ def mark_as_paid(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    perdiem_request.status = PerdiemStatus.PAID
+    perdiem_request.status = PerdiemStatus.COMPLETED
     perdiem_request.payment_reference = payment.payment_reference
     if payment.admin_notes:
         perdiem_request.admin_notes = payment.admin_notes
@@ -181,6 +181,25 @@ def mark_as_paid(
     db.refresh(perdiem_request)
     
     return {"message": "Payment recorded successfully"}
+
+@router.post("/{request_id}/issue")
+def issue_perdiem_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    perdiem_request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not perdiem_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if perdiem_request.status != PerdiemStatus.APPROVED:
+        raise HTTPException(status_code=400, detail="Can only issue approved requests")
+    
+    perdiem_request.status = PerdiemStatus.ISSUED
+    db.commit()
+    db.refresh(perdiem_request)
+    
+    return {"message": "Request issued successfully", "status": perdiem_request.status.value}
 
 @router.post("/{request_id}/cancel")
 def cancel_perdiem_request(
@@ -192,12 +211,14 @@ def cancel_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    # For now, we'll use a custom status field or admin_notes to track cancellation
-    perdiem_request.admin_notes = "CANCELLED_BY_USER"
+    if perdiem_request.status != PerdiemStatus.PENDING_APPROVAL:
+        raise HTTPException(status_code=400, detail="Can only cancel pending requests")
+    
+    perdiem_request.status = PerdiemStatus.OPEN
     db.commit()
     db.refresh(perdiem_request)
     
-    return {"message": "Request cancelled successfully", "status": "cancelled"}
+    return {"message": "Request cancelled successfully", "status": perdiem_request.status.value}
 
 @router.post("/{request_id}/submit")
 def submit_perdiem_request(
@@ -209,9 +230,10 @@ def submit_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    # Clear cancellation status and set back to pending
-    perdiem_request.admin_notes = None
-    perdiem_request.status = PerdiemStatus.PENDING
+    if perdiem_request.status != PerdiemStatus.OPEN:
+        raise HTTPException(status_code=400, detail="Can only submit open requests")
+    
+    perdiem_request.status = PerdiemStatus.PENDING_APPROVAL
     db.commit()
     db.refresh(perdiem_request)
     
