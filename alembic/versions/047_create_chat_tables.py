@@ -16,8 +16,14 @@ branch_labels = None
 depends_on = None
 
 def upgrade() -> None:
-    # Create chattype enum if it doesn't exist
-    op.execute("CREATE TYPE IF NOT EXISTS chattype AS ENUM ('direct_message', 'event_chatroom')")
+    # Check if chattype enum exists, create if not
+    op.execute("""
+        DO $$ BEGIN
+            CREATE TYPE chattype AS ENUM ('direct_message', 'event_chatroom');
+        EXCEPTION
+            WHEN duplicate_object THEN null;
+        END $$;
+    """)
     chattype_enum = postgresql.ENUM('direct_message', 'event_chatroom', name='chattype', create_type=False)
     
     # Create chat_rooms table
