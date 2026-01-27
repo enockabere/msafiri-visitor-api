@@ -35,6 +35,8 @@ def create_perdiem_request(
     print(f"🔧 DEBUG - Per Diem Request Data: {request.dict()}")
     print(f"🔧 DEBUG - Payment Method: {request.payment_method}")
     print(f"🔧 DEBUG - Cash Hours: {request.cash_hours}")
+    print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL enum: {PerdiemStatus.PENDING_APPROVAL}")
+    print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL.value: {PerdiemStatus.PENDING_APPROVAL.value}")
     
     # Get participant and validate
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
@@ -58,7 +60,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status=PerdiemStatus.PENDING_APPROVAL,  # This will use the enum value "pending_approval"
+        status="pending_approval",  # Use string value directly
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
