@@ -72,7 +72,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status=PerdiemStatus.PENDING_APPROVAL,  # Use enum with correct values
+        status="pending_approval",  # Use string directly
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,

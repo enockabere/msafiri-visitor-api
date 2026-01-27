@@ -29,7 +29,7 @@ class PerdiemRequest(BaseModel):
     requested_days = Column(Integer, nullable=False)   # User can adjust
     daily_rate = Column(Numeric(10,2), nullable=False)
     total_amount = Column(Numeric(10,2), nullable=False)
-    status = Column(Enum(PerdiemStatus, name='perdiemstatus'), default=PerdiemStatus.OPEN)
+    status = Column(String(50), default="open")
     justification = Column(Text)  # Why user adjusted days
     event_type = Column(String(100))  # Event type (Meeting, Training, etc.)
     purpose = Column(Text)  # Purpose/justification for the per diem
