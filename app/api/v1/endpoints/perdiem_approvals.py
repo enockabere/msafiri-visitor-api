@@ -6,7 +6,7 @@ from app.models.event import Event
 from app.models.tenant import Tenant
 from app.models.user import User
 from app.schemas.perdiem_request import PerdiemApprovalAction
-from app.core.auth import get_current_user
+from app.core.deps import get_current_user
 from app.services.email_service import send_email
 from app.services.notification_service import create_notification
 from datetime import datetime
