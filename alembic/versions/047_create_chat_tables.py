@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '047_create_chat_tables'
-down_revision = '046'  # Update this to your latest migration
+down_revision = '045_add_admin_role_enum_values'
 branch_labels = None
 depends_on = None
 
