@@ -254,6 +254,28 @@ def issue_perdiem_request(
     
     return {"message": "Request issued successfully", "status": perdiem_request.status.value}
 
+@router.delete("/{request_id}")
+def delete_perdiem_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    perdiem_request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not perdiem_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    print(f"🔧 DEBUG - Delete request - Current status: {perdiem_request.status}")
+    
+    if perdiem_request.status not in ["open", "pending_approval"]:
+        raise HTTPException(status_code=400, detail=f"Can only delete open or pending requests. Current status: {perdiem_request.status}")
+    
+    db.delete(perdiem_request)
+    db.commit()
+    
+    print(f"🔧 DEBUG - Delete request - Request {request_id} deleted successfully")
+    
+    return {"message": "Request deleted successfully"}
+
 @router.post("/{request_id}/cancel")
 def cancel_perdiem_request(
     request_id: int,
