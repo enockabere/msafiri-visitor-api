@@ -37,6 +37,7 @@ def create_perdiem_request(
     print(f"🔧 DEBUG - Cash Hours: {request.cash_hours}")
     print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL enum: {PerdiemStatus.PENDING_APPROVAL}")
     print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL.value: {PerdiemStatus.PENDING_APPROVAL.value}")
+    print(f"🔧 DEBUG - About to create PerdiemRequest with status: {PerdiemStatus.PENDING_APPROVAL}")
     
     # Get participant and validate
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
@@ -73,6 +74,9 @@ def create_perdiem_request(
         cash_hours=request.cash_hours,
         mpesa_number=request.mpesa_number
     )
+    
+    print(f"🔧 DEBUG - Created PerdiemRequest object with status: {perdiem_request.status}")
+    print(f"🔧 DEBUG - Status type: {type(perdiem_request.status)}")
     
     db.add(perdiem_request)
     db.commit()
