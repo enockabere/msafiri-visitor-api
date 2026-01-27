@@ -145,7 +145,7 @@ def approve_perdiem_request(
     current_time = datetime.utcnow()
     
     if action.action == "approve":
-        perdiem_request.status = PerdiemStatus.APPROVED
+        perdiem_request.status = PerdiemStatus.LINE_MANAGER_APPROVED
         perdiem_request.approved_at = current_time
         perdiem_request.approved_by = "Approver"  # Should get from token
     elif action.action == "reject":
@@ -172,7 +172,7 @@ def mark_as_paid(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    perdiem_request.status = PerdiemStatus.COMPLETED
+    perdiem_request.status = PerdiemStatus.PAID
     perdiem_request.payment_reference = payment.payment_reference
     if payment.admin_notes:
         perdiem_request.admin_notes = payment.admin_notes
@@ -192,14 +192,12 @@ def cancel_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    if perdiem_request.status != PerdiemStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Can only cancel pending requests")
-    
-    perdiem_request.status = PerdiemStatus.OPEN
+    # For now, we'll use a custom status field or admin_notes to track cancellation
+    perdiem_request.admin_notes = "CANCELLED_BY_USER"
     db.commit()
     db.refresh(perdiem_request)
     
-    return {"message": "Request cancelled successfully", "status": perdiem_request.status.value}
+    return {"message": "Request cancelled successfully", "status": "cancelled"}
 
 @router.post("/{request_id}/submit")
 def submit_perdiem_request(
@@ -211,9 +209,8 @@ def submit_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    if perdiem_request.status != PerdiemStatus.OPEN:
-        raise HTTPException(status_code=400, detail="Can only submit open requests")
-    
+    # Clear cancellation status and set back to pending
+    perdiem_request.admin_notes = None
     perdiem_request.status = PerdiemStatus.PENDING
     db.commit()
     db.refresh(perdiem_request)

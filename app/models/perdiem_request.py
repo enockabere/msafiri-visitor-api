@@ -4,12 +4,11 @@ from app.models.base import BaseModel
 import enum
 
 class PerdiemStatus(enum.Enum):
-    OPEN = "open"
     PENDING = "pending"
-    APPROVED = "approved"
+    LINE_MANAGER_APPROVED = "line_manager_approved"
+    BUDGET_OWNER_APPROVED = "budget_owner_approved"
     REJECTED = "rejected"
-    ISSUED = "issued"
-    COMPLETED = "completed"
+    PAID = "paid"
 
 class PaymentMethod(enum.Enum):
     CASH = "CASH"
@@ -29,7 +28,7 @@ class PerdiemRequest(BaseModel):
     requested_days = Column(Integer, nullable=False)   # User can adjust
     daily_rate = Column(Numeric(10,2), nullable=False)
     total_amount = Column(Numeric(10,2), nullable=False)
-    status = Column(Enum(PerdiemStatus), default=PerdiemStatus.OPEN)
+    status = Column(Enum(PerdiemStatus), default=PerdiemStatus.PENDING)
     justification = Column(Text)  # Why user adjusted days
     event_type = Column(String(100))  # Event type (Meeting, Training, etc.)
     purpose = Column(Text)  # Purpose/justification for the per diem
