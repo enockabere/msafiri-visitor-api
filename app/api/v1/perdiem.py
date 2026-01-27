@@ -57,6 +57,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
+        status=PerdiemStatus.PENDING,  # Set to pending when submitted
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
@@ -143,18 +144,13 @@ def approve_perdiem_request(
     current_time = datetime.utcnow()
     
     if action.action == "approve":
-        if perdiem_request.status == PerdiemStatus.PENDING:
-            perdiem_request.status = PerdiemStatus.LINE_MANAGER_APPROVED
-            perdiem_request.line_manager_approved_at = current_time
-            perdiem_request.line_manager_approved_by = "Line Manager"  # Should get from token
-        elif perdiem_request.status == PerdiemStatus.LINE_MANAGER_APPROVED:
-            perdiem_request.status = PerdiemStatus.BUDGET_OWNER_APPROVED
-            perdiem_request.budget_owner_approved_at = current_time
-            perdiem_request.budget_owner_approved_by = "Budget Owner"  # Should get from token
+        perdiem_request.status = PerdiemStatus.APPROVED
+        perdiem_request.approved_at = current_time
+        perdiem_request.approved_by = "Approver"  # Should get from token
     elif action.action == "reject":
         perdiem_request.status = PerdiemStatus.REJECTED
         perdiem_request.rejected_at = current_time
-        perdiem_request.rejected_by = "Manager"  # Should get from token
+        perdiem_request.rejected_by = "Approver"  # Should get from token
         perdiem_request.rejection_reason = action.rejection_reason
     
     perdiem_request.admin_notes = action.notes
@@ -175,7 +171,7 @@ def mark_as_paid(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    perdiem_request.status = PerdiemStatus.PAID
+    perdiem_request.status = PerdiemStatus.COMPLETED
     perdiem_request.payment_reference = payment.payment_reference
     if payment.admin_notes:
         perdiem_request.admin_notes = payment.admin_notes
@@ -185,13 +181,43 @@ def mark_as_paid(
     
     return {"message": "Payment recorded successfully"}
 
-@router.get("/", response_model=List[PerdiemRequestSchema])
-def get_all_perdiem_requests(
+@router.post("/{request_id}/cancel")
+def cancel_perdiem_request(
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    requests = db.query(PerdiemRequest).all()
-    return requests
+    perdiem_request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not perdiem_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if perdiem_request.status != PerdiemStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Can only cancel pending requests")
+    
+    perdiem_request.status = PerdiemStatus.OPEN
+    db.commit()
+    db.refresh(perdiem_request)
+    
+    return {"message": "Request cancelled successfully", "status": perdiem_request.status.value}
+
+@router.post("/{request_id}/submit")
+def submit_perdiem_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    perdiem_request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not perdiem_request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    if perdiem_request.status != PerdiemStatus.OPEN:
+        raise HTTPException(status_code=400, detail="Can only submit open requests")
+    
+    perdiem_request.status = PerdiemStatus.PENDING
+    db.commit()
+    db.refresh(perdiem_request)
+    
+    return {"message": "Request submitted for approval", "status": perdiem_request.status.value}
 
 async def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
     """Send email notifications for per diem approval request"""
