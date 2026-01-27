@@ -32,12 +32,15 @@ def create_perdiem_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    print(f"🚨 ENDPOINT HIT - Per Diem Request Creation Started")
     print(f"🔧 DEBUG - Per Diem Request Data: {request.dict()}")
     print(f"🔧 DEBUG - Payment Method: {request.payment_method}")
     print(f"🔧 DEBUG - Cash Hours: {request.cash_hours}")
     print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL enum: {PerdiemStatus.PENDING_APPROVAL}")
     print(f"🔧 DEBUG - PerdiemStatus.PENDING_APPROVAL.value: {PerdiemStatus.PENDING_APPROVAL.value}")
     print(f"🔧 DEBUG - About to create PerdiemRequest with status: {PerdiemStatus.PENDING_APPROVAL}")
+    print(f"🔧 DEBUG - Participant ID: {participant_id}")
+    print(f"🔧 DEBUG - Current User: {current_user.email if current_user else 'None'}")
     
     # Get participant and validate
     participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()
@@ -61,7 +64,7 @@ def create_perdiem_request(
         requested_days=request.requested_days,
         daily_rate=daily_rate,
         total_amount=total_amount,
-        status=PerdiemStatus.PENDING_APPROVAL,  # Use enum instead of string
+        status="pending_approval",  # Use string value directly
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
