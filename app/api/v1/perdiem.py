@@ -264,14 +264,19 @@ def cancel_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    if perdiem_request.status != PerdiemStatus.PENDING_APPROVAL:
-        raise HTTPException(status_code=400, detail="Can only cancel pending requests")
+    print(f"🔧 DEBUG - Cancel request - Current status: {perdiem_request.status}")
+    print(f"🔧 DEBUG - Cancel request - Status type: {type(perdiem_request.status)}")
     
-    perdiem_request.status = PerdiemStatus.OPEN
+    if perdiem_request.status != "pending_approval":
+        raise HTTPException(status_code=400, detail=f"Can only cancel pending requests. Current status: {perdiem_request.status}")
+    
+    perdiem_request.status = "open"
     db.commit()
     db.refresh(perdiem_request)
     
-    return {"message": "Request cancelled successfully", "status": perdiem_request.status.value}
+    print(f"🔧 DEBUG - Cancel request - New status: {perdiem_request.status}")
+    
+    return {"message": "Request cancelled successfully", "status": perdiem_request.status}
 
 @router.post("/{request_id}/submit")
 def submit_perdiem_request(
