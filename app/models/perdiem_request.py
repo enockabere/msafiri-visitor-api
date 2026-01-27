@@ -32,6 +32,8 @@ class PerdiemRequest(BaseModel):
     justification = Column(Text)  # Why user adjusted days
     event_type = Column(String(100))  # Event type (Meeting, Training, etc.)
     purpose = Column(Text)  # Purpose/justification for the per diem
+    approver_title = Column(String(50))  # FinCo or Travel Admin
+    approver_email = Column(String(255))  # Approver's email
     admin_notes = Column(Text)
     
     # Contact details
