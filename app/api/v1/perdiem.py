@@ -335,9 +335,9 @@ def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventPart
                 <li><strong>Participant:</strong> {participant.first_name} {participant.last_name}</li>
                 <li><strong>Email:</strong> {participant.email}</li>
                 <li><strong>Event:</strong> {event.title}</li>
+                <li><strong>Event Location:</strong> {event.location or 'Not specified'}</li>
                 <li><strong>Dates:</strong> {request.arrival_date} to {request.departure_date}</li>
                 <li><strong>Days:</strong> {request.requested_days}</li>
-                <li><strong>Total Amount:</strong> ${request.total_amount}</li>
                 <li><strong>Purpose:</strong> {request.purpose}</li>
             </ul>
             
@@ -369,9 +369,9 @@ def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventPart
         
         <ul>
             <li><strong>Event:</strong> {event.title}</li>
+            <li><strong>Event Location:</strong> {event.location or 'Not specified'}</li>
             <li><strong>Dates:</strong> {request.arrival_date} to {request.departure_date}</li>
             <li><strong>Days:</strong> {request.requested_days}</li>
-            <li><strong>Total Amount:</strong> ${request.total_amount}</li>
             <li><strong>Approver:</strong> {request.approver_title} ({request.approver_email})</li>
         </ul>
         
