@@ -358,14 +358,19 @@ def submit_perdiem_request(
     if not perdiem_request:
         raise HTTPException(status_code=404, detail="Request not found")
     
-    if perdiem_request.status != PerdiemStatus.OPEN:
-        raise HTTPException(status_code=400, detail="Can only submit open requests")
+    print(f"🔧 DEBUG - Submit request - Current status: {perdiem_request.status}")
+    print(f"🔧 DEBUG - Submit request - Status type: {type(perdiem_request.status)}")
     
-    perdiem_request.status = PerdiemStatus.PENDING_APPROVAL
+    if perdiem_request.status != "open":
+        raise HTTPException(status_code=400, detail=f"Can only submit open requests. Current status: {perdiem_request.status}")
+    
+    perdiem_request.status = "pending_approval"
     db.commit()
     db.refresh(perdiem_request)
     
-    return {"message": "Request submitted for approval", "status": perdiem_request.status.value}
+    print(f"🔧 DEBUG - Submit request - New status: {perdiem_request.status}")
+    
+    return {"message": "Request submitted for approval", "status": perdiem_request.status}
 
 def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
     """Send email notifications for per diem approval request"""
