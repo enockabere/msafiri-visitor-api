@@ -127,6 +127,14 @@ api_router.include_router(
     tags=["perdiem-check"]
 )
 
+# Tenant-specific per diem approvals
+from app.api.v1.endpoints import tenant_perdiem_approvals
+api_router.include_router(
+    tenant_perdiem_approvals.router,
+    prefix="/tenants",
+    tags=["tenant-perdiem-approvals"]
+)
+
 from app.api.v1.endpoints import vetting_export
 api_router.include_router(
     vetting_export.router,
