@@ -99,11 +99,21 @@ async def approve_tenant_perdiem(
     
     action = action_data.get("action")
     rejection_reason = action_data.get("rejection_reason")
+    approval_data = action_data.get("approval_data")
     
     if action == "approve":
         request.status = "approved"
         request.approved_by = current_user.email
         request.approved_at = datetime.utcnow()
+        
+        # Store approval data if provided
+        if approval_data:
+            request.approver_role = approval_data.get("role")
+            request.approver_full_name = approval_data.get("fullName")
+            request.budget_code = approval_data.get("budgetCode")
+            request.activity_code = approval_data.get("activityCode")
+            request.cost_center = approval_data.get("costCenter")
+            request.section = approval_data.get("section")
         
     elif action == "reject":
         request.status = "rejected"

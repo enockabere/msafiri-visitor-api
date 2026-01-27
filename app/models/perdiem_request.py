@@ -64,5 +64,13 @@ class PerdiemRequest(BaseModel):
     
     payment_reference = Column(String(255))
     
+    # Approval details
+    approver_role = Column(String(100))  # FinCo or Travel Admin
+    approver_full_name = Column(String(255))  # Full name of approver
+    budget_code = Column(String(100))  # Budget code
+    activity_code = Column(String(100))  # Activity code
+    cost_center = Column(String(100))  # Cost center
+    section = Column(String(50))  # OCA, OCB, OCBA, OCG, WACA
+    
     # Relationships
     participant = relationship("EventParticipant", back_populates="perdiem_requests")
