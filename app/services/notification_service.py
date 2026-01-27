@@ -1,7 +1,7 @@
 from typing import List
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.models.user_roles import UserRole as UserRoleModel, RoleType
+from app.models.user_roles import UserRole as UserRoleModel
 # Using existing notifications table structure
 from app.models.event import Event
 from app.core.email_service import email_service
@@ -23,8 +23,7 @@ def get_tenant_admins(db: Session, tenant_id: int) -> List[User]:
     # Get users with admin roles in relationship table
     admin_role_users = db.query(User).join(UserRoleModel).filter(
         User.tenant_id == str(tenant_id),
-        UserRoleModel.role.in_([RoleType.MT_ADMIN, RoleType.HR_ADMIN, RoleType.EVENT_ADMIN]),
-        UserRoleModel.is_active == True,
+        UserRoleModel.role.in_(['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN']),
         User.is_active == True
     ).all()
     
