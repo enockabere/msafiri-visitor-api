@@ -30,6 +30,7 @@ class PerdiemRequest(BaseModel):
     total_amount = Column(Numeric(10,2), nullable=False)
     status = Column(Enum(PerdiemStatus), default=PerdiemStatus.PENDING)
     justification = Column(Text)  # Why user adjusted days
+    event_type = Column(String(100))  # Event type (Meeting, Training, etc.)
     admin_notes = Column(Text)
     
     # Contact details
