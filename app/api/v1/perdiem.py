@@ -377,6 +377,40 @@ def submit_perdiem_request(
     
     return {"message": "Request submitted for approval", "status": perdiem_request.status}
 
+@router.post("/{request_id}/received")
+def mark_perdiem_received(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark a per diem request as received by the participant"""
+    
+    # Get the request
+    request = db.query(PerdiemRequest).filter(
+        PerdiemRequest.id == request_id,
+        PerdiemRequest.status == "issued"
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Issued request not found")
+    
+    # Get participant to verify ownership
+    from app.models.event_participant import EventParticipant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == request.participant_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=403, detail="Not authorized to mark this request as received")
+    
+    request.status = "completed"
+    
+    db.commit()
+    db.refresh(request)
+    
+    return {"message": "Per diem marked as received successfully"}
+
 def send_perdiem_approval_emails(request: PerdiemRequest, participant: EventParticipant, event: Event, db: Session):
     """Send email notifications for per diem approval request"""
     try:
