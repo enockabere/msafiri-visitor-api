@@ -628,12 +628,24 @@ async def issue_tenant_perdiem(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
-    # Check if user has finance admin role
+    # Check if user has finance admin role - check both user roles and tenant roles
     user_roles = []
     if hasattr(current_user, 'all_roles') and current_user.all_roles:
-        user_roles = current_user.all_roles
-    elif current_user.role:
-        user_roles = [current_user.role]
+        user_roles.extend(current_user.all_roles)
+    if current_user.role:
+        user_roles.append(str(current_user.role))
+    
+    # Also check UserTenant roles for this specific tenant
+    from app.models.user_tenants import UserTenant, UserTenantRole
+    tenant_role = db.query(UserTenant).filter(
+        UserTenant.user_id == current_user.id,
+        UserTenant.tenant_id == tenant.slug,
+        UserTenant.is_active == True,
+        UserTenant.role == UserTenantRole.FINANCE_ADMIN
+    ).first()
+    
+    if tenant_role:
+        user_roles.append('FINANCE_ADMIN')
     
     has_finance_access = any(str(role).upper() in ['FINANCE_ADMIN', 'SUPER_ADMIN'] for role in user_roles)
     if not has_finance_access:
