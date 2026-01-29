@@ -114,6 +114,8 @@ async def get_tenant_approved_requests(
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
+                "approved_by_name": request.approver_full_name,
+                "approved_by_email": request.approved_by,
                 "approved_at": request.approved_at.isoformat() if request.approved_at else None
             })
     
@@ -220,6 +222,8 @@ async def get_tenant_rejected_requests(
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "rejected_by": request.rejected_by,
+                "rejected_by_name": request.approver_full_name,
+                "rejected_by_email": request.rejected_by,
                 "rejected_at": request.rejected_at.isoformat() if request.rejected_at else None,
                 "rejection_reason": request.rejection_reason
             })
