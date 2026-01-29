@@ -30,24 +30,54 @@ def get_user_tenants(
             UserTenant.is_active == True
         ).all()
         
-        tenants = []
+        # Group tenants and collect all roles for each tenant
+        tenant_roles = {}
         for ut in user_tenants:
+            tenant_id = ut.tenant_id
+            if tenant_id not in tenant_roles:
+                tenant_roles[tenant_id] = {
+                    "tenant_id": tenant_id,
+                    "tenant_name": ut.tenant.name if ut.tenant else tenant_id,
+                    "roles": [],
+                    "is_active": ut.is_active,
+                    "is_primary": ut.is_primary
+                }
+            
+            # Add role if not already present
+            role_value = ut.role.value if ut.role else None
+            if role_value and role_value not in tenant_roles[tenant_id]["roles"]:
+                tenant_roles[tenant_id]["roles"].append(role_value)
+        
+        tenants = []
+        for tenant_data in tenant_roles.values():
+            # Set primary role as the first role, or use the first role available
+            primary_role = tenant_data["roles"][0] if tenant_data["roles"] else None
+            
             tenants.append({
-                "tenant_id": ut.tenant_id,
-                "tenant_name": ut.tenant.name if ut.tenant else ut.tenant_id,
-                "role": ut.role.value if ut.role else None,
-                "is_active": ut.is_active,
-                "is_primary": ut.is_primary
+                "tenant_id": tenant_data["tenant_id"],
+                "tenant_name": tenant_data["tenant_name"],
+                "role": primary_role,  # Keep for backward compatibility
+                "roles": tenant_data["roles"],  # All roles for this tenant
+                "is_active": tenant_data["is_active"],
+                "is_primary": tenant_data["is_primary"]
             })
         
         # If user has no tenant associations but has a primary tenant_id, include it
         if not tenants and current_user.tenant_id:
             tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
             if tenant:
+                # Include all user roles from session if available
+                user_roles = []
+                if hasattr(current_user, 'all_roles') and current_user.all_roles:
+                    user_roles = current_user.all_roles
+                elif current_user.role:
+                    user_roles = [current_user.role.value]
+                
                 tenants.append({
                     "tenant_id": tenant.slug,
                     "tenant_name": tenant.name,
                     "role": current_user.role.value if current_user.role else None,
+                    "roles": user_roles,
                     "is_active": True,
                     "is_primary": True
                 })
@@ -62,10 +92,18 @@ def get_user_tenants(
                 from app.models.tenant import Tenant
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
                 if tenant:
+                    # Include all user roles from session if available
+                    user_roles = []
+                    if hasattr(current_user, 'all_roles') and current_user.all_roles:
+                        user_roles = current_user.all_roles
+                    elif current_user.role:
+                        user_roles = [current_user.role.value]
+                    
                     return [{
                         "tenant_id": tenant.slug,
                         "tenant_name": tenant.name,
                         "role": current_user.role.value if current_user.role else None,
+                        "roles": user_roles,
                         "is_active": True,
                         "is_primary": True
                     }]
