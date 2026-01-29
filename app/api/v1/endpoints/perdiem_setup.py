@@ -55,18 +55,13 @@ def get_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Get per diem setup for current tenant"""
-    # Get tenant ID from tenant_id (which might be a slug)
-    tenant_id = current_user.tenant_id
-    
-    # If tenant_id is a string (slug), resolve it to numeric ID
-    if isinstance(tenant_id, str) and not tenant_id.isdigit():
-        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        tenant_id = tenant.id
+    # Always use oca-kenya tenant for per-diem setup
+    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     setup = db.query(PerDiemSetup).filter(
-        PerDiemSetup.tenant_id == tenant_id
+        PerDiemSetup.tenant_id == tenant.id
     ).first()
     
     if not setup:
@@ -83,26 +78,21 @@ def create_perdiem_setup(
     """Create per diem setup for current tenant"""
     check_finance_admin_role(current_user)
     
-    # Get tenant ID from tenant_id (which might be a slug)
-    tenant_id = current_user.tenant_id
-    
-    # If tenant_id is a string (slug), resolve it to numeric ID
-    if isinstance(tenant_id, str) and not tenant_id.isdigit():
-        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        tenant_id = tenant.id
+    # Always use oca-kenya tenant for per-diem setup
+    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     # Check if setup already exists
     existing_setup = db.query(PerDiemSetup).filter(
-        PerDiemSetup.tenant_id == tenant_id
+        PerDiemSetup.tenant_id == tenant.id
     ).first()
     
     if existing_setup:
         raise HTTPException(status_code=400, detail="Per diem setup already exists")
     
     setup = PerDiemSetup(
-        tenant_id=tenant_id,
+        tenant_id=tenant.id,
         daily_rate=Decimal(str(setup_data.daily_rate)),
         currency=setup_data.currency,
         modified_by=current_user.email or current_user.username,
@@ -125,19 +115,14 @@ def update_perdiem_setup(
     """Update per diem setup"""
     check_finance_admin_role(current_user)
     
-    # Get tenant ID from tenant_id (which might be a slug)
-    tenant_id = current_user.tenant_id
-    
-    # If tenant_id is a string (slug), resolve it to numeric ID
-    if isinstance(tenant_id, str) and not tenant_id.isdigit():
-        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        tenant_id = tenant.id
+    # Always use oca-kenya tenant for per-diem setup
+    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     setup = db.query(PerDiemSetup).filter(
         PerDiemSetup.id == setup_id,
-        PerDiemSetup.tenant_id == tenant_id
+        PerDiemSetup.tenant_id == tenant.id
     ).first()
     
     if not setup:
@@ -165,19 +150,14 @@ def delete_perdiem_setup(
     """Delete per diem setup"""
     check_finance_admin_role(current_user)
     
-    # Get tenant ID from tenant_id (which might be a slug)
-    tenant_id = current_user.tenant_id
-    
-    # If tenant_id is a string (slug), resolve it to numeric ID
-    if isinstance(tenant_id, str) and not tenant_id.isdigit():
-        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        tenant_id = tenant.id
+    # Always use oca-kenya tenant for per-diem setup
+    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     setup = db.query(PerDiemSetup).filter(
         PerDiemSetup.id == setup_id,
-        PerDiemSetup.tenant_id == tenant_id
+        PerDiemSetup.tenant_id == tenant.id
     ).first()
     
     if not setup:
