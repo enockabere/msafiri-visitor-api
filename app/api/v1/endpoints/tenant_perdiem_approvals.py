@@ -291,6 +291,7 @@ async def approve_tenant_perdiem(
 async def issue_tenant_perdiem(
     tenant_slug: str,
     request_id: int,
+    issue_data: dict,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -327,6 +328,16 @@ async def issue_tenant_perdiem(
     if not request:
         raise HTTPException(status_code=404, detail="Approved request not found")
     
+    # Update with daily rate, currency and calculate total
+    daily_rate = issue_data.get("daily_rate")
+    currency = issue_data.get("currency", "USD")
+    
+    if not daily_rate:
+        raise HTTPException(status_code=400, detail="Daily rate is required")
+    
+    request.daily_rate = daily_rate
+    request.currency = currency
+    request.total_amount = daily_rate * request.requested_days
     request.status = "issued"
     
     db.commit()
