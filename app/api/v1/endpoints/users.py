@@ -15,7 +15,7 @@ def read_user_me(
     """Get current user."""
     return current_user
 
-@router.get("/me/tenants")
+@router.get("/tenants")
 def get_user_tenants(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(deps.get_current_user),
@@ -30,12 +30,15 @@ def get_user_tenants(
             UserTenant.is_active == True
         ).all()
         
-        tenants = [{
-            "tenant_id": ut.tenant_id,
-            "tenant_name": ut.tenant.name if ut.tenant else ut.tenant_id,
-            "tenant_slug": ut.tenant.slug if ut.tenant else ut.tenant_id,
-            "role": ut.role.value if ut.role else None
-        } for ut in user_tenants]
+        tenants = []
+        for ut in user_tenants:
+            tenants.append({
+                "tenant_id": ut.tenant_id,
+                "tenant_name": ut.tenant.name if ut.tenant else ut.tenant_id,
+                "role": ut.role.value if ut.role else None,
+                "is_active": ut.is_active,
+                "is_primary": ut.is_primary
+            })
         
         # If user has no tenant associations but has a primary tenant_id, include it
         if not tenants and current_user.tenant_id:
@@ -44,29 +47,80 @@ def get_user_tenants(
                 tenants.append({
                     "tenant_id": tenant.slug,
                     "tenant_name": tenant.name,
-                    "tenant_slug": tenant.slug,
-                    "role": current_user.role.value
+                    "role": current_user.role.value if current_user.role else None,
+                    "is_active": True,
+                    "is_primary": True
                 })
         
-        return {"tenants": tenants}
+        return tenants
         
     except Exception as e:
+        print(f"Error fetching user tenants: {e}")
         # Fallback: return user's primary tenant if available
         if current_user.tenant_id:
             try:
                 from app.models.tenant import Tenant
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
                 if tenant:
-                    return {"tenants": [{
+                    return [{
                         "tenant_id": tenant.slug,
                         "tenant_name": tenant.name,
-                        "tenant_slug": tenant.slug,
-                        "role": current_user.role.value
-                    }]}
-            except:
-                pass
+                        "role": current_user.role.value if current_user.role else None,
+                        "is_active": True,
+                        "is_primary": True
+                    }]
+            except Exception as fallback_error:
+                print(f"Fallback error: {fallback_error}")
         
-        return {"tenants": []}
+        return []
+
+@router.post("/set-active-tenant/{tenant_id}")
+def set_active_tenant(
+    *,
+    db: Session = Depends(get_db),
+    tenant_id: str,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Set the active tenant for the current user session."""
+    try:
+        from app.models.user_tenants import UserTenant
+        from app.models.tenant import Tenant
+        
+        # Verify user has access to this tenant
+        user_tenant = db.query(UserTenant).filter(
+            UserTenant.user_id == current_user.id,
+            UserTenant.tenant_id == tenant_id,
+            UserTenant.is_active == True
+        ).first()
+        
+        # If no UserTenant record but user's primary tenant matches, allow it
+        if not user_tenant and current_user.tenant_id == tenant_id:
+            tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+            if not tenant:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Tenant not found"
+                )
+        elif not user_tenant:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this tenant"
+            )
+        
+        # Update user's active tenant
+        current_user.tenant_id = tenant_id
+        db.commit()
+        
+        return {"message": "Active tenant updated successfully", "tenant_id": tenant_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error setting active tenant: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to set active tenant"
+        )
 
 @router.post("/", response_model=schemas.User)
 def create_user(
