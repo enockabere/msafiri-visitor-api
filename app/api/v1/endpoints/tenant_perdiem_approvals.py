@@ -116,7 +116,12 @@ async def get_tenant_approved_requests(
                 "approved_by": request.approved_by,
                 "approved_by_name": request.approver_full_name,
                 "approved_by_email": request.approved_by,
-                "approved_at": request.approved_at.isoformat() if request.approved_at else None
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None,
+                "budget_code": request.budget_code,
+                "activity_code": request.activity_code,
+                "cost_center": request.cost_center,
+                "section": request.section,
+                "approver_role": request.approver_role
             })
     
     return result
@@ -488,7 +493,52 @@ async def send_perdiem_rejected_email(
     except Exception as e:
         print(f"Failed to send per diem rejection email: {e}")
 
-@router.post("/{tenant_slug}/per-diem-approvals/{request_id}/issue")
+@router.post("/{tenant_slug}/per-diem-approvals/{request_id}/cancel")
+async def cancel_tenant_perdiem_approval(
+    tenant_slug: str,
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel an approved per diem request (Per Diem Approver only)"""
+    
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get the request
+    request = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        PerdiemRequest.id == request_id,
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "approved"
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Approved request not found")
+    
+    if request.approved_by != current_user.email:
+        raise HTTPException(status_code=403, detail="Only the original approver can cancel this approval")
+    
+    # Reset to pending status
+    request.status = "pending_approval"
+    request.approved_by = None
+    request.approved_at = None
+    request.approver_role = None
+    request.approver_full_name = None
+    request.budget_code = None
+    request.activity_code = None
+    request.cost_center = None
+    request.section = None
+    
+    db.commit()
+    return {"message": "Approval cancelled successfully"}
+
+
 async def issue_tenant_perdiem(
     tenant_slug: str,
     request_id: int,
