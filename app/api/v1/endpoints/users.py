@@ -82,6 +82,21 @@ def get_user_tenants(
                     "is_primary": True
                 })
         
+        # If we have tenants but they don't include all session roles, merge them
+        elif tenants and hasattr(current_user, 'all_roles') and current_user.all_roles:
+            for tenant in tenants:
+                # Add any missing roles from session to each tenant
+                session_roles = current_user.all_roles if isinstance(current_user.all_roles, list) else []
+                existing_roles = tenant.get('roles', [])
+                
+                # Merge session roles with existing tenant roles
+                all_roles = list(set(existing_roles + session_roles))
+                tenant['roles'] = all_roles
+                
+                # Update primary role if needed
+                if not tenant.get('role') and all_roles:
+                    tenant['role'] = all_roles[0]
+        
         return tenants
         
     except Exception as e:
