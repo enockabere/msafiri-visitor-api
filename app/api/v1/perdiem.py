@@ -129,9 +129,14 @@ def get_participant_perdiem_requests(
     
     print(f"🔍 Found {len(requests)} per diem requests for participant {participant_id}")
     
+    # Add currency field to each request if not present
+    for request in requests:
+        if not hasattr(request, 'currency') or request.currency is None:
+            request.currency = 'KES'  # Default currency
+    
     if requests:
         for i, req in enumerate(requests):
-            print(f"🔍 Request {i+1}: ID={req.id}, Status={req.status}, Created={req.created_at}")
+            print(f"🔍 Request {i+1}: ID={req.id}, Status={req.status}, Currency={getattr(req, 'currency', 'KES')}, Created={req.created_at}")
     else:
         print(f"🔍 No requests found. Checking if participant exists...")
         participant = db.query(EventParticipant).filter(EventParticipant.id == participant_id).first()

@@ -836,7 +836,7 @@ async def mark_perdiem_received(
     if not participant:
         raise HTTPException(status_code=403, detail="Not authorized to mark this request as received")
     
-    request.status = "received"
+    request.status = "completed"
     
     db.commit()
     return {"message": "Per diem marked as received successfully"}
