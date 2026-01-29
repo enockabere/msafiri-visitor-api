@@ -4,6 +4,7 @@ from typing import Optional
 from app.db.database import get_db
 from app.models.perdiem_setup import PerDiemSetup
 from app.api.deps import get_current_user
+from app.models.tenant import Tenant
 from app.models.user import User
 from pydantic import BaseModel
 from decimal import Decimal
@@ -33,8 +34,18 @@ def get_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Get per diem setup for current tenant"""
+    # Get tenant ID from tenant_id (which might be a slug)
+    tenant_id = current_user.tenant_id
+    
+    # If tenant_id is a string (slug), resolve it to numeric ID
+    if isinstance(tenant_id, str) and not tenant_id.isdigit():
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
+    
     setup = db.query(PerDiemSetup).filter(
-        PerDiemSetup.tenant_id == current_user.tenant_id
+        PerDiemSetup.tenant_id == tenant_id
     ).first()
     
     if not setup:
@@ -49,16 +60,26 @@ def create_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Create per diem setup for current tenant"""
+    # Get tenant ID from tenant_id (which might be a slug)
+    tenant_id = current_user.tenant_id
+    
+    # If tenant_id is a string (slug), resolve it to numeric ID
+    if isinstance(tenant_id, str) and not tenant_id.isdigit():
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
+    
     # Check if setup already exists
     existing_setup = db.query(PerDiemSetup).filter(
-        PerDiemSetup.tenant_id == current_user.tenant_id
+        PerDiemSetup.tenant_id == tenant_id
     ).first()
     
     if existing_setup:
         raise HTTPException(status_code=400, detail="Per diem setup already exists")
     
     setup = PerDiemSetup(
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         daily_rate=Decimal(str(setup_data.daily_rate)),
         currency=setup_data.currency
     )
@@ -77,9 +98,19 @@ def update_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Update per diem setup"""
+    # Get tenant ID from tenant_id (which might be a slug)
+    tenant_id = current_user.tenant_id
+    
+    # If tenant_id is a string (slug), resolve it to numeric ID
+    if isinstance(tenant_id, str) and not tenant_id.isdigit():
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
+    
     setup = db.query(PerDiemSetup).filter(
         PerDiemSetup.id == setup_id,
-        PerDiemSetup.tenant_id == current_user.tenant_id
+        PerDiemSetup.tenant_id == tenant_id
     ).first()
     
     if not setup:
