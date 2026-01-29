@@ -6,14 +6,14 @@ from app.models.user import UserRole
 import enum
 
 class UserTenantRole(enum.Enum):
-    SUPER_ADMIN = "super_admin"
-    MT_ADMIN = "mt_admin"
-    HR_ADMIN = "hr_admin"
-    EVENT_ADMIN = "event_admin"
-    FINANCE_ADMIN = "finance_admin"
-    VISITOR = "visitor"
-    GUEST = "guest"
-    STAFF = "staff"
+    SUPER_ADMIN = "SUPER_ADMIN"
+    MT_ADMIN = "MT_ADMIN"
+    HR_ADMIN = "HR_ADMIN"
+    EVENT_ADMIN = "EVENT_ADMIN"
+    FINANCE_ADMIN = "FINANCE_ADMIN"
+    VISITOR = "VISITOR"
+    GUEST = "GUEST"
+    STAFF = "STAFF"
 
 class UserTenant(BaseModel):
     __tablename__ = "user_tenants"
