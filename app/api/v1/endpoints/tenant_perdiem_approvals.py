@@ -266,6 +266,10 @@ async def approve_tenant_perdiem(
     rejection_reason = action_data.get("rejection_reason")
     approval_data = action_data.get("approval_data")
     
+    # Get participant and event details for email
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+    
     if action == "approve":
         request.status = "approved"
         request.approved_by = current_user.email
@@ -280,6 +284,36 @@ async def approve_tenant_perdiem(
             request.cost_center = approval_data.get("costCenter")
             request.section = approval_data.get("section")
         
+        # Get per-diem setup for amount calculation
+        setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
+        daily_rate = float(setup.daily_rate) if setup else 0
+        currency = setup.currency if setup else "USD"
+        total_amount = daily_rate * request.requested_days
+        
+        # Send email to Finance Admin
+        if participant and event:
+            background_tasks.add_task(
+                send_perdiem_approved_email,
+                tenant_slug=tenant_slug,
+                participant_name=participant.full_name or participant.email,
+                participant_email=participant.email,
+                event_name=event.title,
+                event_location=getattr(event, 'location', 'TBD'),
+                event_dates=f"{event.start_date} to {event.end_date}",
+                requested_days=request.requested_days,
+                daily_rate=daily_rate,
+                currency=currency,
+                total_amount=total_amount,
+                purpose=request.purpose or request.justification or "Event participation",
+                approver_name=approval_data.get("fullName") if approval_data else current_user.email,
+                approver_email=current_user.email,
+                approver_role=approval_data.get("role", "Per Diem Approver") if approval_data else "Per Diem Approver",
+                budget_code=approval_data.get("budgetCode") if approval_data else "",
+                activity_code=approval_data.get("activityCode") if approval_data else "",
+                cost_center=approval_data.get("costCenter") if approval_data else "",
+                section=approval_data.get("section") if approval_data else ""
+            )
+        
     elif action == "reject":
         request.status = "rejected"
         request.rejected_by = current_user.email
@@ -291,6 +325,96 @@ async def approve_tenant_perdiem(
     
     db.commit()
     return {"message": f"Request {action}d successfully"}
+
+
+async def send_perdiem_approved_email(
+    tenant_slug: str,
+    participant_name: str,
+    participant_email: str,
+    event_name: str,
+    event_location: str,
+    event_dates: str,
+    requested_days: int,
+    daily_rate: float,
+    currency: str,
+    total_amount: float,
+    purpose: str,
+    approver_name: str,
+    approver_email: str,
+    approver_role: str,
+    budget_code: str,
+    activity_code: str,
+    cost_center: str,
+    section: str
+):
+    """Send email notification to Finance Admin when per diem is approved"""
+    try:
+        from app.core.email import send_email
+        
+        # Get Finance Admin emails (you may need to adjust this query based on your user model)
+        # For now, using a placeholder - you should implement proper Finance Admin lookup
+        finance_admin_emails = ["finance@msf.org"]  # Replace with actual Finance Admin lookup
+        
+        subject = "Per Diem Payment Authorization Required"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #d32f2f;">Per Diem Payment Authorization Required</h2>
+            
+            <p>Dear Finance Admin,</p>
+            
+            <p>A per diem request has been approved and requires payment authorization:</p>
+            
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #333;">Request Details</h3>
+                <p><strong>Participant:</strong> {participant_name}</p>
+                <p><strong>Email:</strong> {participant_email}</p>
+                <p><strong>Event:</strong> {event_name}</p>
+                <p><strong>Event Location:</strong> {event_location}</p>
+                <p><strong>Dates:</strong> {event_dates}</p>
+                <p><strong>Days:</strong> {requested_days}</p>
+                <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
+                <p><strong>Total Amount:</strong> {currency} {total_amount:,.2f}</p>
+                <p><strong>Purpose:</strong> {purpose}</p>
+            </div>
+            
+            <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #2e7d32;">Approval Details</h3>
+                <p><strong>Approved by:</strong> {approver_name}</p>
+                <p><strong>Approver Email:</strong> {approver_email}</p>
+                <p><strong>Confirmed Role:</strong> {approver_role}</p>
+                <p><strong>Budget Code:</strong> {budget_code}</p>
+                <p><strong>Activity Code:</strong> {activity_code}</p>
+                <p><strong>Cost Center:</strong> {cost_center}</p>
+                <p><strong>Section:</strong> {section}</p>
+            </div>
+            
+            <p>Please log in to the admin portal to issue the payment:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="https://admin.msafiri.com/tenant/{tenant_slug}/per-diem-approvals" 
+                   style="background-color: #d32f2f; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                    Login to Admin Portal to Issue Payment
+                </a>
+            </div>
+            
+            <p><em>Note: Use your Microsoft SSO credentials to login. You will need Finance Admin role to issue payments.</em></p>
+            
+            <p>Best regards,<br>MSafiri Team</p>
+        </div>
+        """
+        
+        # Send to Finance Admin, CC participant and approver
+        for finance_email in finance_admin_emails:
+            await send_email(
+                to_email=finance_email,
+                cc_emails=[participant_email, approver_email],
+                subject=subject,
+                html_content=html_content
+            )
+            
+    except Exception as e:
+        print(f"Failed to send per diem approved email: {e}")
 
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/issue")
 async def issue_tenant_perdiem(
