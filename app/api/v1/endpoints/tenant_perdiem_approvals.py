@@ -485,6 +485,7 @@ async def send_perdiem_approved_email(
             logger.info(f"Sending email to finance admin: {finance_email}, CC: {[participant_email, approver_email]}")
             success = email_service.send_email(
                 to_emails=[finance_email],
+                cc_emails=[participant_email, approver_email],
                 subject=subject,
                 html_content=html_content
             )
