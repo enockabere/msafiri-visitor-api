@@ -319,6 +319,21 @@ async def approve_tenant_perdiem(
         request.rejected_by = current_user.email
         request.rejected_at = datetime.utcnow()
         request.rejection_reason = rejection_reason
+        
+        # Send rejection email to participant
+        if participant and event:
+            background_tasks.add_task(
+                send_perdiem_rejected_email,
+                participant_name=participant.full_name or participant.email,
+                participant_email=participant.email,
+                event_name=event.title,
+                event_location=getattr(event, 'location', 'TBD'),
+                event_dates=f"{event.start_date} to {event.end_date}",
+                requested_days=request.requested_days,
+                purpose=request.purpose or request.justification or "Event participation",
+                rejection_reason=rejection_reason,
+                rejected_by=current_user.email
+            )
     
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
@@ -413,8 +428,62 @@ async def send_perdiem_approved_email(
                 html_content=html_content
             )
             
+async def send_perdiem_rejected_email(
+    participant_name: str,
+    participant_email: str,
+    event_name: str,
+    event_location: str,
+    event_dates: str,
+    requested_days: int,
+    purpose: str,
+    rejection_reason: str,
+    rejected_by: str
+):
+    """Send email notification to participant when per diem is rejected"""
+    try:
+        from app.core.email import send_email
+        
+        subject = "Per Diem Request Rejected"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #d32f2f;">Per Diem Request Rejected</h2>
+            
+            <p>Dear {participant_name},</p>
+            
+            <p>Unfortunately, your per diem request has been rejected:</p>
+            
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #333;">Request Details</h3>
+                <p><strong>Event:</strong> {event_name}</p>
+                <p><strong>Event Location:</strong> {event_location}</p>
+                <p><strong>Dates:</strong> {event_dates}</p>
+                <p><strong>Days:</strong> {requested_days}</p>
+                <p><strong>Purpose:</strong> {purpose}</p>
+            </div>
+            
+            <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #d32f2f;">
+                <h3 style="margin-top: 0; color: #d32f2f;">Reason for Rejection</h3>
+                <p style="font-style: italic; color: #666;">"{rejection_reason}"</p>
+                <p><strong>Rejected by:</strong> {rejected_by}</p>
+            </div>
+            
+            <p>If you have any questions about this decision or would like to discuss the rejection, please contact the approver directly.</p>
+            
+            <p>You may submit a new per diem request if the issues mentioned in the rejection reason are addressed.</p>
+            
+            <p>Best regards,<br>MSafiri Team</p>
+        </div>
+        """
+        
+        await send_email(
+            to_email=participant_email,
+            subject=subject,
+            html_content=html_content
+        )
+            
     except Exception as e:
-        print(f"Failed to send per diem approved email: {e}")
+        print(f"Failed to send per diem rejection email: {e}")
 
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/issue")
 async def issue_tenant_perdiem(
