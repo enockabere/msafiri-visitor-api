@@ -393,34 +393,72 @@ def accept_invitation(
         existing_user = crud.user.get_by_email(db, email=invitation.email)
         
         if existing_user:
-            # Add new role to existing user
+            # Add user to new tenant
             logger.info(f"🔄 Adding role to existing user: {invitation.email}")
             from app.models.user_roles import UserRole as UserRoleModel
+            from app.models.user_tenants import UserTenant
             
             # Use original role names
             role_value = invitation.role.lower()
             
-            # Skip checking if role exists, just add it
-            # Remove Guest role if user is getting a real role
-            if role_value != "guest":
-                guest_roles = db.query(UserRoleModel).filter(
-                    UserRoleModel.user_id == existing_user.id,
-                    UserRoleModel.role == "GUEST"
-                ).all()
-                for guest_role in guest_roles:
-                    db.delete(guest_role)
+            # Check if user already has this role
+            existing_role = db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == existing_user.id,
+                UserRoleModel.role == role_value.upper()
+            ).first()
             
-            # Add new role
-            new_role = UserRoleModel(
-                user_id=existing_user.id,
-                role=role_value.upper()
-            )
-            db.add(new_role)
-            logger.info(f"➕ Added role {role_value} to user {invitation.email}")
+            if not existing_role:
+                # Remove Guest role if user is getting a real role
+                if role_value != "guest":
+                    guest_roles = db.query(UserRoleModel).filter(
+                        UserRoleModel.user_id == existing_user.id,
+                        UserRoleModel.role == "GUEST"
+                    ).all()
+                    for guest_role in guest_roles:
+                        db.delete(guest_role)
                 
-            # Update tenant if different
-            if existing_user.tenant_id != invitation.tenant_id:
-                existing_user.tenant_id = invitation.tenant_id
+                # Add new role
+                new_role = UserRoleModel(
+                    user_id=existing_user.id,
+                    role=role_value.upper()
+                )
+                db.add(new_role)
+                logger.info(f"➕ Added role {role_value} to user {invitation.email}")
+            else:
+                logger.info(f"ℹ️ User {invitation.email} already has role {role_value}")
+            
+            # Add user to tenant if not already there
+            existing_tenant_assignment = db.query(UserTenant).filter(
+                UserTenant.user_id == existing_user.id,
+                UserTenant.tenant_id == invitation.tenant_id
+            ).first()
+            
+            if not existing_tenant_assignment:
+                # Map invitation role to UserTenant role
+                from app.models.user_tenants import UserTenantRole
+                tenant_role_map = {
+                    "finance_admin": UserTenantRole.FINANCE_ADMIN,
+                    "hr_admin": UserTenantRole.HR_ADMIN,
+                    "event_admin": UserTenantRole.EVENT_ADMIN,
+                    "mt_admin": UserTenantRole.MT_ADMIN,
+                    "staff": UserTenantRole.STAFF,
+                    "guest": UserTenantRole.GUEST
+                }
+                
+                tenant_role = tenant_role_map.get(role_value, UserTenantRole.STAFF)
+                
+                user_tenant = UserTenant(
+                    user_id=existing_user.id,
+                    tenant_id=invitation.tenant_id,
+                    role=tenant_role,
+                    is_active=True,
+                    assigned_by=invitation.invited_by
+                )
+                db.add(user_tenant)
+                logger.info(f"➕ Added user {invitation.email} to tenant {invitation.tenant_id} with role {tenant_role}")
+            else:
+                logger.info(f"ℹ️ User {invitation.email} already assigned to tenant {invitation.tenant_id}")
+                
             existing_user.is_active = True
         else:
             # Create new user account

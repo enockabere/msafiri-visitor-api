@@ -10,6 +10,7 @@ class UserTenantRole(enum.Enum):
     MT_ADMIN = "mt_admin"
     HR_ADMIN = "hr_admin"
     EVENT_ADMIN = "event_admin"
+    FINANCE_ADMIN = "finance_admin"
     VISITOR = "visitor"
     GUEST = "guest"
     STAFF = "staff"
