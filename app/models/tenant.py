@@ -51,3 +51,4 @@ class Tenant(BaseModel):
     certificate_templates = relationship("CertificateTemplate", back_populates="tenant")
     invitation_templates = relationship("InvitationTemplate", back_populates="tenant")
     badge_templates = relationship("BadgeTemplate", back_populates="tenant")
+    perdiem_setup = relationship("PerDiemSetup", back_populates="tenant", uselist=False)

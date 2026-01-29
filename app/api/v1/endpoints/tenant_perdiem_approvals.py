@@ -4,6 +4,7 @@ from app.db.database import get_db
 from app.models.perdiem_request import PerdiemRequest, PerdiemStatus
 from app.models.event import Event
 from app.models.tenant import Tenant
+from app.models.perdiem_setup import PerDiemSetup
 from app.models.user import User
 from app.models.event_participant import EventParticipant
 from app.schemas.perdiem_request import PerdiemApprovalAction
@@ -332,8 +333,14 @@ async def issue_tenant_perdiem(
     daily_rate = issue_data.get("daily_rate")
     currency = issue_data.get("currency", "USD")
     
+    # If no daily rate provided, try to get from tenant setup
     if not daily_rate:
-        raise HTTPException(status_code=400, detail="Daily rate is required")
+        setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
+        if setup:
+            daily_rate = float(setup.daily_rate)
+            currency = setup.currency
+        else:
+            raise HTTPException(status_code=400, detail="Daily rate is required or setup per diem configuration")
     
     request.daily_rate = daily_rate
     request.currency = currency

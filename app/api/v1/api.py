@@ -127,6 +127,14 @@ api_router.include_router(
     tags=["perdiem-check"]
 )
 
+# Per diem setup
+from app.api.v1.endpoints import perdiem_setup
+api_router.include_router(
+    perdiem_setup.router,
+    prefix="",
+    tags=["per-diem-setup"]
+)
+
 # Tenant-specific per diem approvals
 from app.api.v1.endpoints import tenant_perdiem_approvals
 api_router.include_router(
