@@ -184,7 +184,42 @@ def resend_invitation(
     
     return {"message": "Invitation resent successfully"}
 
-@router.get("/debug/{token}", response_model=dict)
+@router.get("/check-pending/{email}", response_model=List[dict])
+def check_pending_invitations(
+    *,
+    db: Session = Depends(get_db),
+    email: str
+) -> Any:
+    """Check for pending invitations for an email address."""
+    logger.info(f"🔍 Checking pending invitations for: {email}")
+    
+    try:
+        # Find all pending invitations for this email
+        invitations = db.query(Invitation).filter(
+            Invitation.email == email,
+            Invitation.is_accepted == "false",
+            Invitation.expires_at > datetime.utcnow()
+        ).all()
+        
+        result = []
+        for invitation in invitations:
+            result.append({
+                "id": invitation.id,
+                "email": invitation.email,
+                "tenant_id": invitation.tenant_id,
+                "role": invitation.role,
+                "token": invitation.token,
+                "expires_at": invitation.expires_at.isoformat()
+            })
+        
+        logger.info(f"✅ Found {len(result)} pending invitations for {email}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"💥 Error checking pending invitations: {str(e)}")
+        return []
+
+
 def debug_invitation(
     *,
     db: Session = Depends(get_db),
