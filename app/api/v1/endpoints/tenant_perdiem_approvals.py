@@ -289,11 +289,16 @@ async def approve_tenant_perdiem(
             request.cost_center = approval_data.get("costCenter")
             request.section = approval_data.get("section")
         
-        # Get per-diem setup for amount calculation
+        # Get per-diem setup for amount calculation and lock in the rates
         setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
         daily_rate = float(setup.daily_rate) if setup else 0
         currency = setup.currency if setup else "USD"
         total_amount = daily_rate * request.requested_days
+        
+        # Lock in the rates at approval time so they don't change later
+        request.daily_rate = daily_rate
+        request.currency = currency
+        request.total_amount = total_amount
         
         # Send email to Finance Admin
         if participant and event:
@@ -634,18 +639,30 @@ async def issue_tenant_perdiem(
     daily_rate = issue_data.get("daily_rate")
     currency = issue_data.get("currency", "USD")
     
-    # If no daily rate provided, try to get from tenant setup
+    # If no daily rate provided, use the rate that was set during approval
+    # Don't recalculate with current setup to preserve approved amounts
     if not daily_rate:
-        setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
-        if setup:
-            daily_rate = float(setup.daily_rate)
-            currency = setup.currency
+        if request.daily_rate and request.currency:
+            # Use the rate that was already set during approval
+            daily_rate = float(request.daily_rate)
+            currency = request.currency
         else:
-            raise HTTPException(status_code=400, detail="Daily rate is required or setup per diem configuration")
+            # Fallback to current setup only if no rate was previously set
+            setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
+            if setup:
+                daily_rate = float(setup.daily_rate)
+                currency = setup.currency
+            else:
+                raise HTTPException(status_code=400, detail="Daily rate is required or setup per diem configuration")
     
-    request.daily_rate = daily_rate
-    request.currency = currency
-    request.total_amount = daily_rate * request.requested_days
+    # Only update if values weren't already set during approval
+    if not request.daily_rate:
+        request.daily_rate = daily_rate
+    if not request.currency:
+        request.currency = currency
+    if not request.total_amount:
+        request.total_amount = float(request.daily_rate) * request.requested_days
+    
     request.status = "issued"
     
     db.commit()
