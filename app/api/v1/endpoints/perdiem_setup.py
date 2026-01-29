@@ -105,7 +105,8 @@ def create_perdiem_setup(
         tenant_id=tenant_id,
         daily_rate=Decimal(str(setup_data.daily_rate)),
         currency=setup_data.currency,
-        modified_by=current_user.email or current_user.username
+        modified_by=current_user.email or current_user.username,
+        updated_at=datetime.utcnow()
     )
     
     db.add(setup)
@@ -148,6 +149,7 @@ def update_perdiem_setup(
         setup.currency = setup_data.currency
     
     setup.modified_by = current_user.email or current_user.username
+    setup.updated_at = datetime.utcnow()
     
     db.commit()
     db.refresh(setup)
