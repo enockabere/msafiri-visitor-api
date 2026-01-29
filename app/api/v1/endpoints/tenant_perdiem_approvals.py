@@ -635,7 +635,7 @@ async def issue_tenant_perdiem(
     elif current_user.role:
         user_roles = [current_user.role]
     
-    has_finance_access = any(role.upper() in ['FINANCE_ADMIN', 'SUPER_ADMIN'] for role in user_roles)
+    has_finance_access = any(str(role).upper() in ['FINANCE_ADMIN', 'SUPER_ADMIN'] for role in user_roles)
     if not has_finance_access:
         raise HTTPException(status_code=403, detail="Only Finance Admin can issue per diem payments")
     
