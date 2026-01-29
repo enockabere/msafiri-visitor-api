@@ -316,7 +316,8 @@ async def approve_tenant_perdiem(
                 budget_code=approval_data.get("budgetCode") if approval_data else "",
                 activity_code=approval_data.get("activityCode") if approval_data else "",
                 cost_center=approval_data.get("costCenter") if approval_data else "",
-                section=approval_data.get("section") if approval_data else ""
+                section=approval_data.get("section") if approval_data else "",
+                db=db
             )
         
     elif action == "reject":
@@ -365,7 +366,8 @@ async def send_perdiem_approved_email(
     budget_code: str,
     activity_code: str,
     cost_center: str,
-    section: str
+    section: str,
+    db: Session
 ):
     """Send email notification to Finance Admin when per diem is approved"""
     import logging
@@ -374,11 +376,36 @@ async def send_perdiem_approved_email(
     try:
         from app.core.email_service import email_service
         
+        # Get tenant for database lookup
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+        if not tenant:
+            logger.error(f"Tenant {tenant_slug} not found for email lookup")
+            print(f"Email not sent: Tenant {tenant_slug} not found")
+            return
+        
         logger.info(f"Starting to send per diem approved email for participant: {participant_email}")
         
-        # Get Finance Admin emails (you may need to adjust this query based on your user model)
-        # For now, using a placeholder - you should implement proper Finance Admin lookup
-        finance_admin_emails = ["finance@msf.org"]  # Replace with actual Finance Admin lookup
+        # Get actual Finance Admin users for this tenant
+        from app.models.user_tenants import UserTenant
+        finance_admins = db.query(User).join(
+            UserTenant, User.id == UserTenant.user_id
+        ).filter(
+            UserTenant.tenant_id == tenant.slug,
+            UserTenant.is_active == True,
+            User.role.in_(['FINANCE_ADMIN', 'finance_admin'])
+        ).all()
+        
+        if not finance_admins:
+            logger.warning(f"No Finance Admin users found for tenant {tenant_slug}. Email not sent.")
+            print(f"Email not sent: No Finance Admin users found for tenant {tenant_slug}")
+            return
+        
+        finance_admin_emails = [admin.email for admin in finance_admins if admin.email]
+        
+        if not finance_admin_emails:
+            logger.warning(f"No valid Finance Admin email addresses found for tenant {tenant_slug}. Email not sent.")
+            print(f"Email not sent: No valid Finance Admin email addresses found for tenant {tenant_slug}")
+            return
         
         logger.info(f"Finance admin emails: {finance_admin_emails}")
         
