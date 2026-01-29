@@ -394,8 +394,21 @@ async def send_perdiem_approved_email(
         
         logger.info(f"Starting to send per diem approved email for participant: {participant_email}")
         
+        logger.info(f"Looking for Finance Admin users for tenant: {tenant_slug} (slug: {tenant.slug})")
+        
         # Get actual Finance Admin users for this tenant using UserTenant roles
         from app.models.user_tenants import UserTenant, UserTenantRole
+        
+        # Debug: Check all users for this tenant
+        all_tenant_users = db.query(User, UserTenant.role).join(
+            UserTenant, User.id == UserTenant.user_id
+        ).filter(
+            UserTenant.tenant_id == tenant.slug,
+            UserTenant.is_active == True
+        ).all()
+        
+        logger.info(f"All active users for tenant {tenant.slug}: {[(user.email, role.value) for user, role in all_tenant_users]}")
+        
         finance_admins = db.query(User).join(
             UserTenant, User.id == UserTenant.user_id
         ).filter(
