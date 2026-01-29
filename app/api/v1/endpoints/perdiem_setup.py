@@ -8,6 +8,7 @@ from app.models.tenant import Tenant
 from app.models.user import User
 from pydantic import BaseModel
 from decimal import Decimal
+from datetime import datetime
 
 router = APIRouter()
 
@@ -24,9 +25,27 @@ class PerDiemSetupResponse(BaseModel):
     tenant_id: int
     daily_rate: float
     currency: str
+    modified_by: Optional[str] = None
+    updated_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
+
+def check_finance_admin_role(current_user: User):
+    """Check if user has Finance Admin role"""
+    user_roles = getattr(current_user, 'roles', [])
+    role_names = [role.role for role in user_roles] if user_roles else []
+    
+    if current_user.role:
+        role_names.append(current_user.role)
+    
+    is_finance_admin = any(role in ['FINANCE_ADMIN', 'finance_admin'] for role in role_names)
+    
+    if not is_finance_admin:
+        raise HTTPException(
+            status_code=403, 
+            detail="Only Finance Admin users can modify per diem setup"
+        )
 
 @router.get("/per-diem-setup", response_model=PerDiemSetupResponse)
 def get_perdiem_setup(
@@ -60,6 +79,8 @@ def create_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Create per diem setup for current tenant"""
+    check_finance_admin_role(current_user)
+    
     # Get tenant ID from tenant_id (which might be a slug)
     tenant_id = current_user.tenant_id
     
@@ -81,7 +102,8 @@ def create_perdiem_setup(
     setup = PerDiemSetup(
         tenant_id=tenant_id,
         daily_rate=Decimal(str(setup_data.daily_rate)),
-        currency=setup_data.currency
+        currency=setup_data.currency,
+        modified_by=current_user.email or current_user.username
     )
     
     db.add(setup)
@@ -98,6 +120,8 @@ def update_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Update per diem setup"""
+    check_finance_admin_role(current_user)
+    
     # Get tenant ID from tenant_id (which might be a slug)
     tenant_id = current_user.tenant_id
     
@@ -121,6 +145,8 @@ def update_perdiem_setup(
     if setup_data.currency is not None:
         setup.currency = setup_data.currency
     
+    setup.modified_by = current_user.email or current_user.username
+    
     db.commit()
     db.refresh(setup)
     
@@ -133,6 +159,8 @@ def delete_perdiem_setup(
     current_user: User = Depends(get_current_user)
 ):
     """Delete per diem setup"""
+    check_finance_admin_role(current_user)
+    
     # Get tenant ID from tenant_id (which might be a slug)
     tenant_id = current_user.tenant_id
     

@@ -8,6 +8,7 @@ class PerDiemSetup(BaseModel):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     daily_rate = Column(Numeric(10,2), nullable=False)
     currency = Column(String(10), nullable=False, default="USD")
+    modified_by = Column(String(255), nullable=True)
     
     # Relationships
     tenant = relationship("Tenant", back_populates="perdiem_setup")
