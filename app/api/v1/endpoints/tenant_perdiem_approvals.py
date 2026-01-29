@@ -177,7 +177,14 @@ async def get_tenant_issued_requests(
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
-                "approved_at": request.approved_at.isoformat() if request.approved_at else None
+                "approved_by_name": request.approver_full_name,
+                "approved_by_email": request.approved_by,
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None,
+                "budget_code": request.budget_code,
+                "activity_code": request.activity_code,
+                "cost_center": request.cost_center,
+                "section": request.section,
+                "approver_role": request.approver_role
             })
     
     return result
