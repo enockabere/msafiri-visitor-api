@@ -476,8 +476,10 @@ def accept_invitation(
                     "hr_admin": UserTenantRole.HR_ADMIN,
                     "event_admin": UserTenantRole.EVENT_ADMIN,
                     "mt_admin": UserTenantRole.MT_ADMIN,
+                    "super_admin": UserTenantRole.SUPER_ADMIN,
                     "staff": UserTenantRole.STAFF,
-                    "guest": UserTenantRole.GUEST
+                    "guest": UserTenantRole.GUEST,
+                    "visitor": UserTenantRole.VISITOR
                 }
                 
                 tenant_role = tenant_role_map.get(role_value, UserTenantRole.STAFF)
