@@ -573,6 +573,86 @@ async def send_perdiem_rejected_email(
         logger.error(f"Failed to send per diem rejection email: {e}", exc_info=True)
         print(f"Failed to send per diem rejection email: {e}")
 
+async def send_perdiem_issued_email(
+    tenant_slug: str,
+    participant_name: str,
+    participant_email: str,
+    event_name: str,
+    event_location: str,
+    event_dates: str,
+    requested_days: int,
+    daily_rate: float,
+    currency: str,
+    total_amount: float,
+    purpose: str,
+    approver_name: str,
+    approver_email: str,
+    finance_admin_email: str,
+    db: Session
+):
+    """Send email notification when per diem is issued"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from app.core.email_service import email_service
+        
+        logger.info(f"Starting to send per diem issued email to participant: {participant_email}")
+        
+        subject = "Per Diem Payment Issued"
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #059669;">Per Diem Payment Issued</h2>
+            
+            <p>Dear {participant_name},</p>
+            
+            <p>Great news! Your per diem payment has been issued:</p>
+            
+            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
+                <h3 style="margin-top: 0; color: #059669;">Payment Details</h3>
+                <p><strong>Event:</strong> {event_name}</p>
+                <p><strong>Event Location:</strong> {event_location}</p>
+                <p><strong>Dates:</strong> {event_dates}</p>
+                <p><strong>Days:</strong> {requested_days}</p>
+                <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
+                <p><strong>Total Amount:</strong> <span style="color: #059669; font-size: 18px; font-weight: bold;">{currency} {total_amount:,.2f}</span></p>
+                <p><strong>Purpose:</strong> {purpose}</p>
+            </div>
+            
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #333;">Processing Information</h3>
+                <p><strong>Approved by:</strong> {approver_name}</p>
+                <p><strong>Issued by:</strong> Finance Admin</p>
+            </div>
+            
+            <p>The payment will be processed according to your organization's standard procedures. Please contact your Finance Admin if you have any questions about the payment timeline.</p>
+            
+            <p>Best regards,<br>MSafiri Team</p>
+        </div>
+        """
+        
+        # Get CC recipients (Finance Admin and Per Diem Approver)
+        cc_emails = [finance_admin_email]
+        if approver_email and approver_email != finance_admin_email:
+            cc_emails.append(approver_email)
+        
+        logger.info(f"Sending issued email to: {participant_email}, CC: {cc_emails}")
+        success = email_service.send_email(
+            to_emails=[participant_email],
+            cc_emails=cc_emails,
+            subject=subject,
+            html_content=html_content
+        )
+        if success:
+            logger.info(f"Issued email sent successfully to {participant_email}")
+        else:
+            logger.error(f"Failed to send issued email to {participant_email}")
+            
+    except Exception as e:
+        logger.error(f"Failed to send per diem issued email: {e}", exc_info=True)
+        print(f"Failed to send per diem issued email: {e}")
+
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/cancel")
 async def cancel_tenant_perdiem_approval(
     tenant_slug: str,
@@ -701,6 +781,31 @@ async def issue_tenant_perdiem(
         request.total_amount = float(request.daily_rate) * request.requested_days
     
     request.status = "issued"
+    
+    # Get participant and event details for email
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+    
+    # Send email notification
+    if participant and event:
+        background_tasks.add_task(
+            send_perdiem_issued_email,
+            tenant_slug=tenant_slug,
+            participant_name=participant.full_name or participant.email,
+            participant_email=participant.email,
+            event_name=event.title,
+            event_location=getattr(event, 'location', 'TBD'),
+            event_dates=f"{event.start_date} to {event.end_date}",
+            requested_days=request.requested_days,
+            daily_rate=float(request.daily_rate),
+            currency=request.currency,
+            total_amount=float(request.total_amount),
+            purpose=request.purpose or request.justification or "Event participation",
+            approver_name=request.approver_full_name or request.approved_by,
+            approver_email=request.approved_by,
+            finance_admin_email=current_user.email,
+            db=db
+        )
     
     db.commit()
     return {"message": "Per diem issued successfully"}
