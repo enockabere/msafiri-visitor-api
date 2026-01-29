@@ -372,7 +372,7 @@ async def send_perdiem_approved_email(
     logger = logging.getLogger(__name__)
     
     try:
-        from app.core.email import send_email
+        from app.core.email_service import email_service
         
         logger.info(f"Starting to send per diem approved email for participant: {participant_email}")
         
@@ -434,13 +434,15 @@ async def send_perdiem_approved_email(
         # Send to Finance Admin, CC participant and approver
         for finance_email in finance_admin_emails:
             logger.info(f"Sending email to finance admin: {finance_email}, CC: {[participant_email, approver_email]}")
-            await send_email(
-                to_email=finance_email,
-                cc_emails=[participant_email, approver_email],
+            success = email_service.send_email(
+                to_emails=[finance_email],
                 subject=subject,
                 html_content=html_content
             )
-            logger.info(f"Email sent successfully to {finance_email}")
+            if success:
+                logger.info(f"Email sent successfully to {finance_email}")
+            else:
+                logger.error(f"Failed to send email to {finance_email}")
             
     except Exception as e:
         logger.error(f"Failed to send per diem approved email: {e}", exc_info=True)
@@ -462,7 +464,7 @@ async def send_perdiem_rejected_email(
     logger = logging.getLogger(__name__)
     
     try:
-        from app.core.email import send_email
+        from app.core.email_service import email_service
         
         logger.info(f"Starting to send per diem rejection email to participant: {participant_email}")
         
@@ -500,12 +502,15 @@ async def send_perdiem_rejected_email(
         """
         
         logger.info(f"Sending rejection email to: {participant_email}")
-        await send_email(
-            to_email=participant_email,
+        success = email_service.send_email(
+            to_emails=[participant_email],
             subject=subject,
             html_content=html_content
         )
-        logger.info(f"Rejection email sent successfully to {participant_email}")
+        if success:
+            logger.info(f"Rejection email sent successfully to {participant_email}")
+        else:
+            logger.error(f"Failed to send rejection email to {participant_email}")
             
     except Exception as e:
         logger.error(f"Failed to send per diem rejection email: {e}", exc_info=True)
@@ -557,6 +562,7 @@ async def cancel_tenant_perdiem_approval(
     return {"message": "Approval cancelled successfully"}
 
 
+@router.post("/{tenant_slug}/per-diem-approvals/{request_id}/issue")
 async def issue_tenant_perdiem(
     tenant_slug: str,
     request_id: int,
