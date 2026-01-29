@@ -1,7 +1,7 @@
 from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from jose import jwt, JWTError
 from app.db.database import get_db
 from app.core.config import settings
@@ -36,7 +36,7 @@ def get_current_user(
     token_data = TokenData(email=email, tenant_id=tenant_id)
     
     # First, try to find user by email only
-    user = db.query(User).filter(User.email == token_data.email).first()
+    user = db.query(User).options(joinedload(User.user_roles)).filter(User.email == token_data.email).first()
     
     if user is None:
         raise credentials_exception
@@ -87,7 +87,7 @@ def get_current_user_allow_expired(
     token_data = TokenData(email=email, tenant_id=tenant_id)
 
     # Find user by email
-    user = db.query(User).filter(User.email == token_data.email).first()
+    user = db.query(User).options(joinedload(User.user_roles)).filter(User.email == token_data.email).first()
 
     if user is None:
         raise credentials_exception

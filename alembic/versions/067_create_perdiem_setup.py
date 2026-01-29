@@ -22,6 +22,7 @@ def upgrade():
         sa.Column('tenant_id', sa.Integer(), nullable=False),
         sa.Column('daily_rate', sa.Numeric(precision=10, scale=2), nullable=False),
         sa.Column('currency', sa.String(length=10), nullable=False),
+        sa.Column('modified_by', sa.String(255), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),

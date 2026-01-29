@@ -33,11 +33,13 @@ class PerDiemSetupResponse(BaseModel):
 
 def check_finance_admin_role(current_user: User):
     """Check if user has Finance Admin role"""
-    user_roles = getattr(current_user, 'roles', [])
-    role_names = [role.role for role in user_roles] if user_roles else []
+    # Check primary role
+    if current_user.role and current_user.role.value in ['FINANCE_ADMIN', 'finance_admin']:
+        return
     
-    if current_user.role:
-        role_names.append(current_user.role)
+    # Check user_roles relationship
+    user_roles = getattr(current_user, 'user_roles', [])
+    role_names = [role.role for role in user_roles] if user_roles else []
     
     is_finance_admin = any(role in ['FINANCE_ADMIN', 'finance_admin'] for role in role_names)
     
