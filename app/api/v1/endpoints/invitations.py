@@ -483,11 +483,12 @@ def accept_invitation(
                 }
                 
                 tenant_role = tenant_role_map.get(role_value, UserTenantRole.STAFF)
+                logger.info(f"🔍 DEBUG: role_value={role_value}, tenant_role={tenant_role}, tenant_role.value={tenant_role.value}")
                 
                 user_tenant = UserTenant(
                     user_id=existing_user.id,
                     tenant_id=invitation.tenant_id,
-                    role=tenant_role,
+                    role=tenant_role,  # This is already the enum object
                     is_active=True,
                     assigned_by=invitation.invited_by
                 )
