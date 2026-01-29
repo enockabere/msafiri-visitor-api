@@ -49,14 +49,15 @@ def check_finance_admin_role(current_user: User):
             detail="Only Finance Admin users can modify per diem setup"
         )
 
-@router.get("/per-diem-setup", response_model=PerDiemSetupResponse)
+@router.get("/{tenant_slug}/per-diem-setup", response_model=PerDiemSetupResponse)
 def get_perdiem_setup(
+    tenant_slug: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get per diem setup for current tenant"""
-    # Always use oca-kenya tenant for per-diem setup
-    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    """Get per diem setup for specified tenant"""
+    # Use tenant slug from URL path
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
@@ -69,17 +70,18 @@ def get_perdiem_setup(
     
     return setup
 
-@router.post("/per-diem-setup", response_model=PerDiemSetupResponse)
+@router.post("/{tenant_slug}/per-diem-setup", response_model=PerDiemSetupResponse)
 def create_perdiem_setup(
+    tenant_slug: str,
     setup_data: PerDiemSetupCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create per diem setup for current tenant"""
+    """Create per diem setup for specified tenant"""
     check_finance_admin_role(current_user)
     
-    # Always use oca-kenya tenant for per-diem setup
-    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    # Use tenant slug from URL path
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
@@ -105,8 +107,9 @@ def create_perdiem_setup(
     
     return setup
 
-@router.put("/per-diem-setup/{setup_id}", response_model=PerDiemSetupResponse)
+@router.put("/{tenant_slug}/per-diem-setup/{setup_id}", response_model=PerDiemSetupResponse)
 def update_perdiem_setup(
+    tenant_slug: str,
     setup_id: int,
     setup_data: PerDiemSetupUpdate,
     db: Session = Depends(get_db),
@@ -115,8 +118,8 @@ def update_perdiem_setup(
     """Update per diem setup"""
     check_finance_admin_role(current_user)
     
-    # Always use oca-kenya tenant for per-diem setup
-    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    # Use tenant slug from URL path
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
@@ -141,8 +144,9 @@ def update_perdiem_setup(
     
     return setup
 
-@router.delete("/per-diem-setup/{setup_id}")
+@router.delete("/{tenant_slug}/per-diem-setup/{setup_id}")
 def delete_perdiem_setup(
+    tenant_slug: str,
     setup_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -150,8 +154,8 @@ def delete_perdiem_setup(
     """Delete per diem setup"""
     check_finance_admin_role(current_user)
     
-    # Always use oca-kenya tenant for per-diem setup
-    tenant = db.query(Tenant).filter(Tenant.slug == "oca-kenya").first()
+    # Use tenant slug from URL path
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     
