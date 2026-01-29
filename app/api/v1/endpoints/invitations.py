@@ -488,7 +488,7 @@ def accept_invitation(
                 user_tenant = UserTenant(
                     user_id=existing_user.id,
                     tenant_id=invitation.tenant_id,
-                    role=tenant_role,  # This is already the enum object
+                    role=tenant_role.value,  # Use the enum value directly
                     is_active=True,
                     assigned_by=invitation.invited_by
                 )
