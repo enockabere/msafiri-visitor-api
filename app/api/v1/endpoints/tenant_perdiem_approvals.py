@@ -282,7 +282,7 @@ async def approve_tenant_perdiem(
         
         # Store approval data if provided
         if approval_data:
-            request.approver_role = approval_data.get("role")
+            request.approver_role = request.approver_title  # Store the original approver title
             request.approver_full_name = approval_data.get("fullName")
             request.budget_code = approval_data.get("budgetCode")
             request.activity_code = approval_data.get("activityCode")
@@ -312,7 +312,7 @@ async def approve_tenant_perdiem(
                 purpose=request.purpose or request.justification or "Event participation",
                 approver_name=approval_data.get("fullName") if approval_data else current_user.email,
                 approver_email=current_user.email,
-                approver_role=approval_data.get("role", "Per Diem Approver") if approval_data else "Per Diem Approver",
+                approver_title=request.approver_title or "Per Diem Approver",
                 budget_code=approval_data.get("budgetCode") if approval_data else "",
                 activity_code=approval_data.get("activityCode") if approval_data else "",
                 cost_center=approval_data.get("costCenter") if approval_data else "",
@@ -361,7 +361,7 @@ async def send_perdiem_approved_email(
     purpose: str,
     approver_name: str,
     approver_email: str,
-    approver_role: str,
+    approver_title: str,
     budget_code: str,
     activity_code: str,
     cost_center: str,
@@ -409,7 +409,7 @@ async def send_perdiem_approved_email(
                 <h3 style="margin-top: 0; color: #2e7d32;">Approval Details</h3>
                 <p><strong>Approved by:</strong> {approver_name}</p>
                 <p><strong>Approver Email:</strong> {approver_email}</p>
-                <p><strong>Confirmed Role:</strong> {approver_role}</p>
+                <p><strong>Approver Title:</strong> {approver_title}</p>
                 <p><strong>Budget Code:</strong> {budget_code}</p>
                 <p><strong>Activity Code:</strong> {activity_code}</p>
                 <p><strong>Cost Center:</strong> {cost_center}</p>
