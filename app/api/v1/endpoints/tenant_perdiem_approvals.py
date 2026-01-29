@@ -65,6 +65,166 @@ async def get_tenant_pending_approvals(
     
     return result
 
+@router.get("/{tenant_slug}/per-diem-approvals/approved")
+async def get_tenant_approved_requests(
+    tenant_slug: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get approved per diem requests for a specific tenant"""
+    
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get approved requests for this tenant
+    requests = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "approved"
+    ).all()
+    
+    # Format response to match frontend expectations
+    result = []
+    for request in requests:
+        participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+        event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+        
+        if participant and event:
+            result.append({
+                "id": request.id,
+                "participant_name": participant.full_name or participant.email,
+                "participant_email": participant.email,
+                "event_name": event.title,
+                "event_dates": f"{event.start_date} to {event.end_date}",
+                "arrival_date": str(request.arrival_date),
+                "departure_date": str(request.departure_date),
+                "requested_days": request.requested_days,
+                "daily_rate": float(request.daily_rate),
+                "total_amount": float(request.total_amount),
+                "purpose": request.purpose or request.justification or "Event participation",
+                "approver_title": request.approver_title or "Per Diem Approver",
+                "phone_number": request.phone_number or participant.phone_number or "",
+                "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "status": request.status,
+                "created_at": request.created_at.isoformat() if request.created_at else None,
+                "approved_by": request.approved_by,
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None
+            })
+    
+    return result
+
+@router.get("/{tenant_slug}/per-diem-approvals/issued")
+async def get_tenant_issued_requests(
+    tenant_slug: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get issued per diem requests for a specific tenant"""
+    
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get issued requests for this tenant
+    requests = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "issued"
+    ).all()
+    
+    # Format response to match frontend expectations
+    result = []
+    for request in requests:
+        participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+        event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+        
+        if participant and event:
+            result.append({
+                "id": request.id,
+                "participant_name": participant.full_name or participant.email,
+                "participant_email": participant.email,
+                "event_name": event.title,
+                "event_dates": f"{event.start_date} to {event.end_date}",
+                "arrival_date": str(request.arrival_date),
+                "departure_date": str(request.departure_date),
+                "requested_days": request.requested_days,
+                "daily_rate": float(request.daily_rate),
+                "total_amount": float(request.total_amount),
+                "purpose": request.purpose or request.justification or "Event participation",
+                "approver_title": request.approver_title or "Per Diem Approver",
+                "phone_number": request.phone_number or participant.phone_number or "",
+                "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "status": request.status,
+                "created_at": request.created_at.isoformat() if request.created_at else None,
+                "approved_by": request.approved_by,
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None
+            })
+    
+    return result
+
+@router.get("/{tenant_slug}/per-diem-approvals/rejected")
+async def get_tenant_rejected_requests(
+    tenant_slug: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get rejected per diem requests for a specific tenant"""
+    
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get rejected requests for this tenant
+    requests = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "rejected"
+    ).all()
+    
+    # Format response to match frontend expectations
+    result = []
+    for request in requests:
+        participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+        event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+        
+        if participant and event:
+            result.append({
+                "id": request.id,
+                "participant_name": participant.full_name or participant.email,
+                "participant_email": participant.email,
+                "event_name": event.title,
+                "event_dates": f"{event.start_date} to {event.end_date}",
+                "arrival_date": str(request.arrival_date),
+                "departure_date": str(request.departure_date),
+                "requested_days": request.requested_days,
+                "daily_rate": float(request.daily_rate),
+                "total_amount": float(request.total_amount),
+                "purpose": request.purpose or request.justification or "Event participation",
+                "approver_title": request.approver_title or "Per Diem Approver",
+                "phone_number": request.phone_number or participant.phone_number or "",
+                "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "status": request.status,
+                "created_at": request.created_at.isoformat() if request.created_at else None,
+                "rejected_by": request.rejected_by,
+                "rejected_at": request.rejected_at.isoformat() if request.rejected_at else None,
+                "rejection_reason": request.rejection_reason
+            })
+    
+    return result
+
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/approve")
 async def approve_tenant_perdiem(
     tenant_slug: str,
@@ -126,3 +286,48 @@ async def approve_tenant_perdiem(
     
     db.commit()
     return {"message": f"Request {action}d successfully"}
+
+@router.post("/{tenant_slug}/per-diem-approvals/{request_id}/issue")
+async def issue_tenant_perdiem(
+    tenant_slug: str,
+    request_id: int,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Issue an approved per diem request (Finance Admin only)"""
+    
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Check if user has finance admin role
+    user_roles = []
+    if hasattr(current_user, 'all_roles') and current_user.all_roles:
+        user_roles = current_user.all_roles
+    elif current_user.role:
+        user_roles = [current_user.role]
+    
+    has_finance_access = any(role.upper() in ['FINANCE_ADMIN', 'SUPER_ADMIN'] for role in user_roles)
+    if not has_finance_access:
+        raise HTTPException(status_code=403, detail="Only Finance Admin can issue per diem payments")
+    
+    # Get the request
+    request = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        PerdiemRequest.id == request_id,
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "approved"
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Approved request not found")
+    
+    request.status = "issued"
+    
+    db.commit()
+    return {"message": "Per diem issued successfully"}
