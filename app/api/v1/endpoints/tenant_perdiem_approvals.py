@@ -368,12 +368,19 @@ async def send_perdiem_approved_email(
     section: str
 ):
     """Send email notification to Finance Admin when per diem is approved"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from app.core.email import send_email
+        
+        logger.info(f"Starting to send per diem approved email for participant: {participant_email}")
         
         # Get Finance Admin emails (you may need to adjust this query based on your user model)
         # For now, using a placeholder - you should implement proper Finance Admin lookup
         finance_admin_emails = ["finance@msf.org"]  # Replace with actual Finance Admin lookup
+        
+        logger.info(f"Finance admin emails: {finance_admin_emails}")
         
         subject = "Per Diem Payment Authorization Required"
         
@@ -426,14 +433,17 @@ async def send_perdiem_approved_email(
         
         # Send to Finance Admin, CC participant and approver
         for finance_email in finance_admin_emails:
+            logger.info(f"Sending email to finance admin: {finance_email}, CC: {[participant_email, approver_email]}")
             await send_email(
                 to_email=finance_email,
                 cc_emails=[participant_email, approver_email],
                 subject=subject,
                 html_content=html_content
             )
+            logger.info(f"Email sent successfully to {finance_email}")
             
     except Exception as e:
+        logger.error(f"Failed to send per diem approved email: {e}", exc_info=True)
         print(f"Failed to send per diem approved email: {e}")
             
 async def send_perdiem_rejected_email(
@@ -448,8 +458,13 @@ async def send_perdiem_rejected_email(
     rejected_by: str
 ):
     """Send email notification to participant when per diem is rejected"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from app.core.email import send_email
+        
+        logger.info(f"Starting to send per diem rejection email to participant: {participant_email}")
         
         subject = "Per Diem Request Rejected"
         
@@ -484,13 +499,16 @@ async def send_perdiem_rejected_email(
         </div>
         """
         
+        logger.info(f"Sending rejection email to: {participant_email}")
         await send_email(
             to_email=participant_email,
             subject=subject,
             html_content=html_content
         )
+        logger.info(f"Rejection email sent successfully to {participant_email}")
             
     except Exception as e:
+        logger.error(f"Failed to send per diem rejection email: {e}", exc_info=True)
         print(f"Failed to send per diem rejection email: {e}")
 
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/cancel")
