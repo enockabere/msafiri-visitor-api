@@ -469,31 +469,7 @@ def accept_invitation(
             ).first()
             
             if not existing_tenant_assignment:
-                # Map invitation role to UserTenant role - use STAFF as fallback for unknown roles
-                from app.models.user_tenants import UserTenantRole
-                tenant_role_map = {
-                    "finance_admin": "staff",  # Use staff until database enum is fixed
-                    "hr_admin": "staff",
-                    "event_admin": "staff", 
-                    "mt_admin": "staff",
-                    "super_admin": "staff",
-                    "staff": "staff",
-                    "guest": "guest",
-                    "visitor": "visitor"
-                }
-                
-                tenant_role_value = tenant_role_map.get(role_value, "staff")
-                logger.info(f"🔍 DEBUG: role_value={role_value}, mapped_to={tenant_role_value}")
-                
-                user_tenant = UserTenant(
-                    user_id=existing_user.id,
-                    tenant_id=invitation.tenant_id,
-                    role=tenant_role_value,  # Use the mapped string value
-                    is_active=True,
-                    assigned_by=invitation.invited_by
-                )
-                db.add(user_tenant)
-                logger.info(f"➕ Added user {invitation.email} to tenant {invitation.tenant_id} with role {tenant_role_value}")
+                logger.info(f"⚠️ Skipping UserTenant creation due to database enum mismatch - user already has role in user_roles table")
             else:
                 logger.info(f"ℹ️ User {invitation.email} already assigned to tenant {invitation.tenant_id}")
                 
