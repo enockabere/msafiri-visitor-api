@@ -394,14 +394,14 @@ async def send_perdiem_approved_email(
         
         logger.info(f"Starting to send per diem approved email for participant: {participant_email}")
         
-        # Get actual Finance Admin users for this tenant
-        from app.models.user_tenants import UserTenant
+        # Get actual Finance Admin users for this tenant using UserTenant roles
+        from app.models.user_tenants import UserTenant, UserTenantRole
         finance_admins = db.query(User).join(
             UserTenant, User.id == UserTenant.user_id
         ).filter(
-            UserTenant.tenant_id == tenant.slug,
+            UserTenant.tenant_id == tenant.id,
             UserTenant.is_active == True,
-            User.role.in_(['FINANCE_ADMIN', 'finance_admin'])
+            UserTenant.role.in_([UserTenantRole.FINANCE_ADMIN])
         ).all()
         
         if not finance_admins:
