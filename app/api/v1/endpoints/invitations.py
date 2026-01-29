@@ -473,6 +473,7 @@ def accept_invitation(
                 from app.models.user_tenants import UserTenantRole
                 tenant_role_map = {
                     "finance_admin": UserTenantRole.FINANCE_ADMIN,
+                    "finance administrator": UserTenantRole.FINANCE_ADMIN,
                     "hr_admin": UserTenantRole.HR_ADMIN,
                     "event_admin": UserTenantRole.EVENT_ADMIN,
                     "mt_admin": UserTenantRole.MT_ADMIN,
