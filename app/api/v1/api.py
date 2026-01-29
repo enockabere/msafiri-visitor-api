@@ -131,7 +131,7 @@ api_router.include_router(
 from app.api.v1.endpoints import perdiem_setup
 api_router.include_router(
     perdiem_setup.router,
-    prefix="",
+    prefix="/tenants",
     tags=["per-diem-setup"]
 )
 
