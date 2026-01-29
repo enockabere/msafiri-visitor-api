@@ -125,3 +125,33 @@ def update_perdiem_setup(
     db.refresh(setup)
     
     return setup
+
+@router.delete("/per-diem-setup/{setup_id}")
+def delete_perdiem_setup(
+    setup_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete per diem setup"""
+    # Get tenant ID from tenant_id (which might be a slug)
+    tenant_id = current_user.tenant_id
+    
+    # If tenant_id is a string (slug), resolve it to numeric ID
+    if isinstance(tenant_id, str) and not tenant_id.isdigit():
+        tenant = db.query(Tenant).filter(Tenant.slug == tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        tenant_id = tenant.id
+    
+    setup = db.query(PerDiemSetup).filter(
+        PerDiemSetup.id == setup_id,
+        PerDiemSetup.tenant_id == tenant_id
+    ).first()
+    
+    if not setup:
+        raise HTTPException(status_code=404, detail="Per diem setup not found")
+    
+    db.delete(setup)
+    db.commit()
+    
+    return {"message": "Per diem setup deleted successfully"}
