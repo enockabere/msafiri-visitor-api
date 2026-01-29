@@ -399,7 +399,7 @@ async def send_perdiem_approved_email(
         finance_admins = db.query(User).join(
             UserTenant, User.id == UserTenant.user_id
         ).filter(
-            UserTenant.tenant_id == tenant.id,
+            UserTenant.tenant_id == tenant.slug,
             UserTenant.is_active == True,
             UserTenant.role.in_([UserTenantRole.FINANCE_ADMIN])
         ).all()
