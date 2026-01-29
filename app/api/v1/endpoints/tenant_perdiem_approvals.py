@@ -428,6 +428,9 @@ async def send_perdiem_approved_email(
                 html_content=html_content
             )
             
+    except Exception as e:
+        print(f"Failed to send per diem approved email: {e}")
+            
 async def send_perdiem_rejected_email(
     participant_name: str,
     participant_email: str,
