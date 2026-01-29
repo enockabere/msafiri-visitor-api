@@ -809,3 +809,34 @@ async def issue_tenant_perdiem(
     
     db.commit()
     return {"message": "Per diem issued successfully"}
+
+@router.post("/per-diem-requests/{request_id}/received")
+async def mark_perdiem_received(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Mark a per diem request as received by the participant"""
+    
+    # Get the request
+    request = db.query(PerdiemRequest).filter(
+        PerdiemRequest.id == request_id,
+        PerdiemRequest.status == "issued"
+    ).first()
+    
+    if not request:
+        raise HTTPException(status_code=404, detail="Issued request not found")
+    
+    # Get participant to verify ownership
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == request.participant_id,
+        EventParticipant.email == current_user.email
+    ).first()
+    
+    if not participant:
+        raise HTTPException(status_code=403, detail="Not authorized to mark this request as received")
+    
+    request.status = "received"
+    
+    db.commit()
+    return {"message": "Per diem marked as received successfully"}
