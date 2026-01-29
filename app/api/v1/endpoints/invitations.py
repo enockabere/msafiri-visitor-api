@@ -493,7 +493,7 @@ def accept_invitation(
                     assigned_by=invitation.invited_by
                 )
                 db.add(user_tenant)
-                logger.info(f"➕ Added user {invitation.email} to tenant {invitation.tenant_id} with role {tenant_role}")
+                logger.info(f"➕ Added user {invitation.email} to tenant {invitation.tenant_id} with role {tenant_role_value}")
             else:
                 logger.info(f"ℹ️ User {invitation.email} already assigned to tenant {invitation.tenant_id}")
                 
