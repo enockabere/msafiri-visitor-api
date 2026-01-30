@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.perdiem_request import PerdiemRequest
+from app.models.participant import EventParticipant
+from app.models.event import Event
 
 router = APIRouter()
 
@@ -10,7 +12,12 @@ async def check_perdiem_approver(email: str, db: Session = Depends(get_db)):
     """Check if user email is designated as a per diem approver and return associated tenants"""
     
     # Check if the email appears as an approver in any per diem requests
-    approver_requests = db.query(PerdiemRequest).filter(
+    # Join with participant and event to get tenant information
+    approver_requests = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
         PerdiemRequest.approver_email == email
     ).all()
     
@@ -21,8 +28,14 @@ async def check_perdiem_approver(email: str, db: Session = Depends(get_db)):
             "tenants": []
         }
     
-    # Get unique tenants from the per diem requests
-    tenants = list(set([req.tenant_id for req in approver_requests if req.tenant_id]))
+    # Get unique tenants from the events associated with per diem requests
+    tenants = []
+    for req in approver_requests:
+        if req.participant and req.participant.event and req.participant.event.tenant_id:
+            tenants.append(req.participant.event.tenant_id)
+    
+    # Remove duplicates
+    tenants = list(set(tenants))
     
     return {
         "email": email,
