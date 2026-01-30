@@ -23,7 +23,8 @@ class EmailService:
         subject: str,
         html_content: str,
         text_content: Optional[str] = None,
-        attachments: Optional[List[str]] = None
+        attachments: Optional[List[str]] = None,
+        cc_emails: Optional[List[str]] = None
     ) -> bool:
         """Send email using Microsoft Outlook SMTP"""
         
@@ -37,6 +38,10 @@ class EmailService:
             message["Subject"] = subject
             message["From"] = f"{self.from_name} <{self.from_email}>"
             message["To"] = ", ".join(to_emails)
+            
+            # Add CC if provided
+            if cc_emails:
+                message["Cc"] = ", ".join(cc_emails)
 
             # Add text content
             if text_content:
@@ -67,7 +72,10 @@ class EmailService:
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
                 server.starttls(context=context)
                 server.login(self.username, self.password)
-                server.sendmail(self.from_email, to_emails, message.as_string())
+                
+                # Include CC recipients in the actual recipient list
+                all_recipients = to_emails + (cc_emails or [])
+                server.sendmail(self.from_email, all_recipients, message.as_string())
 
             print(f"Email sent successfully to {to_emails}")
             return True
