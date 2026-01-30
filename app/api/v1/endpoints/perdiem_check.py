@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.perdiem_request import PerdiemRequest
-from app.models.participant import EventParticipant
+from app.models.event_participant import EventParticipant
 from app.models.event import Event
 
 router = APIRouter()
