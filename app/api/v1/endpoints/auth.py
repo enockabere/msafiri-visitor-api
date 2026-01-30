@@ -474,7 +474,7 @@ async def microsoft_sso_mobile_login(
     microsoft_access_token: str = Header(..., alias="X-Microsoft-Token"),
     db: Session = Depends(get_db)
 ) -> Any:
-    """Microsoft SSO for mobile app"""
+    """Microsoft SSO for mobile app - allows login regardless of tenant roles"""
     try:
         logger.info(f"Mobile SSO login attempt started")
         ms_sso = MicrosoftSSO()
@@ -502,10 +502,20 @@ async def microsoft_sso_mobile_login(
             db, user_data=user_data, tenant_id=tenant_id
         )
         
+        # Auto-approve MSF users for mobile access
         if user.status == UserStatus.PENDING_APPROVAL and is_msf_user:
             user = crud.user.approve_user(
-                db, user_id=user.id, approved_by="system_auto_approval"
+                db, user_id=user.id, approved_by="mobile_auto_approval"
             )
+            logger.info(f"Auto-approved user {user.email} for mobile access")
+        
+        # For mobile app, allow access even if user is not fully active in web portal
+        # as long as they are MSF staff
+        if not user.is_active and is_msf_user:
+            # Temporarily activate for mobile access
+            user.is_active = True
+            db.commit()
+            logger.info(f"Activated user {user.email} for mobile access")
         
         if not user.is_active:
             raise HTTPException(
@@ -522,7 +532,7 @@ async def microsoft_sso_mobile_login(
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = security.create_access_token(
             subject=user.email,
-            tenant_id=user.tenant_id,
+            tenant_id=None,  # Mobile users can access all tenants
             expires_delta=access_token_expires
         )
         
@@ -531,13 +541,16 @@ async def microsoft_sso_mobile_login(
             "token_type": "bearer",
             "user_id": user.id,
             "role": user.role.value,
-            "tenant_id": user.tenant_id
+            "tenant_id": None,  # Mobile users can see all tenant data
+            "full_name": user.full_name,
+            "email": user.email
         }
         
         if is_first_login:
             response_data["first_login"] = True
-            response_data["welcome_message"] = f"Welcome to the system, {user.full_name}!"
+            response_data["welcome_message"] = f"Welcome to the mobile app, {user.full_name}!"
         
+        logger.info(f"Mobile SSO login successful for {user.email}")
         return response_data
         
     except HTTPException as he:
