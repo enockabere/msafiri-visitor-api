@@ -99,9 +99,7 @@ async def create_voucher_scanners_bulk(
                     # Assign scanner role (additional role for existing users)
                     user_role = UserRole(
                         user_id=user_id,
-                        role='VOUCHER_SCANNER',
-                        granted_by=created_by,
-                        granted_at=datetime.utcnow()
+                        role='VOUCHER_SCANNER'
                     )
                     db.add(user_role)
                     db.commit()
