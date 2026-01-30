@@ -752,33 +752,14 @@ async def issue_tenant_perdiem(
     if not request:
         raise HTTPException(status_code=404, detail="Approved request not found")
     
-    # Update with daily rate, currency and calculate total
-    daily_rate = issue_data.get("daily_rate")
-    currency = issue_data.get("currency", "USD")
+    # Use the rates that were locked in during approval - don't allow changes
+    if not request.daily_rate or not request.currency or not request.total_amount:
+        raise HTTPException(status_code=400, detail="Request must have approved rates before issuing payment")
     
-    # If no daily rate provided, use the rate that was set during approval
-    # Don't recalculate with current setup to preserve approved amounts
-    if not daily_rate:
-        if request.daily_rate and request.currency:
-            # Use the rate that was already set during approval
-            daily_rate = float(request.daily_rate)
-            currency = request.currency
-        else:
-            # Fallback to current setup only if no rate was previously set
-            setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
-            if setup:
-                daily_rate = float(setup.daily_rate)
-                currency = setup.currency
-            else:
-                raise HTTPException(status_code=400, detail="Daily rate is required or setup per diem configuration")
-    
-    # Only update if values weren't already set during approval
-    if not request.daily_rate:
-        request.daily_rate = daily_rate
-    if not request.currency:
-        request.currency = currency
-    if not request.total_amount:
-        request.total_amount = float(request.daily_rate) * request.requested_days
+    # Use the approved rates - no changes allowed
+    daily_rate = float(request.daily_rate)
+    currency = request.currency
+    total_amount = float(request.total_amount)
     
     request.status = "issued"
     
@@ -797,9 +778,9 @@ async def issue_tenant_perdiem(
             event_location=getattr(event, 'location', 'TBD'),
             event_dates=f"{event.start_date} to {event.end_date}",
             requested_days=request.requested_days,
-            daily_rate=float(request.daily_rate),
-            currency=request.currency,
-            total_amount=float(request.total_amount),
+            daily_rate=daily_rate,
+            currency=currency,
+            total_amount=total_amount,
             purpose=request.purpose or request.justification or "Event participation",
             approver_name=request.approver_full_name or request.approved_by,
             approver_email=request.approved_by,
