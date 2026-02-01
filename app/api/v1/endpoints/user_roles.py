@@ -162,26 +162,76 @@ def remove_user_role(
 
         role_to_remove = query.first()
         
-        print(f"DEBUG: Role found: {role_to_remove is not None}")
-        if not role_to_remove:
+        user = db.query(User).filter(User.id == request.user_id).first()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        print(f"DEBUG: Role found in user_roles: {role_to_remove is not None}")
+        print(f"DEBUG: User's primary role: {user.role}")
+
+        # Check if the role being removed is the user's PRIMARY role (in users table)
+        is_primary_role = str(user.role.value).upper() == request.role.upper()
+
+        if not role_to_remove and not is_primary_role:
             print(f"DEBUG: Role {request.role} not found for user {request.user_id}")
             logger.warning(f"❌ Role {request.role} not found for user {request.user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Role not found for this user"
             )
-        
-        # Delete the role record
-        db.delete(role_to_remove)
 
-        user = db.query(User).filter(User.id == request.user_id).first()
+        # Delete the role record from user_roles if it exists
+        if role_to_remove:
+            db.delete(role_to_remove)
+            logger.info(f"🗑️ Deleted role {request.role} from user_roles table")
+
+        # If removing the PRIMARY role, we need to update the user's primary role
+        if is_primary_role:
+            logger.info(f"🔄 Removing PRIMARY role {request.role} from user {user.email}")
+
+            # Find another role to set as primary (prefer admin roles)
+            other_roles = db.query(UserRole).filter(
+                UserRole.user_id == request.user_id,
+                UserRole.role != 'GUEST',
+                UserRole.role != request.role.upper()
+            ).all()
+
+            if other_roles:
+                # Prioritize admin roles for the new primary role
+                admin_priority = ['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN', 'FINANCE_ADMIN', 'STAFF']
+                new_primary = None
+                for priority_role in admin_priority:
+                    for r in other_roles:
+                        if r.role == priority_role:
+                            new_primary = priority_role
+                            break
+                    if new_primary:
+                        break
+
+                if not new_primary:
+                    new_primary = other_roles[0].role
+
+                # Update primary role
+                try:
+                    user.role = UserRoleEnum[new_primary]
+                    logger.info(f"✅ Updated primary role to {new_primary}")
+                except KeyError:
+                    user.role = UserRoleEnum.GUEST
+                    logger.warning(f"⚠️ Could not set {new_primary} as primary, defaulting to GUEST")
+            else:
+                # No other roles, set to GUEST
+                user.role = UserRoleEnum.GUEST
+                logger.info(f"👤 No other roles found, setting primary to GUEST")
 
         # Check if user has any remaining active non-guest roles FOR THIS TENANT
         remaining_roles_query = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.id != role_to_remove.id,
-            UserRole.role != 'GUEST'
+            UserRole.role != 'GUEST',
+            UserRole.role != request.role.upper()  # Exclude the role being removed
         )
+        # Exclude the deleted role by id if it existed
+        if role_to_remove:
+            remaining_roles_query = remaining_roles_query.filter(UserRole.id != role_to_remove.id)
         # If we removed from a specific tenant, only check remaining roles in that tenant
         if request.tenant_id:
             remaining_roles_query = remaining_roles_query.filter(UserRole.tenant_id == request.tenant_id)
@@ -189,11 +239,14 @@ def remove_user_role(
         remaining_tenant_roles = remaining_roles_query.all()
 
         # Check ALL remaining roles across all tenants (for primary role decision)
-        all_remaining_roles = db.query(UserRole).filter(
+        all_remaining_query = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.id != role_to_remove.id,
-            UserRole.role != 'GUEST'
-        ).all()
+            UserRole.role != 'GUEST',
+            UserRole.role != request.role.upper()
+        )
+        if role_to_remove:
+            all_remaining_query = all_remaining_query.filter(UserRole.id != role_to_remove.id)
+        all_remaining_roles = all_remaining_query.all()
 
         # If no more roles in THIS tenant, remove user from this specific tenant
         if len(remaining_tenant_roles) == 0 and request.tenant_id:
@@ -218,9 +271,8 @@ def remove_user_role(
                 ).first()
                 user.tenant_id = other_tenant.tenant_id if other_tenant else None
 
-        # If removing the last non-guest role OVERALL and user is not a tenant admin
-        if len(all_remaining_roles) == 0 and user and user.role not in [UserRoleEnum.MT_ADMIN, UserRoleEnum.SUPER_ADMIN]:
-            # Assign Guest role if no guest role exists
+        # If no remaining roles in user_roles table, ensure GUEST role exists
+        if len(all_remaining_roles) == 0:
             existing_guest = db.query(UserRole).filter(
                 UserRole.user_id == request.user_id,
                 UserRole.role == 'GUEST'
@@ -233,12 +285,7 @@ def remove_user_role(
                     tenant_id=None  # GUEST is a global role
                 )
                 db.add(guest_role)
-
-            # Update user's primary role to Guest only if they have no other admin roles
-            if user:
-                user.role = UserRoleEnum.GUEST
-
-            logger.info(f"👤 User {request.user_id} assigned Guest role (no active roles remaining)")
+                logger.info(f"👤 Added GUEST role to user_roles table")
         
         db.commit()
         print(f"DEBUG: Role removal committed to database")
