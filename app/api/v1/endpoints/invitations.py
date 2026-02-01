@@ -436,29 +436,32 @@ def accept_invitation(
             # Use original role names
             role_value = invitation.role.lower()
             
-            # Check if user already has this role
+            # Check if user already has this role FOR THIS TENANT
             existing_role = db.query(UserRoleModel).filter(
                 UserRoleModel.user_id == existing_user.id,
-                UserRoleModel.role == role_value.upper()
+                UserRoleModel.role == role_value.upper(),
+                UserRoleModel.tenant_id == invitation.tenant_id  # Check within same tenant
             ).first()
-            
+
             if not existing_role:
-                # Remove Guest role if user is getting a real role
+                # Remove Guest role if user is getting a real role (only global GUEST roles)
                 if role_value != "guest":
                     guest_roles = db.query(UserRoleModel).filter(
                         UserRoleModel.user_id == existing_user.id,
-                        UserRoleModel.role == "GUEST"
+                        UserRoleModel.role == "GUEST",
+                        UserRoleModel.tenant_id.is_(None)  # Only remove global GUEST roles
                     ).all()
                     for guest_role in guest_roles:
                         db.delete(guest_role)
-                
-                # Add new role
+
+                # Add new role WITH TENANT CONTEXT
                 new_role = UserRoleModel(
                     user_id=existing_user.id,
-                    role=role_value.upper()
+                    role=role_value.upper(),
+                    tenant_id=invitation.tenant_id  # Associate role with the specific tenant
                 )
                 db.add(new_role)
-                logger.info(f"➕ Added role {role_value} to user {invitation.email}")
+                logger.info(f"➕ Added role {role_value} to user {invitation.email} for tenant {invitation.tenant_id}")
             else:
                 logger.info(f"ℹ️ User {invitation.email} already has role {role_value}")
             
@@ -523,18 +526,19 @@ def accept_invitation(
             db.add(user_obj)
             db.flush()  # Get the user ID
             
-            # Create corresponding UserRole entry
+            # Create corresponding UserRole entry WITH TENANT CONTEXT
             from app.models.user_roles import UserRole as UserRoleModel
-            
+
             # Use original role name
             role_value = invitation.role.lower()
-            
+
             user_role = UserRoleModel(
                 user_id=user_obj.id,
-                role=role_value.upper()
+                role=role_value.upper(),
+                tenant_id=invitation.tenant_id  # Associate role with the specific tenant
             )
             db.add(user_role)
-            logger.info(f"➕ Added role {role_value} to new user {invitation.email}")
+            logger.info(f"➕ Added role {role_value} to new user {invitation.email} for tenant {invitation.tenant_id}")
         
         # Mark invitation as accepted
         invitation.is_accepted = "true"
