@@ -499,7 +499,21 @@ def accept_invitation(
                 logger.info(f"➕ Added user {invitation.email} to tenant {invitation.tenant_id} with role {tenant_role}")
             else:
                 logger.info(f"ℹ️ User {invitation.email} already assigned to tenant {invitation.tenant_id}")
-                
+
+            # Update user's primary tenant_id if not set or if it's still 'default'
+            if not existing_user.tenant_id or existing_user.tenant_id == 'default':
+                existing_user.tenant_id = invitation.tenant_id
+                logger.info(f"🏢 Updated user's primary tenant_id to {invitation.tenant_id}")
+
+            # Update user's primary role if they only have GUEST role
+            from app.models.user import UserRole as UserRoleEnum
+            if existing_user.role == UserRoleEnum.GUEST and role_value != "guest":
+                try:
+                    existing_user.role = UserRoleEnum[role_value.upper()]
+                    logger.info(f"🔄 Updated user's primary role from GUEST to {role_value.upper()}")
+                except KeyError:
+                    logger.warning(f"⚠️ Could not set {role_value} as primary role")
+
             existing_user.is_active = True
         else:
             # Create new user account

@@ -54,15 +54,20 @@ def get_inventory_categories(
     try:
         query = db.query(Inventory.category).filter(Inventory.is_active == True).distinct()
 
-        if tenant:
+        if tenant and tenant != "default":
             # Convert tenant slug to tenant ID if needed
-            tenant_id = tenant
-            if not tenant.isdigit():
+            tenant_id = None
+            if tenant.isdigit():
+                tenant_id = int(tenant)
+            else:
                 from app.models.tenant import Tenant
                 tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
                 if tenant_obj:
                     tenant_id = tenant_obj.id
-            query = query.filter(Inventory.tenant_id == str(tenant_id))
+
+            # Only filter by tenant_id if we found a valid tenant
+            if tenant_id is not None:
+                query = query.filter(Inventory.tenant_id == tenant_id)
 
         categories = [row[0] for row in query.all() if row[0]]
         return {"categories": sorted(categories)}
@@ -89,18 +94,23 @@ def get_inventory_items(
         query = db.query(Inventory).filter(Inventory.is_active == True)
         print(f"DEBUG INVENTORY: Base query created with is_active filter")
         
-        if tenant:
+        if tenant and tenant != "default":
             print(f"DEBUG INVENTORY: Processing tenant: {tenant}")
             # Convert tenant slug to tenant ID if needed
-            tenant_id = tenant
-            if not tenant.isdigit():
+            tenant_id = None
+            if tenant.isdigit():
+                tenant_id = int(tenant)
+            else:
                 from app.models.tenant import Tenant
                 tenant_obj = db.query(Tenant).filter(Tenant.slug == tenant).first()
                 print(f"DEBUG INVENTORY: Found tenant object: {tenant_obj}")
                 if tenant_obj:
                     tenant_id = tenant_obj.id
                     print(f"DEBUG INVENTORY: Using tenant_id: {tenant_id}")
-            query = query.filter(Inventory.tenant_id == str(tenant_id))
+
+            # Only filter by tenant_id if we found a valid tenant
+            if tenant_id is not None:
+                query = query.filter(Inventory.tenant_id == tenant_id)
         
         if category:
             print(f"DEBUG INVENTORY: Filtering by category: {category}")

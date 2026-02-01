@@ -143,12 +143,24 @@ def login_access_token(
     # Get user's tenant associations
     user_tenants = get_user_tenants(db, user)
     
-    # If user has no primary tenant but has tenant associations, set the first one as primary
-    if not user.tenant_id and user_tenants:
+    # If user has no primary tenant (or invalid like 'default') but has tenant associations, set the first one as primary
+    if (not user.tenant_id or user.tenant_id == 'default' or user.tenant_id == '') and user_tenants:
         primary_tenant = user_tenants[0]
         user.tenant_id = primary_tenant["tenant_slug"]
         db.commit()
         print(f"DEBUG: Set primary tenant for user {user.id}: {user.tenant_id}")
+
+    # Also check user_roles table for tenant associations if user_tenants is empty
+    if (not user.tenant_id or user.tenant_id == 'default' or user.tenant_id == '') and not user_tenants:
+        from app.models.user_roles import UserRole as UserRoleModel
+        user_role_tenants = db.query(UserRoleModel.tenant_id).filter(
+            UserRoleModel.user_id == user.id,
+            UserRoleModel.tenant_id.isnot(None)
+        ).distinct().all()
+        if user_role_tenants:
+            user.tenant_id = user_role_tenants[0][0]
+            db.commit()
+            print(f"DEBUG: Set primary tenant from user_roles for user {user.id}: {user.tenant_id}")
     
     response_data = {
         "access_token": access_token,
