@@ -39,6 +39,7 @@ class Event(BaseModel):
     
     # Accommodation Planning
     expected_participants = Column(Integer)
+    accommodation_type = Column(String(50))  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
     single_rooms = Column(Integer)
     double_rooms = Column(Integer)
     
