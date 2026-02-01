@@ -21,6 +21,7 @@ class EventBase(BaseModel):
     duration_days: Optional[int] = None
     vendor_accommodation_id: Optional[int] = None
     expected_participants: Optional[int] = None
+    accommodation_type: Optional[str] = None  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
     single_rooms: Optional[int] = None
     double_rooms: Optional[int] = None
     section: Optional[str] = None
@@ -52,6 +53,7 @@ class EventUpdate(BaseModel):
     perdiem_currency: Optional[str] = None
     vendor_accommodation_id: Optional[Union[int, str]] = None    # Accept both int and str
     expected_participants: Optional[Union[int, str]] = None      # Accept both int and str
+    accommodation_type: Optional[str] = None  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
     single_rooms: Optional[Union[int, str]] = None               # Accept both int and str
     double_rooms: Optional[Union[int, str]] = None               # Accept both int and str
     section: Optional[str] = None
