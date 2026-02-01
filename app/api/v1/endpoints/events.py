@@ -640,9 +640,14 @@ def update_event(
             # Keep as string and let Pydantic handle it
             pass
     
+    # Debug: Log what we're receiving
+    logger.info(f"📝 Event update data received: {event_update}")
+    logger.info(f"📝 accommodation_type in update: {event_update.get('accommodation_type', 'NOT PRESENT')}")
+
     # Convert dict to EventUpdate schema
     event_update_schema = schemas.EventUpdate(**event_update)
-    
+    logger.info(f"📝 Schema accommodation_type: {event_update_schema.accommodation_type}")
+
     # Check if room configuration changed
     room_config_changed = (
         'single_rooms' in event_update or 
@@ -652,7 +657,8 @@ def update_event(
     
     # Update the event
     updated_event = crud.event.update(db, db_obj=event, obj_in=event_update_schema)
-    
+    logger.info(f"📝 Updated event accommodation_type: {updated_event.accommodation_type}")
+
     # If room configuration changed, trigger automatic room reallocation
     if room_config_changed:
         try:
