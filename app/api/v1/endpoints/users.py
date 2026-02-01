@@ -52,9 +52,10 @@ def get_user_tenants(
         for tenant_data in tenant_roles.values():
             # Set primary role as the first role, or use the first role available
             primary_role = tenant_data["roles"][0] if tenant_data["roles"] else None
-            
+
             tenants.append({
                 "tenant_id": tenant_data["tenant_id"],
+                "tenant_slug": tenant_data["tenant_id"],  # Add tenant_slug for frontend compatibility
                 "tenant_name": tenant_data["tenant_name"],
                 "role": primary_role,  # Keep for backward compatibility
                 "roles": tenant_data["roles"],  # All roles for this tenant
@@ -62,8 +63,41 @@ def get_user_tenants(
                 "is_primary": tenant_data["is_primary"]
             })
         
-        # If user has no tenant associations but has a primary tenant_id, include it
-        if not tenants and current_user.tenant_id:
+        # If user has no tenant associations from user_tenants, check user_roles table
+        if not tenants:
+            from app.models.user_roles import UserRole as UserRoleModel
+
+            # Get all roles with tenant_id from user_roles table
+            user_role_tenants = db.query(UserRoleModel).filter(
+                UserRoleModel.user_id == current_user.id,
+                UserRoleModel.tenant_id.isnot(None)
+            ).all()
+
+            # Group by tenant_id
+            role_tenant_map = {}
+            for ur in user_role_tenants:
+                if ur.tenant_id not in role_tenant_map:
+                    role_tenant_map[ur.tenant_id] = []
+                role_tenant_map[ur.tenant_id].append(ur.role)
+
+            # Create tenant entries from user_roles
+            for tenant_slug, roles in role_tenant_map.items():
+                tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+                if tenant:
+                    tenants.append({
+                        "tenant_id": tenant.slug,
+                        "tenant_slug": tenant.slug,
+                        "tenant_name": tenant.name,
+                        "role": roles[0] if roles else None,
+                        "roles": roles,
+                        "is_active": True,
+                        "is_primary": tenant.slug == current_user.tenant_id
+                    })
+
+            print(f"DEBUG: Found {len(tenants)} tenants from user_roles table")
+
+        # If still no tenants but user has a primary tenant_id (and it's not 'default'), include it
+        if not tenants and current_user.tenant_id and current_user.tenant_id != 'default':
             tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
             if tenant:
                 # Include all user roles from session if available
@@ -72,9 +106,10 @@ def get_user_tenants(
                     user_roles = current_user.all_roles
                 elif current_user.role:
                     user_roles = [current_user.role.value]
-                
+
                 tenants.append({
                     "tenant_id": tenant.slug,
+                    "tenant_slug": tenant.slug,
                     "tenant_name": tenant.name,
                     "role": current_user.role.value if current_user.role else None,
                     "roles": user_roles,
@@ -108,8 +143,8 @@ def get_user_tenants(
         
     except Exception as e:
         print(f"Error fetching user tenants: {e}")
-        # Fallback: return user's primary tenant if available
-        if current_user.tenant_id:
+        # Fallback: return user's primary tenant if available (and it's not 'default')
+        if current_user.tenant_id and current_user.tenant_id != 'default':
             try:
                 from app.models.tenant import Tenant
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
@@ -120,9 +155,10 @@ def get_user_tenants(
                         user_roles = current_user.all_roles
                     elif current_user.role:
                         user_roles = [current_user.role.value]
-                    
+
                     return [{
                         "tenant_id": tenant.slug,
+                        "tenant_slug": tenant.slug,
                         "tenant_name": tenant.name,
                         "role": current_user.role.value if current_user.role else None,
                         "roles": user_roles,
