@@ -531,20 +531,11 @@ async def send_perdiem_approved_email(
         
         logger.info(f"Looking for Finance Admin users for tenant: {tenant_slug} (slug: {tenant.slug})")
         
-        # Get actual Finance Admin users for this tenant using UserTenant roles
+        # Get Finance Admin users - check both tenant-specific roles and global roles
         from app.models.user_tenants import UserTenant, UserTenantRole
         
-        # Debug: Check all users for this tenant
-        all_tenant_users = db.query(User, UserTenant.role).join(
-            UserTenant, User.id == UserTenant.user_id
-        ).filter(
-            UserTenant.tenant_id == tenant.slug,
-            UserTenant.is_active == True
-        ).all()
-        
-        logger.info(f"All active users for tenant {tenant.slug}: {[(user.email, role.value) for user, role in all_tenant_users]}")
-        
-        finance_admins = db.query(User).join(
+        # First, get users with tenant-specific FINANCE_ADMIN role
+        tenant_finance_admins = db.query(User).join(
             UserTenant, User.id == UserTenant.user_id
         ).filter(
             UserTenant.tenant_id == tenant.slug,
@@ -552,12 +543,24 @@ async def send_perdiem_approved_email(
             UserTenant.role.in_([UserTenantRole.FINANCE_ADMIN])
         ).all()
         
-        if not finance_admins:
+        # Also get users with global FINANCE_ADMIN role who have access to this tenant
+        global_finance_admins = db.query(User).join(
+            UserTenant, User.id == UserTenant.user_id
+        ).filter(
+            UserTenant.tenant_id == tenant.slug,
+            UserTenant.is_active == True,
+            User.all_roles.contains('FINANCE_ADMIN')
+        ).all()
+        
+        # Combine both lists and remove duplicates
+        all_finance_admins = list(set(tenant_finance_admins + global_finance_admins))
+        
+        if not all_finance_admins:
             logger.warning(f"No Finance Admin users found for tenant {tenant_slug}. Email not sent.")
             print(f"Email not sent: No Finance Admin users found for tenant {tenant_slug}")
             return
         
-        finance_admin_emails = [admin.email for admin in finance_admins if admin.email]
+        finance_admin_emails = [admin.email for admin in all_finance_admins if admin.email]
         
         if not finance_admin_emails:
             logger.warning(f"No valid Finance Admin email addresses found for tenant {tenant_slug}. Email not sent.")
