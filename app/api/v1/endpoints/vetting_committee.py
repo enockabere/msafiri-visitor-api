@@ -67,30 +67,49 @@ def get_event_vetting_committee(
     current_user: User = Depends(get_current_user)
 ):
     """Get vetting committee for an event"""
-    
+
     committee = crud_vetting.get_committee_by_event(db, event_id)
     if not committee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vetting committee not found for this event"
         )
-    
-    # Check permissions - allow SUPER_ADMIN and EVENT_ADMIN full access
-    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
+
+    # Get all user roles (primary + secondary)
+    all_roles = getattr(current_user, 'all_roles', [current_user.role.value if current_user.role else ''])
+    admin_roles = ['SUPER_ADMIN', 'MT_ADMIN', 'EVENT_ADMIN', 'super_admin', 'mt_admin', 'event_admin']
+    vetting_roles = ['VETTING_COMMITTEE', 'vetting_committee']
+    approver_roles = ['VETTING_APPROVER', 'vetting_approver']
+
+    has_admin_role = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.EVENT_ADMIN] or \
+                     any(role in admin_roles for role in all_roles)
+    has_vetting_role = current_user.role == UserRole.VETTING_COMMITTEE or \
+                       any(role in vetting_roles for role in all_roles)
+    has_approver_role = current_user.role == UserRole.VETTING_APPROVER or \
+                        any(role in approver_roles for role in all_roles)
+
+    # Check permissions - allow admins full access
+    if has_admin_role:
         return committee
-    elif current_user.role == UserRole.VETTING_COMMITTEE:
-        # Check if user is member of this committee
-        is_member = any(member.email == current_user.email for member in committee.members)
-        if not is_member:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    # Check if user is member of this committee
+    is_member = any(member.email.lower() == current_user.email.lower() for member in committee.members)
+
+    if has_vetting_role and is_member:
         return committee
-    elif current_user.role == UserRole.VETTING_APPROVER:
-        # Check if user is approver for this committee
-        if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    # Check if user is approver for this committee
+    is_approver = (committee.approver_email and committee.approver_email.lower() == current_user.email.lower()) or \
+                  committee.approver_id == current_user.id
+
+    if has_approver_role and is_approver:
         return committee
-    else:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
+    # If user is a member or approver for this committee, allow access regardless of role
+    if is_member or is_approver:
+        return committee
+
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
 @router.get("/my-committees", response_model=List[VettingCommitteeResponse])
 def get_my_committees(
@@ -98,19 +117,39 @@ def get_my_committees(
     current_user: User = Depends(get_current_user)
 ):
     """Get committees where current user is a member or approver"""
-    
-    if current_user.role == UserRole.VETTING_COMMITTEE:
-        committees = crud_vetting.get_committee_for_user(db, current_user.email)
-    elif current_user.role == UserRole.VETTING_APPROVER:
-        committees = db.query(VettingCommittee).filter(
+
+    # Get all user roles (primary + secondary)
+    all_roles = getattr(current_user, 'all_roles', [current_user.role.value if current_user.role else ''])
+    vetting_roles = ['VETTING_COMMITTEE', 'vetting_committee']
+    approver_roles = ['VETTING_APPROVER', 'vetting_approver']
+
+    has_vetting_role = current_user.role == UserRole.VETTING_COMMITTEE or \
+                       any(role in vetting_roles for role in all_roles)
+    has_approver_role = current_user.role == UserRole.VETTING_APPROVER or \
+                        any(role in approver_roles for role in all_roles)
+
+    committees = []
+
+    # Get committees where user is a member
+    if has_vetting_role:
+        member_committees = crud_vetting.get_committee_for_user(db, current_user.email)
+        committees.extend(member_committees)
+
+    # Get committees where user is an approver
+    if has_approver_role:
+        approver_committees = db.query(VettingCommittee).filter(
             VettingCommittee.approver_email == current_user.email
         ).all()
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied"
-        )
-    
+        # Add only if not already in list
+        for c in approver_committees:
+            if c.id not in [x.id for x in committees]:
+                committees.append(c)
+
+    # If user has neither role but is in a committee by email, still return those
+    if not committees:
+        member_committees = crud_vetting.get_committee_for_user(db, current_user.email)
+        committees.extend(member_committees)
+
     return committees
 
 @router.get("/my-vetting-events")
