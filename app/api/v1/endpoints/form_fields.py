@@ -205,7 +205,7 @@ def restore_complete_form_fields(
         # Personal Information Section
         {"field_name": "firstName", "field_label": "First Name", "field_type": "text", "is_required": True, "order_index": 101, "section": "personal", "is_protected": True},
         {"field_name": "lastName", "field_label": "Last Name", "field_type": "text", "is_required": True, "order_index": 102, "section": "personal", "is_protected": True},
-        {"field_name": "oc", "field_label": "What is your OC?", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
+        {"field_name": "oc", "field_label": "Operation Center (OC)", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
         {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": json.dumps(["On contract", "Between contracts"]), "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
         {"field_name": "contractType", "field_label": "Contract Type", "field_type": "select", "field_options": json.dumps(["International", "National"]), "is_required": False, "order_index": 105, "section": "personal"},
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
@@ -472,6 +472,62 @@ def update_phone_fields_to_phone_type(
         "updated_fields": updated_fields
     }
 
+@router.post("/events/{event_id}/update-oc-field-label")
+def update_oc_field_label(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update OC field label to 'Operation Center (OC)' for consistency"""
+    # Check if event exists
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Update OC field label
+    oc_field = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.field_name == "oc",
+        FormField.is_active == True
+    ).first()
+    
+    if oc_field:
+        oc_field.field_label = "Operation Center (OC)"
+        db.commit()
+        return {
+            "message": "Updated OC field label to 'Operation Center (OC)'",
+            "updated": True
+        }
+    
+    return {
+        "message": "OC field not found",
+        "updated": False
+    }
+
+@router.post("/update-all-oc-field-labels")
+def update_all_oc_field_labels(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update all OC field labels across all events to 'Operation Center (OC)'"""
+    # Update all OC fields
+    oc_fields = db.query(FormField).filter(
+        FormField.field_name == "oc",
+        FormField.is_active == True
+    ).all()
+    
+    updated_count = 0
+    for field in oc_fields:
+        field.field_label = "Operation Center (OC)"
+        updated_count += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"Updated {updated_count} OC field labels to 'Operation Center (OC)'",
+        "updated_count": updated_count
+    }
+
 @router.post("/events/{event_id}/initialize-default-fields")
 def initialize_default_form_fields(
     event_id: int,
@@ -502,7 +558,7 @@ def initialize_default_form_fields(
         # Personal Information Section
         {"field_name": "firstName", "field_label": "First Name", "field_type": "text", "is_required": True, "order_index": 101, "section": "personal", "is_protected": True},
         {"field_name": "lastName", "field_label": "Last Name", "field_type": "text", "is_required": True, "order_index": 102, "section": "personal", "is_protected": True},
-        {"field_name": "oc", "field_label": "What is your OC?", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
+        {"field_name": "oc", "field_label": "Operation Center (OC)", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
         {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": json.dumps(["On contract", "Between contracts"]), "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 105, "section": "personal", "is_protected": True},
         
