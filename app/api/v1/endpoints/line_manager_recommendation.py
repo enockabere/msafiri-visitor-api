@@ -48,6 +48,52 @@ async def debug_token_lookup(
         logger.info(f"🔍 DEBUG: Token NOT found")
         return {"token_found": False}
 
+@router.get("/debug/create-test-token/{contact_type}")
+async def create_test_token(
+    contact_type: str,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Create a test recommendation token for testing"""
+    
+    import uuid
+    from sqlalchemy import text
+    
+    # Generate test token
+    test_token = str(uuid.uuid4())
+    
+    # Insert test recommendation
+    db.execute(
+        text("""
+            INSERT INTO line_manager_recommendations 
+            (registration_id, participant_name, participant_email, line_manager_email, 
+             operation_center, event_title, event_dates, event_location,
+             created_at, recommendation_token, event_id, contact_type)
+            VALUES (1, 'Test User', 'test@example.com', 'manager@test.com',
+                    'OCA', 'Test Event', '2026-02-01 to 2026-02-05', 'Test Location',
+                    CURRENT_TIMESTAMP, :token, 1, :contact_type)
+        """),
+        {
+            "token": test_token,
+            "contact_type": contact_type
+        }
+    )
+    
+    db.commit()
+    
+    base_url = "http://41.90.17.25:3000"
+    if contact_type == "HRCO":
+        test_url = f"{base_url}/public/hrco-recommendation/{test_token}"
+    elif contact_type == "Career Manager":
+        test_url = f"{base_url}/public/career-manager-recommendation/{test_token}"
+    else:
+        test_url = f"{base_url}/public/line-manager-recommendation/{test_token}"
+    
+    return {
+        "message": f"Test {contact_type} recommendation created",
+        "token": test_token,
+        "test_url": test_url
+    }
+
 @router.get("/debug/all-tokens")
 async def debug_all_tokens(db: Session = Depends(get_db)):
     """DEBUG: List all recommendation tokens"""
