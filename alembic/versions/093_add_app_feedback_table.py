@@ -27,10 +27,10 @@ def upgrade():
         END $$;
     """)
     
+    # Create table without enum column first
     op.create_table('app_feedback',
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('rating', sa.Integer(), nullable=False),
-    sa.Column('category', sa.Enum('user_experience', 'performance', 'features', 'bug_report', 'suggestion', 'general', name='feedbackcategory'), nullable=False),
     sa.Column('feedback_text', sa.Text(), nullable=False),
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
@@ -38,6 +38,10 @@ def upgrade():
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    
+    # Add enum column separately
+    op.add_column('app_feedback', sa.Column('category', sa.Enum('user_experience', 'performance', 'features', 'bug_report', 'suggestion', 'general', name='feedbackcategory'), nullable=False, server_default='general'))
+    
     op.create_index(op.f('ix_app_feedback_id'), 'app_feedback', ['id'], unique=False)
     # ### end Alembic commands ###
 
