@@ -551,25 +551,57 @@ def get_event(
         logger.info(f"🎯 === GET EVENT REQUEST END (SUCCESS) ===")
         return event
     
-    # Check if user can access this event (same tenant or super admin)
+    # Check if user can access this event (same tenant, admin, or vetting member)
     logger.info(f"🔍 Using user-based access control")
-    if current_user.role != UserRole.SUPER_ADMIN:
-        # Convert user's tenant slug to tenant ID for comparison
-        user_tenant_obj = None
-        if current_user.tenant_id:
-            user_tenant_obj = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
-        
-        user_tenant_id = user_tenant_obj.id if user_tenant_obj else None
-        
-        logger.info(f"🔍 Tenant check - Event tenant: {event.tenant_id}, User tenant: {user_tenant_id} (from slug: {current_user.tenant_id})")
-        logger.info(f"🔍 Event tenant_id type: {type(event.tenant_id)}, User tenant_id type: {type(user_tenant_id)}")
-        
-        if event.tenant_id != user_tenant_id:
-            logger.error(f"❌ Tenant mismatch - Event: {event.tenant_id}, User: {user_tenant_id}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Cannot access events from other tenants"
-            )
+
+    # Get all user roles (primary + secondary)
+    all_roles = getattr(current_user, 'all_roles', [current_user.role.value if current_user.role else ''])
+    admin_roles = ['SUPER_ADMIN', 'MT_ADMIN', 'EVENT_ADMIN', 'HR_ADMIN', 'super_admin', 'mt_admin', 'event_admin', 'hr_admin']
+
+    has_admin_role = current_user.role == UserRole.SUPER_ADMIN or \
+                     any(role in admin_roles for role in all_roles)
+
+    # Admins can access any event
+    if has_admin_role:
+        logger.info(f"✅ Admin access granted via all_roles: {all_roles}")
+    else:
+        # Check if user is a vetting committee member or approver for this event
+        from app.models.vetting_committee import VettingCommittee, VettingCommitteeMember
+        from app.models.event_participant import EventParticipant
+        is_vetting_member = db.query(VettingCommitteeMember).join(VettingCommittee).filter(
+            VettingCommittee.event_id == event_id,
+            VettingCommitteeMember.email == current_user.email
+        ).first() is not None
+
+        is_vetting_approver = db.query(VettingCommittee).filter(
+            VettingCommittee.event_id == event_id,
+            VettingCommittee.approver_email == current_user.email
+        ).first() is not None
+
+        # Check if user is a participant in this event
+        is_participant = db.query(EventParticipant).filter(
+            EventParticipant.event_id == event_id,
+            EventParticipant.email == current_user.email
+        ).first() is not None
+
+        if is_vetting_member or is_vetting_approver or is_participant:
+            logger.info(f"✅ Access granted - vetting_member: {is_vetting_member}, approver: {is_vetting_approver}, participant: {is_participant}")
+        else:
+            # Fall back to tenant check
+            user_tenant_obj = None
+            if current_user.tenant_id:
+                user_tenant_obj = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
+
+            user_tenant_id = user_tenant_obj.id if user_tenant_obj else None
+
+            logger.info(f"🔍 Tenant check - Event tenant: {event.tenant_id}, User tenant: {user_tenant_id}")
+
+            if event.tenant_id != user_tenant_id:
+                logger.error(f"❌ Access denied - not admin, not vetting member, tenant mismatch")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot access events from other tenants"
+                )
     
     logger.info(f"✅ Access granted - Event: {event_id}")
     logger.info(f"🎯 === GET EVENT REQUEST END (SUCCESS) ===")

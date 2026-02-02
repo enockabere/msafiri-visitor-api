@@ -227,13 +227,17 @@ def create_vetting_committee(
             # User exists - store their current role
             had_previous_role = str(user.role.value) if user.role and hasattr(user.role, 'value') else str(user.role) if user.role else None
 
+            # Assign tenant if user doesn't have one
+            if not user.tenant_id:
+                user.tenant_id = tenant_id
+
             # Check if they need local password (either no password or password not changed)
             needs_new_password = (
-                user.auth_provider != AuthProvider.LOCAL or 
-                not user.hashed_password or 
+                user.auth_provider != AuthProvider.LOCAL or
+                not user.hashed_password or
                 user.must_change_password  # Still has temporary password
             )
-            
+
             if needs_new_password:
                 # User needs new password
                 member_password = secrets.token_urlsafe(12)
