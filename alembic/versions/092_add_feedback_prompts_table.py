@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '092_add_feedback_prompts_table'
-down_revision = '091_add_accommodation_deduction_fields'
+down_revision = '091_add_accommodation_deduction'
 branch_labels = None
 depends_on = None
 
