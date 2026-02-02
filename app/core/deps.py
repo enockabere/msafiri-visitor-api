@@ -41,6 +41,18 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     
+    # Add all_roles field to user object for role checking
+    try:
+        from app.models.user_roles import UserRole as UserRoleModel
+        user_roles = db.query(UserRoleModel).filter(
+            UserRoleModel.user_id == user.id
+        ).all()
+        all_roles = [user.role.value]  # Primary role
+        all_roles.extend([role.role for role in user_roles])  # Secondary roles
+        user.all_roles = list(set(all_roles))  # Remove duplicates
+    except Exception:
+        user.all_roles = [user.role.value]  # Fallback to primary role only
+    
     # For super admins, don't restrict by tenant_id
     if user.role.value == "super_admin":
         return user
