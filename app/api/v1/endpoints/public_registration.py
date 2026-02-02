@@ -322,8 +322,37 @@ async def send_recommendation_emails(
             recommendation_token = str(uuid.uuid4())
             print(f"🔥 DEBUG: Generated token: {recommendation_token}")
             
-            # Send email to contact without database dependency
+            # Create recommendation record in database first
             try:
+                # Insert recommendation record into database
+                db.execute(
+                    text("""
+                        INSERT INTO line_manager_recommendations 
+                        (registration_id, participant_name, participant_email, line_manager_email, 
+                         operation_center, event_title, event_dates, event_location,
+                         created_at, recommendation_token, event_id, contact_type)
+                        VALUES (:registration_id, :participant_name, :participant_email, :contact_email,
+                                :operation_center, :event_title, :event_dates, :event_location,
+                                CURRENT_TIMESTAMP, :token, :event_id, :contact_type)
+                    """),
+                    {
+                        "registration_id": participant_id,
+                        "participant_name": f"{registration.firstName} {registration.lastName}",
+                        "participant_email": registration.personalEmail,
+                        "contact_email": email,
+                        "operation_center": registration.oc,
+                        "event_title": event.title,
+                        "event_dates": f"{event.start_date} to {event.end_date}",
+                        "event_location": event.location,
+                        "token": recommendation_token,
+                        "event_id": event_id,
+                        "contact_type": contact_type
+                    }
+                )
+                db.commit()
+                print(f"🔥 DEBUG: Recommendation record created in database for {contact_type}")
+                
+                # Send email to contact
                 from app.core.email_service import email_service
                 import os
 
