@@ -77,5 +77,11 @@ class PerdiemRequest(BaseModel):
     accommodation_type = Column(String(50))  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
     accommodation_name = Column(String(255))  # Hotel/Guesthouse name
 
+    # Accommodation deduction breakdown (calculated at approval time)
+    accommodation_days = Column(Integer)  # Number of days with accommodation
+    accommodation_rate = Column(Numeric(10,2))  # Rate applied for accommodation type
+    accommodation_deduction = Column(Numeric(10,2))  # Total deduction: accommodation_rate * accommodation_days
+    per_diem_base_amount = Column(Numeric(10,2))  # Base amount: daily_rate * requested_days
+
     # Relationships
     participant = relationship("EventParticipant", back_populates="perdiem_requests")

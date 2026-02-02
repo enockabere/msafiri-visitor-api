@@ -63,10 +63,14 @@ async def get_tenant_pending_approvals(
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
                 "accommodation_type": request.accommodation_type or event.accommodation_type,
                 "accommodation_name": request.accommodation_name,
+                "accommodation_days": request.accommodation_days,
+                "accommodation_rate": float(request.accommodation_rate) if request.accommodation_rate else None,
+                "accommodation_deduction": float(request.accommodation_deduction) if request.accommodation_deduction else None,
+                "per_diem_base_amount": float(request.per_diem_base_amount) if request.per_diem_base_amount else None,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None
             })
-    
+
     return result
 
 @router.get("/{tenant_slug}/per-diem-approvals/approved")
@@ -117,6 +121,10 @@ async def get_tenant_approved_requests(
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
                 "accommodation_type": request.accommodation_type or event.accommodation_type,
                 "accommodation_name": request.accommodation_name,
+                "accommodation_days": request.accommodation_days,
+                "accommodation_rate": float(request.accommodation_rate) if request.accommodation_rate else None,
+                "accommodation_deduction": float(request.accommodation_deduction) if request.accommodation_deduction else None,
+                "per_diem_base_amount": float(request.per_diem_base_amount) if request.per_diem_base_amount else None,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
@@ -180,6 +188,10 @@ async def get_tenant_issued_requests(
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
                 "accommodation_type": request.accommodation_type or event.accommodation_type,
                 "accommodation_name": request.accommodation_name,
+                "accommodation_days": request.accommodation_days,
+                "accommodation_rate": float(request.accommodation_rate) if request.accommodation_rate else None,
+                "accommodation_deduction": float(request.accommodation_deduction) if request.accommodation_deduction else None,
+                "per_diem_base_amount": float(request.per_diem_base_amount) if request.per_diem_base_amount else None,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
@@ -254,6 +266,73 @@ async def get_tenant_rejected_requests(
     
     return result
 
+@router.get("/{tenant_slug}/per-diem-approvals/completed")
+async def get_tenant_completed_requests(
+    tenant_slug: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get completed per diem requests for a specific tenant (received by participant)"""
+
+    # Get tenant
+    tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Get completed requests for this tenant
+    requests = db.query(PerdiemRequest).join(
+        EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
+    ).join(
+        Event, EventParticipant.event_id == Event.id
+    ).filter(
+        Event.tenant_id == tenant.id,
+        PerdiemRequest.status == "completed"
+    ).all()
+
+    # Format response to match frontend expectations
+    result = []
+    for request in requests:
+        participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+        event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+
+        if participant and event:
+            result.append({
+                "id": request.id,
+                "participant_name": participant.full_name or participant.email,
+                "participant_email": participant.email,
+                "event_name": event.title,
+                "event_dates": f"{event.start_date} to {event.end_date}",
+                "arrival_date": str(request.arrival_date),
+                "departure_date": str(request.departure_date),
+                "requested_days": request.requested_days,
+                "daily_rate": float(request.daily_rate) if request.daily_rate else None,
+                "total_amount": float(request.total_amount) if request.total_amount else None,
+                "currency": request.currency,
+                "purpose": request.purpose or request.justification or "Event participation",
+                "approver_title": request.approver_title or "Per Diem Approver",
+                "phone_number": request.phone_number or participant.phone_number or "",
+                "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "accommodation_type": request.accommodation_type or event.accommodation_type,
+                "accommodation_name": request.accommodation_name,
+                "accommodation_days": request.accommodation_days,
+                "accommodation_rate": float(request.accommodation_rate) if request.accommodation_rate else None,
+                "accommodation_deduction": float(request.accommodation_deduction) if request.accommodation_deduction else None,
+                "per_diem_base_amount": float(request.per_diem_base_amount) if request.per_diem_base_amount else None,
+                "status": request.status,
+                "created_at": request.created_at.isoformat() if request.created_at else None,
+                "approved_by": request.approved_by,
+                "approved_by_name": request.approver_full_name,
+                "approved_by_email": request.approved_by,
+                "approved_at": request.approved_at.isoformat() if request.approved_at else None,
+                "budget_code": request.budget_code,
+                "activity_code": request.activity_code,
+                "cost_center": request.cost_center,
+                "section": request.section,
+                "approver_role": request.approver_role
+            })
+
+    return result
+
 @router.post("/{tenant_slug}/per-diem-approvals/{request_id}/approve")
 async def approve_tenant_perdiem(
     tenant_slug: str,
@@ -312,12 +391,42 @@ async def approve_tenant_perdiem(
         setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
         daily_rate = float(setup.daily_rate) if setup else 0
         currency = setup.currency if setup else "USD"
-        total_amount = daily_rate * request.requested_days
-        
+
+        # Calculate base amount (daily_rate * requested_days)
+        per_diem_base_amount = daily_rate * request.requested_days
+
+        # Calculate accommodation deduction based on accommodation_type
+        accommodation_rate = 0
+        accommodation_deduction = 0
+        accommodation_days = request.requested_days  # Assume accommodation for all requested days
+
+        if setup and request.accommodation_type:
+            accommodation_type = request.accommodation_type.lower().replace(' ', '').replace('_', '')
+            if accommodation_type == 'fullboard':
+                accommodation_rate = float(setup.fullboard_rate or 0)
+            elif accommodation_type == 'halfboard':
+                accommodation_rate = float(setup.halfboard_rate or 0)
+            elif accommodation_type in ['bedandbreakfast', 'b&b', 'bb']:
+                accommodation_rate = float(setup.bed_and_breakfast_rate or 0)
+            elif accommodation_type in ['bedonly', 'roomonly']:
+                accommodation_rate = float(setup.bed_only_rate or 0)
+
+            # Calculate total deduction
+            accommodation_deduction = accommodation_rate * accommodation_days
+
+        # Calculate final total amount after deduction
+        total_amount = per_diem_base_amount - accommodation_deduction
+
         # Lock in the rates at approval time so they don't change later
         request.daily_rate = daily_rate
         request.currency = currency
         request.total_amount = total_amount
+
+        # Save the accommodation deduction breakdown
+        request.per_diem_base_amount = per_diem_base_amount
+        request.accommodation_days = accommodation_days
+        request.accommodation_rate = accommodation_rate
+        request.accommodation_deduction = accommodation_deduction
         
         # Send email to Finance Admin
         if participant and event:
@@ -341,6 +450,12 @@ async def approve_tenant_perdiem(
                 activity_code=approval_data.get("activityCode") if approval_data else "",
                 cost_center=approval_data.get("costCenter") if approval_data else "",
                 section=approval_data.get("section") if approval_data else "",
+                # Accommodation breakdown
+                per_diem_base_amount=per_diem_base_amount,
+                accommodation_type=request.accommodation_type,
+                accommodation_days=accommodation_days,
+                accommodation_rate=accommodation_rate,
+                accommodation_deduction=accommodation_deduction,
                 db=db
             )
         
@@ -391,6 +506,11 @@ async def send_perdiem_approved_email(
     activity_code: str,
     cost_center: str,
     section: str,
+    per_diem_base_amount: float,
+    accommodation_type: str,
+    accommodation_days: int,
+    accommodation_rate: float,
+    accommodation_deduction: float,
     db: Session
 ):
     """Send email notification to Finance Admin when per diem is approved"""
@@ -448,14 +568,27 @@ async def send_perdiem_approved_email(
         
         subject = "Per Diem Payment Authorization Required"
         
+        # Build accommodation deduction section if applicable
+        accommodation_section = ""
+        if accommodation_deduction > 0 and accommodation_type:
+            accommodation_section = f"""
+            <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+                <h3 style="margin-top: 0; color: #e65100;">Accommodation Deduction</h3>
+                <p><strong>Accommodation Type:</strong> {accommodation_type}</p>
+                <p><strong>Accommodation Days:</strong> {accommodation_days}</p>
+                <p><strong>Accommodation Rate:</strong> {currency} {accommodation_rate:,.2f} per day</p>
+                <p><strong>Total Deduction:</strong> {currency} {accommodation_deduction:,.2f}</p>
+            </div>
+            """
+
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #d32f2f;">Per Diem Payment Authorization Required</h2>
-            
+
             <p>Dear Finance Admin,</p>
-            
+
             <p>A per diem request has been approved and requires payment authorization:</p>
-            
+
             <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #333;">Request Details</h3>
                 <p><strong>Participant:</strong> {participant_name}</p>
@@ -464,10 +597,19 @@ async def send_perdiem_approved_email(
                 <p><strong>Event Location:</strong> {event_location}</p>
                 <p><strong>Dates:</strong> {event_dates}</p>
                 <p><strong>Days:</strong> {requested_days}</p>
-                <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
-                <p><strong>Total Amount:</strong> {currency} {total_amount:,.2f}</p>
                 <p><strong>Purpose:</strong> {purpose}</p>
             </div>
+
+            <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1976d2;">
+                <h3 style="margin-top: 0; color: #1565c0;">Payment Calculation</h3>
+                <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
+                <p><strong>Number of Days:</strong> {requested_days}</p>
+                <p><strong>Base Amount:</strong> {currency} {per_diem_base_amount:,.2f}</p>
+                {f'<p><strong>Less Accommodation ({accommodation_type}):</strong> -{currency} {accommodation_deduction:,.2f}</p>' if accommodation_deduction > 0 else ''}
+                <hr style="border: none; border-top: 2px solid #1976d2; margin: 10px 0;">
+                <p style="font-size: 18px;"><strong>Total Payable:</strong> <span style="color: #1565c0;">{currency} {total_amount:,.2f}</span></p>
+            </div>
+            {accommodation_section}
             
             <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #2e7d32;">Approval Details</h3>
@@ -596,46 +738,62 @@ async def send_perdiem_issued_email(
     approver_name: str,
     approver_email: str,
     finance_admin_email: str,
+    per_diem_base_amount: float,
+    accommodation_type: str,
+    accommodation_days: int,
+    accommodation_rate: float,
+    accommodation_deduction: float,
     db: Session
 ):
     """Send email notification when per diem is issued"""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
         from app.core.email_service import email_service
-        
+
         logger.info(f"Starting to send per diem issued email to participant: {participant_email}")
-        
+
+        # Build accommodation deduction section if applicable
+        accommodation_section = ""
+        if accommodation_deduction > 0 and accommodation_type:
+            accommodation_section = f"""
+                <p><strong>Less Accommodation ({accommodation_type}):</strong> <span style="color: #e65100;">-{currency} {accommodation_deduction:,.2f}</span></p>
+                <p style="font-size: 12px; color: #666;">({currency} {accommodation_rate:,.2f}/day x {accommodation_days} days)</p>
+            """
+
         subject = "Per Diem Payment Issued"
-        
+
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #059669;">Per Diem Payment Issued</h2>
-            
+
             <p>Dear {participant_name},</p>
-            
+
             <p>Great news! Your per diem payment has been issued:</p>
-            
+
             <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
-                <h3 style="margin-top: 0; color: #059669;">Payment Details</h3>
+                <h3 style="margin-top: 0; color: #059669;">Payment Calculation</h3>
                 <p><strong>Event:</strong> {event_name}</p>
                 <p><strong>Event Location:</strong> {event_location}</p>
                 <p><strong>Dates:</strong> {event_dates}</p>
                 <p><strong>Days:</strong> {requested_days}</p>
                 <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
-                <p><strong>Total Amount:</strong> <span style="color: #059669; font-size: 18px; font-weight: bold;">{currency} {total_amount:,.2f}</span></p>
+                <p><strong>Base Amount:</strong> {currency} {per_diem_base_amount:,.2f}</p>
+                {accommodation_section}
+                <hr style="border: none; border-top: 2px solid #059669; margin: 10px 0;">
+                <p><strong>Total Amount Paid:</strong> <span style="color: #059669; font-size: 18px; font-weight: bold;">{currency} {total_amount:,.2f}</span></p>
                 <p><strong>Purpose:</strong> {purpose}</p>
             </div>
-            
+
             <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="margin-top: 0; color: #333;">Processing Information</h3>
                 <p><strong>Approved by:</strong> {approver_name}</p>
                 <p><strong>Issued by:</strong> Finance Admin</p>
             </div>
-            
+
             <p>The payment will be processed according to your organization's standard procedures. Please contact your Finance Admin if you have any questions about the payment timeline.</p>
-            
+
             <p>Best regards,<br>MSafiri Team</p>
         </div>
         """
@@ -793,6 +951,12 @@ async def issue_tenant_perdiem(
             approver_name=request.approver_full_name or request.approved_by,
             approver_email=request.approved_by,
             finance_admin_email=current_user.email,
+            # Accommodation breakdown
+            per_diem_base_amount=float(request.per_diem_base_amount) if request.per_diem_base_amount else total_amount,
+            accommodation_type=request.accommodation_type,
+            accommodation_days=request.accommodation_days or 0,
+            accommodation_rate=float(request.accommodation_rate) if request.accommodation_rate else 0,
+            accommodation_deduction=float(request.accommodation_deduction) if request.accommodation_deduction else 0,
             db=db
         )
     
