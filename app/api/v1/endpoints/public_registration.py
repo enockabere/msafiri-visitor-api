@@ -328,10 +328,10 @@ async def send_recommendation_emails(
                 db.execute(
                     text("""
                         INSERT INTO line_manager_recommendations 
-                        (registration_id, participant_name, participant_email, line_manager_email, 
+                        (participant_name, participant_email, line_manager_email, 
                          operation_center, event_title, event_dates, event_location,
                          created_at, recommendation_token, event_id, contact_type)
-                        VALUES (0, :participant_name, :participant_email, :contact_email,
+                        VALUES (:participant_name, :participant_email, :contact_email,
                                 :operation_center, :event_title, :event_dates, :event_location,
                                 CURRENT_TIMESTAMP, :token, :event_id, :contact_type)
                     """),
