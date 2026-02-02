@@ -757,13 +757,18 @@ async def send_perdiem_issued_email(
 
         logger.info(f"Starting to send per diem issued email to participant: {participant_email}")
 
-        # Build accommodation deduction section if applicable
-        accommodation_section = ""
+        # Build payment breakdown in the requested format
+        payment_breakdown = f"""
+            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
+                <h3 style="margin-top: 0; color: #059669;">Payment Breakdown</h3>
+                <p style="font-size: 18px; font-weight: bold; color: #059669; margin-bottom: 10px;">{currency} {total_amount:,.2f}</p>
+                <p style="margin: 5px 0; color: #333;">{currency} {daily_rate:,.2f}/day x {requested_days} days</p>
+        """
+        
         if accommodation_deduction > 0 and accommodation_type:
-            accommodation_section = f"""
-                <p><strong>Less Accommodation ({accommodation_type}):</strong> <span style="color: #e65100;">-{currency} {accommodation_deduction:,.2f}</span></p>
-                <p style="font-size: 12px; color: #666;">({currency} {accommodation_rate:,.2f}/day x {accommodation_days} days)</p>
-            """
+            payment_breakdown += f'<p style="margin: 5px 0; color: #e65100;">-{currency} {accommodation_deduction:,.2f} ({accommodation_type})</p>'
+        
+        payment_breakdown += "</div>"
 
         subject = "Per Diem Payment Issued"
 
@@ -775,17 +780,13 @@ async def send_perdiem_issued_email(
 
             <p>Great news! Your per diem payment has been issued:</p>
 
-            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
-                <h3 style="margin-top: 0; color: #059669;">Payment Calculation</h3>
+            {payment_breakdown}
+
+            <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <h3 style="margin-top: 0; color: #333;">Event Details</h3>
                 <p><strong>Event:</strong> {event_name}</p>
                 <p><strong>Event Location:</strong> {event_location}</p>
                 <p><strong>Dates:</strong> {event_dates}</p>
-                <p><strong>Days:</strong> {requested_days}</p>
-                <p><strong>Daily Rate:</strong> {currency} {daily_rate:,.2f}</p>
-                <p><strong>Base Amount:</strong> {currency} {per_diem_base_amount:,.2f}</p>
-                {accommodation_section}
-                <hr style="border: none; border-top: 2px solid #059669; margin: 10px 0;">
-                <p><strong>Total Amount Paid:</strong> <span style="color: #059669; font-size: 18px; font-weight: bold;">{currency} {total_amount:,.2f}</span></p>
                 <p><strong>Purpose:</strong> {purpose}</p>
             </div>
 
