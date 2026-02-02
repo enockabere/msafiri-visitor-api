@@ -13,6 +13,66 @@ router = APIRouter()
 class RecommendationSubmission(BaseModel):
     is_recommended: bool
 
+@router.get("/debug/token/{token}")
+async def debug_token_lookup(
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """DEBUG: Check if token exists in database"""
+    
+    logger.info(f"🔍 DEBUG: Looking up token {token}")
+    
+    # Check if token exists
+    result = db.execute(
+        text("""
+            SELECT id, participant_name, participant_email, contact_type, 
+                   recommendation_token, event_id, created_at
+            FROM line_manager_recommendations 
+            WHERE recommendation_token = :token
+        """),
+        {"token": token}
+    ).fetchone()
+    
+    if result:
+        logger.info(f"🔍 DEBUG: Token found - ID: {result[0]}, Contact Type: {result[3]}")
+        return {
+            "token_found": True,
+            "id": result[0],
+            "participant_name": result[1],
+            "participant_email": result[2],
+            "contact_type": result[3],
+            "event_id": result[5],
+            "created_at": str(result[6])
+        }
+    else:
+        logger.info(f"🔍 DEBUG: Token NOT found")
+        return {"token_found": False}
+
+@router.get("/debug/all-tokens")
+async def debug_all_tokens(db: Session = Depends(get_db)):
+    """DEBUG: List all recommendation tokens"""
+    
+    results = db.execute(
+        text("""
+            SELECT recommendation_token, contact_type, participant_name, created_at
+            FROM line_manager_recommendations 
+            ORDER BY created_at DESC
+            LIMIT 10
+        """)
+    ).fetchall()
+    
+    tokens = []
+    for result in results:
+        tokens.append({
+            "token": result[0],
+            "contact_type": result[1],
+            "participant_name": result[2],
+            "created_at": str(result[3])
+        })
+    
+    logger.info(f"🔍 DEBUG: Found {len(tokens)} tokens")
+    return {"tokens": tokens}
+
 @router.get("/test")
 async def test_endpoint():
     """Test endpoint to verify router is working"""
@@ -25,11 +85,13 @@ async def get_recommendation_details(
 ):
     """Get recommendation request details by token"""
     
+    logger.info(f"🔍 Getting recommendation details for token: {token}")
+    
     result = db.execute(
         text("""
             SELECT r.id, r.participant_name, r.participant_email, r.operation_center,
                    r.event_title, r.event_dates, r.event_location, r.is_recommended,
-                   r.submitted_at, e.registration_deadline
+                   r.submitted_at, e.registration_deadline, r.contact_type
             FROM line_manager_recommendations r
             JOIN events e ON r.event_id = e.id
             WHERE r.recommendation_token = :token
@@ -37,7 +99,10 @@ async def get_recommendation_details(
         {"token": token}
     ).fetchone()
     
+    logger.info(f"🔍 Database query result: {result}")
+    
     if not result:
+        logger.error(f"🔍 No recommendation found for token: {token}")
         raise HTTPException(status_code=404, detail="Recommendation request not found")
     
     return {
