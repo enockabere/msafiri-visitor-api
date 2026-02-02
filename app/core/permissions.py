@@ -11,8 +11,7 @@ def has_any_role(user: User, db: Session, required_roles: List[str]) -> bool:
     
     # Check additional roles from user_roles table
     user_roles = db.query(UserRole).filter(
-        UserRole.user_id == user.id,
-        UserRole.is_active == True
+        UserRole.user_id == user.id
     ).all()
     
     user_role_names = [role.role for role in user_roles]

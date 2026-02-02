@@ -52,8 +52,7 @@ async def redeem_voucher_scan(
         # Verify scanner has voucher scanner role
         scanner_role = db.query(UserRole).filter(
             UserRole.user_id == scanner.id,
-            UserRole.role == 'VOUCHER_SCANNER',
-            UserRole.is_active == True
+            UserRole.role == 'VOUCHER_SCANNER'
         ).first()
         
         if not scanner_role:

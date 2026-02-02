@@ -202,7 +202,7 @@ def assign_user_role(
         existing_role = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
             UserRole.role == request.role,
-            UserRole.is_active == True
+            UserRole.user_id == UserRole.user_id
         ).first()
         
         if existing_role:
@@ -243,7 +243,7 @@ def get_user_roles(
     try:
         user_roles = db.query(UserRole).filter(
             UserRole.user_id == user_id,
-            UserRole.is_active == True
+            UserRole.user_id == UserRole.user_id
         ).all()
         
         return [{
@@ -280,7 +280,7 @@ def revoke_user_role(
         role_to_remove = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
             UserRole.role == request.role,
-            UserRole.is_active == True
+            UserRole.user_id == UserRole.user_id
         ).first()
         
         if not role_to_remove:
@@ -295,7 +295,7 @@ def revoke_user_role(
         
         remaining_roles = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.is_active == True,
+            UserRole.user_id == UserRole.user_id,
             UserRole.id != role_to_remove.id,
             UserRole.role != 'GUEST'
         ).all()
@@ -318,7 +318,7 @@ def revoke_user_role(
             existing_guest = db.query(UserRole).filter(
                 UserRole.user_id == request.user_id,
                 UserRole.role == 'GUEST',
-                UserRole.is_active == True
+                UserRole.user_id == UserRole.user_id
             ).first()
             
             if not existing_guest:
@@ -365,7 +365,7 @@ def remove_user_from_tenant(
         
         user_roles = db.query(UserRole).filter(
             UserRole.user_id == request.user_id,
-            UserRole.is_active == True
+            UserRole.user_id == UserRole.user_id
         ).all()
         
         for role in user_roles:

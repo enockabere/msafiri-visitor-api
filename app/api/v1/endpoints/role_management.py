@@ -15,18 +15,14 @@ def has_role(user: User, role: RoleType, db: Session) -> bool:
     return db.query(UserRole).filter(
         and_(
             UserRole.user_id == user.id,
-            UserRole.role == role,
-            UserRole.is_active == True
+            UserRole.role == role
         )
     ).first() is not None
 
 def get_user_roles(user: User, db: Session) -> List[RoleType]:
-    """Get all active roles for user"""
+    """Get all roles for user"""
     roles = db.query(UserRole).filter(
-        and_(
-            UserRole.user_id == user.id,
-            UserRole.is_active == True
-        )
+        UserRole.user_id == user.id
     ).all()
     return [role.role for role in roles]
 
@@ -61,8 +57,7 @@ def grant_role(
     existing_role = db.query(UserRole).filter(
         and_(
             UserRole.user_id == target_user.id,
-            UserRole.role == role_enum,
-            UserRole.is_active == True
+            UserRole.role == role_enum
         )
     ).first()
     
@@ -130,12 +125,11 @@ def revoke_role(
     if (target_user.id == current_user.id and role_enum == RoleType.SUPER_ADMIN):
         raise HTTPException(status_code=400, detail="Cannot revoke your own SUPER_ADMIN role")
     
-    # Find active role
+    # Find role
     user_role = db.query(UserRole).filter(
         and_(
             UserRole.user_id == target_user.id,
-            UserRole.role == role_enum,
-            UserRole.is_active == True
+            UserRole.role == role_enum
         )
     ).first()
     
@@ -198,12 +192,9 @@ def get_user_roles_endpoint(
     if not target_user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Get active roles
+    # Get roles
     active_roles = db.query(UserRole).filter(
-        and_(
-            UserRole.user_id == target_user.id,
-            UserRole.is_active == True
-        )
+        UserRole.user_id == target_user.id
     ).all()
     
     roles_data = []
@@ -282,12 +273,9 @@ def get_all_users_roles(
     
     result = []
     for user in users:
-        # Get user's active roles
+        # Get user's roles
         user_roles = db.query(UserRole).filter(
-            and_(
-                UserRole.user_id == user.id,
-                UserRole.is_active == True
-            )
+            UserRole.user_id == user.id
         ).all()
         
         roles_list = [role.role.value for role in user_roles]

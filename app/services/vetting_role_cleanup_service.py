@@ -24,8 +24,7 @@ def cleanup_orphaned_vetting_roles(db: Session) -> int:
         
         # Get all users with vetting roles
         vetting_roles = db.query(UserRole).filter(
-            UserRole.role.in_([RoleType.VETTING_COMMITTEE, RoleType.VETTING_APPROVER]),
-            UserRole.is_active == True
+            UserRole.role.in_([RoleType.VETTING_COMMITTEE, RoleType.VETTING_APPROVER])
         ).all()
         
         logger.info(f"🔍 Found {len(vetting_roles)} active vetting roles to check")
@@ -67,12 +66,10 @@ def cleanup_orphaned_vetting_roles(db: Session) -> int:
             # If user has no active vetting responsibilities, remove the role
             if not has_active_vetting:
                 logger.info(f"🗑️ Removing orphaned {role_type.value} role from user {user_id}")
-                
-                # Deactivate the role instead of deleting for audit trail
-                user_role.is_active = False
-                user_role.revoked_at = datetime.utcnow()
-                user_role.revoked_by = "system_cleanup"
-                
+
+                # Delete the role
+                db.delete(user_role)
+
                 cleaned_up_count += 1
         
         db.commit()
@@ -128,15 +125,12 @@ def cleanup_orphaned_vetting_roles_for_deleted_event(db: Session, event_id: int)
                 # Remove VETTING_COMMITTEE role
                 vetting_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
-                    UserRole.role == RoleType.VETTING_COMMITTEE,
-                    UserRole.is_active == True
+                    UserRole.role == RoleType.VETTING_COMMITTEE
                 ).first()
-                
+
                 if vetting_role:
                     logger.info(f"🗑️ Removing VETTING_COMMITTEE role from user {user_id} (event {event_id} deleted)")
-                    vetting_role.is_active = False
-                    vetting_role.revoked_at = datetime.utcnow()
-                    vetting_role.revoked_by = f"event_{event_id}_deletion"
+                    db.delete(vetting_role)
                     cleaned_up_count += 1
         
         # Check each approver if they have other active vetting responsibilities
@@ -156,15 +150,12 @@ def cleanup_orphaned_vetting_roles_for_deleted_event(db: Session, event_id: int)
                 # Remove VETTING_APPROVER role
                 approver_role = db.query(UserRole).filter(
                     UserRole.user_id == user_id,
-                    UserRole.role == RoleType.VETTING_APPROVER,
-                    UserRole.is_active == True
+                    UserRole.role == RoleType.VETTING_APPROVER
                 ).first()
-                
+
                 if approver_role:
                     logger.info(f"🗑️ Removing VETTING_APPROVER role from user {user_id} (event {event_id} deleted)")
-                    approver_role.is_active = False
-                    approver_role.revoked_at = datetime.utcnow()
-                    approver_role.revoked_by = f"event_{event_id}_deletion"
+                    db.delete(approver_role)
                     cleaned_up_count += 1
         
         db.commit()
