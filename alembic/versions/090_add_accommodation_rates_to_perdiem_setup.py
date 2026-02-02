@@ -1,7 +1,7 @@
 """Add accommodation rates to perdiem_setup
 
 Revision ID: 090_add_accommodation_rates
-Revises: 089_add_accommodation_fields_to_perdiem
+Revises: 089_add_accommodation_fields
 Create Date: 2026-02-02 10:00:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '090_add_accommodation_rates'
-down_revision = '089_add_accommodation_fields_to_perdiem'
+down_revision = '089_add_accommodation_fields'
 branch_labels = None
 depends_on = None
 
