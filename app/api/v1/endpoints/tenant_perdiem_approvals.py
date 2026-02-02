@@ -61,6 +61,8 @@ async def get_tenant_pending_approvals(
                 "approver_title": request.approver_title or "Per Diem Approver",
                 "phone_number": request.phone_number or participant.phone_number or "",
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "accommodation_type": request.accommodation_type or event.accommodation_type,
+                "accommodation_name": request.accommodation_name,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None
             })
@@ -113,6 +115,8 @@ async def get_tenant_approved_requests(
                 "approver_title": request.approver_title or "Per Diem Approver",
                 "phone_number": request.phone_number or participant.phone_number or "",
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "accommodation_type": request.accommodation_type or event.accommodation_type,
+                "accommodation_name": request.accommodation_name,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
@@ -125,7 +129,7 @@ async def get_tenant_approved_requests(
                 "section": request.section,
                 "approver_role": request.approver_role
             })
-    
+
     return result
 
 @router.get("/{tenant_slug}/per-diem-approvals/issued")
@@ -174,6 +178,8 @@ async def get_tenant_issued_requests(
                 "approver_title": request.approver_title or "Per Diem Approver",
                 "phone_number": request.phone_number or participant.phone_number or "",
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "accommodation_type": request.accommodation_type or event.accommodation_type,
+                "accommodation_name": request.accommodation_name,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "approved_by": request.approved_by,
@@ -186,7 +192,7 @@ async def get_tenant_issued_requests(
                 "section": request.section,
                 "approver_role": request.approver_role
             })
-    
+
     return result
 
 @router.get("/{tenant_slug}/per-diem-approvals/rejected")
@@ -235,6 +241,8 @@ async def get_tenant_rejected_requests(
                 "approver_title": request.approver_title or "Per Diem Approver",
                 "phone_number": request.phone_number or participant.phone_number or "",
                 "payment_method": request.payment_method.value if request.payment_method else "CASH",
+                "accommodation_type": request.accommodation_type or event.accommodation_type,
+                "accommodation_name": request.accommodation_name,
                 "status": request.status,
                 "created_at": request.created_at.isoformat() if request.created_at else None,
                 "rejected_by": request.rejected_by,

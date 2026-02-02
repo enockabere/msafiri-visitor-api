@@ -83,7 +83,9 @@ def create_perdiem_request(
         payment_method=request.payment_method,
         cash_pickup_date=request.cash_pickup_date,
         cash_hours=request.cash_hours,
-        mpesa_number=request.mpesa_number
+        mpesa_number=request.mpesa_number,
+        accommodation_type=request.accommodation_type,
+        accommodation_name=request.accommodation_name
     )
     
     print(f"🔧 DEBUG - Created PerdiemRequest object with status: {perdiem_request.status}")
@@ -185,6 +187,8 @@ def get_public_perdiem_request(
         cash_pickup_date=perdiem_request.cash_pickup_date,
         cash_hours=perdiem_request.cash_hours,
         mpesa_number=perdiem_request.mpesa_number,
+        accommodation_type=perdiem_request.accommodation_type,
+        accommodation_name=perdiem_request.accommodation_name,
         status=perdiem_request.status.value,
         created_at=perdiem_request.created_at
     )
@@ -295,7 +299,9 @@ def update_perdiem_request(
     perdiem_request.cash_pickup_date = request.cash_pickup_date
     perdiem_request.cash_hours = request.cash_hours
     perdiem_request.mpesa_number = request.mpesa_number
-    
+    perdiem_request.accommodation_type = request.accommodation_type
+    perdiem_request.accommodation_name = request.accommodation_name
+
     # Recalculate amounts
     daily_rate = 50.00  # Default rate
     perdiem_request.total_amount = daily_rate * request.requested_days

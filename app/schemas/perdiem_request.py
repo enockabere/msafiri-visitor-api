@@ -18,6 +18,8 @@ class PerdiemRequestCreate(BaseModel):
     cash_pickup_date: Optional[date] = None
     cash_hours: Optional[str] = None  # "morning" or "afternoon"
     mpesa_number: Optional[str] = None
+    accommodation_type: Optional[str] = None  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    accommodation_name: Optional[str] = None  # Hotel/Guesthouse name
     
     @validator('requested_days', always=True)
     def set_requested_days(cls, v, values):
@@ -58,8 +60,10 @@ class PerdiemRequest(BaseModel):
     rejected_by: Optional[str] = None
     rejected_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
+    accommodation_type: Optional[str] = None
+    accommodation_name: Optional[str] = None
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -106,5 +110,7 @@ class PerdiemPublicView(BaseModel):
     cash_pickup_date: Optional[date] = None
     cash_hours: Optional[str] = None
     mpesa_number: Optional[str] = None
+    accommodation_type: Optional[str] = None
+    accommodation_name: Optional[str] = None
     status: str
     created_at: datetime

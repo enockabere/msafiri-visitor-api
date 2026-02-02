@@ -72,6 +72,10 @@ class PerdiemRequest(BaseModel):
     activity_code = Column(String(100))  # Activity code
     cost_center = Column(String(100))  # Cost center
     section = Column(String(50))  # OCA, OCB, OCBA, OCG, WACA
-    
+
+    # Accommodation details (from user's active accommodation for the event)
+    accommodation_type = Column(String(50))  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    accommodation_name = Column(String(255))  # Hotel/Guesthouse name
+
     # Relationships
     participant = relationship("EventParticipant", back_populates="perdiem_requests")
