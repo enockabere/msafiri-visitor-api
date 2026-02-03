@@ -136,6 +136,7 @@ async def extract_receipt_data(
     current_user: User = Depends(get_current_user)
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
+    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
     logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
     logger.info(f"📷 Azure services available: {azure_available}")
     
