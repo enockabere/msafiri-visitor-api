@@ -15,6 +15,19 @@ from app.schemas.cash_claim import (
 from app.api.deps import get_current_user
 from app.models.user import User
 
+# Try to import Azure services
+try:
+    from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
+    document_service = AzureDocumentIntelligenceService()
+    openai_service = AzureOpenAIService()
+    azure_available = True
+    print("✅ Azure services imported successfully")
+except Exception as e:
+    print(f"❌ Failed to import Azure services: {e}")
+    document_service = None
+    openai_service = None
+    azure_available = False
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -123,11 +136,50 @@ async def extract_receipt_data(
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
     logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
+    logger.info(f"📷 Azure services available: {azure_available}")
     
-    return ReceiptExtractionResponse(
-        success=False,
-        message="Receipt extraction service temporarily unavailable"
-    )
+    if not azure_available or not document_service:
+        logger.warning("⚠️ Azure Document Intelligence service not available")
+        return ReceiptExtractionResponse(
+            success=False,
+            message="Receipt extraction service temporarily unavailable - Azure services not configured"
+        )
+    
+    try:
+        logger.info("🚀 Starting Azure Document Intelligence extraction...")
+        logger.info(f"🚀 Image URL: {request.image_url}")
+        
+        # Check if URL is accessible
+        import httpx
+        async with httpx.AsyncClient() as client:
+            try:
+                head_response = await client.head(request.image_url, timeout=10.0)
+                logger.info(f"🚀 Image URL accessible: {head_response.status_code}")
+                logger.info(f"🚀 Content-Type: {head_response.headers.get('content-type')}")
+                logger.info(f"🚀 Content-Length: {head_response.headers.get('content-length')}")
+            except Exception as url_error:
+                logger.error(f"❌ Image URL not accessible: {url_error}")
+                return ReceiptExtractionResponse(
+                    success=False,
+                    message=f"Image URL not accessible: {str(url_error)}"
+                )
+        
+        logger.info("🚀 Calling Azure Document Intelligence service...")
+        extracted_data = await document_service.extract_receipt_data(request.image_url)
+        logger.info(f"✅ Receipt extraction successful: {extracted_data}")
+        
+        return ReceiptExtractionResponse(
+            success=True,
+            extracted_data=extracted_data
+        )
+    
+    except Exception as e:
+        logger.error(f"❌ Receipt extraction failed: {str(e)}")
+        logger.exception("Full exception details:")
+        return ReceiptExtractionResponse(
+            success=False,
+            message=f"Failed to extract receipt data: {str(e)}"
+        )
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(
