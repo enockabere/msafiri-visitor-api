@@ -163,13 +163,10 @@ def working_test():
     print("🎯 WORKING TEST ENDPOINT CALLED")
     return {"message": "This endpoint works!", "timestamp": datetime.utcnow().isoformat()}
 
-@router.post("/extract-receipt-simple")
-async def extract_receipt_simple(request: dict):
-    """Minimal test endpoint"""
-    print(f"🎯 SIMPLE EXTRACT ENDPOINT CALLED")
-    logger.info(f"🎯 SIMPLE EXTRACT ENDPOINT CALLED")
-    logger.info(f"📷 Request data: {request}")
-    return {"success": True, "message": "Simple endpoint works", "data": request}
+@router.post("/minimal-test")
+def minimal_test_post(data: dict):
+    """Absolutely minimal POST test"""
+    return {"received": data, "status": "working"}
 
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
