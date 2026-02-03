@@ -22,9 +22,9 @@ try:
     document_service = AzureDocumentIntelligenceService()
     openai_service = AzureOpenAIService()
     azure_available = True
-    print("✅ Azure services imported successfully")
+    logger.info("✅ Azure services imported and initialized successfully")
 except Exception as e:
-    print(f"❌ Failed to import Azure services: {e}")
+    logger.error(f"❌ Failed to import or initialize Azure services: {e}")
     document_service = None
     openai_service = None
     azure_available = False

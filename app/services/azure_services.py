@@ -19,12 +19,19 @@ class AzureDocumentIntelligenceService:
         self.api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
         
         if not self.endpoint or not self.api_key:
-            raise ValueError("Azure Document Intelligence credentials not configured")
+            logger.warning("Azure Document Intelligence credentials not configured - service will be unavailable")
+            self.client = None
+            return
         
-        self.client = DocumentIntelligenceClient(
-            endpoint=self.endpoint,
-            credential=AzureKeyCredential(self.api_key)
-        )
+        try:
+            self.client = DocumentIntelligenceClient(
+                endpoint=self.endpoint,
+                credential=AzureKeyCredential(self.api_key)
+            )
+            logger.info("Azure Document Intelligence client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Azure Document Intelligence client: {e}")
+            self.client = None
 
     async def extract_receipt_data(self, image_url: str) -> Dict[str, Any]:
         """Extract data from receipt image using Azure Document Intelligence"""
@@ -145,13 +152,20 @@ class AzureOpenAIService:
         self.deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
         
         if not self.endpoint or not self.api_key:
-            raise ValueError("Azure OpenAI credentials not configured")
+            logger.warning("Azure OpenAI credentials not configured - service will be unavailable")
+            self.client = None
+            return
         
-        self.client = AzureOpenAI(
-            azure_endpoint=self.endpoint,
-            api_key=self.api_key,
-            api_version="2024-02-15-preview"
-        )
+        try:
+            self.client = AzureOpenAI(
+                azure_endpoint=self.endpoint,
+                api_key=self.api_key,
+                api_version="2024-02-15-preview"
+            )
+            logger.info("Azure OpenAI client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+            self.client = None
 
     async def validate_claim_data(self, claim_data: Dict[str, Any], user_context: Optional[Dict[str, Any]] = None) -> str:
         """Validate claim data using AI"""
