@@ -608,6 +608,36 @@ def run_auto_migration():
                         except Exception:
                             pass  # Constraint might already exist
                     
+                    # Create cash claims tables
+                    create_claims_table = """
+                    CREATE TABLE IF NOT EXISTS claims (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        status VARCHAR(50) DEFAULT 'draft',
+                        total_amount NUMERIC(10, 2) DEFAULT 0.0,
+                        description TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        submitted_at TIMESTAMP WITH TIME ZONE,
+                        approved_at TIMESTAMP WITH TIME ZONE,
+                        approved_by INTEGER REFERENCES users(id)
+                    )
+                    """
+                    conn.execute(text(create_claims_table))
+                    
+                    create_claim_items_table = """
+                    CREATE TABLE IF NOT EXISTS claim_items (
+                        id SERIAL PRIMARY KEY,
+                        claim_id INTEGER NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+                        merchant_name VARCHAR(255),
+                        amount NUMERIC(10, 2) NOT NULL,
+                        date TIMESTAMP WITH TIME ZONE,
+                        category VARCHAR(100),
+                        receipt_image_url TEXT,
+                        extracted_data JSON
+                    )
+                    """
+                    conn.execute(text(create_claim_items_table))
+                    
                     trans.commit()
                     
                     # Create default roles after successful migration
