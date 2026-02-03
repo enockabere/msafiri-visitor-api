@@ -163,6 +163,28 @@ def working_test():
     print("🎯 WORKING TEST ENDPOINT CALLED")
     return {"message": "This endpoint works!", "timestamp": datetime.utcnow().isoformat()}
 
+@router.post("/test-receipt-upload")
+def test_receipt_upload(image_url: str):
+    """Test receipt extraction with a direct image URL"""
+    logger.info(f"🎯 TEST RECEIPT UPLOAD CALLED")
+    logger.info(f"📷 Image URL: {image_url}")
+    
+    # Check Azure Document Intelligence configuration
+    endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+    api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
+    
+    logger.info(f"📷 Azure DI Endpoint configured: {bool(endpoint)}")
+    logger.info(f"📷 Azure DI API Key configured: {bool(api_key)}")
+    
+    return {
+        "success": True,
+        "message": "Test endpoint working",
+        "image_url": image_url,
+        "azure_endpoint_configured": bool(endpoint),
+        "azure_key_configured": bool(api_key),
+        "azure_available": azure_available
+    }
+
 @router.post("/minimal-test")
 def minimal_test_post(data: dict):
     """Absolutely minimal POST test"""
