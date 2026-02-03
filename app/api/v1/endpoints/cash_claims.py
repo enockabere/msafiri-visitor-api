@@ -164,7 +164,7 @@ def working_test():
     return {"message": "This endpoint works!", "timestamp": datetime.utcnow().isoformat()}
 
 @router.post("/test-receipt-upload")
-def test_receipt_upload(request: dict):
+async def test_receipt_upload(request: dict):
     """Test receipt extraction with a direct image URL"""
     logger.info(f"🎯 TEST RECEIPT UPLOAD CALLED")
     
@@ -183,7 +183,7 @@ def test_receipt_upload(request: dict):
     
     try:
         logger.info(f"📷 Starting receipt extraction...")
-        extracted_data = document_service.extract_receipt_data(image_url)
+        extracted_data = await document_service.extract_receipt_data(image_url)
         logger.info(f"📷 Extraction successful: {extracted_data}")
         
         return {
