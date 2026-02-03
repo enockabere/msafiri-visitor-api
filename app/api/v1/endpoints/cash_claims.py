@@ -208,30 +208,15 @@ def minimal_test_post(data: dict):
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt")
-def extract_receipt_data(request: dict):
+async def extract_receipt_data(request: dict):
     """Extract data from receipt image using Azure Document Intelligence"""
-    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
+    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED")
     logger.info(f"📷 Receipt extraction request: {request}")
-    logger.info(f"📷 Azure services available: {azure_available}")
     
     # Get image URL from request
     image_url = request.get('image_url')
     if not image_url:
         return {"success": False, "message": "image_url is required"}
-    
-    # Check Azure Document Intelligence configuration
-    endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-    api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
-    
-    logger.info(f"📷 Azure DI Endpoint configured: {bool(endpoint)}")
-    logger.info(f"📷 Azure DI API Key configured: {bool(api_key)}")
-    
-    if not endpoint or not api_key:
-        logger.warning("⚠️ Azure Document Intelligence credentials not configured")
-        return {
-            "success": False,
-            "message": "Receipt extraction service not configured - Azure Document Intelligence credentials missing"
-        }
     
     if not azure_available or not document_service:
         logger.warning("⚠️ Azure Document Intelligence service not available")
@@ -240,12 +225,24 @@ def extract_receipt_data(request: dict):
             "message": "Receipt extraction service temporarily unavailable - Azure services not configured"
         }
     
-    return {
-        "success": True,
-        "message": "Endpoint reached successfully - Azure credentials configured",
-        "image_url": image_url,
-        "azure_available": azure_available
-    }
+    try:
+        logger.info(f"📷 Starting receipt extraction for: {image_url}")
+        extracted_data = await document_service.extract_receipt_data(image_url)
+        logger.info(f"📷 Extraction successful: {extracted_data}")
+        
+        return {
+            "success": True,
+            "message": "Receipt extracted successfully",
+            "image_url": image_url,
+            "extracted_data": extracted_data
+        }
+    except Exception as e:
+        logger.error(f"📷 Receipt extraction failed: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Receipt extraction failed: {str(e)}",
+            "image_url": image_url
+        }
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(

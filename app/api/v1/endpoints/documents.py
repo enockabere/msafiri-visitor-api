@@ -450,8 +450,8 @@ async def upload_receipt(
         # Create blob service client
         blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
         
-        # Use receipts container for receipt images
-        container_name = 'receipts'
+        # Use msafiri-documents container with receipts folder
+        container_name = 'msafiri-documents'
         
         # Get container client
         container_client = blob_service_client.get_container_client(container_name)
@@ -462,10 +462,10 @@ async def upload_receipt(
         except Exception:
             pass  # Container already exists
         
-        # Generate blob name with timestamp and user ID
+        # Generate blob name with receipts folder, timestamp and user ID
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         file_extension = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
-        blob_name = f"receipt_{current_user.id}_{timestamp}{file_extension}"
+        blob_name = f"receipts/receipt_{current_user.id}_{timestamp}{file_extension}"
         
         # Get blob client
         blob_client = container_client.get_blob_client(blob_name)
