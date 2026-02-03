@@ -171,7 +171,7 @@ def minimal_test_post(data: dict):
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt")
-async def extract_receipt_data(request: dict):
+def extract_receipt_data(request: dict):
     """Extract data from receipt image using Azure Document Intelligence"""
     logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
     logger.info(f"📷 Receipt extraction request: {request}")
