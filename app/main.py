@@ -61,10 +61,19 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     """Log requests with minimal output"""
     start_time = time.time()
 
+    # Log cash claims requests specifically
+    if "cash-claims" in str(request.url.path):
+        logger.info(f"💰 CASH CLAIMS REQUEST: {request.method} {request.url.path}")
+        logger.info(f"💰 Headers: {dict(request.headers)}")
+
     try:
         response = await call_next(request)
         process_time = time.time() - start_time
         response.headers["X-Process-Time"] = str(process_time)
+
+        # Log cash claims responses
+        if "cash-claims" in str(request.url.path):
+            logger.info(f"💰 CASH CLAIMS RESPONSE: {response.status_code}")
 
         # Only log server errors (500+)
         if response.status_code >= 500:
