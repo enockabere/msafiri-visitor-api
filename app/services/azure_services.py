@@ -4,7 +4,8 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
 import httpx
-from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
 
@@ -16,7 +17,7 @@ class AzureDocumentIntelligenceService:
         if not self.endpoint or not self.api_key:
             raise ValueError("Azure Document Intelligence credentials not configured")
         
-        self.client = DocumentAnalysisClient(
+        self.client = DocumentIntelligenceClient(
             endpoint=self.endpoint,
             credential=AzureKeyCredential(self.api_key)
         )
@@ -24,15 +25,9 @@ class AzureDocumentIntelligenceService:
     async def extract_receipt_data(self, image_url: str) -> Dict[str, Any]:
         """Extract data from receipt image using Azure Document Intelligence"""
         try:
-            # Download image from URL
-            async with httpx.AsyncClient() as client:
-                response = await client.get(image_url)
-                response.raise_for_status()
-                image_data = response.content
-
-            # Analyze receipt
+            # Use URL directly with AnalyzeDocumentRequest
             poller = self.client.begin_analyze_document(
-                "prebuilt-receipt", image_data
+                "prebuilt-receipt", AnalyzeDocumentRequest(url_source=image_url)
             )
             result = poller.result()
 
@@ -41,34 +36,59 @@ class AzureDocumentIntelligenceService:
                 "total_amount": 0.0,
                 "date": datetime.now().isoformat(),
                 "items": [],
-                "tax_amount": 0.0
+                "tax_amount": 0.0,
+                "subtotal": 0.0
             }
 
-            # Process the results
+            # Process receipts following Azure example pattern
             for receipt in result.documents:
-                if receipt.fields.get("MerchantName"):
-                    extracted_data["merchant_name"] = receipt.fields["MerchantName"].value
+                # Merchant name
+                merchant_name = receipt.fields.get("MerchantName")
+                if merchant_name:
+                    extracted_data["merchant_name"] = merchant_name.value_string
                 
-                if receipt.fields.get("Total"):
-                    extracted_data["total_amount"] = float(receipt.fields["Total"].value)
+                # Transaction date
+                transaction_date = receipt.fields.get("TransactionDate")
+                if transaction_date:
+                    extracted_data["date"] = transaction_date.value_date.isoformat()
                 
-                if receipt.fields.get("TransactionDate"):
-                    extracted_data["date"] = receipt.fields["TransactionDate"].value.isoformat()
+                # Total amount
+                total = receipt.fields.get("Total")
+                if total:
+                    extracted_data["total_amount"] = float(total.value_currency.amount)
                 
-                if receipt.fields.get("Tax"):
-                    extracted_data["tax_amount"] = float(receipt.fields["Tax"].value)
+                # Tax amount
+                tax = receipt.fields.get("TotalTax")
+                if tax:
+                    extracted_data["tax_amount"] = float(tax.value_currency.amount)
+                
+                # Subtotal
+                subtotal = receipt.fields.get("Subtotal")
+                if subtotal:
+                    extracted_data["subtotal"] = float(subtotal.value_currency.amount)
 
                 # Extract line items
                 if receipt.fields.get("Items"):
                     items = []
-                    for item in receipt.fields["Items"].value:
+                    for item in receipt.fields.get("Items").value_array:
                         item_data = {}
-                        if item.value.get("Description"):
-                            item_data["name"] = item.value["Description"].value
-                        if item.value.get("TotalPrice"):
-                            item_data["price"] = float(item.value["TotalPrice"].value)
-                        if item.value.get("Quantity"):
-                            item_data["quantity"] = item.value["Quantity"].value
+                        
+                        item_description = item.value_object.get("Description")
+                        if item_description:
+                            item_data["name"] = item_description.value_string
+                        
+                        item_quantity = item.value_object.get("Quantity")
+                        if item_quantity:
+                            item_data["quantity"] = item_quantity.value_number
+                        
+                        item_price = item.value_object.get("Price")
+                        if item_price:
+                            item_data["unit_price"] = float(item_price.value_currency.amount)
+                        
+                        item_total_price = item.value_object.get("TotalPrice")
+                        if item_total_price:
+                            item_data["price"] = float(item_total_price.value_currency.amount)
+                        
                         items.append(item_data)
                     extracted_data["items"] = items
 
