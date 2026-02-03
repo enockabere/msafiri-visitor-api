@@ -148,17 +148,23 @@ async def test_endpoint():
     logger.info("🎯 TEST ENDPOINT CALLED")
     return {"message": "Cash claims routing works!", "timestamp": datetime.utcnow().isoformat()}
 
+@router.get("/test-auth")
+async def test_auth_endpoint(current_user: User = Depends(get_current_user)):
+    """Test endpoint with authentication"""
+    print(f"🎯 TEST AUTH ENDPOINT CALLED - User: {current_user.id}")
+    logger.info(f"🎯 TEST AUTH ENDPOINT CALLED - User: {current_user.id}")
+    return {"message": "Authentication works!", "user_id": current_user.id, "timestamp": datetime.utcnow().isoformat()}
+
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt", response_model=ReceiptExtractionResponse)
 async def extract_receipt_data(
-    request: ReceiptExtractionRequest,
-    current_user: User = Depends(get_current_user)
+    request: ReceiptExtractionRequest
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
-    print(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
-    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
-    logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
+    print(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
+    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
+    logger.info(f"📷 Receipt extraction request: {request.image_url[:100]}...")
     logger.info(f"📷 Azure services available: {azure_available}")
     
     # Check Azure Document Intelligence configuration
