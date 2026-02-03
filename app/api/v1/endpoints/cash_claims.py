@@ -208,22 +208,26 @@ def minimal_test_post(data: dict):
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt")
-async def extract_receipt_data(request: dict):
+async def extract_receipt_data(
+    request: dict,
+    current_user: User = Depends(get_current_user)
+):
     """Extract data from receipt image using Azure Document Intelligence"""
-    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED")
+    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
     logger.info(f"📷 Receipt extraction request: {request}")
     
     # Get image URL from request
     image_url = request.get('image_url')
     if not image_url:
-        return {"success": False, "message": "image_url is required"}
+        logger.error("📷 No image_url provided")
+        raise HTTPException(status_code=400, detail="image_url is required")
     
     if not azure_available or not document_service:
         logger.warning("⚠️ Azure Document Intelligence service not available")
-        return {
-            "success": False,
-            "message": "Receipt extraction service temporarily unavailable - Azure services not configured"
-        }
+        raise HTTPException(
+            status_code=503,
+            detail="Receipt extraction service temporarily unavailable - Azure services not configured"
+        )
     
     try:
         logger.info(f"📷 Starting receipt extraction for: {image_url}")
@@ -238,11 +242,10 @@ async def extract_receipt_data(request: dict):
         }
     except Exception as e:
         logger.error(f"📷 Receipt extraction failed: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Receipt extraction failed: {str(e)}",
-            "image_url": image_url
-        }
+        raise HTTPException(
+            status_code=500,
+            detail=f"Receipt extraction failed: {str(e)}"
+        )
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(
