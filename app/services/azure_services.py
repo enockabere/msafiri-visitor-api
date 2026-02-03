@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
@@ -8,6 +9,9 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest
 from azure.core.credentials import AzureKeyCredential
 from openai import AzureOpenAI
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class AzureDocumentIntelligenceService:
     def __init__(self):
@@ -24,12 +28,17 @@ class AzureDocumentIntelligenceService:
 
     async def extract_receipt_data(self, image_url: str) -> Dict[str, Any]:
         """Extract data from receipt image using Azure Document Intelligence"""
+        logger.info(f"🧾 Starting receipt extraction for URL: {image_url[:100]}...")
+        
         try:
             # Use URL directly with AnalyzeDocumentRequest
+            logger.info("📤 Sending request to Azure Document Intelligence...")
             poller = self.client.begin_analyze_document(
                 "prebuilt-receipt", AnalyzeDocumentRequest(url_source=image_url)
             )
+            logger.info("⏳ Waiting for analysis to complete...")
             result = poller.result()
+            logger.info(f"✅ Analysis complete. Found {len(result.documents)} documents")
 
             extracted_data = {
                 "merchant_name": "",
@@ -41,60 +50,92 @@ class AzureDocumentIntelligenceService:
             }
 
             # Process receipts following Azure example pattern
-            for receipt in result.documents:
+            for idx, receipt in enumerate(result.documents):
+                logger.info(f"📋 Processing receipt #{idx + 1}")
+                logger.info(f"📋 Receipt type: {receipt.doc_type}")
+                logger.info(f"📋 Available fields: {list(receipt.fields.keys()) if receipt.fields else 'None'}")
+                
                 # Merchant name
                 merchant_name = receipt.fields.get("MerchantName")
                 if merchant_name:
                     extracted_data["merchant_name"] = merchant_name.value_string
+                    logger.info(f"🏪 Merchant: {merchant_name.value_string} (confidence: {merchant_name.confidence})")
+                else:
+                    logger.warning("⚠️ No merchant name found")
                 
                 # Transaction date
                 transaction_date = receipt.fields.get("TransactionDate")
                 if transaction_date:
                     extracted_data["date"] = transaction_date.value_date.isoformat()
+                    logger.info(f"📅 Date: {transaction_date.value_date} (confidence: {transaction_date.confidence})")
+                else:
+                    logger.warning("⚠️ No transaction date found")
                 
                 # Total amount
                 total = receipt.fields.get("Total")
                 if total:
                     extracted_data["total_amount"] = float(total.value_currency.amount)
+                    logger.info(f"💰 Total: {total.value_currency.amount} (confidence: {total.confidence})")
+                else:
+                    logger.warning("⚠️ No total amount found")
                 
                 # Tax amount
                 tax = receipt.fields.get("TotalTax")
                 if tax:
                     extracted_data["tax_amount"] = float(tax.value_currency.amount)
+                    logger.info(f"🧾 Tax: {tax.value_currency.amount} (confidence: {tax.confidence})")
+                else:
+                    logger.info("ℹ️ No tax amount found")
                 
                 # Subtotal
                 subtotal = receipt.fields.get("Subtotal")
                 if subtotal:
                     extracted_data["subtotal"] = float(subtotal.value_currency.amount)
+                    logger.info(f"📊 Subtotal: {subtotal.value_currency.amount} (confidence: {subtotal.confidence})")
+                else:
+                    logger.info("ℹ️ No subtotal found")
 
                 # Extract line items
                 if receipt.fields.get("Items"):
                     items = []
-                    for item in receipt.fields.get("Items").value_array:
+                    items_field = receipt.fields.get("Items")
+                    logger.info(f"📝 Found {len(items_field.value_array)} items")
+                    
+                    for item_idx, item in enumerate(items_field.value_array):
+                        logger.info(f"📦 Processing item #{item_idx + 1}")
                         item_data = {}
                         
                         item_description = item.value_object.get("Description")
                         if item_description:
                             item_data["name"] = item_description.value_string
+                            logger.info(f"  📝 Description: {item_description.value_string}")
                         
                         item_quantity = item.value_object.get("Quantity")
                         if item_quantity:
                             item_data["quantity"] = item_quantity.value_number
+                            logger.info(f"  🔢 Quantity: {item_quantity.value_number}")
                         
                         item_price = item.value_object.get("Price")
                         if item_price:
                             item_data["unit_price"] = float(item_price.value_currency.amount)
+                            logger.info(f"  💵 Unit Price: {item_price.value_currency.amount}")
                         
                         item_total_price = item.value_object.get("TotalPrice")
                         if item_total_price:
                             item_data["price"] = float(item_total_price.value_currency.amount)
+                            logger.info(f"  💰 Total Price: {item_total_price.value_currency.amount}")
                         
                         items.append(item_data)
                     extracted_data["items"] = items
+                else:
+                    logger.warning("⚠️ No items found in receipt")
 
+            logger.info(f"🎉 Receipt extraction completed successfully: {extracted_data}")
             return extracted_data
 
         except Exception as e:
+            logger.error(f"❌ Failed to extract receipt data: {str(e)}")
+            logger.exception("Full exception details:")
             raise Exception(f"Failed to extract receipt data: {str(e)}")
 
 class AzureOpenAIService:

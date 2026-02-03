@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import logging
 
 from app.db.database import get_db
 from app.models.cash_claim import Claim, ClaimItem
@@ -16,6 +17,7 @@ from app.models.user import User
 from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
 
 router = APIRouter(tags=["cash-claims"])
+logger = logging.getLogger(__name__)
 
 # Initialize Azure services
 document_service = AzureDocumentIntelligenceService()
@@ -121,8 +123,12 @@ async def extract_receipt_data(
     current_user: User = Depends(get_current_user)
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
+    logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
+    
     try:
+        logger.info("🚀 Initializing Azure Document Intelligence service...")
         extracted_data = await document_service.extract_receipt_data(request.image_url)
+        logger.info(f"✅ Receipt extraction successful: {extracted_data}")
         
         return ReceiptExtractionResponse(
             success=True,
@@ -130,6 +136,8 @@ async def extract_receipt_data(
         )
     
     except Exception as e:
+        logger.error(f"❌ Receipt extraction failed: {str(e)}")
+        logger.exception("Full exception details:")
         return ReceiptExtractionResponse(
             success=False,
             message=f"Failed to extract receipt data: {str(e)}"
