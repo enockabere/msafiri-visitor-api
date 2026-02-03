@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 
-from app.database import get_db
+from app.db.database import get_db
 from app.models.cash_claim import Claim, ClaimItem
 from app.schemas.cash_claim import (
     ClaimCreate, ClaimResponse, ClaimUpdate,
