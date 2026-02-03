@@ -139,6 +139,15 @@ async def submit_claim(
     
     return claim
 
+print(f"🔄 Defining test endpoint...")
+
+@router.get("/test-endpoint")
+async def test_endpoint():
+    """Simple test endpoint to verify routing works"""
+    print("🎯 TEST ENDPOINT CALLED")
+    logger.info("🎯 TEST ENDPOINT CALLED")
+    return {"message": "Cash claims routing works!", "timestamp": datetime.utcnow().isoformat()}
+
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt", response_model=ReceiptExtractionResponse)
