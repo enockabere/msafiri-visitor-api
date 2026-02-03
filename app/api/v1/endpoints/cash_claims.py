@@ -213,23 +213,26 @@ async def extract_receipt_data(
     current_user: User = Depends(get_current_user)
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
-    logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
-    logger.info(f"📷 Receipt extraction request: {request}")
-    
-    # Get image URL from request
-    image_url = request.get('image_url')
-    if not image_url:
-        logger.error("📷 No image_url provided")
-        raise HTTPException(status_code=400, detail="image_url is required")
-    
-    if not azure_available or not document_service:
-        logger.warning("⚠️ Azure Document Intelligence service not available")
-        raise HTTPException(
-            status_code=503,
-            detail="Receipt extraction service temporarily unavailable - Azure services not configured"
-        )
-    
     try:
+        logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
+        logger.info(f"📷 Receipt extraction request: {request}")
+        logger.info(f"📷 Request type: {type(request)}")
+        
+        # Get image URL from request
+        image_url = request.get('image_url')
+        logger.info(f"📷 Extracted image_url: {image_url}")
+        
+        if not image_url:
+            logger.error("📷 No image_url provided in request")
+            raise HTTPException(status_code=400, detail="image_url is required")
+        
+        if not azure_available or not document_service:
+            logger.warning("⚠️ Azure Document Intelligence service not available")
+            raise HTTPException(
+                status_code=503,
+                detail="Receipt extraction service temporarily unavailable - Azure services not configured"
+            )
+        
         logger.info(f"📷 Starting receipt extraction for: {image_url}")
         extracted_data = await document_service.extract_receipt_data(image_url)
         logger.info(f"📷 Extraction successful: {extracted_data}")
@@ -240,8 +243,13 @@ async def extract_receipt_data(
             "image_url": image_url,
             "extracted_data": extracted_data
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"📷 Receipt extraction failed: {str(e)}")
+        logger.error(f"📷 Exception type: {type(e)}")
+        import traceback
+        logger.error(f"📷 Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Receipt extraction failed: {str(e)}"
