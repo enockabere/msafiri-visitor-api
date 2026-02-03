@@ -4,9 +4,6 @@ from typing import List
 from datetime import datetime
 import logging
 
-# Debug print to verify module loading
-print("🔧 DEBUG: cash_claims module is being imported")
-
 from app.db.database import get_db
 from app.models.cash_claim import Claim, ClaimItem
 from app.schemas.cash_claim import (
@@ -18,22 +15,8 @@ from app.schemas.cash_claim import (
 from app.api.deps import get_current_user
 from app.models.user import User
 
-# Try to import Azure services, but don't fail if they're not available
-try:
-    from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
-    print("🔧 DEBUG: Azure services imported successfully")
-    # Initialize Azure services
-    document_service = AzureDocumentIntelligenceService()
-    openai_service = AzureOpenAIService()
-except Exception as e:
-    print(f"⚠️ DEBUG: Failed to import Azure services: {e}")
-    document_service = None
-    openai_service = None
-
-router = APIRouter(tags=["cash-claims"])
+router = APIRouter()
 logger = logging.getLogger(__name__)
-
-print("🔧 DEBUG: cash_claims router created successfully")
 
 # Initialize Azure services
 # document_service = AzureDocumentIntelligenceService()
@@ -141,29 +124,10 @@ async def extract_receipt_data(
     """Extract data from receipt image using Azure Document Intelligence"""
     logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
     
-    if not document_service:
-        return ReceiptExtractionResponse(
-            success=False,
-            message="Azure Document Intelligence service not available"
-        )
-    
-    try:
-        logger.info("🚀 Initializing Azure Document Intelligence service...")
-        extracted_data = await document_service.extract_receipt_data(request.image_url)
-        logger.info(f"✅ Receipt extraction successful: {extracted_data}")
-        
-        return ReceiptExtractionResponse(
-            success=True,
-            extracted_data=extracted_data
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ Receipt extraction failed: {str(e)}")
-        logger.exception("Full exception details:")
-        return ReceiptExtractionResponse(
-            success=False,
-            message=f"Failed to extract receipt data: {str(e)}"
-        )
+    return ReceiptExtractionResponse(
+        success=False,
+        message="Receipt extraction service temporarily unavailable"
+    )
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(
@@ -171,37 +135,11 @@ async def validate_claim_data(
     current_user: User = Depends(get_current_user)
 ):
     """Validate claim data using AI"""
-    if not openai_service:
-        return ClaimValidationResponse(
-            is_valid=True,
-            validation_result="Validation service not available",
-            suggestions=[]
-        )
-    
-    try:
-        user_context = {
-            "user_id": current_user.id,
-            "user_email": current_user.email,
-            "user_name": current_user.full_name
-        }
-        
-        validation_result = await openai_service.validate_claim_data(
-            request.claim_data,
-            user_context
-        )
-        
-        return ClaimValidationResponse(
-            is_valid=True,
-            validation_result=validation_result,
-            suggestions=[]
-        )
-    
-    except Exception as e:
-        return ClaimValidationResponse(
-            is_valid=False,
-            validation_result=f"Validation failed: {str(e)}",
-            suggestions=["Please check your data and try again"]
-        )
+    return ClaimValidationResponse(
+        is_valid=True,
+        validation_result="Validation service temporarily unavailable",
+        suggestions=[]
+    )
 
 @router.post("/{claim_id}/chat", response_model=ChatMessageResponse)
 async def send_chat_message(
@@ -211,37 +149,10 @@ async def send_chat_message(
     current_user: User = Depends(get_current_user)
 ):
     """Send a chat message to AI assistant"""
-    if not openai_service:
-        return ChatMessageResponse(
-            response="AI chat service is not available at the moment.",
-            next_step="continue"
-        )
-    
-    try:
-        # Get claim context
-        claim = db.query(Claim).filter(
-            Claim.id == claim_id,
-            Claim.user_id == current_user.id
-        ).first()
-        
-        context = {
-            "claim_id": claim_id,
-            "user_id": current_user.id,
-            "claim_status": claim.status if claim else "new"
-        }
-        
-        response = await openai_service.chat_response(request.message, context)
-        
-        return ChatMessageResponse(
-            response=response,
-            next_step="continue"
-        )
-    
-    except Exception as e:
-        return ChatMessageResponse(
-            response="I'm sorry, I encountered an error. Please try again.",
-            next_step="retry"
-        )
+    return ChatMessageResponse(
+        response="AI chat service is temporarily unavailable.",
+        next_step="continue"
+    )
 
 @router.get("/{claim_id}/chat")
 async def get_chat_messages(
