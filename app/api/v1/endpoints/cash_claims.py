@@ -164,9 +164,14 @@ def working_test():
     return {"message": "This endpoint works!", "timestamp": datetime.utcnow().isoformat()}
 
 @router.post("/test-receipt-upload")
-def test_receipt_upload(image_url: str):
+def test_receipt_upload(request: dict):
     """Test receipt extraction with a direct image URL"""
     logger.info(f"🎯 TEST RECEIPT UPLOAD CALLED")
+    
+    image_url = request.get('image_url')
+    if not image_url:
+        return {"success": False, "message": "image_url is required in request body"}
+    
     logger.info(f"📷 Image URL: {image_url}")
     
     # Check Azure Document Intelligence configuration
