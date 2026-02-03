@@ -217,18 +217,25 @@ async def extract_receipt_data_no_auth(request: ImageUrlRequest):
     try:
         logger.info(f"🎯 EXTRACT RECEIPT NO AUTH CALLED")
         logger.info(f"📷 Image URL: {request.image_url}")
-        
+
         if not azure_available or not document_service:
             logger.warning("⚠️ Azure Document Intelligence service not available")
             return {
                 "success": False,
                 "message": "Receipt extraction service temporarily unavailable - Azure services not configured"
             }
-        
+
+        if not document_service.client:
+            logger.warning("⚠️ Azure Document Intelligence client is None")
+            return {
+                "success": False,
+                "message": "Receipt extraction service not initialized"
+            }
+
         logger.info(f"📷 Starting receipt extraction for: {request.image_url}")
         extracted_data = await document_service.extract_receipt_data(request.image_url)
         logger.info(f"📷 Extraction successful: {extracted_data}")
-        
+
         return {
             "success": True,
             "message": "Receipt extracted successfully",
@@ -236,7 +243,8 @@ async def extract_receipt_data_no_auth(request: ImageUrlRequest):
             "extracted_data": extracted_data
         }
     except Exception as e:
-        logger.error(f"📷 Receipt extraction failed: {str(e)}")
+        logger.error(f"📷 Receipt extraction failed: {type(e).__name__}: {str(e)}")
+        logger.exception("📷 Full extraction error traceback:")
         return {
             "success": False,
             "message": f"Receipt extraction failed: {str(e)}"

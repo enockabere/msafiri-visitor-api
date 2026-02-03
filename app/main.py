@@ -67,20 +67,8 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         logger.info(f"💰 Query params: {dict(request.query_params)}")
         logger.info(f"💰 Headers: {dict(request.headers)}")
         
-        # Log POST request body for receipt extraction
-        if request.method == "POST" and "extract-receipt" in str(request.url.path):
-            try:
-                body = await request.body()
-                logger.info(f"💰 POST Body length: {len(body)} bytes")
-                if body:
-                    import json
-                    try:
-                        body_json = json.loads(body)
-                        logger.info(f"💰 POST Body: {body_json}")
-                    except:
-                        logger.info(f"💰 POST Body (raw): {body[:200]}...")
-            except Exception as e:
-                logger.info(f"💰 Could not read POST body: {e}")
+        # Note: Do NOT read request body here - it interferes with FastAPI's Pydantic model parsing
+        # Body will be logged by the endpoint itself
 
     try:
         response = await call_next(request)

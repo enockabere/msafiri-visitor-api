@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime
 from decimal import Decimal
@@ -33,18 +34,24 @@ class AzureDocumentIntelligenceService:
             logger.error(f"Failed to initialize Azure Document Intelligence client: {e}")
             self.client = None
 
+    def _sync_extract_receipt(self, image_url: str):
+        """Synchronous receipt extraction - runs in thread executor"""
+        logger.info("📤 Sending request to Azure Document Intelligence...")
+        poller = self.client.begin_analyze_document(
+            "prebuilt-receipt", AnalyzeDocumentRequest(url_source=image_url)
+        )
+        logger.info("⏳ Waiting for analysis to complete...")
+        result = poller.result()
+        return result
+
     async def extract_receipt_data(self, image_url: str) -> Dict[str, Any]:
         """Extract data from receipt image using Azure Document Intelligence"""
         logger.info(f"🧾 Starting receipt extraction for URL: {image_url[:100]}...")
-        
+
         try:
-            # Use URL directly with AnalyzeDocumentRequest
-            logger.info("📤 Sending request to Azure Document Intelligence...")
-            poller = self.client.begin_analyze_document(
-                "prebuilt-receipt", AnalyzeDocumentRequest(url_source=image_url)
-            )
-            logger.info("⏳ Waiting for analysis to complete...")
-            result = poller.result()
+            # Run synchronous Azure SDK call in thread executor to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self._sync_extract_receipt, image_url)
             logger.info(f"✅ Analysis complete. Found {len(result.documents)} documents")
 
             extracted_data = {
