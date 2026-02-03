@@ -211,23 +211,19 @@ def minimal_test_post(data: dict):
 
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
-@router.post("/extract-receipt")
-async def extract_receipt_data(
-    request: ImageUrlRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """Extract data from receipt image using Azure Document Intelligence"""
+@router.post("/extract-receipt-no-auth")
+async def extract_receipt_data_no_auth(request: ImageUrlRequest):
+    """Extract data from receipt image - no auth version for testing"""
     try:
-        logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
-        logger.info(f"📷 Receipt extraction request: {request}")
+        logger.info(f"🎯 EXTRACT RECEIPT NO AUTH CALLED")
         logger.info(f"📷 Image URL: {request.image_url}")
         
         if not azure_available or not document_service:
             logger.warning("⚠️ Azure Document Intelligence service not available")
-            raise HTTPException(
-                status_code=503,
-                detail="Receipt extraction service temporarily unavailable - Azure services not configured"
-            )
+            return {
+                "success": False,
+                "message": "Receipt extraction service temporarily unavailable - Azure services not configured"
+            }
         
         logger.info(f"📷 Starting receipt extraction for: {request.image_url}")
         extracted_data = await document_service.extract_receipt_data(request.image_url)
@@ -239,17 +235,12 @@ async def extract_receipt_data(
             "image_url": request.image_url,
             "extracted_data": extracted_data
         }
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"📷 Receipt extraction failed: {str(e)}")
-        logger.error(f"📷 Exception type: {type(e)}")
-        import traceback
-        logger.error(f"📷 Full traceback: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Receipt extraction failed: {str(e)}"
-        )
+        return {
+            "success": False,
+            "message": f"Receipt extraction failed: {str(e)}"
+        }
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(
