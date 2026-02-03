@@ -4,6 +4,9 @@ from typing import List
 from datetime import datetime
 import logging
 
+# Debug print to verify module loading
+print("🔧 DEBUG: cash_claims module is being imported")
+
 from app.db.database import get_db
 from app.models.cash_claim import Claim, ClaimItem
 from app.schemas.cash_claim import (
@@ -18,6 +21,8 @@ from app.services.azure_services import AzureDocumentIntelligenceService, AzureO
 
 router = APIRouter(tags=["cash-claims"])
 logger = logging.getLogger(__name__)
+
+print("🔧 DEBUG: cash_claims router created successfully")
 
 # Initialize Azure services
 document_service = AzureDocumentIntelligenceService()
