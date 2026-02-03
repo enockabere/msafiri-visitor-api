@@ -831,7 +831,15 @@ api_router.include_router(
 @api_router.get("/cash-claims/test")
 def test_cash_claims():
     """Test endpoint to verify cash claims routing"""
+    import time
     return {"message": "Cash claims routing is working!", "timestamp": time.time()}
+
+# Test endpoint for extract-receipt specifically
+@api_router.post("/cash-claims/test-extract")
+def test_extract_receipt():
+    """Test endpoint to verify extract-receipt routing"""
+    import time
+    return {"message": "Extract receipt routing is working!", "timestamp": time.time()}
 
 # Email templates
 from app.api.v1.endpoints import email_templates

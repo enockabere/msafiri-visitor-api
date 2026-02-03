@@ -64,7 +64,23 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     # Log cash claims requests specifically
     if "cash-claims" in str(request.url.path):
         logger.info(f"💰 CASH CLAIMS REQUEST: {request.method} {request.url.path}")
+        logger.info(f"💰 Query params: {dict(request.query_params)}")
         logger.info(f"💰 Headers: {dict(request.headers)}")
+        
+        # Log POST request body for receipt extraction
+        if request.method == "POST" and "extract-receipt" in str(request.url.path):
+            try:
+                body = await request.body()
+                logger.info(f"💰 POST Body length: {len(body)} bytes")
+                if body:
+                    import json
+                    try:
+                        body_json = json.loads(body)
+                        logger.info(f"💰 POST Body: {body_json}")
+                    except:
+                        logger.info(f"💰 POST Body (raw): {body[:200]}...")
+            except Exception as e:
+                logger.info(f"💰 Could not read POST body: {e}")
 
     try:
         response = await call_next(request)
@@ -74,6 +90,8 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         # Log cash claims responses
         if "cash-claims" in str(request.url.path):
             logger.info(f"💰 CASH CLAIMS RESPONSE: {response.status_code}")
+            if response.status_code >= 400:
+                logger.error(f"💰 CASH CLAIMS ERROR: {response.status_code} for {request.method} {request.url.path}")
 
         # Only log server errors (500+)
         if response.status_code >= 500:
