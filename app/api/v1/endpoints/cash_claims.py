@@ -13,6 +13,10 @@ from app.schemas.cash_claim import (
     ClaimValidationRequest, ClaimValidationResponse,
     ChatMessageRequest, ChatMessageResponse
 )
+from pydantic import BaseModel
+
+class ImageUrlRequest(BaseModel):
+    image_url: str
 from app.api.deps import get_current_user
 from app.models.user import User
 
@@ -209,22 +213,14 @@ print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt")
 async def extract_receipt_data(
-    request: dict,
+    request: ImageUrlRequest,
     current_user: User = Depends(get_current_user)
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
     try:
         logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
         logger.info(f"📷 Receipt extraction request: {request}")
-        logger.info(f"📷 Request type: {type(request)}")
-        
-        # Get image URL from request
-        image_url = request.get('image_url')
-        logger.info(f"📷 Extracted image_url: {image_url}")
-        
-        if not image_url:
-            logger.error("📷 No image_url provided in request")
-            raise HTTPException(status_code=400, detail="image_url is required")
+        logger.info(f"📷 Image URL: {request.image_url}")
         
         if not azure_available or not document_service:
             logger.warning("⚠️ Azure Document Intelligence service not available")
@@ -233,14 +229,14 @@ async def extract_receipt_data(
                 detail="Receipt extraction service temporarily unavailable - Azure services not configured"
             )
         
-        logger.info(f"📷 Starting receipt extraction for: {image_url}")
-        extracted_data = await document_service.extract_receipt_data(image_url)
+        logger.info(f"📷 Starting receipt extraction for: {request.image_url}")
+        extracted_data = await document_service.extract_receipt_data(request.image_url)
         logger.info(f"📷 Extraction successful: {extracted_data}")
         
         return {
             "success": True,
             "message": "Receipt extracted successfully",
-            "image_url": image_url,
+            "image_url": request.image_url,
             "extracted_data": extracted_data
         }
     except HTTPException:
