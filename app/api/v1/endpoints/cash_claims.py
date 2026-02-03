@@ -155,6 +155,14 @@ async def test_auth_endpoint(current_user: User = Depends(get_current_user)):
     logger.info(f"🎯 TEST AUTH ENDPOINT CALLED - User: {current_user.id}")
     return {"message": "Authentication works!", "user_id": current_user.id, "timestamp": datetime.utcnow().isoformat()}
 
+@router.post("/extract-receipt-simple")
+async def extract_receipt_simple(request: dict):
+    """Minimal test endpoint"""
+    print(f"🎯 SIMPLE EXTRACT ENDPOINT CALLED")
+    logger.info(f"🎯 SIMPLE EXTRACT ENDPOINT CALLED")
+    logger.info(f"📷 Request data: {request}")
+    return {"success": True, "message": "Simple endpoint works", "data": request}
+
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
 @router.post("/extract-receipt", response_model=ReceiptExtractionResponse)
