@@ -11,7 +11,7 @@ from app.schemas.cash_claim import (
     ClaimValidationRequest, ClaimValidationResponse,
     ChatMessageRequest, ChatMessageResponse
 )
-from app.core.auth import get_current_user
+from app.api.deps import get_current_user
 from app.models.user import User
 from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
 
