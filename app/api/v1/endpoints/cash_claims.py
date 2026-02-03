@@ -17,7 +17,18 @@ from app.schemas.cash_claim import (
 )
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
+
+# Try to import Azure services, but don't fail if they're not available
+try:
+    from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
+    print("🔧 DEBUG: Azure services imported successfully")
+    # Initialize Azure services
+    document_service = AzureDocumentIntelligenceService()
+    openai_service = AzureOpenAIService()
+except Exception as e:
+    print(f"⚠️ DEBUG: Failed to import Azure services: {e}")
+    document_service = None
+    openai_service = None
 
 router = APIRouter(tags=["cash-claims"])
 logger = logging.getLogger(__name__)
@@ -25,8 +36,8 @@ logger = logging.getLogger(__name__)
 print("🔧 DEBUG: cash_claims router created successfully")
 
 # Initialize Azure services
-document_service = AzureDocumentIntelligenceService()
-openai_service = AzureOpenAIService()
+# document_service = AzureDocumentIntelligenceService()
+# openai_service = AzureOpenAIService()
 
 @router.get("/", response_model=List[ClaimResponse])
 async def get_user_claims(
@@ -130,6 +141,12 @@ async def extract_receipt_data(
     """Extract data from receipt image using Azure Document Intelligence"""
     logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
     
+    if not document_service:
+        return ReceiptExtractionResponse(
+            success=False,
+            message="Azure Document Intelligence service not available"
+        )
+    
     try:
         logger.info("🚀 Initializing Azure Document Intelligence service...")
         extracted_data = await document_service.extract_receipt_data(request.image_url)
@@ -154,6 +171,13 @@ async def validate_claim_data(
     current_user: User = Depends(get_current_user)
 ):
     """Validate claim data using AI"""
+    if not openai_service:
+        return ClaimValidationResponse(
+            is_valid=True,
+            validation_result="Validation service not available",
+            suggestions=[]
+        )
+    
     try:
         user_context = {
             "user_id": current_user.id,
@@ -187,6 +211,12 @@ async def send_chat_message(
     current_user: User = Depends(get_current_user)
 ):
     """Send a chat message to AI assistant"""
+    if not openai_service:
+        return ChatMessageResponse(
+            response="AI chat service is not available at the moment.",
+            next_step="continue"
+        )
+    
     try:
         # Get claim context
         claim = db.query(Claim).filter(
