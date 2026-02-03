@@ -92,6 +92,13 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
             logger.info(f"💰 CASH CLAIMS RESPONSE: {response.status_code}")
             if response.status_code >= 400:
                 logger.error(f"💰 CASH CLAIMS ERROR: {response.status_code} for {request.method} {request.url.path}")
+                # Try to read response body for error details
+                try:
+                    response_body = response.body
+                    if hasattr(response_body, 'decode'):
+                        logger.error(f"💰 ERROR RESPONSE BODY: {response_body.decode()}")
+                except Exception as e:
+                    logger.error(f"💰 Could not read error response body: {e}")
 
         # Only log server errors (500+)
         if response.status_code >= 500:
@@ -101,6 +108,12 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         
     except Exception as e:
         logger.error(f"REQUEST ERROR: {request.method} {request.url.path} - Error: {str(e)}")
+        logger.exception(f"Full exception for {request.method} {request.url.path}:")
+        
+        # Log cash claims specific errors
+        if "cash-claims" in str(request.url.path):
+            logger.error(f"💰 CASH CLAIMS EXCEPTION: {str(e)}")
+            logger.error(f"💰 Exception type: {type(e).__name__}")
         
         if "ValidationError" in str(type(e)) or "validation" in str(e).lower():
             return JSONResponse(
