@@ -17,20 +17,29 @@ from app.api.deps import get_current_user
 from app.models.user import User
 
 # Try to import Azure services
+print("🔄 Starting Azure services import...")
 try:
     from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
+    print("✅ Azure services modules imported")
     document_service = AzureDocumentIntelligenceService()
+    print("✅ Document Intelligence service initialized")
     openai_service = AzureOpenAIService()
+    print("✅ OpenAI service initialized")
     azure_available = True
     print("✅ Azure services imported and initialized successfully")
 except Exception as e:
     print(f"❌ Failed to import or initialize Azure services: {e}")
+    import traceback
+    print(f"❌ Full traceback: {traceback.format_exc()}")
     document_service = None
     openai_service = None
     azure_available = False
 
+print(f"🔄 Cash claims module loading complete. Azure available: {azure_available}")
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
+print(f"🔄 Cash claims router and logger initialized")
 
 # Initialize Azure services
 # document_service = AzureDocumentIntelligenceService()
@@ -130,12 +139,15 @@ async def submit_claim(
     
     return claim
 
+print(f"🔄 Defining extract_receipt_data endpoint...")
+
 @router.post("/extract-receipt", response_model=ReceiptExtractionResponse)
 async def extract_receipt_data(
     request: ReceiptExtractionRequest,
     current_user: User = Depends(get_current_user)
 ):
     """Extract data from receipt image using Azure Document Intelligence"""
+    print(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
     logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - User: {current_user.id}")
     logger.info(f"📷 Receipt extraction request from user {current_user.id}: {request.image_url[:100]}...")
     logger.info(f"📷 Azure services available: {azure_available}")
