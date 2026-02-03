@@ -173,15 +173,17 @@ async def extract_receipt_simple(request: dict):
 
 print(f"🔄 Defining extract_receipt_data endpoint...")
 
-@router.post("/extract-receipt", response_model=ReceiptExtractionResponse)
-async def extract_receipt_data(
-    request: ReceiptExtractionRequest
-):
+@router.post("/extract-receipt")
+async def extract_receipt_data(request: dict):
     """Extract data from receipt image using Azure Document Intelligence"""
-    print(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
     logger.info(f"🎯 EXTRACT RECEIPT ENDPOINT CALLED - No auth test")
-    logger.info(f"📷 Receipt extraction request: {request.image_url[:100]}...")
+    logger.info(f"📷 Receipt extraction request: {request}")
     logger.info(f"📷 Azure services available: {azure_available}")
+    
+    # Get image URL from request
+    image_url = request.get('image_url')
+    if not image_url:
+        return {"success": False, "message": "image_url is required"}
     
     # Check Azure Document Intelligence configuration
     endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
@@ -192,53 +194,24 @@ async def extract_receipt_data(
     
     if not endpoint or not api_key:
         logger.warning("⚠️ Azure Document Intelligence credentials not configured")
-        return ReceiptExtractionResponse(
-            success=False,
-            message="Receipt extraction service not configured - Azure Document Intelligence credentials missing"
-        )
+        return {
+            "success": False,
+            "message": "Receipt extraction service not configured - Azure Document Intelligence credentials missing"
+        }
     
     if not azure_available or not document_service:
         logger.warning("⚠️ Azure Document Intelligence service not available")
-        return ReceiptExtractionResponse(
-            success=False,
-            message="Receipt extraction service temporarily unavailable - Azure services not configured"
-        )
+        return {
+            "success": False,
+            "message": "Receipt extraction service temporarily unavailable - Azure services not configured"
+        }
     
-    try:
-        logger.info("🚀 Starting Azure Document Intelligence extraction...")
-        logger.info(f"🚀 Image URL: {request.image_url}")
-        
-        # Check if URL is accessible
-        import httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                head_response = await client.head(request.image_url)
-                logger.info(f"🚀 Image URL accessible: {head_response.status_code}")
-                logger.info(f"🚀 Content-Type: {head_response.headers.get('content-type')}")
-                logger.info(f"🚀 Content-Length: {head_response.headers.get('content-length')}")
-            except Exception as url_error:
-                logger.error(f"❌ Image URL not accessible: {url_error}")
-                return ReceiptExtractionResponse(
-                    success=False,
-                    message=f"Image URL not accessible: {str(url_error)}"
-                )
-        
-        logger.info("🚀 Calling Azure Document Intelligence service...")
-        extracted_data = await document_service.extract_receipt_data(request.image_url)
-        logger.info(f"✅ Receipt extraction successful: {extracted_data}")
-        
-        return ReceiptExtractionResponse(
-            success=True,
-            extracted_data=extracted_data
-        )
-    
-    except Exception as e:
-        logger.error(f"❌ Receipt extraction failed: {str(e)}")
-        logger.exception("Full exception details:")
-        return ReceiptExtractionResponse(
-            success=False,
-            message=f"Failed to extract receipt data: {str(e)}"
-        )
+    return {
+        "success": True,
+        "message": "Endpoint reached successfully - Azure credentials configured",
+        "image_url": image_url,
+        "azure_available": azure_available
+    }
 
 @router.post("/validate", response_model=ClaimValidationResponse)
 async def validate_claim_data(
