@@ -827,6 +827,12 @@ api_router.include_router(
     tags=["cash-claims"]
 )
 
+# Test endpoint for cash claims
+@api_router.get("/cash-claims/test")
+def test_cash_claims():
+    """Test endpoint to verify cash claims routing"""
+    return {"message": "Cash claims routing is working!", "timestamp": time.time()}
+
 # Email templates
 from app.api.v1.endpoints import email_templates
 api_router.include_router(
