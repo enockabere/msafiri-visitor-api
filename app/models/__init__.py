@@ -32,6 +32,7 @@ from .travel_checklist_progress import TravelChecklistProgress
 from .vetting_committee import VettingCommittee, VettingCommitteeMember, ParticipantSelection, VettingStatus, ApprovalStatus
 from .form_field import FormField, FormResponse
 from .code_of_conduct import CodeOfConduct
+from .cash_claim import Claim, ClaimItem
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole",
@@ -46,5 +47,5 @@ __all__ = [
     "NewsUpdate", "NewsCategory", "ChatRoom", "ChatMessage", "DirectMessage", "ChatType",
     "FlightItinerary", "TransportRequest", "Invitation", "PassportRecord", "AppFeedback", "TravelChecklistProgress",
     "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus",
-    "FormField", "FormResponse", "CodeOfConduct"
+    "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem"
 ]
