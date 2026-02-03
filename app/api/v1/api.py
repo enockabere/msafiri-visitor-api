@@ -823,6 +823,7 @@ api_router.include_router(
 # Cash Claims
 api_router.include_router(
     cash_claims.router,
+    prefix="/cash-claims",
     tags=["cash-claims"]
 )
 

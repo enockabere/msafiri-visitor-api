@@ -15,7 +15,7 @@ from app.api.deps import get_current_user
 from app.models.user import User
 from app.services.azure_services import AzureDocumentIntelligenceService, AzureOpenAIService
 
-router = APIRouter(prefix="/api/v1/cash-claims", tags=["cash-claims"])
+router = APIRouter(tags=["cash-claims"])
 
 # Initialize Azure services
 document_service = AzureDocumentIntelligenceService()
