@@ -174,21 +174,31 @@ def test_receipt_upload(request: dict):
     
     logger.info(f"📷 Image URL: {image_url}")
     
-    # Check Azure Document Intelligence configuration
-    endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-    api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
+    if not azure_available or not document_service:
+        return {
+            "success": False,
+            "message": "Azure Document Intelligence service not available",
+            "azure_available": azure_available
+        }
     
-    logger.info(f"📷 Azure DI Endpoint configured: {bool(endpoint)}")
-    logger.info(f"📷 Azure DI API Key configured: {bool(api_key)}")
-    
-    return {
-        "success": True,
-        "message": "Test endpoint working",
-        "image_url": image_url,
-        "azure_endpoint_configured": bool(endpoint),
-        "azure_key_configured": bool(api_key),
-        "azure_available": azure_available
-    }
+    try:
+        logger.info(f"📷 Starting receipt extraction...")
+        extracted_data = document_service.extract_receipt_data(image_url)
+        logger.info(f"📷 Extraction successful: {extracted_data}")
+        
+        return {
+            "success": True,
+            "message": "Receipt extracted successfully",
+            "image_url": image_url,
+            "extracted_data": extracted_data
+        }
+    except Exception as e:
+        logger.error(f"📷 Receipt extraction failed: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Receipt extraction failed: {str(e)}",
+            "image_url": image_url
+        }
 
 @router.post("/minimal-test")
 def minimal_test_post(data: dict):
