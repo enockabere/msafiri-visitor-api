@@ -820,18 +820,18 @@ api_router.include_router(
     tags=["user-preferences"]
 )
 
+# Cash Claims AI Chat (registered before cash_claims so /conversations doesn't match /{claim_id})
+api_router.include_router(
+    claim_chat.router,
+    prefix="/cash-claims",
+    tags=["cash-claims-chat"]
+)
+
 # Cash Claims
 api_router.include_router(
     cash_claims.router,
     prefix="/cash-claims",
     tags=["cash-claims"]
-)
-
-# Cash Claims AI Chat
-api_router.include_router(
-    claim_chat.router,
-    prefix="/cash-claims",
-    tags=["cash-claims-chat"]
 )
 
 # Test endpoint for cash claims
