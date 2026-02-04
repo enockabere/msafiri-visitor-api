@@ -394,7 +394,8 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         """
 
         css = CSS(string=css_string)
-        pdf_bytes = HTML(string=html_content).write_pdf(stylesheets=[css])
+        html_doc = HTML(string=html_content)
+        pdf_bytes = html_doc.write_pdf(stylesheets=[css])
 
         return BytesIO(pdf_bytes)
 

@@ -11,6 +11,12 @@ class Claim(Base):
     status = Column(String(50), default="draft")
     total_amount = Column(Numeric(10, 2), default=0.0)
     description = Column(Text)
+    expense_type = Column(String(50))  # MEDICAL, OPERATIONAL ADVANCE, TRAVEL ADVANCE
+    payment_method = Column(String(50))  # CASH, BANK, MPESA
+    cash_pickup_date = Column(DateTime(timezone=True))
+    cash_hours = Column(String(20))  # MORNING, AFTERNOON
+    mpesa_number = Column(String(20))
+    bank_account = Column(String(100))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     submitted_at = Column(DateTime(timezone=True))
     approved_at = Column(DateTime(timezone=True))
