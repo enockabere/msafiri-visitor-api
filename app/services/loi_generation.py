@@ -261,8 +261,17 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     """
     try:
         print("🔄 Starting PDF generation...")
+        
+        # Import WeasyPrint components explicitly to avoid conflicts
+        import weasyprint
+        print(f"✅ WeasyPrint version: {weasyprint.__version__}")
+        
         from weasyprint import HTML, CSS
         print("✅ WeasyPrint imported successfully")
+        
+        # Check what classes we actually imported
+        print(f"🔍 HTML class: {HTML}")
+        print(f"🔍 CSS class: {CSS}")
 
         css_string = """
             @page {
