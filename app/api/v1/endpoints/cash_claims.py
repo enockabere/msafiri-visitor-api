@@ -69,7 +69,13 @@ async def create_claim(
         user_id=current_user.id,
         description=claim_data.description,
         total_amount=claim_data.total_amount or 0.0,
-        status="draft"
+        status="Open",
+        expense_type=claim_data.expense_type,
+        payment_method=claim_data.payment_method,
+        cash_pickup_date=claim_data.cash_pickup_date,
+        cash_hours=claim_data.cash_hours,
+        mpesa_number=claim_data.mpesa_number,
+        bank_account=claim_data.bank_account,
     )
     
     db.add(claim)
@@ -97,10 +103,10 @@ async def update_claim(
             detail="Claim not found"
         )
     
-    if claim.status != "draft":
+    if claim.status not in ("draft", "Open"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only update draft claims"
+            detail="Can only update draft/Open claims"
         )
     
     for field, value in claim_data.dict(exclude_unset=True).items():
@@ -129,13 +135,13 @@ async def submit_claim(
             detail="Claim not found"
         )
     
-    if claim.status != "draft":
+    if claim.status not in ("draft", "Open"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only submit draft claims"
+            detail="Can only submit draft/Open claims"
         )
-    
-    claim.status = "pending"
+
+    claim.status = "Pending Approval"
     claim.submitted_at = datetime.utcnow()
     
     db.commit()

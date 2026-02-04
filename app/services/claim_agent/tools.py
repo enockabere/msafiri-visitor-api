@@ -28,19 +28,48 @@ def get_claim_tools(db: Session, user_id: int) -> list:
     """Factory that returns LangChain tools scoped to a specific user and DB session."""
 
     @tool
-    def create_claim(description: str, total_amount: float) -> dict:
-        """Create a new draft expense claim.
+    def create_claim(
+        description: str,
+        total_amount: float,
+        expense_type: str,
+        payment_method: str,
+        cash_pickup_date: Optional[str] = None,
+        cash_hours: Optional[str] = None,
+        mpesa_number: Optional[str] = None,
+        bank_account: Optional[str] = None,
+    ) -> dict:
+        """Create a new expense claim with status Open (draft).
 
         Args:
             description: A brief description of the expense claim.
             total_amount: The total amount for this claim.
+            expense_type: Type of expense - one of: MEDICAL, OPERATIONAL ADVANCE, TRAVEL ADVANCE.
+            payment_method: Reimbursement method - one of: CASH, MPESA, BANK.
+            cash_pickup_date: Date to pick up cash (YYYY-MM-DD format). Required if payment_method is CASH.
+            cash_hours: Time slot for cash pickup - MORNING or AFTERNOON. Required if payment_method is CASH.
+            mpesa_number: M-Pesa phone number. Required if payment_method is MPESA.
+            bank_account: Bank account number. Required if payment_method is BANK.
         """
         claim = Claim(
             user_id=user_id,
             description=description,
             total_amount=total_amount,
-            status="draft",
+            status="Open",
+            expense_type=expense_type,
+            payment_method=payment_method,
         )
+
+        if payment_method == "CASH" and cash_pickup_date:
+            try:
+                claim.cash_pickup_date = datetime.strptime(cash_pickup_date, "%Y-%m-%d")
+            except ValueError:
+                pass
+            claim.cash_hours = cash_hours
+        elif payment_method == "MPESA":
+            claim.mpesa_number = mpesa_number
+        elif payment_method == "BANK":
+            claim.bank_account = bank_account
+
         db.add(claim)
         db.commit()
         db.refresh(claim)
@@ -50,6 +79,8 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             "description": claim.description,
             "total_amount": float(claim.total_amount),
             "status": claim.status,
+            "expense_type": claim.expense_type,
+            "payment_method": claim.payment_method,
         }
 
     @tool
@@ -76,7 +107,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         ).first()
         if not claim:
             return {"error": f"Claim {claim_id} not found or does not belong to you."}
-        if claim.status != "draft":
+        if claim.status not in ("draft", "Open"):
             return {"error": f"Claim {claim_id} is already {claim.status} and cannot be modified."}
 
         try:
@@ -184,21 +215,21 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         ).first()
         if not claim:
             return {"error": f"Claim {claim_id} not found or does not belong to you."}
-        if claim.status != "draft":
+        if claim.status not in ("draft", "Open"):
             return {"error": f"Claim {claim_id} is already {claim.status}."}
         if not claim.items:
             return {"error": "Cannot submit a claim with no items. Please add at least one expense item first."}
 
-        claim.status = "pending"
+        claim.status = "Pending Approval"
         claim.submitted_at = datetime.utcnow()
         db.commit()
 
         return {
             "claim_id": claim.id,
-            "status": "pending",
+            "status": "Pending Approval",
             "submitted_at": claim.submitted_at.isoformat(),
             "total_amount": float(claim.total_amount or 0),
-            "message": "Claim submitted successfully for approval.",
+            "message": "Claim submitted successfully and is now Pending Approval.",
         }
 
     @tool

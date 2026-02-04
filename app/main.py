@@ -666,6 +666,18 @@ def run_auto_migration():
                     """
                     conn.execute(text(create_claim_items_table))
 
+                    # Add new columns to claims table (expense type, payment method, etc.)
+                    claims_columns = [
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS expense_type VARCHAR(50)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS cash_pickup_date TIMESTAMP WITH TIME ZONE",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS cash_hours VARCHAR(20)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS mpesa_number VARCHAR(20)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100)",
+                    ]
+                    for sql in claims_columns:
+                        conn.execute(text(sql))
+
                     # Create claim conversations tables (AI chatbot)
                     create_claim_conversations_table = """
                     CREATE TABLE IF NOT EXISTS claim_conversations (

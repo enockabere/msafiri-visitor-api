@@ -24,6 +24,12 @@ class ClaimItemResponse(ClaimItemBase):
 class ClaimBase(BaseModel):
     description: Optional[str] = None
     total_amount: Optional[Decimal] = Field(default=0.0)
+    expense_type: Optional[str] = None
+    payment_method: Optional[str] = None
+    cash_pickup_date: Optional[datetime] = None
+    cash_hours: Optional[str] = None
+    mpesa_number: Optional[str] = None
+    bank_account: Optional[str] = None
 
 class ClaimCreate(ClaimBase):
     pass
@@ -32,6 +38,12 @@ class ClaimUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[str] = None
     total_amount: Optional[Decimal] = None
+    expense_type: Optional[str] = None
+    payment_method: Optional[str] = None
+    cash_pickup_date: Optional[datetime] = None
+    cash_hours: Optional[str] = None
+    mpesa_number: Optional[str] = None
+    bank_account: Optional[str] = None
 
 class ClaimResponse(ClaimBase):
     id: int
