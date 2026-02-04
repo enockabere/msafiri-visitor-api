@@ -115,6 +115,7 @@ class ParticipantCleanupService:
                 ("flight_itineraries", "user_email", participant_email),
                 ("travel_tickets", "user_email", participant_email),
                 ("passport_records", "user_email", participant_email),
+                ("perdiem_requests", "participant_id", participant_id),
             ]
             
             for table_name, column_name, value in tables_to_clean:
