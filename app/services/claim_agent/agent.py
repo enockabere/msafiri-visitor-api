@@ -161,8 +161,22 @@ async def run_agent(
         elif role == "assistant":
             # Reconstruct AIMessage with tool_calls if present
             tool_calls = msg.get("tool_calls")
+            tool_results_list = msg.get("tool_results") or []
             if tool_calls:
                 messages.append(AIMessage(content=content or "", tool_calls=tool_calls))
+                # OpenAI requires ToolMessage responses for each tool_call_id
+                # The results are stored in the same DB row, so reconstruct them here
+                for tc in tool_calls:
+                    tc_id = tc.get("id", "")
+                    # Find matching result from tool_results
+                    result_data = {}
+                    for tr in tool_results_list:
+                        if tr.get("tool_call_id") == tc_id or tr.get("tool_name") == tc.get("name"):
+                            result_data = tr.get("result", {})
+                            break
+                    messages.append(
+                        ToolMessage(content=json.dumps(result_data), tool_call_id=tc_id)
+                    )
             else:
                 messages.append(AIMessage(content=content))
         elif role == "tool":
