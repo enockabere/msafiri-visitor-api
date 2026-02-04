@@ -260,8 +260,9 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     Convert HTML to PDF bytes using WeasyPrint with mobile-optimized settings.
     """
     try:
+        print("🔄 Starting PDF generation...")
         from weasyprint import HTML, CSS
-        from weasyprint.text.fonts import FontConfiguration
+        print("✅ WeasyPrint imported successfully")
 
         css_string = """
             @page {
@@ -394,17 +395,32 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
             }
         """
 
-        font_config = FontConfiguration()
-        css = CSS(string=css_string, font_config=font_config)
-        html_doc = HTML(string=html_content)
-        pdf_bytes = html_doc.write_pdf(stylesheets=[css], font_config=font_config)
+        print("🔄 Creating CSS object...")
+        # Create CSS and HTML objects separately
+        css_obj = CSS(string=css_string)
+        print("✅ CSS object created")
+        
+        print("🔄 Creating HTML object...")
+        html_obj = HTML(string=html_content)
+        print("✅ HTML object created")
+        
+        print("🔄 Generating PDF bytes...")
+        # Generate PDF bytes
+        pdf_data = html_obj.write_pdf(stylesheets=[css_obj])
+        print("✅ PDF bytes generated successfully")
 
-        return BytesIO(pdf_bytes)
+        print("🔄 Creating BytesIO object...")
+        result = BytesIO(pdf_data)
+        print("✅ PDF generation completed successfully")
+        return result
 
-    except ImportError:
+    except ImportError as e:
+        print(f"❌ WeasyPrint import error: {str(e)}")
         logger.error("WeasyPrint not installed")
         raise Exception("PDF generation library not available")
     except Exception as e:
+        print(f"❌ PDF generation error: {str(e)}")
+        print(f"❌ Error type: {type(e)}")
         logger.error(f"Error converting HTML to PDF: {str(e)}")
         raise
 
