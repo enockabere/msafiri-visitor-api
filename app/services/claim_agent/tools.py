@@ -43,7 +43,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         Args:
             description: A brief description of the expense claim.
             total_amount: The total amount for this claim.
-            expense_type: Type of expense - one of: MEDICAL, OPERATIONAL ADVANCE, TRAVEL ADVANCE.
+            expense_type: Type of expense - one of: MEDICAL, OPERATIONAL, TRAVEL.
             payment_method: Reimbursement method - one of: CASH, MPESA, BANK.
             cash_pickup_date: Date to pick up cash (YYYY-MM-DD format). Required if payment_method is CASH.
             cash_hours: Time slot for cash pickup - MORNING or AFTERNOON. Required if payment_method is CASH.

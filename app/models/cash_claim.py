@@ -11,7 +11,7 @@ class Claim(Base):
     status = Column(String(50), default="draft")
     total_amount = Column(Numeric(10, 2), default=0.0)
     description = Column(Text)
-    expense_type = Column(String(50))  # MEDICAL, OPERATIONAL ADVANCE, TRAVEL ADVANCE
+    expense_type = Column(String(50))  # MEDICAL, OPERATIONAL, TRAVEL
     payment_method = Column(String(50))  # CASH, BANK, MPESA
     cash_pickup_date = Column(DateTime(timezone=True))
     cash_hours = Column(String(20))  # MORNING, AFTERNOON

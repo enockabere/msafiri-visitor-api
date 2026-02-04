@@ -43,8 +43,8 @@ After extraction, present the extracted data (merchant name, amount, date, items
 **Step 4 - Expense Type:**
 Ask: "What type of expense is this? Please select one:
 1. MEDICAL
-2. OPERATIONAL ADVANCE
-3. TRAVEL ADVANCE"
+2. OPERATIONAL
+3. TRAVEL"
 
 **Step 5 - Expense Description:**
 Ask: "Please provide a brief description for this expense claim."
@@ -153,38 +153,28 @@ async def run_agent(
     ]
 
     # Add conversation history
+    # Only include user/assistant text messages - skip tool_calls/tool_results
+    # to avoid OpenAI message ordering issues. The assistant's text response
+    # already summarizes what tools did, and tools remain available for current turn.
     for msg in message_history:
         role = msg.get("role", "user")
         content = msg.get("content", "")
         if role == "user":
             messages.append(HumanMessage(content=content))
         elif role == "assistant":
-            # Reconstruct AIMessage with tool_calls if present
-            tool_calls = msg.get("tool_calls")
+            # Include a summary of tool results in the text if tools were called
+            # but the content is empty (rare edge case)
             tool_results_list = msg.get("tool_results") or []
-            if tool_calls:
-                messages.append(AIMessage(content=content or "", tool_calls=tool_calls))
-                # OpenAI requires ToolMessage responses for each tool_call_id
-                # The results are stored in the same DB row, so reconstruct them here
-                for tc in tool_calls:
-                    tc_id = tc.get("id", "")
-                    # Find matching result from tool_results
-                    result_data = {}
-                    for tr in tool_results_list:
-                        if tr.get("tool_call_id") == tc_id or tr.get("tool_name") == tc.get("name"):
-                            result_data = tr.get("result", {})
-                            break
-                    messages.append(
-                        ToolMessage(content=json.dumps(result_data), tool_call_id=tc_id)
-                    )
-            else:
+            if not content and tool_results_list:
+                # Build a text summary from tool results so the LLM has context
+                summaries = []
+                for tr in tool_results_list:
+                    tool_name = tr.get("tool_name", "unknown")
+                    result = tr.get("result", {})
+                    summaries.append(f"[Tool {tool_name} returned: {json.dumps(result)}]")
+                content = "\n".join(summaries)
+            if content:
                 messages.append(AIMessage(content=content))
-        elif role == "tool":
-            tool_results = msg.get("tool_results", {})
-            tool_call_id = tool_results.get("tool_call_id", "")
-            messages.append(
-                ToolMessage(content=json.dumps(tool_results.get("result", {})), tool_call_id=tool_call_id)
-            )
 
     # Add the new user message
     content_text = user_message
