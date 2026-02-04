@@ -261,6 +261,7 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     """
     try:
         from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
 
         css_string = """
             @page {
@@ -393,9 +394,10 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
             }
         """
 
-        css = CSS(string=css_string)
+        font_config = FontConfiguration()
+        css = CSS(string=css_string, font_config=font_config)
         html_doc = HTML(string=html_content)
-        pdf_bytes = html_doc.write_pdf(stylesheets=[css])
+        pdf_bytes = html_doc.write_pdf(stylesheets=[css], font_config=font_config)
 
         return BytesIO(pdf_bytes)
 
