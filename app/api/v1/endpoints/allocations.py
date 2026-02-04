@@ -85,13 +85,24 @@ async def create_voucher_allocation(
         print(f"DEBUG VOUCHER: tenant_id={tenant_id}, created_by={created_by}")
         
         event_id = request_data.get("event_id")
-        drink_vouchers_per_participant = request_data.get("drink_vouchers_per_participant", 0)
+        voucher_type = request_data.get("voucher_type", "Drinks")
+        vouchers_per_participant = request_data.get("vouchers_per_participant", request_data.get("drink_vouchers_per_participant", 0))
         notes = request_data.get("notes", "")
         
-        print(f"DEBUG VOUCHER: event_id={event_id}, vouchers={drink_vouchers_per_participant}")
+        print(f"DEBUG VOUCHER: event_id={event_id}, type={voucher_type}, vouchers={vouchers_per_participant}")
         
-        if drink_vouchers_per_participant <= 0:
+        if vouchers_per_participant <= 0:
             raise HTTPException(status_code=400, detail="Vouchers per participant must be greater than 0")
+        
+        # Check for existing allocation of the same type for this event
+        existing_allocation = db.query(EventAllocation).filter(
+            EventAllocation.event_id == event_id,
+            EventAllocation.tenant_id == tenant_id,
+            EventAllocation.voucher_type == voucher_type
+        ).first()
+        
+        if existing_allocation:
+            raise HTTPException(status_code=400, detail=f"{voucher_type} voucher allocation already exists for this event")
         
         # Find any inventory item to use as dummy (or create without inventory_item_id constraint)
         dummy_inventory = db.query(Inventory).filter(Inventory.tenant_id == str(tenant_id)).first()
@@ -115,8 +126,10 @@ async def create_voucher_allocation(
             event_id=event_id,
             inventory_item_id=dummy_inventory.id,
             quantity_per_participant=0,
-            drink_vouchers_per_participant=drink_vouchers_per_participant,
-            notes=f"VOUCHERS_ONLY|NOTES:{notes}",
+            drink_vouchers_per_participant=vouchers_per_participant if voucher_type == "Drinks" else 0,
+            voucher_type=voucher_type,
+            vouchers_per_participant=vouchers_per_participant,
+            notes=f"VOUCHERS_ONLY|TYPE:{voucher_type}|NOTES:{notes}",
             status="open",
             tenant_id=tenant_id,
             created_by=created_by
@@ -310,7 +323,9 @@ async def get_event_voucher_allocations(
     for allocation in allocations:
         voucher_allocations.append({
             "id": allocation.id,
-            "drink_vouchers_per_participant": allocation.drink_vouchers_per_participant,
+            "voucher_type": allocation.voucher_type or "Drinks",
+            "vouchers_per_participant": allocation.vouchers_per_participant or allocation.drink_vouchers_per_participant,
+            "drink_vouchers_per_participant": allocation.drink_vouchers_per_participant,  # Keep for backward compatibility
             "status": allocation.status,
             "notes": allocation.notes,
             "created_by": allocation.created_by,
@@ -571,11 +586,22 @@ async def get_voucher_stats(
     voucher_allocations = db.query(EventAllocation).filter(
         EventAllocation.event_id == event_id,
         EventAllocation.tenant_id == tenant_id,
-        EventAllocation.drink_vouchers_per_participant > 0
+        EventAllocation.vouchers_per_participant > 0
     ).all()
     
+    # Fallback for old data structure
+    if not voucher_allocations:
+        voucher_allocations = db.query(EventAllocation).filter(
+            EventAllocation.event_id == event_id,
+            EventAllocation.tenant_id == tenant_id,
+            EventAllocation.drink_vouchers_per_participant > 0
+        ).all()
+    
     total_participants = len(participants)
-    vouchers_per_participant = sum(alloc.drink_vouchers_per_participant for alloc in voucher_allocations)
+    vouchers_per_participant = sum(
+        (alloc.vouchers_per_participant or alloc.drink_vouchers_per_participant) 
+        for alloc in voucher_allocations
+    )
     total_allocated_vouchers = vouchers_per_participant * total_participants
     
     # Calculate actual redeemed vouchers from redemption records
@@ -816,11 +842,17 @@ async def update_voucher_allocation(
         raise HTTPException(status_code=404, detail="Voucher allocation not found")
 
     # Update voucher fields
-    drink_vouchers_per_participant = request_data.get("drink_vouchers_per_participant")
+    voucher_type = request_data.get("voucher_type")
+    vouchers_per_participant = request_data.get("vouchers_per_participant", request_data.get("drink_vouchers_per_participant"))
     notes = request_data.get("notes")
 
-    if drink_vouchers_per_participant is not None:
-        allocation.drink_vouchers_per_participant = drink_vouchers_per_participant
+    if voucher_type is not None:
+        allocation.voucher_type = voucher_type
+    if vouchers_per_participant is not None:
+        allocation.vouchers_per_participant = vouchers_per_participant
+        # Update old field for backward compatibility
+        if voucher_type == "Drinks" or allocation.voucher_type == "Drinks":
+            allocation.drink_vouchers_per_participant = vouchers_per_participant
     if notes is not None:
         allocation.notes = notes
 
@@ -942,6 +974,8 @@ def get_allocation_with_details(allocation: EventAllocation, db: Session) -> dic
         "event_id": allocation.event_id,
         "items": items_with_details,
         "drink_vouchers_per_participant": allocation.drink_vouchers_per_participant,
+        "voucher_type": allocation.voucher_type,
+        "vouchers_per_participant": allocation.vouchers_per_participant,
         "status": allocation.status,
         "notes": user_notes,
         "tenant_id": allocation.tenant_id,

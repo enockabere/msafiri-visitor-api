@@ -11,14 +11,18 @@ class AllocationBase(BaseModel):
     event_id: int
     inventory_item_id: int
     quantity_per_participant: int
-    drink_vouchers_per_participant: int = 0
+    drink_vouchers_per_participant: int = 0  # Keep for backward compatibility
+    voucher_type: Optional[str] = None  # New field
+    vouchers_per_participant: int = 0  # New field
     notes: Optional[str] = None
     status: Optional[str] = "open"
 
 class AllocationCreate(BaseModel):
     event_id: int
     items: Optional[List[AllocationItem]] = []
-    drink_vouchers_per_participant: int = 0
+    drink_vouchers_per_participant: int = 0  # Keep for backward compatibility
+    voucher_type: Optional[str] = None  # New field
+    vouchers_per_participant: int = 0  # New field
     notes: Optional[str] = None
     status: Optional[str] = "open"
 
@@ -38,7 +42,9 @@ class Allocation(BaseModel):
     id: int
     event_id: int
     items: List[AllocationItemResponse]
-    drink_vouchers_per_participant: int = 0
+    drink_vouchers_per_participant: int = 0  # Keep for backward compatibility
+    voucher_type: Optional[str] = None  # New field
+    vouchers_per_participant: int = 0  # New field
     status: str
     notes: Optional[str] = None
     tenant_id: int

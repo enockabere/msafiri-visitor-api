@@ -11,7 +11,9 @@ class EventAllocation(Base):
     event_id = Column(Integer, ForeignKey("events.id"), nullable=False)
     inventory_item_id = Column(Integer, ForeignKey("inventory.id"), nullable=False)
     quantity_per_participant = Column(Integer, nullable=False)
-    drink_vouchers_per_participant = Column(Integer, default=0)
+    drink_vouchers_per_participant = Column(Integer, default=0)  # Keep for backward compatibility
+    voucher_type = Column(String, nullable=True)  # New field for voucher type
+    vouchers_per_participant = Column(Integer, default=0)  # New generic voucher field
     status = Column(String, default="open")  # open, pending, approved, rejected
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)

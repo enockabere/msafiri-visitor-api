@@ -77,7 +77,6 @@ def get_chat_rooms(
     
     if old_rooms:
         db.commit()
-        print(f"AUTO-DELETED: {len(old_rooms)} old chat rooms")
     
     # Auto-create chat rooms for events that don't have them
     events_without_rooms = db.query(Event).outerjoin(
@@ -100,7 +99,6 @@ def get_chat_rooms(
     
     if created_rooms:
         db.commit()
-        print(f"AUTO-CREATED: {len(created_rooms)} chat rooms for events")
     
     # Get events user is selected or confirmed to participate in
     user_event_ids = select(EventParticipant.event_id).filter(
@@ -124,7 +122,6 @@ def get_chat_rooms(
     query = query.order_by(ChatRoom.created_at.desc())
     
     rooms = query.all()
-    print(f"DEBUG: Found {len(rooms)} chat rooms for user {current_user.email}")
     
     # Build response with last message info
     result = []
@@ -167,8 +164,6 @@ def get_chat_rooms(
             else:
                 formatted_last_message = f"{sender_name}: Message"
         
-        print(f"DEBUG ROOM: {room.name} - last_message obj: message='{last_message.message if last_message else None}', file_url='{last_message.file_url if last_message else None}', formatted='{formatted_last_message}'")
-        
         room_data = {
             "id": room.id,
             "name": room.name,
@@ -188,7 +183,6 @@ def get_chat_rooms(
         }
         
         result.append(room_data)
-        print(f"DEBUG: Room {room.name} - last_message: '{room_data['last_message']}', last_message_time: {room_data['last_message_time']}")
     
     return result
 
@@ -231,14 +225,10 @@ async def upload_chat_attachment(
 ):
     """Upload chat attachment (image, document, voice message) to Cloudinary"""
     
-    print(f"DEBUG CHAT UPLOAD: File: {file.filename}, Content-Type: {file.content_type}, Size: {file.size}")
-    print(f"DEBUG CHAT UPLOAD: User: {current_user.email}")
-
     # Validate file size (15MB limit for attachments, 5MB for voice)
     max_size = 5 * 1024 * 1024 if file.content_type and 'audio' in file.content_type else 15 * 1024 * 1024
 
     if file.size and file.size > max_size:
-        print(f"DEBUG CHAT UPLOAD: File too large: {file.size} bytes")
         raise HTTPException(
             status_code=400,
             detail=f"File size must be less than {max_size // (1024 * 1024)}MB"
@@ -281,8 +271,6 @@ async def upload_chat_attachment(
         folder = "msafiri-documents/chat-videos"
         resource_type = "video"
 
-    print(f"DEBUG CHAT UPLOAD: Determined file_type: {file_type}, folder: {folder}, resource_type: {resource_type}")
-
     try:
         # Validate Cloudinary configuration
         if not os.getenv("CLOUDINARY_CLOUD_NAME"):
@@ -290,14 +278,11 @@ async def upload_chat_attachment(
 
         # Read file content
         file_content = await file.read()
-        print(f"DEBUG CHAT UPLOAD: Read {len(file_content)} bytes from file")
 
         # Generate unique filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = file.filename or "file"
         public_id = f"{current_user.email.split('@')[0]}_{timestamp}_{filename.split('.')[0]}"
-        
-        print(f"DEBUG CHAT UPLOAD: Generated public_id: {public_id}")
 
         # Upload to Cloudinary
         result = cloudinary.uploader.upload(
@@ -308,9 +293,6 @@ async def upload_chat_attachment(
             use_filename=True,
             unique_filename=True
         )
-
-        print(f"DEBUG CHAT UPLOAD: Upload successful: {result['secure_url']}")
-        print(f"DEBUG CHAT UPLOAD: Public ID: {result['public_id']}")
 
         return {
             "success": True,
@@ -678,16 +660,9 @@ async def send_direct_message(
     tenant_context: str = Depends(get_tenant_context)
 ):
     """Send direct message to any user"""
-    print(f"DEBUG: Direct message - Current user: {current_user.email}")
-    print(f"DEBUG: Direct message - Current user tenant_id: {current_user.tenant_id}")
-    print(f"DEBUG: Direct message - Tenant context: {tenant_context}")
-    print(f"DEBUG: Direct message - Request data: {dm.dict()}")
     
     # Ensure tenant_context is not None
     if not tenant_context:
-        print(f"ERROR: Direct message - tenant_context is None or empty")
-        print(f"ERROR: Direct message - current_user.tenant_id: {current_user.tenant_id}")
-        print(f"ERROR: Direct message - current_user.role: {current_user.role}")
         raise HTTPException(status_code=400, detail="No tenant context available")
     
     # Verify recipient exists - allow cross-tenant messaging
@@ -717,7 +692,6 @@ async def send_direct_message(
         duration=getattr(dm, 'duration', None)
     )
     
-    print(f"DEBUG: Direct message - Creating DB record with tenant_id: {tenant_context}")
     db.add(db_dm)
     db.commit()
     db.refresh(db_dm)
@@ -738,8 +712,6 @@ async def send_direct_message(
         from app import crud
         from app.models.notification import NotificationPriority, NotificationType
         
-        print(f"CHAT: Sending direct message notification to {recipient.email}")
-        
         notification_title = f"💬 {current_user.full_name or current_user.email}"
         notification_body = (dm.message[:100] + "..." if len(dm.message) > 100 else dm.message) if dm.message else "📎 Attachment"
         
@@ -756,9 +728,8 @@ async def send_direct_message(
                 send_push=True,
                 triggered_by=current_user.email
             )
-            print(f"CHAT: Created database notification for direct message to {recipient.email}")
         except Exception as db_error:
-            print(f"CHAT ERROR: Failed to create database notification for {recipient.email}: {db_error}")
+            pass
         
         # Send push notification
         if recipient.fcm_token:
@@ -776,16 +747,14 @@ async def send_direct_message(
             )
             
             if success:
-                print(f"CHAT: Direct message push notification sent to {recipient.email}")
+                pass
             else:
-                print(f"CHAT: Failed to send push notification to {recipient.email}")
+                pass
         else:
-            print(f"CHAT: Recipient {recipient.email} has no FCM token")
+            pass
             
     except Exception as e:
-        print(f"CHAT ERROR: Failed to send direct message push notification: {e}")
-        import traceback
-        traceback.print_exc()
+        pass
     
     return db_dm
 
@@ -998,11 +967,6 @@ def get_available_users(
         )
     ).all()
     
-    print(f"DEBUG: Found {len(users)} total active users (no tenant filter)")
-    print(f"DEBUG: Current user: {current_user.email}, Tenant: {current_user.tenant_id}")
-    for user in users:
-        print(f"DEBUG: User: {user.email}, Role: {user.role}, Active: {user.is_active}, Tenant: {user.tenant_id}, Full Name: {user.full_name}")
-    
     result = [
         {
             "email": user.email,
@@ -1011,7 +975,6 @@ def get_available_users(
         }
         for user in users
     ]
-    print(f"DEBUG: Returning {len(result)} users as contacts")
     return result
 
 @router.get("/rooms/{room_id}/participants", response_model=List[dict])
@@ -1065,7 +1028,6 @@ def get_room_participants(
         for user in users
     ]
     
-    print(f"DEBUG: Returning {len(result)} users for room {room_id} mentions")
     return result
 
 @router.get("/unread-count")
@@ -1086,15 +1048,12 @@ def get_total_unread_count(
         # Group chat notifications are handled by the notification system, not here
         # This prevents double counting since group chat messages are stored as notifications
         
-        print(f"CHAT UNREAD: User {current_user.email} has {direct_unread} direct messages (group chats handled by notifications)")
-        
         return {
             "total_unread": direct_unread,  # Only direct messages for chat badge
             "direct_unread": direct_unread,
             "group_unread": 0  # Group chats are in notifications, not chat count
         }
     except Exception as e:
-        print(f"ERROR getting unread count: {e}")
         return {
             "total_unread": 0,
             "direct_unread": 0,
@@ -1137,7 +1096,6 @@ def mark_room_as_read(
             "notifications_marked": notifications_updated
         }
     except Exception as e:
-        print(f"Error marking room as read: {e}")
         raise HTTPException(status_code=500, detail="Failed to mark room as read")
 
 @router.get("/admins/", response_model=List[dict])
@@ -1254,11 +1212,7 @@ async def websocket_endpoint(
             data = await websocket.receive_text()
             message_data = json.loads(data)
             
-            print(f"🔌 WebSocket received: {message_data['type']} from {user.email} in room {room_id}")
-            
             if message_data["type"] == "message":
-                print(f"💬 WebSocket message: '{message_data['message'][:50]}...' from {user.email}")
-                
                 # Save message to database
                 db_message = ChatMessage(
                     chat_room_id=room_id,
@@ -1270,8 +1224,6 @@ async def websocket_endpoint(
                 db.add(db_message)
                 db.commit()
                 db.refresh(db_message)
-                
-                print(f"💾 Saved WebSocket message to DB with ID {db_message.id}")
                 
                 # Broadcast to room
                 broadcast_data = {
@@ -1285,12 +1237,9 @@ async def websocket_endpoint(
                 }
                 
                 await manager.broadcast_to_room(broadcast_data, room_id)
-                print(f"📡 Broadcasted WebSocket message to room {room_id}")
                 
             elif message_data["type"] == "ping":
-                print(f"🏓 WebSocket ping from {user.email}")
                 await websocket.send_text(json.dumps({"type": "pong"}))
-                print(f"🏓 WebSocket pong sent to {user.email}")
     
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_id)

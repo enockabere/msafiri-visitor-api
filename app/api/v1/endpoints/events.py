@@ -234,39 +234,24 @@ def create_event(
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info(f"🎯 === EVENT CREATE REQUEST START ===")
-        logger.info(f"📝 Event data: {event_in.dict()}")
-        logger.info(f"👤 User: {current_user.email}, Role: {current_user.role}")
-        logger.info(f"👤 Role type: {type(current_user.role)}, Role value: {current_user.role.value if hasattr(current_user.role, 'value') else 'NO_VALUE'}")
-        logger.info(f"🏢 Tenant param: {tenant}")
-        
         # Check user roles from relationship table
         user_roles = db.query(UserRoleModel).filter(
             UserRoleModel.user_id == current_user.id
         ).all()
-        logger.info(f"🔐 User roles from relationship: {[role.role for role in user_roles]}")
         
         # Check if user has admin roles in the relationship table
         admin_role_types = ['MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN']
         has_admin_role_in_relationship = any(role.role in admin_role_types for role in user_roles)
-        logger.info(f"🔐 Has admin role in relationship table: {has_admin_role_in_relationship}")
         
         # Check permissions - check both single role and relationship roles
         has_single_role_permission = can_create_events(current_user.role)
         
         # Allow if either permission method grants access
         if not has_single_role_permission and not has_admin_role_in_relationship:
-            logger.error(f"❌ Role check failed")
-            logger.error(f"❌ Single role: {current_user.role} (valid: {has_single_role_permission})")
-            logger.error(f"❌ Relationship roles: {[role.role for role in user_roles]} (valid: {has_admin_role_in_relationship})")
-            logger.error(f"❌ Expected single roles: {[UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN]}")
-            logger.error(f"❌ Expected relationship roles: {admin_role_types}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only admin roles can create events"
             )
-        else:
-            logger.info(f"✅ Permission granted - Single role: {has_single_role_permission}, Relationship role: {has_admin_role_in_relationship}")
         
         # Use tenant parameter if available, otherwise fall back to user's tenant_id
         target_tenant = tenant or current_user.tenant_id
@@ -286,7 +271,7 @@ def create_event(
                 detail=f"Tenant {target_tenant} not found"
             )
         
-        logger.info(f"✅ Creating event for tenant: {target_tenant} (ID: {tenant_obj.id})")
+
         
         # Clean up orphaned vetting roles before creating new event
         try:
@@ -342,7 +327,7 @@ def create_event(
                     )
                     db.add(form_field)
                 
-                logger.info(f"✅ Auto-created {len(default_fields)} default form fields for event: {event.title}")
+        
         except Exception as e:
             logger.warning(f"[WARNING] Failed to create default form fields for event: {str(e)}")
             import traceback
@@ -360,7 +345,7 @@ def create_event(
                 created_by=current_user.id
             )
             db.add(chat_room)
-            logger.info(f"✅ Auto-created chat room for event: {event.title}")
+
         except Exception as e:
             logger.warning(f"[WARNING] Failed to create chat room for event: {str(e)}")
             import traceback
@@ -395,8 +380,7 @@ def create_event(
                     )
                     
                     db.add(vendor_setup)
-                    logger.info(f"✅ Auto-created vendor event accommodation setup for event: {event.title}")
-                    logger.info(f"📊 Room allocation: {event.single_rooms} single, {event.double_rooms} double rooms")
+
                     
                     # Refresh automatic room booking for any existing confirmed participants
                     try:
@@ -411,7 +395,7 @@ def create_event(
         
         db.commit()
         
-        logger.info(f"🎉 Event created successfully with ID: {event.id}")
+
         return event
         
     except Exception as e:

@@ -20,9 +20,6 @@ def get_event_agenda(
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"🗓️ Get agenda - Event: {event_id}, User: {current_user.email}")
-    logger.info(f"👤 User role: {current_user.role}")
-    
     # Check if user is admin (can view any event agenda)
     from app.models.user import UserRole
     admin_roles = [UserRole.MT_ADMIN, UserRole.HR_ADMIN, UserRole.EVENT_ADMIN, UserRole.SUPER_ADMIN]
@@ -40,9 +37,6 @@ def get_event_agenda(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied - not a participant of this event"
             )
-        logger.info(f"✅ Participant access granted")
-    else:
-        logger.info(f"✅ Admin access granted")
     
     # Get real agenda data from database
     from app.models.event_agenda import EventAgenda
@@ -74,7 +68,7 @@ def get_event_agenda(
             "created_at": start_datetime  # Use start_datetime as created_at
         })
     
-    logger.info(f"📊 Found {len(agenda_list)} agenda items")
+
     return agenda_list
 
 @router.get("/{event_id}/my-role")
