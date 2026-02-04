@@ -1,5 +1,5 @@
 # Core FastAPI dependencies
-fastapi==0.104.1
+fastapi>=0.115.0
 uvicorn[standard]==0.24.0
 gunicorn==21.2.0
 
@@ -25,7 +25,7 @@ firebase-admin==6.2.0
 azure-storage-blob==12.19.0
 msal==1.25.0
 azure-ai-documentintelligence==1.0.0b1
-openai==1.3.0
+openai>=1.3.0
 
 # Email & Communication
 emails==0.6.0
@@ -36,8 +36,8 @@ httpx==0.25.2
 requests==2.31.0
 
 # Data validation
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
 
 # Utilities
 python-dotenv==1.0.0
