@@ -1,6 +1,7 @@
 # File: app/api/v1/endpoints/allocations.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import List
 from app.db.database import get_db
 from app.models.allocation import EventAllocation
@@ -311,7 +312,10 @@ async def get_event_voucher_allocations(
     allocations = db.query(EventAllocation).filter(
         EventAllocation.event_id == event_id,
         EventAllocation.tenant_id == tenant_id,
-        EventAllocation.drink_vouchers_per_participant > 0
+        or_(
+            EventAllocation.drink_vouchers_per_participant > 0,
+            EventAllocation.vouchers_per_participant > 0
+        )
     ).all()
     
     print(f"DEBUG VOUCHER GET: Found {len(allocations)} voucher allocations for event {event_id}")
