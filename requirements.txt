@@ -48,6 +48,12 @@ cloudinary==1.36.0  # For document upload
 qrcode[pil]==7.4.2  # For QR code generation in LOI
 weasyprint==60.2  # For HTML to PDF conversion
 
+# LangChain & LangGraph (AI Agent)
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-core>=0.3.0
+langgraph>=0.2.0
+
 # Development
 pytest==7.4.3
 pytest-asyncio==0.21.1

@@ -665,7 +665,33 @@ def run_auto_migration():
                     )
                     """
                     conn.execute(text(create_claim_items_table))
-                    
+
+                    # Create claim conversations tables (AI chatbot)
+                    create_claim_conversations_table = """
+                    CREATE TABLE IF NOT EXISTS claim_conversations (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        title VARCHAR(255) DEFAULT 'New Conversation',
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_claim_conversations_table))
+
+                    create_claim_conversation_messages_table = """
+                    CREATE TABLE IF NOT EXISTS claim_conversation_messages (
+                        id SERIAL PRIMARY KEY,
+                        conversation_id INTEGER NOT NULL REFERENCES claim_conversations(id) ON DELETE CASCADE,
+                        role VARCHAR(50) NOT NULL,
+                        content TEXT,
+                        tool_calls JSON,
+                        tool_results JSON,
+                        image_url TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                    conn.execute(text(create_claim_conversation_messages_table))
+
                     trans.commit()
                     
                     # Create default roles after successful migration
