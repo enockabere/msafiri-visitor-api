@@ -13,11 +13,23 @@ from app.schemas.claim_conversation import (
     ConversationSummary,
     ConversationDetailResponse,
 )
-from app.services.claim_agent.conversation_service import ConversationService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_conversation_service(db: Session, user_id: int):
+    """Lazy import to avoid crashing the app if langchain is not installed."""
+    try:
+        from app.services.claim_agent.conversation_service import ConversationService
+        return ConversationService(db, user_id)
+    except ImportError as e:
+        logger.error(f"LangChain dependencies not installed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI chat service is not available. LangChain dependencies are not installed.",
+        )
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -33,13 +45,15 @@ async def chat(
         f"message='{request.message[:50]}...'"
     )
     try:
-        service = ConversationService(db, current_user.id)
+        service = _get_conversation_service(db, current_user.id)
         result = await service.chat(
             message=request.message,
             conversation_id=request.conversation_id,
             image_url=request.image_url,
         )
         return ChatResponse(**result)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chat error for user {current_user.id}: {e}", exc_info=True)
         raise HTTPException(
@@ -56,7 +70,7 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
 ):
     """List the current user's recent conversations."""
-    service = ConversationService(db, current_user.id)
+    service = _get_conversation_service(db, current_user.id)
     conversations = service.list_conversations(limit=limit, offset=offset)
     return conversations
 
@@ -68,7 +82,7 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Get a conversation with all its messages."""
-    service = ConversationService(db, current_user.id)
+    service = _get_conversation_service(db, current_user.id)
     detail = service.get_conversation_detail(conversation_id)
     if not detail:
         raise HTTPException(
@@ -85,7 +99,7 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a conversation."""
-    service = ConversationService(db, current_user.id)
+    service = _get_conversation_service(db, current_user.id)
     deleted = service.delete_conversation(conversation_id)
     if not deleted:
         raise HTTPException(
