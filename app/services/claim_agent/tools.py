@@ -50,6 +50,19 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             mpesa_number: M-Pesa phone number. Required if payment_method is MPESA.
             bank_account: Bank account number. Required if payment_method is BANK.
         """
+        # Validate payment details are complete before creating
+        if payment_method == "CASH":
+            if not cash_pickup_date:
+                return {"error": "Cash pickup date is required for CASH payment. Please ask the user for a pickup date."}
+            if not cash_hours:
+                return {"error": "Cash pickup time (MORNING or AFTERNOON) is required for CASH payment. Please ask the user."}
+        elif payment_method == "MPESA":
+            if not mpesa_number:
+                return {"error": "M-Pesa phone number is required for MPESA payment. Please ask the user."}
+        elif payment_method == "BANK":
+            if not bank_account:
+                return {"error": "Bank account number is required for BANK payment. Please ask the user."}
+
         claim = Claim(
             user_id=user_id,
             description=description,
@@ -59,7 +72,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             payment_method=payment_method,
         )
 
-        if payment_method == "CASH" and cash_pickup_date:
+        if payment_method == "CASH":
             try:
                 claim.cash_pickup_date = datetime.strptime(cash_pickup_date, "%Y-%m-%d")
             except ValueError:
