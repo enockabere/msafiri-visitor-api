@@ -162,7 +162,20 @@ async def run_agent(
     # Only include user/assistant text messages - skip tool_calls/tool_results
     # to avoid OpenAI message ordering issues. The assistant's text response
     # already summarizes what tools did, and tools remain available for current turn.
-    for msg in message_history:
+    #
+    # Truncate to the most recent MAX_HISTORY_MESSAGES to avoid exceeding token
+    # limits on long conversations, which causes the AI to lose context and give
+    # unrelated answers.
+    MAX_HISTORY_MESSAGES = 30
+    recent_history = message_history
+    if len(message_history) > MAX_HISTORY_MESSAGES:
+        recent_history = message_history[-MAX_HISTORY_MESSAGES:]
+        logger.info(
+            f"Truncated conversation history from {len(message_history)} "
+            f"to {MAX_HISTORY_MESSAGES} messages for user {user_id}"
+        )
+
+    for msg in recent_history:
         role = msg.get("role", "user")
         content = msg.get("content", "")
         if role == "user":
