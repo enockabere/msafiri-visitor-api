@@ -27,8 +27,8 @@ class VettingCommittee(BaseModel):
     # Status tracking
     status = Column(Enum(VettingStatus, values_callable=lambda obj: [e.value for e in obj]), default=VettingStatus.OPEN)
     
-    # Approver
-    approver_email = Column(String(255), nullable=False)
+    # Legacy approver fields (kept for backward compatibility)
+    approver_email = Column(String(255), nullable=True)
     approver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Submission tracking
@@ -57,6 +57,7 @@ class VettingCommittee(BaseModel):
     event = relationship("Event")
     approver = relationship("User", foreign_keys=[approver_id])
     members = relationship("VettingCommitteeMember", back_populates="committee", cascade="all, delete-orphan")
+    approvers = relationship("VettingCommitteeApprover", back_populates="committee", cascade="all, delete-orphan")
     selections = relationship("ParticipantSelection", back_populates="committee", cascade="all, delete-orphan")
 
 class VettingCommitteeMember(BaseModel):
@@ -82,6 +83,31 @@ class VettingCommitteeMember(BaseModel):
 
     # Relationships
     committee = relationship("VettingCommittee", back_populates="members")
+    user = relationship("User", foreign_keys=[user_id])
+
+class VettingCommitteeApprover(BaseModel):
+    __tablename__ = "vetting_committee_approvers"
+    
+    committee_id = Column(Integer, ForeignKey("vetting_committees.id"), nullable=False)
+    email = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Invitation tracking
+    invitation_sent = Column(Boolean, default=False)
+    invitation_sent_at = Column(DateTime(timezone=True), nullable=True)
+    invitation_token = Column(String(255), nullable=True)
+    
+    # Access tracking
+    first_login = Column(DateTime(timezone=True), nullable=True)
+    last_activity = Column(DateTime(timezone=True), nullable=True)
+
+    # Role tracking for multi-role support
+    had_previous_role = Column(String(50), nullable=True)
+    role_removed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    committee = relationship("VettingCommittee", back_populates="approvers")
     user = relationship("User", foreign_keys=[user_id])
 
 class ParticipantSelection(BaseModel):

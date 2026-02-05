@@ -142,14 +142,14 @@ def create_vetting_committee(
     created_by: str,
     tenant_id: str
 ) -> VettingCommittee:
-    """Create vetting committee with members"""
+    """Create vetting committee with members and approvers"""
     
     # Create committee
     committee = VettingCommittee(
         event_id=committee_data.event_id,
         selection_start_date=committee_data.selection_start_date,
         selection_end_date=committee_data.selection_end_date,
-        approver_email=committee_data.approver_email,
+        approver_email=committee_data.approver_email,  # Legacy field for backward compatibility
         created_by=created_by,
         tenant_id=tenant_id
     )
@@ -157,48 +157,77 @@ def create_vetting_committee(
     db.add(committee)
     db.flush()  # Get committee ID
     
-    # Create or find approver user
-    temp_password = None
-    approver = db.query(User).filter(User.email == committee_data.approver_email).first()
-
-    if not approver:
-        # Completely new user
-        temp_password = secrets.token_urlsafe(12)
-        approver = User(
+    # Handle approvers (new multi-approver system)
+    approvers_to_process = []
+    if committee_data.approvers:
+        # Use new multi-approver system
+        approvers_to_process = committee_data.approvers
+    elif committee_data.approver_email:
+        # Backward compatibility: convert single approver to list
+        from app.schemas.vetting_committee import VettingCommitteeApproverCreate
+        approvers_to_process = [VettingCommitteeApproverCreate(
             email=committee_data.approver_email,
-            hashed_password=get_password_hash(temp_password),
-            full_name="Approver",
-            role=UserRoleEnum.VETTING_APPROVER,  # Vetting approver role
-            status=UserStatus.ACTIVE,
-            tenant_id=tenant_id,
-            auth_provider=AuthProvider.LOCAL,
-            must_change_password=True
-        )
-        db.add(approver)
-        db.flush()
-    else:
-        # User exists - check if they need local password (either no password or password not changed)
-        needs_new_password = (
-            approver.auth_provider != AuthProvider.LOCAL or 
-            not approver.hashed_password or 
-            approver.must_change_password  # Still has temporary password
-        )
-        
-        if needs_new_password:
-            # User needs new password
+            full_name="Approver"
+        )]
+    
+    # Create approvers
+    from app.models.vetting_committee import VettingCommitteeApprover
+    approver_passwords = {}
+    for approver_data in approvers_to_process:
+        # Create or find approver user
+        temp_password = None
+        approver = db.query(User).filter(User.email == approver_data.email).first()
+
+        if not approver:
+            # Completely new user
             temp_password = secrets.token_urlsafe(12)
-            approver.hashed_password = get_password_hash(temp_password)
-            approver.auth_provider = AuthProvider.LOCAL
-            approver.must_change_password = True
+            approver = User(
+                email=approver_data.email,
+                hashed_password=get_password_hash(temp_password),
+                full_name=approver_data.full_name,
+                role=UserRoleEnum.VETTING_APPROVER,
+                status=UserStatus.ACTIVE,
+                tenant_id=tenant_id,
+                auth_provider=AuthProvider.LOCAL,
+                must_change_password=True
+            )
+            db.add(approver)
+            db.flush()
+        else:
+            # User exists - check if they need local password
+            needs_new_password = (
+                approver.auth_provider != AuthProvider.LOCAL or 
+                not approver.hashed_password or 
+                approver.must_change_password
+            )
+            
+            if needs_new_password:
+                temp_password = secrets.token_urlsafe(12)
+                approver.hashed_password = get_password_hash(temp_password)
+                approver.auth_provider = AuthProvider.LOCAL
+                approver.must_change_password = True
 
-    committee.approver_id = approver.id
+        # Set legacy approver_id for backward compatibility (use first approver)
+        if not committee.approver_id:
+            committee.approver_id = approver.id
 
-    # Assign vetting approver role as secondary role (preserve primary role)
-    assign_vetting_role_to_user(db, approver, committee.id, "VETTING_APPROVER", tenant_id)
+        # Assign vetting approver role as secondary role
+        assign_vetting_role_to_user(db, approver, committee.id, "VETTING_APPROVER", tenant_id)
+        
+        # Create committee approver record
+        committee_approver = VettingCommitteeApprover(
+            committee_id=committee.id,
+            email=approver_data.email,
+            full_name=approver_data.full_name,
+            user_id=approver.id,
+            invitation_token=secrets.token_urlsafe(32)
+        )
+        db.add(committee_approver)
+        
+        if temp_password:
+            approver_passwords[approver_data.email] = temp_password
     
-    # Don't change primary role - keep existing role (SUPER_ADMIN, MT_ADMIN, etc.)
-    
-    # Create committee members
+    # Create committee members (existing logic)
     member_passwords = {}
     for member_data in committee_data.members:
         # Check if user exists (globally)
@@ -215,7 +244,7 @@ def create_vetting_committee(
                 email=member_data.email,
                 hashed_password=get_password_hash(member_password),
                 full_name=member_data.full_name,
-                role=UserRoleEnum.VETTING_COMMITTEE,  # Vetting committee member role
+                role=UserRoleEnum.VETTING_COMMITTEE,
                 status=UserStatus.ACTIVE,
                 tenant_id=tenant_id,
                 auth_provider=AuthProvider.LOCAL,
@@ -231,15 +260,14 @@ def create_vetting_committee(
             if not user.tenant_id:
                 user.tenant_id = tenant_id
 
-            # Check if they need local password (either no password or password not changed)
+            # Check if they need local password
             needs_new_password = (
                 user.auth_provider != AuthProvider.LOCAL or
                 not user.hashed_password or
-                user.must_change_password  # Still has temporary password
+                user.must_change_password
             )
 
             if needs_new_password:
-                # User needs new password
                 member_password = secrets.token_urlsafe(12)
                 member_passwords[member_data.email] = member_password
                 user.hashed_password = get_password_hash(member_password)
@@ -249,10 +277,8 @@ def create_vetting_committee(
             # Update full name if provided
             user.full_name = member_data.full_name or user.full_name
 
-        # Assign vetting committee role as secondary role (preserve primary role)
+        # Assign vetting committee role as secondary role
         assign_vetting_role_to_user(db, user, committee.id, "VETTING_COMMITTEE", tenant_id)
-        
-        # Don't change primary role - keep existing role (SUPER_ADMIN, MT_ADMIN, etc.)
 
         # Create committee member
         member = VettingCommitteeMember(
@@ -268,7 +294,7 @@ def create_vetting_committee(
     db.commit()
     db.refresh(committee)
     
-    # Send invitation emails to all users
+    # Send invitation emails
     from app.core.email_service import email_service
     import os
     portal_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
@@ -277,131 +303,107 @@ def create_vetting_committee(
     event = db.query(Event).filter(Event.id == committee_data.event_id).first()
     event_title = event.title if event else "Event"
     
-    # Send approver notification
-    try:
-        subject = f"Vetting Committee Approver - {event_title}"
-
-        # Build credentials section
-        credentials_section = ""
-        if temp_password:
-            credentials_section = f"""
-            <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 24px; border-radius: 12px; margin: 24px 0; border: 2px solid #f59e0b;">
-                <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                    <span style="font-size: 24px; margin-right: 12px;">🔐</span>
-                    <span style="font-weight: 700; color: #92400e; font-size: 16px;">Your Login Credentials</span>
-                </div>
-                <div style="background-color: rgba(255,255,255,0.7); padding: 16px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="margin-bottom: 12px;">
-                        <span style="color: #92400e; font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase;">Email Address</span>
-                        <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px;">{committee_data.approver_email}</span>
+    # Send approver notifications
+    for approver_data in approvers_to_process:
+        if approver_data.email in approver_passwords:
+            try:
+                subject = f"Vetting Committee Approver - {event_title}"
+                temp_password = approver_passwords[approver_data.email]
+                
+                credentials_section = f"""
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 24px; border-radius: 12px; margin: 24px 0; border: 2px solid #f59e0b;">
+                    <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                        <span style="font-size: 24px; margin-right: 12px;">🔐</span>
+                        <span style="font-weight: 700; color: #92400e; font-size: 16px;">Your Login Credentials</span>
                     </div>
-                    <div>
-                        <span style="color: #92400e; font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase;">Temporary Password</span>
-                        <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px; letter-spacing: 1px;">{temp_password}</span>
-                    </div>
-                </div>
-                <div style="background-color: #fef2f2; padding: 12px; border-radius: 8px; border-left: 4px solid #dc2626;">
-                    <span style="color: #991b1b; font-size: 13px;">⚠️ <strong>Important:</strong> Please change your password upon first login for security.</span>
-                </div>
-            </div>
-            """
-
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-                <div style="background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-                    <!-- Header -->
-                    <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px; text-align: center;">
-                        <div style="font-size: 32px; margin-bottom: 8px;">🌍</div>
-                        <div style="color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">MSF Msafiri</div>
-                        <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-top: 4px;">Event Management Portal</div>
-                    </div>
-
-                    <!-- Content -->
-                    <div style="padding: 32px;">
-                        <!-- Role Badge -->
-                        <div style="text-align: center; margin-bottom: 24px;">
-                            <span style="background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                ✓ Vetting Committee Approver
-                            </span>
+                    <div style="background-color: rgba(255,255,255,0.7); padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                        <div style="margin-bottom: 12px;">
+                            <span style="color: #92400e; font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase;">Email Address</span>
+                            <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px;">{approver_data.email}</span>
                         </div>
+                        <div>
+                            <span style="color: #92400e; font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase;">Temporary Password</span>
+                            <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px; letter-spacing: 1px;">{temp_password}</span>
+                        </div>
+                    </div>
+                    <div style="background-color: #fef2f2; padding: 12px; border-radius: 8px; border-left: 4px solid #dc2626;">
+                        <span style="color: #991b1b; font-size: 13px;">⚠️ <strong>Important:</strong> Please change your password upon first login for security.</span>
+                    </div>
+                </div>
+                """
 
-                        <h2 style="color: #1f2937; font-size: 22px; margin: 0 0 8px 0; text-align: center; font-weight: 700;">You've Been Assigned as Approver</h2>
-                        <p style="color: #6b7280; text-align: center; margin: 0 0 32px 0; font-size: 15px;">Review and approve participant selections for this event</p>
-
-                        <!-- Event Info Card -->
-                        <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 24px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
-                            <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                                <span style="font-size: 20px; margin-right: 10px;">📋</span>
-                                <span style="font-weight: 700; color: #1e40af; font-size: 16px;">Event Details</span>
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                        <div style="background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                            <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px; text-align: center;">
+                                <div style="font-size: 32px; margin-bottom: 8px;">🌍</div>
+                                <div style="color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">MSF Msafiri</div>
+                                <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-top: 4px;">Event Management Portal</div>
                             </div>
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <tr>
-                                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;">Event Name</td>
-                                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{event_title}</td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Selection Period</td>
-                                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{committee_data.selection_start_date.strftime('%B %d, %Y')} - {committee_data.selection_end_date.strftime('%B %d, %Y')}</td>
-                                </tr>
-                            </table>
-                        </div>
-
-                        <!-- Your Role Section -->
-                        <div style="background-color: #f0fdf4; padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 1px solid #bbf7d0;">
-                            <div style="display: flex; align-items: flex-start;">
-                                <span style="font-size: 24px; margin-right: 12px;">👤</span>
-                                <div>
-                                    <span style="font-weight: 700; color: #166534; font-size: 15px; display: block; margin-bottom: 6px;">Your Responsibilities</span>
-                                    <span style="color: #15803d; font-size: 14px; line-height: 1.6;">As an approver, you will review the participant selections made by committee members and give final approval for the selected participants.</span>
+                            <div style="padding: 32px;">
+                                <div style="text-align: center; margin-bottom: 24px;">
+                                    <span style="background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        ✓ Vetting Committee Approver
+                                    </span>
+                                </div>
+                                <h2 style="color: #1f2937; font-size: 22px; margin: 0 0 8px 0; text-align: center; font-weight: 700;">You've Been Assigned as Approver</h2>
+                                <p style="color: #6b7280; text-align: center; margin: 0 0 32px 0; font-size: 15px;">Review and approve participant selections for this event</p>
+                                <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 24px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
+                                    <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                                        <span style="font-size: 20px; margin-right: 10px;">📋</span>
+                                        <span style="font-weight: 700; color: #1e40af; font-size: 16px;">Event Details</span>
+                                    </div>
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;">Event Name</td>
+                                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{event_title}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Selection Period</td>
+                                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{committee_data.selection_start_date.strftime('%B %d, %Y')} - {committee_data.selection_end_date.strftime('%B %d, %Y')}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                {credentials_section}
+                                <div style="text-align: center; margin: 32px 0;">
+                                    <a href="{portal_url}/auth/login" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(220, 38, 38, 0.4);">
+                                        Login to Portal →
+                                    </a>
                                 </div>
                             </div>
-                        </div>
-
-                        {credentials_section}
-
-                        <!-- CTA Button -->
-                        <div style="text-align: center; margin: 32px 0;">
-                            <a href="{portal_url}/auth/login" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(220, 38, 38, 0.4);">
-                                Login to Portal →
-                            </a>
+                            <div style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #9ca3af; font-size: 13px; margin: 0 0 8px 0;">This is an automated message from MSF Msafiri</p>
+                                <p style="color: #6b7280; font-size: 14px; margin: 0; font-weight: 600;">Médecins Sans Frontières (MSF)</p>
+                            </div>
                         </div>
                     </div>
+                </body>
+                </html>
+                """
 
-                    <!-- Footer -->
-                    <div style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
-                        <p style="color: #9ca3af; font-size: 13px; margin: 0 0 8px 0;">This is an automated message from MSF Msafiri</p>
-                        <p style="color: #6b7280; font-size: 14px; margin: 0; font-weight: 600;">Médecins Sans Frontières (MSF)</p>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-
-        email_service.send_email(
-            to_emails=[committee_data.approver_email],
-            subject=subject,
-            html_content=html_content
-        )
-    except Exception as e:
-        print(f"Failed to send approver notification email: {e}")
+                email_service.send_email(
+                    to_emails=[approver_data.email],
+                    subject=subject,
+                    html_content=html_content
+                )
+            except Exception as e:
+                print(f"Failed to send approver notification email to {approver_data.email}: {e}")
     
-    # Send member notifications to all members
+    # Send member notifications (existing logic)
     for member_data in committee_data.members:
-        try:
-            member_name = member_data.full_name or member_data.email.split('@')[0]
-            subject = f"Vetting Committee Member - {event_title}"
-
-            # Build credentials section
-            credentials_section = ""
-            if member_data.email in member_passwords:
+        if member_data.email in member_passwords:
+            try:
+                member_name = member_data.full_name or member_data.email.split('@')[0]
+                subject = f"Vetting Committee Member - {event_title}"
+                temp_password = member_passwords[member_data.email]
+                
                 credentials_section = f"""
                 <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 24px; border-radius: 12px; margin: 24px 0; border: 2px solid #f59e0b;">
                     <div style="display: flex; align-items: center; margin-bottom: 16px;">
@@ -415,7 +417,7 @@ def create_vetting_committee(
                         </div>
                         <div>
                             <span style="color: #92400e; font-weight: 600; display: block; margin-bottom: 4px; font-size: 12px; text-transform: uppercase;">Temporary Password</span>
-                            <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px; letter-spacing: 1px;">{member_passwords[member_data.email]}</span>
+                            <span style="font-family: 'Courier New', monospace; background-color: #fffbeb; padding: 8px 12px; border-radius: 6px; border: 1px solid #fbbf24; display: inline-block; font-size: 14px; letter-spacing: 1px;">{temp_password}</span>
                         </div>
                     </div>
                     <div style="background-color: #fef2f2; padding: 12px; border-radius: 8px; border-left: 4px solid #dc2626;">
@@ -424,98 +426,70 @@ def create_vetting_committee(
                 </div>
                 """
 
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            </head>
-            <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-                    <div style="background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
-                        <!-- Header -->
-                        <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px; text-align: center;">
-                            <div style="font-size: 32px; margin-bottom: 8px;">🌍</div>
-                            <div style="color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">MSF Msafiri</div>
-                            <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-top: 4px;">Event Management Portal</div>
-                        </div>
-
-                        <!-- Content -->
-                        <div style="padding: 32px;">
-                            <!-- Role Badge -->
-                            <div style="text-align: center; margin-bottom: 24px;">
-                                <span style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    ✓ Vetting Committee Member
-                                </span>
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+                    <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+                        <div style="background-color: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+                            <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px; text-align: center;">
+                                <div style="font-size: 32px; margin-bottom: 8px;">🌍</div>
+                                <div style="color: white; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">MSF Msafiri</div>
+                                <div style="color: rgba(255,255,255,0.9); font-size: 14px; margin-top: 4px;">Event Management Portal</div>
                             </div>
-
-                            <h2 style="color: #1f2937; font-size: 22px; margin: 0 0 8px 0; text-align: center; font-weight: 700;">Welcome to the Vetting Committee!</h2>
-                            <p style="color: #6b7280; text-align: center; margin: 0 0 8px 0; font-size: 15px;">Hello <strong>{member_name}</strong>,</p>
-                            <p style="color: #6b7280; text-align: center; margin: 0 0 32px 0; font-size: 15px;">You've been invited to review and select participants</p>
-
-                            <!-- Event Info Card -->
-                            <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 24px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
-                                <div style="display: flex; align-items: center; margin-bottom: 16px;">
-                                    <span style="font-size: 20px; margin-right: 10px;">📋</span>
-                                    <span style="font-weight: 700; color: #1e40af; font-size: 16px;">Event Details</span>
+                            <div style="padding: 32px;">
+                                <div style="text-align: center; margin-bottom: 24px;">
+                                    <span style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 8px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        ✓ Vetting Committee Member
+                                    </span>
                                 </div>
-                                <table style="width: 100%; border-collapse: collapse;">
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;">Event Name</td>
-                                        <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{event_title}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Selection Period</td>
-                                        <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{committee_data.selection_start_date.strftime('%B %d, %Y')} - {committee_data.selection_end_date.strftime('%B %d, %Y')}</td>
-                                    </tr>
-                                </table>
-                            </div>
-
-                            <!-- Your Role Section -->
-                            <div style="background-color: #f0fdf4; padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 1px solid #bbf7d0;">
-                                <div style="display: flex; align-items: flex-start;">
-                                    <span style="font-size: 24px; margin-right: 12px;">👥</span>
-                                    <div>
-                                        <span style="font-weight: 700; color: #166534; font-size: 15px; display: block; margin-bottom: 6px;">Your Responsibilities</span>
-                                        <span style="color: #15803d; font-size: 14px; line-height: 1.6;">As a committee member, you will review participant applications and select those who should attend the event. Your selections will be submitted for final approval.</span>
+                                <h2 style="color: #1f2937; font-size: 22px; margin: 0 0 8px 0; text-align: center; font-weight: 700;">Welcome to the Vetting Committee!</h2>
+                                <p style="color: #6b7280; text-align: center; margin: 0 0 8px 0; font-size: 15px;">Hello <strong>{member_name}</strong>,</p>
+                                <p style="color: #6b7280; text-align: center; margin: 0 0 32px 0; font-size: 15px;">You've been invited to review and select participants</p>
+                                <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 24px; border-radius: 12px; margin-bottom: 24px; border-left: 4px solid #2563eb;">
+                                    <div style="display: flex; align-items: center; margin-bottom: 16px;">
+                                        <span style="font-size: 20px; margin-right: 10px;">📋</span>
+                                        <span style="font-weight: 700; color: #1e40af; font-size: 16px;">Event Details</span>
                                     </div>
+                                    <table style="width: 100%; border-collapse: collapse;">
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 140px;">Event Name</td>
+                                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{event_title}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Selection Period</td>
+                                            <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 600;">{committee_data.selection_start_date.strftime('%B %d, %Y')} - {committee_data.selection_end_date.strftime('%B %d, %Y')}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                {credentials_section}
+                                <div style="text-align: center; margin: 32px 0;">
+                                    <a href="{portal_url}/auth/login" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(220, 38, 38, 0.4);">
+                                        Login to Portal →
+                                    </a>
                                 </div>
                             </div>
-
-                            {credentials_section}
-
-                            <!-- CTA Button -->
-                            <div style="text-align: center; margin: 32px 0;">
-                                <a href="{portal_url}/auth/login" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 10px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px 0 rgba(220, 38, 38, 0.4);">
-                                    Login to Portal →
-                                </a>
+                            <div style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #9ca3af; font-size: 13px; margin: 0 0 8px 0;">This is an automated message from MSF Msafiri</p>
+                                <p style="color: #6b7280; font-size: 14px; margin: 0; font-weight: 600;">Médecins Sans Frontières (MSF)</p>
                             </div>
-
-                            <!-- Deadline Reminder -->
-                            <div style="background-color: #fef2f2; padding: 16px; border-radius: 10px; text-align: center; border: 1px solid #fecaca;">
-                                <span style="color: #991b1b; font-size: 14px;">⏰ <strong>Reminder:</strong> Please complete your selections before <strong>{committee_data.selection_end_date.strftime('%B %d, %Y')}</strong></span>
-                            </div>
-                        </div>
-
-                        <!-- Footer -->
-                        <div style="background-color: #f9fafb; padding: 24px; text-align: center; border-top: 1px solid #e5e7eb;">
-                            <p style="color: #9ca3af; font-size: 13px; margin: 0 0 8px 0;">This is an automated message from MSF Msafiri</p>
-                            <p style="color: #6b7280; font-size: 14px; margin: 0; font-weight: 600;">Médecins Sans Frontières (MSF)</p>
                         </div>
                     </div>
-                </div>
-            </body>
-            </html>
-            """
+                </body>
+                </html>
+                """
 
-            email_service.send_email(
-                to_emails=[member_data.email],
-                subject=subject,
-                html_content=html_content
-            )
-        except Exception as e:
-            print(f"Failed to send member notification email to {member_data.email}: {e}")
+                email_service.send_email(
+                    to_emails=[member_data.email],
+                    subject=subject,
+                    html_content=html_content
+                )
+            except Exception as e:
+                print(f"Failed to send member notification email to {member_data.email}: {e}")
     
     return committee
 

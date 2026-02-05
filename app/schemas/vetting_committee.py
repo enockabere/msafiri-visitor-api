@@ -20,11 +20,28 @@ class VettingCommitteeMemberResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class VettingCommitteeApproverCreate(BaseModel):
+    email: EmailStr
+    full_name: str
+
+class VettingCommitteeApproverResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    invitation_sent: bool
+    invitation_sent_at: Optional[datetime]
+    first_login: Optional[datetime]
+    last_activity: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
 class VettingCommitteeCreate(BaseModel):
     event_id: int
     selection_start_date: datetime
     selection_end_date: datetime
-    approver_email: EmailStr
+    approver_email: Optional[EmailStr] = None  # Legacy field for backward compatibility
+    approvers: List[VettingCommitteeApproverCreate] = []  # New field for multiple approvers
     members: List[VettingCommitteeMemberCreate]
 
 class VettingCommitteeResponse(BaseModel):
@@ -33,12 +50,13 @@ class VettingCommitteeResponse(BaseModel):
     selection_start_date: datetime
     selection_end_date: datetime
     status: VettingStatus
-    approver_email: str
+    approver_email: Optional[str] = None  # Legacy field
     approval_status: ApprovalStatus
     submitted_at: Optional[datetime]
     approved_at: Optional[datetime]
     approval_notes: Optional[str]
     members: List[VettingCommitteeMemberResponse]
+    approvers: List[VettingCommitteeApproverResponse] = []  # New field
     
     class Config:
         from_attributes = True

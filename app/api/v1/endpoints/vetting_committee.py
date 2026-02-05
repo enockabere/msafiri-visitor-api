@@ -98,9 +98,24 @@ def get_event_vetting_committee(
     if has_vetting_role and is_member:
         return committee
 
-    # Check if user is approver for this committee
-    is_approver = (committee.approver_email and committee.approver_email.lower() == current_user.email.lower()) or \
-                  committee.approver_id == current_user.id
+    # Check if user is approver for this committee (check both legacy and new approver systems)
+    is_approver = False
+    
+    # Check legacy approver field
+    if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+        is_approver = True
+    elif committee.approver_id == current_user.id:
+        is_approver = True
+    
+    # Check new approvers table
+    if not is_approver:
+        from app.models.vetting_committee import VettingCommitteeApprover
+        approver_record = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.committee_id == committee.id,
+            VettingCommitteeApprover.email.ilike(current_user.email)
+        ).first()
+        if approver_record:
+            is_approver = True
 
     if has_approver_role and is_approver:
         return committee
@@ -262,7 +277,22 @@ def get_committee_participants(
             if not is_member:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role == UserRole.VETTING_APPROVER:
-            if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
+            # Check if user is approver for this committee (legacy or new system)
+            is_approver = False
+            if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+                is_approver = True
+            elif committee.approver_id == current_user.id:
+                is_approver = True
+            else:
+                from app.models.vetting_committee import VettingCommitteeApprover
+                approver_record = db.query(VettingCommitteeApprover).filter(
+                    VettingCommitteeApprover.committee_id == committee.id,
+                    VettingCommitteeApprover.email.ilike(current_user.email)
+                ).first()
+                if approver_record:
+                    is_approver = True
+            
+            if not is_approver:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
@@ -273,7 +303,22 @@ def get_committee_participants(
             if not is_member:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role == UserRole.VETTING_APPROVER:
-            if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
+            # Check if user is approver for this committee (legacy or new system)
+            is_approver = False
+            if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+                is_approver = True
+            elif committee.approver_id == current_user.id:
+                is_approver = True
+            else:
+                from app.models.vetting_committee import VettingCommitteeApprover
+                approver_record = db.query(VettingCommitteeApprover).filter(
+                    VettingCommitteeApprover.committee_id == committee.id,
+                    VettingCommitteeApprover.email.ilike(current_user.email)
+                ).first()
+                if approver_record:
+                    is_approver = True
+            
+            if not is_approver:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         elif current_user.role not in [UserRole.SUPER_ADMIN, UserRole.EVENT_ADMIN]:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
@@ -377,8 +422,22 @@ def edit_participant_selections(
             detail="Can only edit selections when committee status is pending approval"
         )
     
-    # Check if user is approver for this committee
-    if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
+    # Check if user is approver for this committee (legacy or new system)
+    is_approver = False
+    if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+        is_approver = True
+    elif committee.approver_id == current_user.id:
+        is_approver = True
+    else:
+        from app.models.vetting_committee import VettingCommitteeApprover
+        approver_record = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.committee_id == committee.id,
+            VettingCommitteeApprover.email.ilike(current_user.email)
+        ).first()
+        if approver_record:
+            is_approver = True
+    
+    if not is_approver:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     
     # Update selections using existing CRUD function
@@ -750,8 +809,22 @@ def approve_final(
             detail="Can only approve committees in pending approval status"
         )
     
-    # Check if user is approver for this committee
-    if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
+    # Check if user is approver for this committee (legacy or new system)
+    is_approver = False
+    if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+        is_approver = True
+    elif committee.approver_id == current_user.id:
+        is_approver = True
+    else:
+        from app.models.vetting_committee import VettingCommitteeApprover
+        approver_record = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.committee_id == committee.id,
+            VettingCommitteeApprover.email.ilike(current_user.email)
+        ).first()
+        if approver_record:
+            is_approver = True
+    
+    if not is_approver:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     
     from datetime import datetime
@@ -789,8 +862,22 @@ def cancel_approval(
             detail="Can only cancel approval for approved committees"
         )
     
-    # Check if user is approver for this committee
-    if committee.approver_email != current_user.email and committee.approver_id != current_user.id:
+    # Check if user is approver for this committee (legacy or new system)
+    is_approver = False
+    if committee.approver_email and committee.approver_email.lower() == current_user.email.lower():
+        is_approver = True
+    elif committee.approver_id == current_user.id:
+        is_approver = True
+    else:
+        from app.models.vetting_committee import VettingCommitteeApprover
+        approver_record = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.committee_id == committee.id,
+            VettingCommitteeApprover.email.ilike(current_user.email)
+        ).first()
+        if approver_record:
+            is_approver = True
+    
+    if not is_approver:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     
     # Check if event has started
