@@ -46,7 +46,7 @@ redis==5.0.1
 APScheduler==3.11.1  # For vetting deadline scheduler
 cloudinary==1.36.0  # For document upload
 qrcode[pil]==7.4.2  # For QR code generation in LOI
-weasyprint==60.2  # For HTML to PDF conversion
+weasyprint==57.2  # For HTML to PDF conversion
 
 # LangChain & LangGraph (AI Agent)
 langchain>=0.3.0
