@@ -269,11 +269,6 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         
         from weasyprint import HTML, CSS
         print("✅ WeasyPrint imported successfully")
-        
-        # Check what classes we actually imported
-        print(f"🔍 HTML class: {HTML}")
-        print(f"🔍 CSS class: {CSS}")
-        print(f"🔍 HTML.__init__ signature: {HTML.__init__}")
 
         css_string = """
             @page {
@@ -298,8 +293,8 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 margin: 5px 0;
             }
             .letterhead {
-                display: grid;
-                grid-template-columns: auto 1fr auto;
+                display: flex;
+                justify-content: space-between;
                 align-items: start;
                 gap: 10px;
                 margin-bottom: 10px;
@@ -332,7 +327,6 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
                 text-align: left;
                 font-size: 10px;
                 line-height: 1.3;
-                justify-self: end;
                 max-width: 250px;
                 min-width: 200px;
             }
@@ -406,37 +400,13 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
             }
         """
 
-        print("🔄 Creating CSS object...")
-        # Create CSS and HTML objects separately
+        print("🔄 Creating HTML and CSS objects...")
+        html_obj = HTML(string=html_content)
         css_obj = CSS(string=css_string)
-        print("✅ CSS object created")
-        
-        print("🔄 Creating HTML object...")
-        print(f"📝 Calling HTML() with string parameter...")
-        # Try different ways to create HTML object based on WeasyPrint version
-        try:
-            html_obj = HTML(string=html_content)
-            print("✅ HTML object created with string parameter")
-        except TypeError as e:
-            print(f"⚠️ HTML(string=...) failed: {str(e)}")
-            print("🔄 Trying HTML() with positional argument...")
-            try:
-                # Some versions might expect positional argument
-                html_obj = HTML(html_content)
-                print("✅ HTML object created with positional argument")
-            except Exception as e2:
-                print(f"❌ HTML() with positional argument also failed: {str(e2)}")
-                raise e2
+        print("✅ HTML and CSS objects created")
         
         print("🔄 Generating PDF bytes...")
-        # Generate PDF bytes - try different approaches for compatibility
-        try:
-            print("🔄 Attempting write_pdf...")
-            pdf_data = html_obj.write_pdf(stylesheets=[css_obj])
-            print("✅ PDF bytes generated successfully")
-        except Exception as e:
-            print(f"❌ write_pdf failed: {str(e)}")
-            raise e
+        pdf_data = html_obj.write_pdf(stylesheets=[css_obj])
         print("✅ PDF bytes generated successfully")
 
         print("🔄 Creating BytesIO object...")
