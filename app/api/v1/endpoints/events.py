@@ -1544,6 +1544,156 @@ def test_simulate_selection(
         db.refresh(new_participation)
         return {"message": f"Created new participation as selected", "participant_id": new_participation.id}
 
+@router.post("/{event_id}/participants/{participant_id}/generate-poa")
+async def generate_poa_for_participant(
+    *,
+    db: Session = Depends(get_db),
+    event_id: int,
+    participant_id: int,
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Generate POA document for a specific participant"""
+    import logging
+    from datetime import datetime
+    
+    logger = logging.getLogger(__name__)
+    
+    # Check permissions
+    user_roles = db.query(UserRoleModel).filter(
+        UserRoleModel.user_id == current_user.id
+    ).all()
+    
+    has_single_role_permission = can_create_events(current_user.role)
+    has_relationship_role_permission = can_create_events_by_relationship_roles(user_roles)
+    
+    if not has_single_role_permission and not has_relationship_role_permission:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin roles can generate POA documents"
+        )
+    
+    # Get event
+    event = crud.event.get(db, id=event_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found"
+        )
+    
+    # Get participant
+    from app.models.event_participant import EventParticipant
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participant not found"
+        )
+    
+    # Only generate POA for confirmed participants
+    if participant.status != "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="POA can only be generated for confirmed participants"
+        )
+    
+    # Get tenant
+    tenant = crud.tenant.get(db, id=event.tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    # Get vendor accommodation if specified
+    vendor = None
+    if event.vendor_accommodation_id:
+        from app.models.guesthouse import VendorAccommodation
+        vendor = db.query(VendorAccommodation).filter(
+            VendorAccommodation.id == event.vendor_accommodation_id
+        ).first()
+    
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Event must have a vendor accommodation assigned to generate POA documents"
+        )
+    
+    # Get POA template for the vendor
+    from app.crud.poa_template import poa_template
+    template = poa_template.get_by_vendor(db, vendor_accommodation_id=vendor.id)
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No POA template found for vendor '{vendor.vendor_name}'. Please create a template first."
+        )
+    
+    logger.info(f"🎯 Generating POA for participant {participant_id} in event {event_id}")
+    
+    try:
+        # Generate actual POA document using the same service as vendor setup
+        from app.services.proof_of_accommodation import generate_proof_of_accommodation
+        
+        # Format dates
+        check_in_date = event.start_date.strftime('%B %d, %Y') if event.start_date else 'TBD'
+        check_out_date = event.end_date.strftime('%B %d, %Y') if event.end_date else 'TBD'
+        event_dates = f"{check_in_date} - {check_out_date}"
+        
+        # Get allocation ID from accommodation_allocations table
+        from app.models.guesthouse import AccommodationAllocation
+        allocation = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == participant.id,
+            AccommodationAllocation.event_id == event_id
+        ).first()
+        
+        allocation_id = allocation.id if allocation else 0
+        room_type = allocation.room_type if allocation and allocation.room_type else "Standard"
+        
+        poa_url, poa_slug = await generate_proof_of_accommodation(
+            participant_id=participant.id,
+            event_id=event_id,
+            allocation_id=allocation_id,
+            template_html=template.template_content,
+            hotel_name=vendor.vendor_name,
+            hotel_address=vendor.location,
+            check_in_date=check_in_date,
+            check_out_date=check_out_date,
+            room_type=room_type,
+            event_name=event.title,
+            event_dates=event_dates,
+            participant_name=participant.full_name,
+            tenant_name=tenant.name,
+            logo_url=template.logo_url,
+            signature_url=template.signature_url,
+            enable_qr_code=template.enable_qr_code
+        )
+        
+        # Update participant with actual POA URL and slug
+        participant.proof_of_accommodation_url = poa_url
+        participant.poa_slug = poa_slug
+        participant.proof_generated_at = datetime.now()
+        
+        # Commit changes
+        db.commit()
+        
+        logger.info(f"✅ Generated POA for participant {participant.id}: {participant.full_name}")
+        
+        return {
+            "message": f"POA generated successfully for {participant.full_name}",
+            "poa_url": poa_url
+        }
+        
+    except Exception as e:
+        error_msg = f"Failed to generate POA for participant {participant.id} ({participant.full_name}): {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
+        )
+
 @router.post("/{event_id}/generate-poa")
 async def generate_poa_for_event(
     *,
