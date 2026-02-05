@@ -21,10 +21,14 @@ class Claim(Base):
     submitted_at = Column(DateTime(timezone=True))
     approved_at = Column(DateTime(timezone=True))
     approved_by = Column(Integer, ForeignKey("users.id"))
+    rejection_reason = Column(Text)
+    rejected_by = Column(Integer, ForeignKey("users.id"))
+    rejected_at = Column(DateTime(timezone=True))
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
     approver = relationship("User", foreign_keys=[approved_by])
+    rejector = relationship("User", foreign_keys=[rejected_by])
     items = relationship("ClaimItem", back_populates="claim", cascade="all, delete-orphan")
 
 class ClaimItem(Base):

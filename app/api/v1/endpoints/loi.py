@@ -282,7 +282,8 @@ async def generate_loi_pdf(
     from datetime import datetime
     
     try:
-        logger.info(f"Generating LOI PDF for event {event_id}, participant {participant_id}")
+        logger.info(f"🔄 Generating LOI PDF for event {event_id}, participant {participant_id}")
+        print(f"🔄 LOI Generation Request - Event ID: {event_id}, Participant ID: {participant_id}")
         
         # Get the event's assigned invitation template
         event = db.query(Event).filter(Event.id == event_id).first()
@@ -517,6 +518,14 @@ async def generate_loi_pdf(
             template_html = template_html.replace('{{signature_footer}}', '')
         
         # Generate LOI PDF and upload to Cloudinary with all data
+        print(f"🔄 Calling generate_loi_document with parameters:")
+        print(f"   - participant_id: {participant_id} (type: {type(participant_id)})")
+        print(f"   - event_id: {event_id} (type: {type(event_id)})")
+        print(f"   - participant_name: {participant.full_name}")
+        print(f"   - passport_number: {passport_number}")
+        print(f"   - nationality: {nationality}")
+        print(f"   - template_html length: {len(template_html)}")
+        
         pdf_url, loi_slug = await generate_loi_document(
             participant_id=participant_id,
             event_id=event_id,

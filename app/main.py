@@ -674,6 +674,9 @@ def run_auto_migration():
                         "ALTER TABLE claims ADD COLUMN IF NOT EXISTS cash_hours VARCHAR(20)",
                         "ALTER TABLE claims ADD COLUMN IF NOT EXISTS mpesa_number VARCHAR(20)",
                         "ALTER TABLE claims ADD COLUMN IF NOT EXISTS bank_account VARCHAR(100)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS rejection_reason TEXT",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS rejected_by INTEGER REFERENCES users(id)",
+                        "ALTER TABLE claims ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP WITH TIME ZONE",
                     ]
                     for sql in claims_columns:
                         conn.execute(text(sql))

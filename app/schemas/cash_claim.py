@@ -53,10 +53,17 @@ class ClaimResponse(ClaimBase):
     submitted_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
     approved_by: Optional[int] = None
+    rejection_reason: Optional[str] = None
+    rejected_by: Optional[int] = None
+    rejected_at: Optional[datetime] = None
     items: List[ClaimItemResponse] = []
 
     class Config:
         from_attributes = True
+
+class ClaimApprovalAction(BaseModel):
+    action: str  # "approve" or "reject"
+    rejection_reason: Optional[str] = None
 
 class ReceiptExtractionRequest(BaseModel):
     image_url: str

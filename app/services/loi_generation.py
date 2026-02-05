@@ -261,6 +261,7 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     """
     try:
         print("🔄 Starting PDF generation...")
+        print(f"📄 HTML content length: {len(html_content)} characters")
         
         # Import WeasyPrint components explicitly to avoid conflicts
         import weasyprint
@@ -272,6 +273,7 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         # Check what classes we actually imported
         print(f"🔍 HTML class: {HTML}")
         print(f"🔍 CSS class: {CSS}")
+        print(f"🔍 HTML.__init__ signature: {HTML.__init__}")
 
         css_string = """
             @page {
@@ -410,17 +412,32 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         print("✅ CSS object created")
         
         print("🔄 Creating HTML object...")
-        html_obj = HTML(string=html_content)
-        print("✅ HTML object created")
+        print(f"📝 Calling HTML() with string parameter...")
+        # Try different ways to create HTML object based on WeasyPrint version
+        try:
+            html_obj = HTML(string=html_content)
+            print("✅ HTML object created with string parameter")
+        except TypeError as e:
+            print(f"⚠️ HTML(string=...) failed: {str(e)}")
+            print("🔄 Trying HTML() with positional argument...")
+            try:
+                # Some versions might expect positional argument
+                html_obj = HTML(html_content)
+                print("✅ HTML object created with positional argument")
+            except Exception as e2:
+                print(f"❌ HTML() with positional argument also failed: {str(e2)}")
+                raise e2
         
         print("🔄 Generating PDF bytes...")
         # Generate PDF bytes - try different approaches for compatibility
         try:
+            print("🔄 Attempting write_pdf with stylesheets...")
             pdf_data = html_obj.write_pdf(stylesheets=[css_obj])
             print("✅ PDF bytes generated with stylesheets")
         except TypeError as e:
             print(f"⚠️ First method failed: {str(e)}, trying without stylesheets...")
             try:
+                print("🔄 Attempting write_pdf without stylesheets...")
                 pdf_data = html_obj.write_pdf()
                 print("✅ PDF bytes generated without stylesheets")
             except Exception as e2:
@@ -440,6 +457,8 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     except Exception as e:
         print(f"❌ PDF generation error: {str(e)}")
         print(f"❌ Error type: {type(e)}")
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")
         logger.error(f"Error converting HTML to PDF: {str(e)}")
         raise
 
@@ -523,6 +542,12 @@ async def generate_loi_document(
         Tuple of (pdf_url, loi_slug)
     """
     try:
+        print(f"🔄 generate_loi_document called with:")
+        print(f"   - participant_id: {participant_id} (type: {type(participant_id)})")
+        print(f"   - event_id: {event_id} (type: {type(event_id)})")
+        print(f"   - participant_name: {participant_name}")
+        print(f"   - template_html length: {len(template_html)}")
+        
         logger.info(f"Generating LOI for participant {participant_id}, event {event_id}")
 
         # Generate unique slug for public access
@@ -580,7 +605,10 @@ async def generate_loi_document(
                 personalized_html += footer_html
 
         # Convert to PDF
+        print(f"🔄 About to call html_to_pdf_bytes...")
+        print(f"   - HTML content length: {len(personalized_html)}")
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
+        print(f"✅ PDF bytes generated successfully")
 
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

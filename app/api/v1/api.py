@@ -834,6 +834,14 @@ api_router.include_router(
     tags=["cash-claims-chat"]
 )
 
+# Tenant-specific expense claims approvals
+from app.api.v1.endpoints import tenant_expense_claims
+api_router.include_router(
+    tenant_expense_claims.router,
+    prefix="/tenants",
+    tags=["tenant-expense-claims"]
+)
+
 # Test endpoint for cash claims
 @api_router.get("/cash-claims/test")
 def test_cash_claims():
