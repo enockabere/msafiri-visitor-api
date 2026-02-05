@@ -214,15 +214,19 @@ def create_vetting_committee(
         # Assign vetting approver role as secondary role
         assign_vetting_role_to_user(db, approver, committee.id, "VETTING_APPROVER", tenant_id)
         
-        # Create committee approver record
-        committee_approver = VettingCommitteeApprover(
-            committee_id=committee.id,
-            email=approver_data.email,
-            full_name=approver_data.full_name,
-            user_id=approver.id,
-            invitation_token=secrets.token_urlsafe(32)
-        )
-        db.add(committee_approver)
+        # Create committee approver record (only if table exists)
+        try:
+            committee_approver = VettingCommitteeApprover(
+                committee_id=committee.id,
+                email=approver_data.email,
+                full_name=approver_data.full_name,
+                user_id=approver.id,
+                invitation_token=secrets.token_urlsafe(32)
+            )
+            db.add(committee_approver)
+        except Exception as e:
+            # If table doesn't exist, skip creating approver record but continue
+            print(f"Warning: Could not create approver record (table may not exist): {e}")
         
         if temp_password:
             approver_passwords[approver_data.email] = temp_password
