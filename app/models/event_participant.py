@@ -119,6 +119,11 @@ class EventParticipant(BaseModel):
     proof_generated_at = Column(DateTime, nullable=True)
     poa_slug = Column(String(100), nullable=True, unique=True)
     
+    # Data deletion tracking
+    data_deleted_at = Column(DateTime, nullable=True)
+    data_deletion_reason = Column(String(100), nullable=True)
+    original_email_hash = Column(String(64), nullable=True)
+    
     # Relationships
     event = relationship("Event", back_populates="participants")
     perdiem_requests = relationship("PerdiemRequest", back_populates="participant")

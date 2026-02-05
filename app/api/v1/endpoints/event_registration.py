@@ -593,6 +593,19 @@ async def update_participant_status(
                 print(f"❌ ERROR SENDING DECLINE PUSH NOTIFICATION: {str(e)}")
     elif status_update.status in ["waiting", "canceled", "attended"]:
         print(f"📝 STATUS UPDATE: {participant.full_name} ({participant.email}) -> {status_update.status}")
+        
+        # Immediate data deletion for cancelled participants
+        if status_update.status == "canceled":
+            try:
+                from app.services.data_deletion_service import DataDeletionService
+                deletion_success = DataDeletionService.delete_cancelled_participant_data(db, participant.id)
+                if deletion_success:
+                    print(f"🗑️ SENSITIVE DATA DELETED for cancelled participant {participant.id}")
+                else:
+                    print(f"❌ FAILED TO DELETE SENSITIVE DATA for participant {participant.id}")
+            except Exception as e:
+                print(f"❌ ERROR DELETING SENSITIVE DATA: {str(e)}")
+        
         # Send push notification for other status changes (only if not suppressed)
         if not suppress_emails:
             try:
