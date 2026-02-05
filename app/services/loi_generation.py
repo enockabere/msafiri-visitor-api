@@ -431,18 +431,12 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         print("🔄 Generating PDF bytes...")
         # Generate PDF bytes - try different approaches for compatibility
         try:
-            print("🔄 Attempting write_pdf with stylesheets...")
+            print("🔄 Attempting write_pdf...")
             pdf_data = html_obj.write_pdf(stylesheets=[css_obj])
-            print("✅ PDF bytes generated with stylesheets")
-        except TypeError as e:
-            print(f"⚠️ First method failed: {str(e)}, trying without stylesheets...")
-            try:
-                print("🔄 Attempting write_pdf without stylesheets...")
-                pdf_data = html_obj.write_pdf()
-                print("✅ PDF bytes generated without stylesheets")
-            except Exception as e2:
-                print(f"❌ Second method also failed: {str(e2)}")
-                raise e2
+            print("✅ PDF bytes generated successfully")
+        except Exception as e:
+            print(f"❌ write_pdf failed: {str(e)}")
+            raise e
         print("✅ PDF bytes generated successfully")
 
         print("🔄 Creating BytesIO object...")
