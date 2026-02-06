@@ -626,5 +626,60 @@ class EmailService:
         
         return self.send_email([to_email], "Password Reset OTP - MSF Msafiri", html_content, text_content)
 
+    async def send_account_creation_otp_email(
+        self,
+        to_email: str,
+        recipient_name: str,
+        otp_code: str
+    ):
+        """Send account creation OTP email to selected participants."""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Create Your MSF Msafiri Account</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .title {{ color: #1f2937; font-size: 20px; margin: 20px 0; }}
+                .message {{ color: #4b5563; line-height: 1.6; margin: 20px 0; }}
+                .otp-box {{ background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0; }}
+                .otp-code {{ font-size: 36px; font-weight: bold; letter-spacing: 8px; margin: 10px 0; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2 class="title">Create Your MSF Msafiri Account</h2>
+                
+                <div class="message">
+                    <p>Dear {recipient_name},</p>
+                    <p>Welcome! You have been selected to attend an MSF event.</p>
+                    <p>Please use the following One-Time Password (OTP) to create your account:</p>
+                </div>
+                
+                <div class="otp-box">
+                    <p style="margin: 0; font-size: 14px;">Your OTP Code</p>
+                    <div class="otp-code">{otp_code}</div>
+                    <p style="margin: 0; font-size: 12px;">Valid for 10 minutes</p>
+                </div>
+                
+                <div class="message">
+                    <p>Enter this OTP in the MSF Msafiri app to complete your account creation.</p>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated message from MSF Msafiri</p>
+                    <p>Médecins Sans Frontières (MSF) - Kenya</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return self.send_email([to_email], "Create Your MSF Msafiri Account", html_content)
+
 # Global email service instance
 email_service = EmailService()
