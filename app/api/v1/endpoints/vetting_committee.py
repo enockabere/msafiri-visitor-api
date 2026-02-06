@@ -535,6 +535,40 @@ def update_vetting_committee(
     db.commit()
     db.refresh(committee)
     
+    # Check if vetting chat exists, create if missing
+    try:
+        from app.models.chat import VettingChatRoom
+        from app.models.vetting_committee import VettingCommitteeApprover
+        from app.crud.vetting_committee import create_vetting_chat_room
+        
+        existing_chat = db.query(VettingChatRoom).filter(
+            VettingChatRoom.vetting_committee_id == committee.id
+        ).first()
+        
+        if not existing_chat:
+            # Get all members and approvers for chat
+            committee_members = db.query(VettingCommitteeMember).filter(
+                VettingCommitteeMember.committee_id == committee.id
+            ).all()
+            committee_approvers = db.query(VettingCommitteeApprover).filter(
+                VettingCommitteeApprover.committee_id == committee.id
+            ).all()
+            
+            create_vetting_chat_room(
+                db=db,
+                committee=committee,
+                event=event,
+                members=committee_members,
+                approvers=committee_approvers,
+                tenant_id=current_user.tenant_id,
+                created_by_id=current_user.id
+            )
+            db.commit()
+            print(f"Created missing vetting chat room for committee {committee.id}")
+    except Exception as e:
+        print(f"Failed to create vetting chat room: {e}")
+        # Don't fail the whole operation if chat creation fails
+    
     # Send emails to new members with credentials
     for member_data in committee_data.members:
         if member_data.email in member_passwords:
