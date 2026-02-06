@@ -63,3 +63,4 @@ class Event(BaseModel):
     passport_records = relationship("PassportRecord", back_populates="event", cascade="all, delete-orphan")
     chat_rooms = relationship("ChatRoom", back_populates="event", cascade="all, delete-orphan")
     form_fields = relationship("FormField", back_populates="event", cascade="all, delete-orphan")
+    vetting_member_selections = relationship("VettingMemberSelection", back_populates="event", cascade="all, delete-orphan")

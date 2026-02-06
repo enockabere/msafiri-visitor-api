@@ -127,4 +127,5 @@ class EventParticipant(BaseModel):
     # Relationships
     event = relationship("Event", back_populates="participants")
     perdiem_requests = relationship("PerdiemRequest", back_populates="participant")
+    vetting_member_selections = relationship("VettingMemberSelection", back_populates="participant", cascade="all, delete-orphan")
     # user = relationship("User", foreign_keys=[user_id])
