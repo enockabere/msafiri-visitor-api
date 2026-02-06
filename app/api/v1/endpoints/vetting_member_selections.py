@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 from app.db.database import get_db
 from app.models import VettingMemberSelection, VettingCommittee, EventParticipant
 from app.schemas.vetting_member_selection import VettingMemberSelectionCreate, VettingMemberSelectionResponse
-from app.core.auth import get_current_user
+from app.core.deps import get_current_user
 from app.models.user import User
 
 router = APIRouter()
