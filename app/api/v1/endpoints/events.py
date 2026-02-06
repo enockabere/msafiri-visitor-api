@@ -410,9 +410,10 @@ def get_events(
     tenant: Optional[str] = None,
     event_ids: Optional[str] = Query(None),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    current_user: Optional[schemas.User] = Depends(deps.get_current_user)
 ) -> Any:
-    """Get events (no auth required for dashboard stats)."""
+    """Get events (filtered by user role and vetting committee membership)."""
     import logging
     logger = logging.getLogger(__name__)
     
@@ -428,6 +429,59 @@ def get_events(
                 detail="Invalid event IDs format"
             )
     
+    # Check if user only has GUEST and VETTING_COMMITTEE roles
+    all_roles = getattr(current_user, 'all_roles', [current_user.role.value if current_user.role else ''])
+    admin_roles = ['SUPER_ADMIN', 'MT_ADMIN', 'EVENT_ADMIN', 'HR_ADMIN', 'super_admin', 'mt_admin', 'event_admin', 'hr_admin']
+    vetting_roles = ['VETTING_COMMITTEE', 'vetting_committee']
+    
+    has_admin_role = any(role in admin_roles for role in all_roles)
+    has_only_vetting_and_guest = (
+        not has_admin_role and 
+        any(role in vetting_roles for role in all_roles) and
+        all(role in ['GUEST', 'VETTING_COMMITTEE', 'guest', 'vetting_committee'] for role in all_roles)
+    )
+    
+    # If user only has GUEST and VETTING_COMMITTEE roles, filter to only show vetting events
+    if has_only_vetting_and_guest:
+        logger.info(f"🔍 Filtering events for vetting committee member: {current_user.email}")
+        
+        # Get committees where user is member or approver
+        from app.models.event import Event
+        from sqlalchemy import or_
+        
+        vetting_event_ids = set()
+        
+        # Check if user is a committee member
+        member_committees = db.query(VettingCommittee).join(
+            VettingCommitteeMember, VettingCommittee.id == VettingCommitteeMember.committee_id
+        ).filter(
+            VettingCommitteeMember.email == current_user.email
+        ).all()
+        
+        for committee in member_committees:
+            vetting_event_ids.add(committee.event_id)
+        
+        # Check if user is an approver
+        approver_committees = db.query(VettingCommittee).filter(
+            or_(
+                VettingCommittee.approver_email == current_user.email,
+                VettingCommittee.approver_id == current_user.id
+            )
+        ).all()
+        
+        for committee in approver_committees:
+            vetting_event_ids.add(committee.event_id)
+        
+        if not vetting_event_ids:
+            logger.info(f"📊 No vetting events found for user {current_user.email}")
+            return []
+        
+        # Get events by IDs
+        events = db.query(Event).filter(Event.id.in_(vetting_event_ids)).offset(skip).limit(limit).all()
+        logger.info(f"📊 Found {len(events)} vetting events for user {current_user.email}")
+        return events
+    
+    # For admin users or users with other roles, show all events
     # If no tenant specified, return all events
     if not tenant:
         events = crud.event.get_multi(db, skip=skip, limit=limit)
