@@ -12,8 +12,78 @@ from app.models.user_tenants import UserTenant, UserTenantRole
 from app.models.vetting_role_assignment import VettingRoleAssignment
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
+from app.models.chat import ChatRoom, ChatType, VettingChatRoom, VettingChatMember
 from app.schemas.vetting_committee import VettingCommitteeCreate, ParticipantSelectionCreate
 from app.core.security import get_password_hash
+from datetime import timedelta
+
+
+def create_vetting_chat_room(
+    db: Session,
+    committee: VettingCommittee,
+    event: Event,
+    members: list,
+    approvers: list,
+    tenant_id: str,
+    created_by_id: int
+) -> VettingChatRoom:
+    """Create a group chat room for vetting committee discussions."""
+
+    # Create the base chat room
+    chat_room = ChatRoom(
+        chat_type=ChatType.VETTING_CHAT,
+        name=f"Vetting: {event.title}",
+        event_id=event.id,
+        tenant_id=int(tenant_id) if tenant_id.isdigit() else 1,
+        is_active=True,
+        created_by=created_by_id
+    )
+    db.add(chat_room)
+    db.flush()
+
+    # Calculate deletion date (30 days after event end)
+    event_end_date = event.end_date
+    scheduled_deletion = None
+    if event_end_date:
+        if hasattr(event_end_date, 'date'):
+            scheduled_deletion = event_end_date + timedelta(days=30)
+        else:
+            scheduled_deletion = event_end_date + timedelta(days=30)
+
+    # Create vetting chat room extension
+    vetting_chat = VettingChatRoom(
+        chat_room_id=chat_room.id,
+        vetting_committee_id=committee.id,
+        event_id=event.id,
+        event_end_date=event_end_date if hasattr(event_end_date, 'date') else event_end_date,
+        scheduled_deletion_date=scheduled_deletion
+    )
+    db.add(vetting_chat)
+    db.flush()
+
+    # Add committee members to chat
+    for member in members:
+        chat_member = VettingChatMember(
+            vetting_chat_id=vetting_chat.id,
+            user_email=member.email,
+            user_name=member.full_name,
+            role='committee_member',
+            can_send_messages=True
+        )
+        db.add(chat_member)
+
+    # Add approvers to chat
+    for approver in approvers:
+        chat_member = VettingChatMember(
+            vetting_chat_id=vetting_chat.id,
+            user_email=approver.email,
+            user_name=approver.full_name,
+            role='approver',
+            can_send_messages=True
+        )
+        db.add(chat_member)
+
+    return vetting_chat
 
 
 def assign_vetting_role_to_user(
@@ -494,7 +564,37 @@ def create_vetting_committee(
                 )
             except Exception as e:
                 print(f"Failed to send member notification email to {member_data.email}: {e}")
-    
+
+    # Create vetting chat room for committee discussions
+    try:
+        # Get the creator user for the chat room
+        creator = db.query(User).filter(User.email == created_by).first()
+        creator_id = creator.id if creator else 1
+
+        # Get all members and approvers for chat
+        from app.models.vetting_committee import VettingCommitteeApprover
+        committee_members = db.query(VettingCommitteeMember).filter(
+            VettingCommitteeMember.committee_id == committee.id
+        ).all()
+        committee_approvers = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.committee_id == committee.id
+        ).all()
+
+        create_vetting_chat_room(
+            db=db,
+            committee=committee,
+            event=event,
+            members=committee_members,
+            approvers=committee_approvers,
+            tenant_id=tenant_id,
+            created_by_id=creator_id
+        )
+        db.commit()
+        print(f"Created vetting chat room for committee {committee.id}")
+    except Exception as e:
+        print(f"Failed to create vetting chat room: {e}")
+        # Don't fail the whole operation if chat creation fails
+
     return committee
 
 def get_committee_by_event(db: Session, event_id: int) -> Optional[VettingCommittee]:

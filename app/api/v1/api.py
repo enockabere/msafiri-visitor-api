@@ -1,6 +1,6 @@
 # File: app/api/v1/api.py (UPDATE YOUR EXISTING ONE)
 from fastapi import APIRouter, Depends
-from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset, upload, vetting_committee, code_of_conduct, participant_response, form_fields, user_preferences, privacy_policy, cash_claims, claim_chat, data_deletion, vetting_member_selections
+from app.api.v1.endpoints import auth, tenants, users, notifications, password, profile, tenant_users, events, super_admin, event_feedback, event_status, event_participants, event_attachments, invitations, roles_unified, auth_refresh, registration, emergency_contacts, user_consent, public_registration, auto_booking, password_reset, password_reset_otp, upload, vetting_committee, code_of_conduct, participant_response, form_fields, user_preferences, privacy_policy, cash_claims, claim_chat, data_deletion, vetting_member_selections, vetting_chat
 from app.api.v1 import vetting, perdiem
 from app.api import deps
 
@@ -36,6 +36,12 @@ api_router.include_router(
     password_reset.router,
     prefix="/auth",
     tags=["password-reset"]
+)
+
+api_router.include_router(
+    password_reset_otp.router,
+    prefix="/auth",
+    tags=["password-reset-otp"]
 )
 
 api_router.include_router(
@@ -854,6 +860,13 @@ api_router.include_router(
     vetting_member_selections.router,
     prefix="",
     tags=["vetting-member-selections"]
+)
+
+# Vetting chat (group chat for vetting committee discussions)
+api_router.include_router(
+    vetting_chat.router,
+    prefix="",
+    tags=["vetting-chat"]
 )
 
 # Test endpoint for cash claims

@@ -542,5 +542,89 @@ class EmailService:
         
         return self.send_email([to_email], f"Your Certificate is Ready - {event_title}", html_content, text_content)
 
+    def send_password_reset_otp_email(
+        self,
+        to_email: str,
+        user_name: str,
+        otp: str,
+        expires_in_minutes: int = 10
+    ):
+        """Send password reset OTP email to non-MSF users."""
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Password Reset OTP</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+                .container {{ max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .title {{ color: #1f2937; font-size: 20px; margin: 20px 0; }}
+                .message {{ color: #4b5563; line-height: 1.6; margin: 20px 0; }}
+                .otp-box {{ background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0; }}
+                .otp-code {{ font-size: 36px; font-weight: bold; letter-spacing: 8px; margin: 10px 0; }}
+                .warning {{ background-color: #fef3c7; padding: 15px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #f59e0b; }}
+                .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2 class="title">Password Reset OTP</h2>
+                
+                <div class="message">
+                    <p>Dear {user_name},</p>
+                    <p>We received a request to reset your password for the MSF Msafiri app.</p>
+                    <p>Please use the following One-Time Password (OTP) to reset your password:</p>
+                </div>
+                
+                <div class="otp-box">
+                    <p style="margin: 0; font-size: 14px;">Your OTP Code</p>
+                    <div class="otp-code">{otp}</div>
+                    <p style="margin: 0; font-size: 12px;">Valid for {expires_in_minutes} minutes</p>
+                </div>
+                
+                <div class="warning">
+                    <p><strong>⚠️ Important Security Information:</strong></p>
+                    <ul>
+                        <li>This OTP will expire in {expires_in_minutes} minutes</li>
+                        <li>If you didn't request this reset, please ignore this email</li>
+                        <li>Never share this OTP with anyone</li>
+                        <li>MSF staff will never ask for your OTP</li>
+                    </ul>
+                </div>
+                
+                <div class="footer">
+                    <p>This is an automated security message from MSF Msafiri</p>
+                    <p>Médecins Sans Frontières (MSF) - Kenya</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        text_content = f"""
+        Password Reset OTP - MSF Msafiri
+        
+        Dear {user_name},
+        
+        We received a request to reset your password for the MSF Msafiri app.
+        
+        Your One-Time Password (OTP): {otp}
+        
+        This OTP is valid for {expires_in_minutes} minutes.
+        
+        IMPORTANT SECURITY INFORMATION:
+        - This OTP will expire in {expires_in_minutes} minutes
+        - If you didn't request this reset, please ignore this email
+        - Never share this OTP with anyone
+        - MSF staff will never ask for your OTP
+        
+        Best regards,
+        MSF Msafiri Team
+        """
+        
+        return self.send_email([to_email], "Password Reset OTP - MSF Msafiri", html_content, text_content)
+
 # Global email service instance
 email_service = EmailService()
