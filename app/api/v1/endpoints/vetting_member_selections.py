@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
-from app.database import get_db
+from app.db.database import get_db
 from app.models import VettingMemberSelection, VettingCommittee, EventParticipant
 from app.schemas.vetting_member_selection import VettingMemberSelectionCreate, VettingMemberSelectionResponse
 from app.core.auth import get_current_user
