@@ -44,8 +44,8 @@ def request_password_reset_otp(
             detail="Email not found. Please request access first."
         )
     
-    # Generate 6-digit OTP
-    otp = ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    # Generate 4-digit OTP
+    otp = ''.join([str(secrets.randbelow(10)) for _ in range(4)])
     otp_expires = datetime.now(timezone.utc) + timedelta(minutes=10)  # OTP expires in 10 minutes
     
     # Store OTP in user record
