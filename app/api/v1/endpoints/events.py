@@ -8,7 +8,7 @@ from app.api import deps
 from app.db.database import get_db
 from app.models.user import UserRole
 from app.models.user_roles import UserRole as UserRoleModel
-from app.models.vetting_committee import VettingCommittee, VettingStatus
+from app.models.vetting_committee import VettingCommittee, VettingStatus, VettingCommitteeMember
 
 router = APIRouter()
 
@@ -441,6 +441,11 @@ def get_events(
         all(role in ['GUEST', 'VETTING_COMMITTEE', 'guest', 'vetting_committee'] for role in all_roles)
     )
     
+    logger.info(f"🔍 GET EVENTS - User: {current_user.email}")
+    logger.info(f"🔍 All roles: {all_roles}")
+    logger.info(f"🔍 Has admin role: {has_admin_role}")
+    logger.info(f"🔍 Has only vetting and guest: {has_only_vetting_and_guest}")
+    
     # If user only has GUEST and VETTING_COMMITTEE roles, filter to only show vetting events
     if has_only_vetting_and_guest:
         logger.info(f"🔍 Filtering events for vetting committee member: {current_user.email}")
@@ -455,22 +460,43 @@ def get_events(
         member_committees = db.query(VettingCommittee).join(
             VettingCommitteeMember, VettingCommittee.id == VettingCommitteeMember.committee_id
         ).filter(
-            VettingCommitteeMember.email == current_user.email
+            VettingCommitteeMember.email.ilike(current_user.email)
         ).all()
         
+        logger.info(f"🔍 Found {len(member_committees)} committees where user is member")
         for committee in member_committees:
+            logger.info(f"🔍 Member committee: ID={committee.id}, Event ID={committee.event_id}")
             vetting_event_ids.add(committee.event_id)
         
-        # Check if user is an approver
+        # Check if user is an approver (legacy system)
         approver_committees = db.query(VettingCommittee).filter(
             or_(
-                VettingCommittee.approver_email == current_user.email,
+                VettingCommittee.approver_email.ilike(current_user.email),
                 VettingCommittee.approver_id == current_user.id
             )
         ).all()
         
+        logger.info(f"🔍 Found {len(approver_committees)} committees where user is approver (legacy)")
         for committee in approver_committees:
+            logger.info(f"🔍 Approver committee: ID={committee.id}, Event ID={committee.event_id}")
             vetting_event_ids.add(committee.event_id)
+        
+        # Check new approvers table
+        from app.models.vetting_committee import VettingCommitteeApprover
+        new_approver_records = db.query(VettingCommitteeApprover).filter(
+            VettingCommitteeApprover.email.ilike(current_user.email)
+        ).all()
+        
+        logger.info(f"🔍 Found {len(new_approver_records)} approver records in new table")
+        for approver_record in new_approver_records:
+            committee = db.query(VettingCommittee).filter(
+                VettingCommittee.id == approver_record.committee_id
+            ).first()
+            if committee:
+                logger.info(f"🔍 New approver committee: ID={committee.id}, Event ID={committee.event_id}")
+                vetting_event_ids.add(committee.event_id)
+        
+        logger.info(f"🔍 Total vetting event IDs: {vetting_event_ids}")
         
         if not vetting_event_ids:
             logger.info(f"📊 No vetting events found for user {current_user.email}")
