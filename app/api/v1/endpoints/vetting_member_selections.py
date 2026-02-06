@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.db.database import get_db
-from app.models import VettingMemberSelection, VettingCommittee, EventParticipant
-from app.schemas.vetting_member_selection import VettingMemberSelectionCreate, VettingMemberSelectionResponse
+from app.models import VettingMemberSelection, VettingCommittee, EventParticipant, VettingMemberComment
+from app.schemas.vetting_member_selection import (
+    VettingMemberSelectionCreate, VettingMemberSelectionResponse,
+    VettingMemberCommentCreate, VettingMemberCommentResponse, VettingMemberCommentsListResponse
+)
 from app.core.deps import get_current_user
-from app.models.user import User
+from app.models.user import User, UserRole
 
 router = APIRouter()
 
@@ -182,8 +185,6 @@ def get_vetting_selections_summary(
     Returns committee members and all their selections grouped by participant.
     Used by the Selections tab to display individual member columns.
     """
-    from app.models.user import UserRole
-
     # Verify access
     vetting_committee = db.query(VettingCommittee).filter(
         VettingCommittee.event_id == event_id
@@ -246,4 +247,146 @@ def get_vetting_selections_summary(
         "current_user_email": current_user.email,
         "current_user_is_member": is_member,
         "current_user_is_approver": is_approver
+    }
+
+
+@router.post("/events/{event_id}/participants/{participant_id}/vetting-comments", response_model=VettingMemberCommentResponse)
+def create_vetting_comment(
+    event_id: int,
+    participant_id: int,
+    comment_data: VettingMemberCommentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a comment to a participant's vetting discussion.
+
+    Both committee members and approvers can add comments.
+    Comments are stored with author info and role for full history tracking.
+    """
+    # Verify access
+    vetting_committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).first()
+
+    if not vetting_committee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vetting committee not found for this event"
+        )
+
+    # Check if user is a committee member or approver
+    is_member = any(member.email.lower() == current_user.email.lower() for member in vetting_committee.members)
+    is_approver = any(approver.email.lower() == current_user.email.lower() for approver in vetting_committee.approvers)
+
+    # Also check legacy approver field
+    if not is_approver and vetting_committee.approver_email:
+        is_approver = vetting_committee.approver_email.lower() == current_user.email.lower()
+
+    # Allow admins access
+    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.EVENT_ADMIN]
+
+    if not (is_member or is_approver or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have access to add vetting comments"
+        )
+
+    # Verify participant exists
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id,
+        EventParticipant.event_id == event_id
+    ).first()
+
+    if not participant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Participant not found"
+        )
+
+    # Determine author role
+    if is_approver:
+        author_role = "approver"
+    elif is_member:
+        author_role = "committee_member"
+    else:
+        author_role = "admin"
+
+    # Get author name from committee or user
+    author_name = current_user.full_name or current_user.email
+    if is_member:
+        for member in vetting_committee.members:
+            if member.email.lower() == current_user.email.lower():
+                author_name = member.full_name
+                break
+    elif is_approver:
+        for approver in vetting_committee.approvers:
+            if approver.email.lower() == current_user.email.lower():
+                author_name = approver.full_name
+                break
+
+    # Create comment
+    new_comment = VettingMemberComment(
+        event_id=event_id,
+        participant_id=participant_id,
+        author_email=current_user.email,
+        author_name=author_name,
+        author_role=author_role,
+        comment=comment_data.comment
+    )
+    db.add(new_comment)
+    db.commit()
+    db.refresh(new_comment)
+
+    return new_comment
+
+
+@router.get("/events/{event_id}/participants/{participant_id}/vetting-comments", response_model=VettingMemberCommentsListResponse)
+def get_participant_vetting_comments(
+    event_id: int,
+    participant_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all comments for a participant's vetting discussion.
+
+    Returns comments in chronological order (oldest first) so users can scroll up to see history.
+    """
+    # Verify access
+    vetting_committee = db.query(VettingCommittee).filter(
+        VettingCommittee.event_id == event_id
+    ).first()
+
+    if not vetting_committee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vetting committee not found for this event"
+        )
+
+    # Check if user is a committee member or approver
+    is_member = any(member.email.lower() == current_user.email.lower() for member in vetting_committee.members)
+    is_approver = any(approver.email.lower() == current_user.email.lower() for approver in vetting_committee.approvers)
+
+    # Also check legacy approver field
+    if not is_approver and vetting_committee.approver_email:
+        is_approver = vetting_committee.approver_email.lower() == current_user.email.lower()
+
+    # Allow admins access
+    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.EVENT_ADMIN]
+
+    if not (is_member or is_approver or is_admin):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have access to vetting comments"
+        )
+
+    # Get all comments, ordered by created_at ascending (oldest first)
+    comments = db.query(VettingMemberComment).filter(
+        VettingMemberComment.event_id == event_id,
+        VettingMemberComment.participant_id == participant_id
+    ).order_by(VettingMemberComment.created_at.asc()).all()
+
+    return {
+        "participant_id": participant_id,
+        "comments": comments,
+        "total_count": len(comments)
     }

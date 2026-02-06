@@ -30,7 +30,7 @@ from .passport_record import PassportRecord
 from .app_feedback import AppFeedback
 from .travel_checklist_progress import TravelChecklistProgress
 from .vetting_committee import VettingCommittee, VettingCommitteeMember, ParticipantSelection, VettingStatus, ApprovalStatus, VettingCommitteeApprover
-from .vetting_member_selection import VettingMemberSelection
+from .vetting_member_selection import VettingMemberSelection, VettingMemberComment
 from .form_field import FormField, FormResponse
 from .code_of_conduct import CodeOfConduct
 from .cash_claim import Claim, ClaimItem
@@ -47,6 +47,6 @@ __all__ = [
     "EventAgenda", "AgendaFeedback", "FeedbackResponse", "CountryTravelRequirement",
     "NewsUpdate", "NewsCategory", "ChatRoom", "ChatMessage", "DirectMessage", "ChatType",
     "FlightItinerary", "TransportRequest", "Invitation", "PassportRecord", "AppFeedback", "TravelChecklistProgress",
-    "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus", "VettingCommitteeApprover", "VettingMemberSelection",
+    "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus", "VettingCommitteeApprover", "VettingMemberSelection", "VettingMemberComment",
     "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem"
 ]

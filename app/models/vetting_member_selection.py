@@ -24,3 +24,21 @@ class VettingMemberSelection(Base):
     __table_args__ = (
         UniqueConstraint('event_id', 'participant_id', 'member_email', name='unique_member_participant_selection'),
     )
+
+
+class VettingMemberComment(Base):
+    """Stores comment history for vetting discussions on participants."""
+    __tablename__ = "vetting_member_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    participant_id = Column(Integer, ForeignKey("event_participants.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_email = Column(String(255), nullable=False, index=True)
+    author_name = Column(String(255), nullable=False)
+    author_role = Column(String(50), nullable=False)  # 'committee_member', 'approver'
+    comment = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    event = relationship("Event")
+    participant = relationship("EventParticipant")
