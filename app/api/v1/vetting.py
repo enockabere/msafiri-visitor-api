@@ -81,9 +81,32 @@ async def submit_vetting(
                 current_user.full_name or current_user.email
             )
         
+        # Mute the submitting member in the vetting chat
+        try:
+            from app.models.chat import VettingChatRoom, VettingChatMember
+            vetting_chat = db.query(VettingChatRoom).filter(
+                VettingChatRoom.event_id == event_id
+            ).first()
+
+            if vetting_chat:
+                chat_member = db.query(VettingChatMember).filter(
+                    VettingChatMember.vetting_chat_id == vetting_chat.id,
+                    VettingChatMember.user_email.ilike(current_user.email)
+                ).first()
+
+                if chat_member:
+                    chat_member.can_send_messages = False
+                    chat_member.muted_at = datetime.utcnow()
+                    chat_member.muted_reason = "submitted_vetting"
+                    db.commit()
+                    logger.info(f"🔇 Muted {current_user.email} in vetting chat after submission")
+        except Exception as mute_error:
+            logger.warning(f"Failed to mute member in chat: {mute_error}")
+            # Don't fail the submission if muting fails
+
         logger.info(f"✅ VETTING SUBMITTED: Event {event.title} by {current_user.email}")
         logger.info(f"📧 NOTIFYING {len(approvers)} APPROVERS")
-        
+
         return {
             "message": "Vetting submitted successfully",
             "status": "submitted",
@@ -308,7 +331,26 @@ async def approve_vetting(
         committee.approved_by = current_user.email
         db.commit()
         print(f"✅ DATABASE UPDATED - Committee status saved")
-        
+
+        # Lock the vetting chat when vetting is approved
+        try:
+            from app.models.chat import VettingChatRoom
+            vetting_chat = db.query(VettingChatRoom).filter(
+                VettingChatRoom.event_id == event_id
+            ).first()
+
+            if vetting_chat:
+                vetting_chat.is_locked = True
+                vetting_chat.locked_at = datetime.utcnow()
+                vetting_chat.locked_reason = "approved"
+                db.commit()
+                print(f"🔒 Vetting chat locked for event {event_id}")
+                logger.info(f"🔒 Vetting chat locked for event {event_id}")
+        except Exception as lock_error:
+            print(f"⚠️ Failed to lock vetting chat: {lock_error}")
+            logger.warning(f"Failed to lock vetting chat: {lock_error}")
+            # Don't fail the approval if chat locking fails
+
         # Get all participants (selected and not selected)
         all_participants = db.query(EventParticipant).filter(
             EventParticipant.event_id == event_id
