@@ -485,12 +485,9 @@ def update_vetting_committee(
     committee.selection_end_date = committee_data.selection_end_date
     committee.approver_email = committee_data.approver_email
     
-    # Add VETTING_APPROVER role without removing existing roles
+    # Update approver tenant if user exists
     approver = db.query(User).filter(User.email == committee_data.approver_email).first()
     if approver:
-        from app.crud.user_roles import add_user_role
-        from app.models.user import UserRole as UserRoleEnum
-        add_user_role(db, approver.id, UserRoleEnum.VETTING_APPROVER, current_user.email)
         approver.tenant_id = current_user.tenant_id
     
     # Delete existing members
@@ -525,11 +522,6 @@ def update_vetting_committee(
             )
             db.add(user)
             db.flush()
-        # Add VETTING_COMMITTEE role for existing users without removing their primary role
-        if user:
-            from app.crud.user_roles import add_user_role
-            from app.models.user import UserRole as UserRoleEnum
-            add_user_role(db, user.id, UserRoleEnum.VETTING_COMMITTEE, current_user.email)
         
         member = VettingCommitteeMember(
             committee_id=committee.id,
