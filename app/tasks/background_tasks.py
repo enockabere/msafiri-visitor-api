@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.services.participant_cleanup_service import ParticipantCleanupService
+from app.services.data_deletion_service import DataDeletionService
 from app.tasks.vetting_cleanup import cleanup_expired_vetting_roles
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,12 @@ class BackgroundTaskManager:
         
         # Start participant cleanup task
         asyncio.create_task(self._participant_cleanup_task())
-        
+
         # Start vetting committee cleanup task
         asyncio.create_task(self._vetting_cleanup_task())
+
+        # Start data deletion task (GDPR compliance - 2 days for rejected/cancelled, 30 days after event)
+        asyncio.create_task(self._data_deletion_task())
     
     async def stop_background_tasks(self):
         """Stop all background tasks"""
@@ -54,13 +58,34 @@ class BackgroundTaskManager:
         while self.running:
             try:
                 cleanup_expired_vetting_roles()
-                
+
                 # Run every 24 hours
                 await asyncio.sleep(86400)
-                
+
             except Exception as e:
                 logger.error(f"Error in vetting cleanup task: {str(e)}")
                 await asyncio.sleep(86400)  # Wait 24 hours before retrying
+
+    async def _data_deletion_task(self):
+        """Background task to delete personal data per GDPR/data protection policy"""
+        while self.running:
+            try:
+                db: Session = SessionLocal()
+                try:
+                    results = DataDeletionService.process_automatic_deletions(db)
+                    if results["immediate_deletions"] > 0 or results["monthly_deletions"] > 0:
+                        logger.info(f"Data deletion completed: {results['immediate_deletions']} immediate (2-day), {results['monthly_deletions']} monthly (30-day)")
+                    if results.get("errors"):
+                        logger.error(f"Data deletion errors: {results['errors']}")
+                finally:
+                    db.close()
+
+                # Run every 6 hours to ensure timely deletion
+                await asyncio.sleep(21600)
+
+            except Exception as e:
+                logger.error(f"Error in data deletion task: {str(e)}")
+                await asyncio.sleep(21600)  # Wait 6 hours before retrying
 
 # Global instance
 background_task_manager = BackgroundTaskManager()

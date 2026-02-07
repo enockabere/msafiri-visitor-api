@@ -107,10 +107,10 @@ class DataDeletionService:
     
     @staticmethod
     def get_participants_for_immediate_deletion(db: Session) -> list:
-        """Get participants whose data should be deleted immediately (24h after status change)"""
+        """Get participants whose data should be deleted immediately (2 days after status change)"""
         try:
-            # Get participants with not_selected, canceled, or declined status older than 24 hours
-            cutoff_date = datetime.utcnow() - timedelta(hours=24)
+            # Get participants with not_selected, canceled, or declined status older than 2 days
+            cutoff_date = datetime.utcnow() - timedelta(days=2)
             
             result = db.execute(text("""
                 SELECT ep.id, ep.full_name, ep.email, ep.status, e.title, ep.updated_at
@@ -139,7 +139,7 @@ class DataDeletionService:
         }
         
         try:
-            # Process immediate deletions (24h after rejection/cancellation)
+            # Process immediate deletions (2 days after rejection/cancellation)
             immediate_participants = DataDeletionService.get_participants_for_immediate_deletion(db)
             for participant in immediate_participants:
                 if DataDeletionService.delete_sensitive_data_for_participant(db, participant['id']):
