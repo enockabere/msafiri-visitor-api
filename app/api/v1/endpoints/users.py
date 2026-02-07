@@ -218,6 +218,78 @@ def set_active_tenant(
             detail="Failed to set active tenant"
         )
 
+@router.post("/create-staff", response_model=schemas.User)
+def create_staff_user(
+    *,
+    db: Session = Depends(get_db),
+    user_data: dict,
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Create staff user directly without invitation."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.MT_ADMIN, UserRole.HR_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
+    
+    email = user_data.get("email", "").strip()
+    full_name = user_data.get("full_name", "").strip()
+    tenant_id = user_data.get("tenant_id")
+    
+    if not email or not full_name or not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email, full name, and tenant are required"
+        )
+    
+    # Validate MSF email
+    if ".msf.org" not in email.lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Staff members must have an @msf.org email address"
+        )
+    
+    # Check if user already exists
+    existing_user = crud.user.get_by_email(db, email=email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists"
+        )
+    
+    # Create user with STAFF role
+    from app.core.security import get_password_hash
+    import secrets
+    from app.models.user import AuthProvider
+    
+    temp_password = secrets.token_urlsafe(16)
+    
+    user_create = schemas.UserCreate(
+        email=email,
+        full_name=full_name,
+        password=temp_password,
+        role=UserRole.GUEST,
+        tenant_id=tenant_id,
+        status=UserStatus.ACTIVE,
+        auth_provider=AuthProvider.MICROSOFT
+    )
+    
+    user = crud.user.create(db, obj_in=user_create)
+    
+    # Add STAFF role via user_roles table
+    from app.models.user_roles import UserRole as UserRoleModel
+    
+    staff_role = UserRoleModel(
+        user_id=user.id,
+        role="STAFF",
+        tenant_id=tenant_id
+    )
+    db.add(staff_role)
+    db.commit()
+    db.refresh(user)
+    
+    return user
+
 @router.post("/", response_model=schemas.User)
 def create_user(
     *,
