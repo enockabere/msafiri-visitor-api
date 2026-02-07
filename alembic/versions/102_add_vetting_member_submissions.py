@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '102_add_vetting_member_submissions'
-down_revision = '101_ensure_vetting_roles_in_enum'
+down_revision = '101_ensure_vetting_roles'
 branch_labels = None
 depends_on = None
 
