@@ -429,16 +429,16 @@ def get_events(
                 detail="Invalid event IDs format"
             )
     
-    # Check if user only has GUEST and VETTING_COMMITTEE roles
+    # Check if user only has GUEST and VETTING_COMMITTEE/VETTING_APPROVER roles
     all_roles = getattr(current_user, 'all_roles', [current_user.role.value if current_user.role else ''])
     admin_roles = ['SUPER_ADMIN', 'MT_ADMIN', 'EVENT_ADMIN', 'HR_ADMIN', 'super_admin', 'mt_admin', 'event_admin', 'hr_admin']
-    vetting_roles = ['VETTING_COMMITTEE', 'vetting_committee']
+    vetting_roles = ['VETTING_COMMITTEE', 'VETTING_APPROVER', 'vetting_committee', 'vetting_approver']
     
     has_admin_role = any(role in admin_roles for role in all_roles)
     has_only_vetting_and_guest = (
         not has_admin_role and 
         any(role in vetting_roles for role in all_roles) and
-        all(role in ['GUEST', 'VETTING_COMMITTEE', 'guest', 'vetting_committee'] for role in all_roles)
+        all(role in ['GUEST', 'VETTING_COMMITTEE', 'VETTING_APPROVER', 'guest', 'vetting_committee', 'vetting_approver'] for role in all_roles)
     )
     
     logger.info(f"🔍 GET EVENTS - User: {current_user.email}")
