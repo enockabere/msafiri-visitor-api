@@ -500,4 +500,5 @@ def update_profile(
         )
     
     updated_user = crud.user.update(db, db_obj=current_user, obj_in=update_data)
+    db.refresh(updated_user)
     return updated_user

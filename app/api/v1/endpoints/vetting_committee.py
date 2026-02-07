@@ -173,34 +173,39 @@ def get_my_vetting_events(
     current_user: User = Depends(get_current_user)
 ):
     """Get events where current user has vetting roles with event details"""
-    
+
     from app.models.event import Event
-    from sqlalchemy import or_
-    
+    from sqlalchemy import or_, func
+    import logging
+    logger = logging.getLogger(__name__)
+
+    user_email = current_user.email.lower() if current_user.email else ""
+    logger.info(f"🔍 my-vetting-events called for user: {user_email}, role: {current_user.role}")
+
     # Get committees where user is member or approver
     committees = []
-    
+
     # Check by role first
     if current_user.role == UserRole.VETTING_COMMITTEE:
         committees.extend(crud_vetting.get_committee_for_user(db, current_user.email))
     elif current_user.role == UserRole.VETTING_APPROVER:
         committees.extend(db.query(VettingCommittee).filter(
-            VettingCommittee.approver_email == current_user.email
+            func.lower(VettingCommittee.approver_email) == user_email
         ).all())
-    
+
     # Also check by database relationships (for users who might be members/approvers without explicit roles)
-    # Check if user is a committee member
+    # Check if user is a committee member (case-insensitive)
     member_committees = db.query(VettingCommittee).join(
         VettingCommitteeMember, VettingCommittee.id == VettingCommitteeMember.committee_id
     ).filter(
-        VettingCommitteeMember.email == current_user.email
+        func.lower(VettingCommitteeMember.email) == user_email
     ).all()
     committees.extend(member_committees)
-    
-    # Check if user is an approver by email or user_id
+
+    # Check if user is an approver by email (case-insensitive) or user_id
     approver_committees = db.query(VettingCommittee).filter(
         or_(
-            VettingCommittee.approver_email == current_user.email,
+            func.lower(VettingCommittee.approver_email) == user_email,
             VettingCommittee.approver_id == current_user.id
         )
     ).all()
