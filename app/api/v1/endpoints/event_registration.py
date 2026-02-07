@@ -1196,3 +1196,147 @@ async def update_fcm_token(
     db.commit()
     
     return {"message": "FCM token updated successfully"}
+
+
+class AdminRegisterRequest(BaseModel):
+    event_id: int
+    full_name: str
+    email: str
+    status: str = "selected"
+    registration_type: str = "admin_added"
+    # Optional fields from form
+    first_name: str = None
+    last_name: str = None
+    oc: str = None
+    contract_status: str = None
+    contract_type: str = None
+    gender_identity: str = None
+    phone_number: str = None
+    personal_email: str = None
+    msf_email: str = None
+    nationality: str = None
+    country_of_work: str = None
+    current_position: str = None
+    travelling_internationally: str = None
+    accommodation_type: str = None
+    dietary_requirements: str = None
+    accommodation_needs: str = None
+    certificate_name: str = None
+    badge_name: str = None
+    send_notification: bool = True
+
+
+@router.post("/admin-register")
+async def admin_register_participant(
+    registration: AdminRegisterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin endpoint to add a participant directly with 'selected' status (bypasses vetting)"""
+
+    print(f"📝 ADMIN REGISTER: Adding {registration.full_name} ({registration.email}) to event {registration.event_id}")
+
+    # Check if event exists
+    event = db.query(Event).filter(Event.id == registration.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Check if user already registered
+    existing = db.query(EventParticipant).filter(
+        EventParticipant.event_id == registration.event_id,
+        EventParticipant.email == registration.email
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Participant already registered for this event")
+
+    try:
+        # Create participant record with status "selected"
+        participant = EventParticipant(
+            event_id=registration.event_id,
+            email=registration.email,
+            full_name=registration.full_name,
+            role="attendee",
+            participant_role="visitor",
+            status=registration.status,  # Default is "selected"
+            invited_by=current_user.email,
+            # Map form fields
+            first_name=registration.first_name,
+            last_name=registration.last_name,
+            oc=registration.oc,
+            contract_status=registration.contract_status,
+            contract_type=registration.contract_type,
+            gender_identity=registration.gender_identity,
+            phone_number=registration.phone_number,
+            personal_email=registration.personal_email or registration.email,
+            msf_email=registration.msf_email,
+            nationality=registration.nationality,
+            country_of_work=registration.country_of_work,
+            current_position=registration.current_position,
+            travelling_internationally=registration.travelling_internationally,
+            accommodation_type=registration.accommodation_type,
+            dietary_requirements=registration.dietary_requirements,
+            accommodation_needs=registration.accommodation_needs,
+            certificate_name=registration.certificate_name,
+            badge_name=registration.badge_name,
+        )
+
+        db.add(participant)
+        db.commit()
+        db.refresh(participant)
+
+        print(f"✅ ADMIN REGISTER: Participant {participant.id} created with status '{registration.status}'")
+
+        # Send notification if requested and status is selected
+        email_sent = False
+        push_sent = False
+
+        if registration.send_notification and registration.status == "selected":
+            print(f"📧 ADMIN REGISTER: Sending selection notification to {participant.email}")
+
+            # Send email notification
+            email_sent = await send_status_notification(participant, "selected", db)
+            if email_sent:
+                print(f"✅ ADMIN REGISTER: Email sent successfully")
+            else:
+                print(f"⚠️ ADMIN REGISTER: Email notification failed")
+
+            # Send push notification
+            try:
+                from app.services.firebase_service import firebase_service
+                push_sent = firebase_service.send_to_user(
+                    db=db,
+                    user_email=participant.email,
+                    title="🎉 You've been selected!",
+                    body=f"Congratulations! You've been selected for {event.title}",
+                    data={
+                        "type": "event_selection",
+                        "event_id": str(event.id),
+                        "participant_id": str(participant.id)
+                    }
+                )
+                if push_sent:
+                    print(f"✅ ADMIN REGISTER: Push notification sent")
+            except Exception as e:
+                print(f"⚠️ ADMIN REGISTER: Push notification failed: {e}")
+
+            # Auto-allocate vouchers
+            try:
+                await auto_allocate_vouchers_to_participant(participant, db)
+            except Exception as e:
+                print(f"⚠️ ADMIN REGISTER: Voucher allocation failed: {e}")
+
+        return {
+            "message": "Participant added successfully",
+            "participant_id": participant.id,
+            "status": participant.status,
+            "email_sent": email_sent,
+            "push_sent": push_sent
+        }
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ ADMIN REGISTER: Failed to add participant: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Failed to add participant: {str(e)}")
