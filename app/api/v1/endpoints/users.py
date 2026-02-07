@@ -13,6 +13,7 @@ def read_user_me(
     current_user: schemas.User = Depends(deps.get_current_user),
 ) -> Any:
     """Get current user."""
+    print(f"DEBUG: read_user_me called for user {current_user.email}, avatar_url: {current_user.avatar_url}")
     return current_user
 
 @router.get("/tenants")
@@ -489,9 +490,14 @@ def update_profile(
 ) -> Any:
     """Update current user's profile."""
     
+    print(f"DEBUG: update_profile called for user {current_user.email}")
+    print(f"DEBUG: profile_data received: {profile_data}")
+    
     # Only allow updating specific fields
     allowed_fields = ['avatar_url', 'full_name', 'phone']
     update_data = {k: v for k, v in profile_data.items() if k in allowed_fields}
+    
+    print(f"DEBUG: update_data after filtering: {update_data}")
     
     if not update_data:
         raise HTTPException(
@@ -501,4 +507,7 @@ def update_profile(
     
     updated_user = crud.user.update(db, db_obj=current_user, obj_in=update_data)
     db.refresh(updated_user)
+    
+    print(f"DEBUG: User updated in DB, avatar_url: {updated_user.avatar_url}")
+    
     return updated_user
