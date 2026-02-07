@@ -295,7 +295,7 @@ def create_staff_user(
         role=UserRole.GUEST,
         tenant_id=tenant_id,
         status=UserStatus.ACTIVE,
-        auth_provider=AuthProvider.MICROSOFT
+        auth_provider=AuthProvider.MICROSOFT_SSO
     )
     
     user = crud.user.create(db, obj_in=user_create)
