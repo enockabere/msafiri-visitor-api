@@ -211,6 +211,15 @@ def get_my_vetting_events(
     ).all()
     committees.extend(approver_committees)
     
+    # Check new approvers table
+    from app.models.vetting_committee import VettingCommitteeApprover
+    new_approver_committees = db.query(VettingCommittee).join(
+        VettingCommitteeApprover, VettingCommittee.id == VettingCommitteeApprover.committee_id
+    ).filter(
+        func.lower(VettingCommitteeApprover.email) == user_email
+    ).all()
+    committees.extend(new_approver_committees)
+    
     # Remove duplicates
     unique_committees = {}
     for committee in committees:
