@@ -736,29 +736,35 @@ def cancel_submission(
     current_user: User = Depends(get_current_user)
 ):
     """Cancel submission and return to open status (Committee members only)"""
-    
-    if current_user.role != UserRole.VETTING_COMMITTEE:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only committee members can cancel submission"
-        )
-    
+
     # Load committee with event relationship
     from app.models.event import Event
     committee = db.query(VettingCommittee).join(Event).filter(VettingCommittee.id == committee_id).first()
     if not committee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    
-    if committee.status != VettingStatus.PENDING_APPROVAL:
+
+    # Check if user is member of this committee (not based on primary role)
+    is_member = any(
+        member.email.lower() == current_user.email.lower()
+        for member in committee.members
+    )
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only committee members can cancel submission"
+        )
+
+    # Allow cancellation if status is pending_approval OR if there are any member submissions
+    from app.models.vetting_member_selection import VettingMemberSubmission
+    has_submissions = db.query(VettingMemberSubmission).filter(
+        VettingMemberSubmission.event_id == committee.event_id
+    ).first() is not None
+
+    if committee.status != VettingStatus.PENDING_APPROVAL and not has_submissions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only cancel submission for committees in pending approval status"
+            detail="No submissions to cancel"
         )
-    
-    # Check if user is member of this committee
-    is_member = any(member.email == current_user.email for member in committee.members)
-    if not is_member:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     
     # Check if event has started or selection period has ended
     from datetime import datetime, date
