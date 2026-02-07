@@ -28,13 +28,26 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
         return db.query(User).filter(User.password_reset_token == token).first()
 
     def get_by_tenant(self, db: Session, *, tenant_id: str, skip: int = 0, limit: int = 100) -> List[User]:
-        return (
-            db.query(User)
-            .filter(User.tenant_id == tenant_id)
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        from app.models.user_roles import UserRole as UserRoleModel
+        
+        # Get users who have tenant_id set OR have roles in this tenant via user_roles table
+        users_by_tenant_id = db.query(User).filter(User.tenant_id == tenant_id).all()
+        
+        # Get users who have roles in this tenant via user_roles table
+        users_by_roles = db.query(User).join(
+            UserRoleModel, User.id == UserRoleModel.user_id
+        ).filter(
+            UserRoleModel.tenant_id == tenant_id
+        ).all()
+        
+        # Combine and deduplicate
+        user_dict = {u.id: u for u in users_by_tenant_id}
+        for u in users_by_roles:
+            if u.id not in user_dict:
+                user_dict[u.id] = u
+        
+        users = list(user_dict.values())
+        return users[skip:skip + limit]
 
     def create(self, db: Session, *, obj_in: UserCreate) -> User:
         # Handle both local and SSO user creation
