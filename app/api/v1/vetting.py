@@ -379,10 +379,38 @@ async def approve_vetting(
         
         print(f"✅ STATUS CHECK PASSED: {committee.status} is allowed for approval")
 
-        # Verify this user is the designated approver for this committee
-        if committee.approver_id and committee.approver_id != current_user.id:
-            print(f"❌ WRONG APPROVER: Committee approver_id={committee.approver_id}, current_user.id={current_user.id}")
-            raise HTTPException(status_code=403, detail="You are not the designated approver for this vetting committee")
+        # Verify this user is a designated approver for this committee
+        # Check both legacy approver_id and new VettingCommitteeApprover table
+        is_designated_approver = False
+
+        # Check legacy approver_id
+        if committee.approver_id and committee.approver_id == current_user.id:
+            is_designated_approver = True
+            print(f"✅ Matched legacy approver_id: {committee.approver_id}")
+
+        # Check legacy approver_email
+        if not is_designated_approver and committee.approver_email:
+            if committee.approver_email.lower() == current_user.email.lower():
+                is_designated_approver = True
+                print(f"✅ Matched legacy approver_email: {committee.approver_email}")
+
+        # Check VettingCommitteeApprover table for multiple approvers
+        if not is_designated_approver:
+            from app.models.vetting_committee import VettingCommitteeApprover
+            from sqlalchemy import func
+            approver_record = db.query(VettingCommitteeApprover).filter(
+                VettingCommitteeApprover.committee_id == committee.id,
+                func.lower(VettingCommitteeApprover.email) == current_user.email.lower()
+            ).first()
+            if approver_record:
+                is_designated_approver = True
+                print(f"✅ Matched approver in VettingCommitteeApprover table: {current_user.email}")
+
+        if not is_designated_approver:
+            print(f"❌ WRONG APPROVER: User {current_user.email} (id={current_user.id}) is not a designated approver")
+            print(f"   Committee approver_id={committee.approver_id}, approver_email={committee.approver_email}")
+            raise HTTPException(status_code=403, detail="You are not a designated approver for this vetting committee")
+
         print(f"✅ APPROVER VERIFICATION PASSED")
         
         # Update committee status
