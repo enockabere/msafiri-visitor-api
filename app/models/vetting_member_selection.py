@@ -26,6 +26,25 @@ class VettingMemberSelection(Base):
     )
 
 
+class VettingMemberSubmission(Base):
+    """Tracks individual committee member vetting submissions.
+
+    This allows each member to submit independently, and the committee status
+    only changes to pending_approval when ALL members have submitted.
+    """
+    __tablename__ = "vetting_member_submissions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
+    member_email = Column(String(255), nullable=False, index=True)
+    submitted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Unique constraint to ensure one submission per member per event
+    __table_args__ = (
+        UniqueConstraint('event_id', 'member_email', name='unique_member_event_submission'),
+    )
+
+
 class VettingMemberComment(Base):
     """Stores comment history for vetting discussions on participants."""
     __tablename__ = "vetting_member_comments"

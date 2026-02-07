@@ -33,54 +33,71 @@ async def submit_vetting(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Submit vetting for approval and notify approver"""
+    """Submit vetting for approval.
+
+    This records the current user's submission. The committee status only changes
+    to pending_approval when ALL committee members have submitted their vetting.
+    """
     try:
-        from app.models.vetting_committee import VettingCommittee, VettingStatus
+        from app.models.vetting_committee import VettingCommittee, VettingCommitteeMember, VettingStatus
+        from app.models.vetting_member_selection import VettingMemberSubmission
         from datetime import datetime
-        
+
         # Get event details
         event = db.query(Event).filter(Event.id == event_id).first()
         if not event:
             raise HTTPException(status_code=404, detail="Event not found")
-        
-        # Update vetting committee status
+
+        # Get vetting committee
         committee = db.query(VettingCommittee).filter(
             VettingCommittee.event_id == event_id
         ).first()
-        
-        if committee:
-            committee.status = VettingStatus.PENDING_APPROVAL
-            committee.submitted_at = datetime.utcnow()
-            committee.submitted_by = current_user.email
-            db.commit()
-        else:
+
+        if not committee:
             raise HTTPException(status_code=404, detail="Vetting committee not found")
-        
-        # Find vetting approvers for this event
-        # Get approver from committee
-        if committee.approver_id:
-            approver = db.query(User).filter(User.id == committee.approver_id).first()
-            approvers = [approver] if approver else []
-        else:
-            # Fallback: find all users with vetting_approver role
-            from app.models.user_roles import UserRole
-            approver_role_records = db.query(UserRole).filter(
-                UserRole.role == "VETTING_APPROVER"
-            ).all()
-            approver_ids = [record.user_id for record in approver_role_records]
-            approvers = db.query(User).filter(
-                User.id.in_(approver_ids)
-            ).all()
-        
-        # Send email notification to approvers
-        for approver in approvers:
-            background_tasks.add_task(
-                send_vetting_notification,
-                approver.email,
-                event.title,
-                current_user.full_name or current_user.email
-            )
-        
+
+        # Check if current user has already submitted
+        existing_submission = db.query(VettingMemberSubmission).filter(
+            VettingMemberSubmission.event_id == event_id,
+            VettingMemberSubmission.member_email.ilike(current_user.email)
+        ).first()
+
+        if existing_submission:
+            return {
+                "message": "You have already submitted your vetting",
+                "status": "already_submitted",
+                "all_members_submitted": False,
+                "approvers_notified": 0
+            }
+
+        # Record this member's submission
+        member_submission = VettingMemberSubmission(
+            event_id=event_id,
+            member_email=current_user.email.lower(),
+            submitted_at=datetime.utcnow()
+        )
+        db.add(member_submission)
+        db.commit()
+
+        logger.info(f"✅ Member {current_user.email} submitted vetting for event {event_id}")
+
+        # Get all committee members
+        committee_members = db.query(VettingCommitteeMember).filter(
+            VettingCommitteeMember.committee_id == committee.id
+        ).all()
+        member_emails = [m.email.lower() for m in committee_members]
+
+        # Get all submissions for this event
+        submissions = db.query(VettingMemberSubmission).filter(
+            VettingMemberSubmission.event_id == event_id
+        ).all()
+        submitted_emails = [s.member_email.lower() for s in submissions]
+
+        # Check if all members have submitted
+        all_members_submitted = all(email in submitted_emails for email in member_emails)
+
+        logger.info(f"📊 Submission status: {len(submitted_emails)}/{len(member_emails)} members submitted")
+
         # Mute the submitting member in the vetting chat
         try:
             from app.models.chat import VettingChatRoom, VettingChatMember
@@ -102,19 +119,68 @@ async def submit_vetting(
                     logger.info(f"🔇 Muted {current_user.email} in vetting chat after submission")
         except Exception as mute_error:
             logger.warning(f"Failed to mute member in chat: {mute_error}")
-            # Don't fail the submission if muting fails
 
-        logger.info(f"✅ VETTING SUBMITTED: Event {event.title} by {current_user.email}")
-        logger.info(f"📧 NOTIFYING {len(approvers)} APPROVERS")
+        approvers_notified = 0
 
-        return {
-            "message": "Vetting submitted successfully",
-            "status": "submitted",
-            "approvers_notified": len(approvers)
-        }
-        
+        # Only change status and notify approvers when ALL members have submitted
+        if all_members_submitted:
+            committee.status = VettingStatus.PENDING_APPROVAL
+            committee.submitted_at = datetime.utcnow()
+            committee.submitted_by = current_user.email  # Last submitter
+            db.commit()
+
+            logger.info(f"✅ ALL MEMBERS SUBMITTED: Changing status to PENDING_APPROVAL")
+
+            # Find vetting approvers for this event
+            if committee.approver_id:
+                approver = db.query(User).filter(User.id == committee.approver_id).first()
+                approvers = [approver] if approver else []
+            else:
+                from app.models.user_roles import UserRole
+                approver_role_records = db.query(UserRole).filter(
+                    UserRole.role == "VETTING_APPROVER"
+                ).all()
+                approver_ids = [record.user_id for record in approver_role_records]
+                approvers = db.query(User).filter(
+                    User.id.in_(approver_ids)
+                ).all()
+
+            # Send email notification to approvers
+            for approver in approvers:
+                background_tasks.add_task(
+                    send_vetting_notification,
+                    approver.email,
+                    event.title,
+                    f"All committee members ({len(member_emails)})"
+                )
+                approvers_notified += 1
+
+            logger.info(f"📧 NOTIFYING {approvers_notified} APPROVERS")
+
+            return {
+                "message": "All committee members have submitted. Vetting is now pending approval!",
+                "status": "pending_approval",
+                "all_members_submitted": True,
+                "approvers_notified": approvers_notified,
+                "submitted_count": len(submitted_emails),
+                "total_members": len(member_emails)
+            }
+        else:
+            return {
+                "message": "Your vetting has been submitted. Waiting for other committee members.",
+                "status": "submitted",
+                "all_members_submitted": False,
+                "approvers_notified": 0,
+                "submitted_count": len(submitted_emails),
+                "total_members": len(member_emails)
+            }
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ VETTING SUBMISSION ERROR: {str(e)}")
+        import traceback
+        logger.error(f"❌ TRACEBACK: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to submit vetting")
 
 @router.get("/events/{event_id}/vetting/status")

@@ -806,7 +806,33 @@ def cancel_submission(
     committee.status = VettingStatus.OPEN
     committee.submitted_at = None
     committee.submitted_by = None
-    
+
+    # Clear all member submissions so they can submit again
+    from app.models.vetting_member_selection import VettingMemberSubmission
+    db.query(VettingMemberSubmission).filter(
+        VettingMemberSubmission.event_id == committee.event_id
+    ).delete(synchronize_session=False)
+
+    # Unmute all members in the vetting chat
+    try:
+        from app.models.chat import VettingChatRoom, VettingChatMember
+        vetting_chat = db.query(VettingChatRoom).filter(
+            VettingChatRoom.event_id == committee.event_id
+        ).first()
+
+        if vetting_chat:
+            db.query(VettingChatMember).filter(
+                VettingChatMember.vetting_chat_id == vetting_chat.id,
+                VettingChatMember.muted_reason == "submitted_vetting"
+            ).update({
+                "can_send_messages": True,
+                "muted_at": None,
+                "muted_reason": None
+            }, synchronize_session=False)
+    except Exception as e:
+        # Don't fail if chat unmuting fails
+        pass
+
     db.commit()
     db.refresh(committee)
     return committee

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from app.db.database import get_db
 from app.models import VettingMemberSelection, VettingCommittee, EventParticipant, VettingMemberComment
+from app.models.vetting_member_selection import VettingMemberSubmission
 from app.schemas.vetting_member_selection import (
     VettingMemberSelectionCreate, VettingMemberSelectionResponse,
     VettingMemberCommentCreate, VettingMemberCommentResponse, VettingMemberCommentsListResponse
@@ -239,6 +240,28 @@ def get_vetting_selections_summary(
             "updated_at": selection.updated_at.isoformat() if selection.updated_at else None
         }
 
+    # Get member submissions to track who has submitted
+    member_submissions_query = db.query(VettingMemberSubmission).filter(
+        VettingMemberSubmission.event_id == event_id
+    ).all()
+
+    # Create a dict of email -> submitted status
+    member_submissions: Dict[str, bool] = {}
+    for member in committee_members:
+        member_email = member["email"].lower()
+        member_submissions[member_email] = any(
+            sub.member_email.lower() == member_email
+            for sub in member_submissions_query
+        )
+
+    # Check if current user has submitted
+    current_user_has_submitted = current_user.email.lower() in [
+        sub.member_email.lower() for sub in member_submissions_query
+    ]
+
+    # Check if all members have submitted
+    all_members_submitted = all(member_submissions.values()) if member_submissions else False
+
     return {
         "event_id": event_id,
         "committee_status": vetting_committee.status.value,
@@ -246,7 +269,10 @@ def get_vetting_selections_summary(
         "selections_by_participant": selections_by_participant,
         "current_user_email": current_user.email,
         "current_user_is_member": is_member,
-        "current_user_is_approver": is_approver
+        "current_user_is_approver": is_approver,
+        "member_submissions": member_submissions,
+        "current_user_has_submitted": current_user_has_submitted,
+        "all_members_submitted": all_members_submitted
     }
 
 
