@@ -75,6 +75,7 @@ def get_my_profile(
             passport_expiry_date=getattr(full_user, 'passport_expiry_date', None),
             whatsapp_number=getattr(full_user, 'whatsapp_number', None),
             email_work=getattr(full_user, 'email_work', None),
+            avatar_url=getattr(full_user, 'avatar_url', None),
             
             # Timestamps
             last_login=getattr(full_user, 'last_login', None),
