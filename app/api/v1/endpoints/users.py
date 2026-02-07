@@ -251,13 +251,37 @@ def create_staff_user(
     
     # Check if user already exists
     existing_user = crud.user.get_by_email(db, email=email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists"
-        )
     
-    # Create user with STAFF role
+    if existing_user:
+        # User exists, add them to this tenant with STAFF role
+        from app.models.user_roles import UserRole as UserRoleModel
+        
+        # Check if user already has STAFF role in this tenant
+        existing_role = db.query(UserRoleModel).filter(
+            UserRoleModel.user_id == existing_user.id,
+            UserRoleModel.role == "STAFF",
+            UserRoleModel.tenant_id == tenant_id
+        ).first()
+        
+        if existing_role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already has STAFF role in this tenant"
+            )
+        
+        # Add STAFF role for this tenant
+        staff_role = UserRoleModel(
+            user_id=existing_user.id,
+            role="STAFF",
+            tenant_id=tenant_id
+        )
+        db.add(staff_role)
+        db.commit()
+        db.refresh(existing_user)
+        
+        return existing_user
+    
+    # Create new user with STAFF role
     from app.core.security import get_password_hash
     import secrets
     from app.models.user import AuthProvider
