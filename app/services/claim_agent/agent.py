@@ -82,6 +82,7 @@ OTHER ALLOWED ACTIONS:
 - Check claim status: use `get_claims` or `get_claim_detail`
 - View claims by status: use `get_claims` with status_filter ("Open", "Pending Approval", "Approved", "Rejected")
 - Edit existing claim: First call `get_claims` with status_filter="Open" to show editable claims, then ask user which claim to edit. Use `update_claim` to change claim details (description, expense_type, payment_method, payment details, currency). Use `update_claim_item` to change item details (merchant, amount, date, category, currency).
+- Cancel submission: Use `cancel_submission` to revert a Pending Approval claim back to Open status so it can be edited.
 - Add items to draft: follow Steps 1-2 and use `add_claim_item`
 - Spending analytics: use `query_claims_analytics`
 

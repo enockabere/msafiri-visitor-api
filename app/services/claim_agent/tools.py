@@ -401,6 +401,38 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             return {"error": f"Failed to submit claim: {str(e)}"}
 
     @tool
+    def cancel_submission(claim_id: int) -> dict:
+        """Cancel a submitted claim and revert it back to Open status for editing.
+
+        Args:
+            claim_id: The ID of the Pending Approval claim to cancel.
+        """
+        try:
+            claim = db.query(Claim).filter(
+                Claim.id == claim_id, Claim.user_id == user_id
+            ).first()
+            if not claim:
+                return {"error": f"Claim {claim_id} not found or does not belong to you."}
+            if claim.status != "Pending Approval":
+                return {"error": f"Claim {claim_id} is {claim.status}. Only Pending Approval claims can be cancelled."}
+
+            claim.status = "Open"
+            claim.submitted_at = None
+            db.flush()
+            db.refresh(claim)
+
+            return {
+                "claim_id": claim.id,
+                "status": "Open",
+                "total_amount": float(claim.total_amount or 0),
+                "message": "Submission cancelled. Claim is now Open and can be edited.",
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error cancelling submission: {e}")
+            return {"error": f"Failed to cancel submission: {str(e)}"}
+
+    @tool
     def extract_receipt(image_url: str) -> dict:
         """Extract merchant name, amount, date, and line items from a receipt image using OCR.
 
@@ -550,6 +582,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         get_claims,
         get_claim_detail,
         submit_claim,
+        cancel_submission,
         extract_receipt,
         query_claims_analytics,
     ]
