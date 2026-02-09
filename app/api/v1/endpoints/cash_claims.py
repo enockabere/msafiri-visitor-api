@@ -149,6 +149,38 @@ async def submit_claim(
     
     return claim
 
+@router.put("/{claim_id}/cancel-submission", response_model=ClaimResponse)
+async def cancel_claim_submission(
+    claim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel claim submission and revert to Open status"""
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.user_id == current_user.id
+    ).first()
+    
+    if not claim:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found"
+        )
+    
+    if claim.status != "Pending Approval":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only cancel Pending Approval claims"
+        )
+
+    claim.status = "Open"
+    claim.submitted_at = None
+    
+    db.commit()
+    db.refresh(claim)
+    
+    return claim
+
 print(f"🔄 Defining test endpoint...")
 
 @router.get("/test-endpoint")

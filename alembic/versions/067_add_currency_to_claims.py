@@ -19,11 +19,11 @@ depends_on = None
 def upgrade():
     # Add currency column to claims table
     op.add_column('claims', sa.Column('currency', sa.String(length=3), nullable=True))
-    op.execute("UPDATE claims SET currency = 'USD' WHERE currency IS NULL")
+    op.execute("UPDATE claims SET currency = 'KES' WHERE currency IS NULL")
     
     # Add currency column to claim_items table
     op.add_column('claim_items', sa.Column('currency', sa.String(length=3), nullable=True))
-    op.execute("UPDATE claim_items SET currency = 'USD' WHERE currency IS NULL")
+    op.execute("UPDATE claim_items SET currency = 'KES' WHERE currency IS NULL")
 
 
 def downgrade():

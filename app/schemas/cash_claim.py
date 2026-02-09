@@ -6,7 +6,7 @@ from decimal import Decimal
 class ClaimItemBase(BaseModel):
     merchant_name: Optional[str] = None
     amount: Decimal
-    currency: Optional[str] = "USD"
+    currency: Optional[str] = "KES"
     date: Optional[datetime] = None
     category: Optional[str] = None
     receipt_image_url: Optional[str] = None
@@ -25,7 +25,7 @@ class ClaimItemResponse(ClaimItemBase):
 class ClaimBase(BaseModel):
     description: Optional[str] = None
     total_amount: Optional[Decimal] = Field(default=0.0)
-    currency: Optional[str] = "USD"
+    currency: Optional[str] = "KES"
     expense_type: Optional[str] = None
     payment_method: Optional[str] = None
     cash_pickup_date: Optional[datetime] = None

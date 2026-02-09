@@ -10,7 +10,7 @@ class Claim(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String(50), default="draft")
     total_amount = Column(Numeric(10, 2), default=0.0)
-    currency = Column(String(3), default="USD")  # ISO 4217 currency code
+    currency = Column(String(3), default="KES")  # ISO 4217 currency code
     description = Column(Text)
     expense_type = Column(String(50))  # MEDICAL, OPERATIONAL, TRAVEL
     payment_method = Column(String(50))  # CASH, BANK, MPESA
@@ -39,7 +39,7 @@ class ClaimItem(Base):
     claim_id = Column(Integer, ForeignKey("claims.id"), nullable=False)
     merchant_name = Column(String(255))
     amount = Column(Numeric(10, 2), nullable=False)
-    currency = Column(String(3), default="USD")  # ISO 4217 currency code
+    currency = Column(String(3), default="KES")  # ISO 4217 currency code
     date = Column(DateTime(timezone=True))
     category = Column(String(100))
     receipt_image_url = Column(Text)
