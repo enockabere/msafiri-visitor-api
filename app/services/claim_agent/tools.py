@@ -170,15 +170,15 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         bank_account: Optional[str] = None,
         currency: Optional[str] = None,
     ) -> dict:
-        """Update an existing Open claim's details.
+        """Update an existing Open claim's details including payment date and time.
 
         Args:
             claim_id: The ID of the claim to update.
             description: New description (optional).
             expense_type: New expense type - MEDICAL, OPERATIONAL, or TRAVEL (optional).
             payment_method: New payment method - CASH, MPESA, or BANK (optional).
-            cash_pickup_date: New cash pickup date in YYYY-MM-DD format (optional).
-            cash_hours: New cash pickup time - MORNING or AFTERNOON (optional).
+            cash_pickup_date: New cash pickup date in YYYY-MM-DD format (optional). Can be updated anytime for CASH payment.
+            cash_hours: New cash pickup time - MORNING or AFTERNOON (optional). Can be updated anytime for CASH payment.
             mpesa_number: New M-Pesa phone number (optional).
             bank_account: New bank account number (optional).
             currency: New currency code like KES, USD, EUR (optional).
@@ -199,20 +199,24 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             claim.currency = currency
         if payment_method:
             claim.payment_method = payment_method
-            if payment_method == "CASH":
-                if cash_pickup_date:
-                    try:
-                        claim.cash_pickup_date = datetime.strptime(cash_pickup_date, "%Y-%m-%d")
-                    except ValueError:
-                        pass
-                if cash_hours:
-                    claim.cash_hours = cash_hours
-            elif payment_method == "MPESA":
-                if mpesa_number:
-                    claim.mpesa_number = mpesa_number
-            elif payment_method == "BANK":
-                if bank_account:
-                    claim.bank_account = bank_account
+        
+        # Handle payment details updates
+        if claim.payment_method == "CASH" or payment_method == "CASH":
+            if cash_pickup_date:
+                try:
+                    claim.cash_pickup_date = datetime.strptime(cash_pickup_date, "%Y-%m-%d")
+                except ValueError:
+                    return {"error": "Invalid date format. Use YYYY-MM-DD."}
+            if cash_hours:
+                claim.cash_hours = cash_hours
+        
+        if claim.payment_method == "MPESA" or payment_method == "MPESA":
+            if mpesa_number:
+                claim.mpesa_number = mpesa_number
+        
+        if claim.payment_method == "BANK" or payment_method == "BANK":
+            if bank_account:
+                claim.bank_account = bank_account
 
         db.commit()
         db.refresh(claim)
@@ -224,6 +228,10 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             "status": claim.status,
             "expense_type": claim.expense_type,
             "payment_method": claim.payment_method,
+            "cash_pickup_date": claim.cash_pickup_date.isoformat() if claim.cash_pickup_date else None,
+            "cash_hours": claim.cash_hours,
+            "mpesa_number": claim.mpesa_number,
+            "bank_account": claim.bank_account,
             "message": "Claim updated successfully.",
         }
 
