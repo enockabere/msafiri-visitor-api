@@ -9,6 +9,9 @@ from .user import (
     # Base schemas
     User, UserCreate, UserUpdate, UserInDB, UserSSO, UserBase,
     
+    # Tenant roles
+    TenantRoleSchema,
+    
     # Profile management
     UserProfile, UserProfileUpdate, UserProfileBasic, ExtendedUserProfile,
     ProfileCompletion, SecurityStatus, ActivityInfo,
@@ -90,6 +93,9 @@ __all__ = [
     
     # User core schemas
     "User", "UserCreate", "UserUpdate", "UserInDB", "UserSSO", "UserBase",
+    
+    # Tenant roles
+    "TenantRoleSchema",
     
     # Profile management
     "UserProfile", "UserProfileUpdate", "UserProfileBasic", "ExtendedUserProfile",
