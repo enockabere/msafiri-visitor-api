@@ -372,27 +372,33 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         Args:
             claim_id: The ID of the draft claim to submit.
         """
-        claim = db.query(Claim).filter(
-            Claim.id == claim_id, Claim.user_id == user_id
-        ).first()
-        if not claim:
-            return {"error": f"Claim {claim_id} not found or does not belong to you."}
-        if claim.status not in ("draft", "Open"):
-            return {"error": f"Claim {claim_id} is already {claim.status}."}
-        if not claim.items:
-            return {"error": "Cannot submit a claim with no items. Please add at least one expense item first."}
+        try:
+            claim = db.query(Claim).filter(
+                Claim.id == claim_id, Claim.user_id == user_id
+            ).first()
+            if not claim:
+                return {"error": f"Claim {claim_id} not found or does not belong to you."}
+            if claim.status not in ("draft", "Open"):
+                return {"error": f"Claim {claim_id} is already {claim.status}."}
+            if not claim.items:
+                return {"error": "Cannot submit a claim with no items. Please add at least one expense item first."}
 
-        claim.status = "Pending Approval"
-        claim.submitted_at = datetime.utcnow()
-        db.commit()
+            claim.status = "Pending Approval"
+            claim.submitted_at = datetime.utcnow()
+            db.flush()
+            db.refresh(claim)
 
-        return {
-            "claim_id": claim.id,
-            "status": "Pending Approval",
-            "submitted_at": claim.submitted_at.isoformat(),
-            "total_amount": float(claim.total_amount or 0),
-            "message": "Claim submitted successfully and is now Pending Approval.",
-        }
+            return {
+                "claim_id": claim.id,
+                "status": "Pending Approval",
+                "submitted_at": claim.submitted_at.isoformat(),
+                "total_amount": float(claim.total_amount or 0),
+                "message": "Claim submitted successfully and is now Pending Approval.",
+            }
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error submitting claim: {e}")
+            return {"error": f"Failed to submit claim: {str(e)}"}
 
     @tool
     def extract_receipt(image_url: str) -> dict:
