@@ -154,11 +154,6 @@ async def run_agent(
     """
     from datetime import date
 
-    logger.info(f"💬 CLAIM AGENT: User {user_id} message: '{user_message}'")
-    if image_url:
-        logger.info(f"🖼️ CLAIM AGENT: Image attached: {image_url}")
-    logger.info(f"📜 CLAIM AGENT: History length: {len(message_history)} messages")
-
     graph = build_agent_graph(db, user_id)
 
     # Build messages list starting with system prompt
@@ -210,9 +205,7 @@ async def run_agent(
     messages.append(HumanMessage(content=content_text))
 
     # Run the agent graph
-    logger.info(f"🤖 CLAIM AGENT: Running agent with {len(messages)} total messages")
     result = await _invoke_graph(graph, messages)
-    logger.info(f"✅ CLAIM AGENT: Agent completed")
 
     # Extract the final response and any tool results
     response_text = ""
@@ -241,11 +234,6 @@ async def run_agent(
 
     if not response_text:
         response_text = "I've processed your request. Is there anything else you'd like to do?"
-
-    logger.info(f"💬 CLAIM AGENT: Response: '{response_text}'")
-    logger.info(f"🔧 CLAIM AGENT: Tool results count: {len(tool_results)}")
-    for tr in tool_results:
-        logger.info(f"🔧 CLAIM AGENT: Tool {tr.get('tool_name')}: {tr.get('result')}")
 
     return {
         "response": response_text,
