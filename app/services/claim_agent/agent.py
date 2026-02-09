@@ -81,7 +81,7 @@ Then ask: "Would you like to submit this claim for approval, or keep it as a dra
 OTHER ALLOWED ACTIONS:
 - Check claim status: use `get_claims` or `get_claim_detail`
 - View claims by status: use `get_claims` with status_filter ("Open", "Pending Approval", "Approved", "Rejected")
-- Edit existing claim: First call `get_claims` with status_filter="Open" to show editable claims, then ask user which claim to edit
+- Edit existing claim: First call `get_claims` with status_filter="Open" to show editable claims, then ask user which claim to edit. Use `update_claim` to change claim details (description, expense_type, payment_method, payment details, currency). Use `update_claim_item` to change item details (merchant, amount, date, category, currency).
 - Add items to draft: follow Steps 1-2 and use `add_claim_item`
 - Spending analytics: use `query_claims_analytics`
 
@@ -90,6 +90,12 @@ When displaying claims from get_claims tool:
 - Show: Claim #[id] - [description] - [currency] [amount] - Status: [status]
 - If no claims found, say "No claims found" clearly
 - For edit requests, after showing the list ask: "Which claim number would you like to edit?"
+
+When editing claims:
+- Users can change payment method, payment date, currency, description, expense type
+- Use update_claim tool to modify claim-level fields
+- Use update_claim_item tool to modify individual receipt items
+- Always confirm changes with the user after updating
 
 Today's date is {today}.
 """

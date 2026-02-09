@@ -159,6 +159,140 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         }
 
     @tool
+    def update_claim(
+        claim_id: int,
+        description: Optional[str] = None,
+        expense_type: Optional[str] = None,
+        payment_method: Optional[str] = None,
+        cash_pickup_date: Optional[str] = None,
+        cash_hours: Optional[str] = None,
+        mpesa_number: Optional[str] = None,
+        bank_account: Optional[str] = None,
+        currency: Optional[str] = None,
+    ) -> dict:
+        """Update an existing Open claim's details.
+
+        Args:
+            claim_id: The ID of the claim to update.
+            description: New description (optional).
+            expense_type: New expense type - MEDICAL, OPERATIONAL, or TRAVEL (optional).
+            payment_method: New payment method - CASH, MPESA, or BANK (optional).
+            cash_pickup_date: New cash pickup date in YYYY-MM-DD format (optional).
+            cash_hours: New cash pickup time - MORNING or AFTERNOON (optional).
+            mpesa_number: New M-Pesa phone number (optional).
+            bank_account: New bank account number (optional).
+            currency: New currency code like KES, USD, EUR (optional).
+        """
+        claim = db.query(Claim).filter(
+            Claim.id == claim_id, Claim.user_id == user_id
+        ).first()
+        if not claim:
+            return {"error": f"Claim {claim_id} not found or does not belong to you."}
+        if claim.status not in ("draft", "Open"):
+            return {"error": f"Claim {claim_id} is {claim.status} and cannot be modified. Only Open claims can be edited."}
+
+        if description:
+            claim.description = description
+        if expense_type:
+            claim.expense_type = expense_type
+        if currency:
+            claim.currency = currency
+        if payment_method:
+            claim.payment_method = payment_method
+            if payment_method == "CASH":
+                if cash_pickup_date:
+                    try:
+                        claim.cash_pickup_date = datetime.strptime(cash_pickup_date, "%Y-%m-%d")
+                    except ValueError:
+                        pass
+                if cash_hours:
+                    claim.cash_hours = cash_hours
+            elif payment_method == "MPESA":
+                if mpesa_number:
+                    claim.mpesa_number = mpesa_number
+            elif payment_method == "BANK":
+                if bank_account:
+                    claim.bank_account = bank_account
+
+        db.commit()
+        db.refresh(claim)
+        return {
+            "claim_id": claim.id,
+            "description": claim.description,
+            "total_amount": float(claim.total_amount),
+            "currency": claim.currency,
+            "status": claim.status,
+            "expense_type": claim.expense_type,
+            "payment_method": claim.payment_method,
+            "message": "Claim updated successfully.",
+        }
+
+    @tool
+    def update_claim_item(
+        item_id: int,
+        merchant_name: Optional[str] = None,
+        amount: Optional[float] = None,
+        date: Optional[str] = None,
+        category: Optional[str] = None,
+        currency: Optional[str] = None,
+    ) -> dict:
+        """Update an existing claim item.
+
+        Args:
+            item_id: The ID of the item to update.
+            merchant_name: New merchant name (optional).
+            amount: New amount (optional).
+            date: New date in YYYY-MM-DD format (optional).
+            category: New category (optional).
+            currency: New currency code like KES, USD, EUR (optional).
+        """
+        item = db.query(ClaimItem).join(Claim).filter(
+            ClaimItem.id == item_id, Claim.user_id == user_id
+        ).first()
+        if not item:
+            return {"error": f"Item {item_id} not found or does not belong to you."}
+        
+        claim = item.claim
+        if claim.status not in ("draft", "Open"):
+            return {"error": f"Cannot modify items in a {claim.status} claim. Only Open claims can be edited."}
+
+        if merchant_name:
+            item.merchant_name = merchant_name
+        if amount is not None:
+            item.amount = amount
+        if date:
+            try:
+                item.date = datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                pass
+        if category:
+            item.category = category
+        if currency:
+            item.currency = currency
+
+        # Recalculate claim total
+        claim.total_amount = (
+            db.query(func.sum(ClaimItem.amount))
+            .filter(ClaimItem.claim_id == claim.id)
+            .scalar()
+            or 0
+        )
+        db.commit()
+        db.refresh(item)
+
+        return {
+            "item_id": item.id,
+            "claim_id": claim.id,
+            "merchant_name": item.merchant_name,
+            "amount": float(item.amount),
+            "currency": item.currency,
+            "date": item.date.isoformat() if item.date else None,
+            "category": item.category,
+            "new_claim_total": float(claim.total_amount),
+            "message": "Item updated successfully.",
+        }
+
+    @tool
     def get_claims(status_filter: Optional[str] = None) -> dict:
         """Get the user's expense claims, optionally filtered by status.
 
@@ -397,6 +531,8 @@ def get_claim_tools(db: Session, user_id: int) -> list:
     return [
         create_claim,
         add_claim_item,
+        update_claim,
+        update_claim_item,
         get_claims,
         get_claim_detail,
         submit_claim,
