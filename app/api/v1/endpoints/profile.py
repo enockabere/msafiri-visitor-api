@@ -24,8 +24,13 @@ def get_my_profile(
     """Get current user's detailed profile"""
     
     try:
-        # Get full user object with all profile fields
-        full_user = crud.user.get(db, id=current_user.id)
+        from sqlalchemy.orm import joinedload
+        
+        # Get full user object with all profile fields and eagerly load user_roles
+        full_user = db.query(crud.user.model).options(
+            joinedload(crud.user.model.user_roles)
+        ).filter(crud.user.model.id == current_user.id).first()
+        
         if not full_user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
