@@ -46,6 +46,18 @@ def get_my_profile(
                     password_changed_tz = full_user.password_changed_at
                 password_age_days = (now_tz - password_changed_tz).days
         
+        # Get tenant roles
+        tenant_roles = []
+        if hasattr(full_user, 'user_roles') and full_user.user_roles:
+            tenant_roles = [
+                schemas.TenantRoleSchema(
+                    tenant_slug=ur.tenant_id,
+                    role=ur.role.value if hasattr(ur.role, 'value') else str(ur.role)
+                )
+                for ur in full_user.user_roles
+                if ur.tenant_id  # Only include tenant-specific roles
+            ]
+        
         # Create UserProfile response with safe defaults
         return schemas.UserProfile(
             # Core identification
@@ -76,6 +88,9 @@ def get_my_profile(
             whatsapp_number=getattr(full_user, 'whatsapp_number', None),
             email_work=getattr(full_user, 'email_work', None),
             avatar_url=getattr(full_user, 'avatar_url', None),
+            
+            # Tenant roles
+            tenant_roles=tenant_roles if tenant_roles else None,
             
             # Timestamps
             last_login=getattr(full_user, 'last_login', None),

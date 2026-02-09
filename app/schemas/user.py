@@ -5,6 +5,18 @@ from datetime import datetime, date
 from app.models.user import UserRole, AuthProvider, UserStatus, Gender
 
 # ==========================================
+# TENANT ROLE SCHEMA
+# ==========================================
+
+class TenantRoleSchema(BaseModel):
+    """Schema for user tenant roles"""
+    tenant_slug: str
+    role: str
+    
+    class Config:
+        from_attributes = True
+
+# ==========================================
 # BASE SCHEMAS
 # ==========================================
 
@@ -209,6 +221,9 @@ class UserProfile(BaseModel):
     whatsapp_number: Optional[str] = None
     email_work: Optional[str] = None
     avatar_url: Optional[str] = None
+    
+    # Tenant roles
+    tenant_roles: Optional[List[TenantRoleSchema]] = None
     
     # Timestamps and metadata
     last_login: Optional[datetime] = None
