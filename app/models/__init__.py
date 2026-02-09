@@ -34,6 +34,10 @@ from .vetting_member_selection import VettingMemberSelection, VettingMemberComme
 from .form_field import FormField, FormResponse
 from .code_of_conduct import CodeOfConduct
 from .cash_claim import Claim, ClaimItem
+from .travel_request import (
+    TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
+    TravelRequestStatus, TransportMode, MessageSenderType, DocumentType
+)
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole",
@@ -48,5 +52,7 @@ __all__ = [
     "NewsUpdate", "NewsCategory", "ChatRoom", "ChatMessage", "DirectMessage", "ChatType", "VettingChatRoom", "VettingChatMember",
     "FlightItinerary", "TransportRequest", "Invitation", "PassportRecord", "AppFeedback", "TravelChecklistProgress",
     "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus", "VettingCommitteeApprover", "VettingMemberSelection", "VettingMemberComment", "VettingMemberSubmission",
-    "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem"
+    "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem",
+    "TravelRequest", "TravelRequestDestination", "TravelRequestMessage", "TravelRequestDocument",
+    "TravelRequestStatus", "TransportMode", "MessageSenderType", "DocumentType"
 ]

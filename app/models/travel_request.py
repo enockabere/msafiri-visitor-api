@@ -1,0 +1,131 @@
+"""Travel request models for managing travel booking requests."""
+import uuid
+from datetime import datetime
+from enum import Enum as PyEnum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date, Enum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
+from app.db.base_class import Base
+
+
+class TravelRequestStatus(str, PyEnum):
+    """Status options for travel requests."""
+    DRAFT = "draft"
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    COMPLETED = "completed"
+
+
+class TransportMode(str, PyEnum):
+    """Transport mode options."""
+    FLIGHT = "flight"
+    BUS = "bus"
+    TRAIN = "train"
+    CAR = "car"
+    OTHER = "other"
+
+
+class MessageSenderType(str, PyEnum):
+    """Sender type for chat messages."""
+    USER = "user"
+    ADMIN = "admin"
+    SYSTEM = "system"
+
+
+class DocumentType(str, PyEnum):
+    """Document type options."""
+    TICKET = "ticket"
+    ITINERARY = "itinerary"
+    BOARDING_PASS = "boarding_pass"
+    OTHER = "other"
+
+
+class TravelRequest(Base):
+    """Travel request model."""
+    __tablename__ = "travel_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    purpose = Column(Text, nullable=True)
+    status = Column(
+        Enum(TravelRequestStatus),
+        default=TravelRequestStatus.DRAFT,
+        nullable=False,
+        index=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    submitted_at = Column(DateTime, nullable=True)
+    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
+    rejected_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    rejected_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    user = relationship("User", foreign_keys=[user_id], backref="travel_requests")
+    approver = relationship("User", foreign_keys=[approved_by])
+    rejector = relationship("User", foreign_keys=[rejected_by])
+    destinations = relationship("TravelRequestDestination", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestDestination.order")
+    messages = relationship("TravelRequestMessage", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestMessage.created_at")
+    documents = relationship("TravelRequestDocument", back_populates="travel_request", cascade="all, delete-orphan")
+
+
+class TravelRequestDestination(Base):
+    """Destination leg for a travel request."""
+    __tablename__ = "travel_request_destinations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    origin = Column(String(255), nullable=False)
+    destination = Column(String(255), nullable=False)
+    departure_date = Column(Date, nullable=False)
+    return_date = Column(Date, nullable=True)
+    transport_mode = Column(Enum(TransportMode), default=TransportMode.FLIGHT, nullable=False)
+    notes = Column(Text, nullable=True)
+    order = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    travel_request = relationship("TravelRequest", back_populates="destinations")
+
+
+class TravelRequestMessage(Base):
+    """Chat message for a travel request."""
+    __tablename__ = "travel_request_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    sender_type = Column(Enum(MessageSenderType), default=MessageSenderType.USER, nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    travel_request = relationship("TravelRequest", back_populates="messages")
+    sender = relationship("User")
+
+
+class TravelRequestDocument(Base):
+    """Document/ticket attached to a travel request."""
+    __tablename__ = "travel_request_documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    document_type = Column(Enum(DocumentType), default=DocumentType.TICKET, nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_url = Column(String(1024), nullable=False)
+    file_size = Column(Integer, nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    travel_request = relationship("TravelRequest", back_populates="documents")
+    uploader = relationship("User")

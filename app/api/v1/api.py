@@ -875,6 +875,14 @@ api_router.include_router(
     tags=["vetting-chat"]
 )
 
+# Approval workflows (approvers setup)
+from app.api.v1.endpoints import approvers
+api_router.include_router(
+    approvers.router,
+    prefix="/approvers",
+    tags=["approvers"]
+)
+
 # Test endpoint for cash claims
 @api_router.get("/cash-claims/test")
 def test_cash_claims():
@@ -981,6 +989,22 @@ def get_event_participant_permissions(
         "vetting_status": vetting_status,
         "can_approve_vetting": can_approve_vetting
     }
+
+# Travel Requests (user endpoints)
+from app.api.v1.endpoints import travel_requests
+api_router.include_router(
+    travel_requests.router,
+    prefix="/travel-requests",
+    tags=["travel-requests"]
+)
+
+# Travel Requests (admin endpoints)
+from app.api.v1.endpoints import admin_travel_requests
+api_router.include_router(
+    admin_travel_requests.router,
+    prefix="/admin/travel-requests",
+    tags=["admin-travel-requests"]
+)
 
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])
