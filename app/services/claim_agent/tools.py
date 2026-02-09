@@ -159,28 +159,35 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         }
 
     @tool
-    def get_claims(status_filter: Optional[str] = None) -> list:
+    def get_claims(status_filter: Optional[str] = None) -> dict:
         """Get the user's expense claims, optionally filtered by status.
 
         Args:
-            status_filter: Optional status to filter by (draft, pending, approved, rejected). Pass None for all claims.
+            status_filter: Optional status to filter by (Open, Pending Approval, Approved, Rejected). Pass None for all claims.
         """
         query = db.query(Claim).filter(Claim.user_id == user_id)
         if status_filter:
             query = query.filter(Claim.status == status_filter)
         claims = query.order_by(Claim.created_at.desc()).all()
 
-        return _decimal_to_float([
+        result = _decimal_to_float([
             {
                 "claim_id": c.id,
                 "description": c.description,
                 "total_amount": float(c.total_amount or 0),
+                "currency": c.currency or "KES",
                 "status": c.status,
                 "created_at": c.created_at.isoformat() if c.created_at else None,
                 "items_count": len(c.items),
             }
             for c in claims
         ])
+        
+        return {
+            "claims": result,
+            "count": len(result),
+            "status_filter": status_filter or "all",
+        }
 
     @tool
     def get_claim_detail(claim_id: int) -> dict:
