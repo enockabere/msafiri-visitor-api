@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, date
-from uuid import UUID
 from pydantic import BaseModel, Field
 import logging
 
@@ -51,8 +50,8 @@ class DependantUpdate(BaseModel):
 
 class DependantResponse(DependantBase):
     """Schema for dependant response."""
-    id: UUID
-    user_id: UUID
+    id: int
+    user_id: int
     created_at: datetime
     updated_at: datetime
 
@@ -104,7 +103,7 @@ async def create_dependant(
 
 @router.get("/{dependant_id}", response_model=DependantResponse)
 async def get_dependant(
-    dependant_id: UUID,
+    dependant_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -125,7 +124,7 @@ async def get_dependant(
 
 @router.put("/{dependant_id}", response_model=DependantResponse)
 async def update_dependant(
-    dependant_id: UUID,
+    dependant_id: int,
     dependant_data: DependantUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -153,7 +152,7 @@ async def update_dependant(
 
 @router.delete("/{dependant_id}")
 async def delete_dependant(
-    dependant_id: UUID,
+    dependant_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID
 import logging
 import os
 
@@ -150,7 +149,7 @@ async def create_travel_request(
 
 @router.get("/{request_id}", response_model=TravelRequestDetailResponse)
 async def get_travel_request(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -190,7 +189,7 @@ async def get_travel_request(
 
 @router.put("/{request_id}", response_model=TravelRequestResponse)
 async def update_travel_request(
-    request_id: UUID,
+    request_id: int,
     request_data: TravelRequestUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -224,7 +223,7 @@ async def update_travel_request(
 
 @router.delete("/{request_id}")
 async def delete_travel_request(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -254,7 +253,7 @@ async def delete_travel_request(
 
 @router.post("/{request_id}/submit", response_model=TravelRequestResponse)
 async def submit_travel_request(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -306,7 +305,7 @@ async def submit_travel_request(
 
 @router.post("/{request_id}/destinations", response_model=DestinationResponse)
 async def add_destination(
-    request_id: UUID,
+    request_id: int,
     dest_data: DestinationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -354,8 +353,8 @@ async def add_destination(
 
 @router.put("/{request_id}/destinations/{dest_id}", response_model=DestinationResponse)
 async def update_destination(
-    request_id: UUID,
-    dest_id: UUID,
+    request_id: int,
+    dest_id: int,
     dest_data: DestinationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -400,8 +399,8 @@ async def update_destination(
 
 @router.delete("/{request_id}/destinations/{dest_id}")
 async def delete_destination(
-    request_id: UUID,
-    dest_id: UUID,
+    request_id: int,
+    dest_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -444,7 +443,7 @@ async def delete_destination(
 
 @router.get("/{request_id}/messages", response_model=List[MessageResponse])
 async def get_messages(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -475,7 +474,7 @@ async def get_messages(
 
 @router.post("/{request_id}/messages", response_model=MessageResponse)
 async def send_message(
-    request_id: UUID,
+    request_id: int,
     message_data: MessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -512,7 +511,7 @@ async def send_message(
 
 @router.get("/{request_id}/documents", response_model=List[DocumentResponse])
 async def get_documents(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

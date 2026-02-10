@@ -1,9 +1,7 @@
 """Travel request models for managing travel booking requests."""
-import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date, Enum
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -62,9 +60,9 @@ class TravelRequest(Base):
     """Travel request model."""
     __tablename__ = "travel_requests"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False, index=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     purpose = Column(Text, nullable=True)
     status = Column(
@@ -76,10 +74,10 @@ class TravelRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     submitted_at = Column(DateTime, nullable=True)
-    approved_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     approved_at = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
-    rejected_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     rejected_at = Column(DateTime, nullable=True)
 
     # Relationships
@@ -97,8 +95,8 @@ class TravelRequestDestination(Base):
     """Destination leg for a travel request."""
     __tablename__ = "travel_request_destinations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
     origin = Column(String(255), nullable=False)
     destination = Column(String(255), nullable=False)
     departure_date = Column(Date, nullable=False)
@@ -117,9 +115,9 @@ class TravelRequestMessage(Base):
     """Chat message for a travel request."""
     __tablename__ = "travel_request_messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
-    sender_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     sender_type = Column(Enum(MessageSenderType), default=MessageSenderType.USER, nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -133,14 +131,14 @@ class TravelRequestDocument(Base):
     """Document/ticket attached to a travel request."""
     __tablename__ = "travel_request_documents"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
     document_type = Column(Enum(DocumentType), default=DocumentType.TICKET, nullable=False)
     file_name = Column(String(255), nullable=False)
     file_url = Column(String(1024), nullable=False)
     file_size = Column(Integer, nullable=True)
     mime_type = Column(String(100), nullable=True)
-    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
@@ -152,8 +150,8 @@ class Dependant(Base):
     """User's dependant (family member) who can travel with them."""
     __tablename__ = "dependants"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     relation_type = Column(Enum(DependantRelationship), nullable=False)
@@ -174,13 +172,13 @@ class TravelRequestTraveler(Base):
     """Traveler in a travel request - can be self, dependant, or staff member."""
     __tablename__ = "travel_request_travelers"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
     traveler_type = Column(Enum(TravelerType), nullable=False)
     # For SELF or STAFF type - reference to users table
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     # For DEPENDANT type - reference to dependants table
-    dependant_id = Column(UUID(as_uuid=True), ForeignKey("dependants.id"), nullable=True)
+    dependant_id = Column(Integer, ForeignKey("dependants.id"), nullable=True)
     # Denormalized fields for quick access
     traveler_name = Column(String(255), nullable=False)
     traveler_email = Column(String(255), nullable=True)

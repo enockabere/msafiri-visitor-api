@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID
 import logging
 import os
 import io
@@ -45,7 +44,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def check_admin_access(current_user: User, tenant_id: UUID):
+def check_admin_access(current_user: User, tenant_id: int):
     """Check if user has admin access to the tenant."""
     # Check if user has admin role for this tenant
     for user_tenant in current_user.user_tenants:
@@ -57,7 +56,7 @@ def check_admin_access(current_user: User, tenant_id: UUID):
 
 @router.get("/", response_model=List[TravelRequestResponse])
 async def get_all_travel_requests(
-    tenant_id: UUID,
+    tenant_id: int,
     status_filter: Optional[TravelRequestStatus] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -92,7 +91,7 @@ async def get_all_travel_requests(
 
 @router.get("/pending", response_model=List[TravelRequestResponse])
 async def get_pending_travel_requests(
-    tenant_id: UUID,
+    tenant_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -116,7 +115,7 @@ async def get_pending_travel_requests(
 
 @router.get("/{request_id}", response_model=TravelRequestDetailResponse)
 async def get_travel_request_admin(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -158,7 +157,7 @@ async def get_travel_request_admin(
 
 @router.post("/{request_id}/approve", response_model=TravelRequestResponse)
 async def approve_travel_request(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -206,7 +205,7 @@ async def approve_travel_request(
 
 @router.post("/{request_id}/reject", response_model=TravelRequestResponse)
 async def reject_travel_request(
-    request_id: UUID,
+    request_id: int,
     rejection: RejectionAction,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -256,7 +255,7 @@ async def reject_travel_request(
 
 @router.post("/{request_id}/messages", response_model=MessageResponse)
 async def send_admin_message(
-    request_id: UUID,
+    request_id: int,
     message_data: MessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -296,7 +295,7 @@ async def send_admin_message(
 
 @router.post("/{request_id}/upload-ticket", response_model=DocumentResponse)
 async def upload_ticket(
-    request_id: UUID,
+    request_id: int,
     file: UploadFile = File(...),
     document_type: DocumentType = DocumentType.TICKET,
     db: Session = Depends(get_db),
@@ -404,7 +403,7 @@ async def upload_ticket(
 
 @router.get("/{request_id}/summary")
 async def download_booking_summary(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -488,7 +487,7 @@ async def download_booking_summary(
 
 @router.post("/{request_id}/complete", response_model=TravelRequestResponse)
 async def complete_travel_request(
-    request_id: UUID,
+    request_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

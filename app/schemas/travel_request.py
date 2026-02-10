@@ -2,7 +2,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
-from uuid import UUID
 from enum import Enum
 
 
@@ -75,8 +74,8 @@ class DestinationUpdate(BaseModel):
 
 class DestinationResponse(DestinationBase):
     """Schema for destination response."""
-    id: UUID
-    travel_request_id: UUID
+    id: int
+    travel_request_id: int
     order: int
     created_at: datetime
     updated_at: datetime
@@ -94,9 +93,9 @@ class MessageCreate(BaseModel):
 
 class MessageResponse(BaseModel):
     """Schema for message response."""
-    id: UUID
-    travel_request_id: UUID
-    sender_id: UUID
+    id: int
+    travel_request_id: int
+    sender_id: int
     sender_type: MessageSenderType
     content: str
     created_at: datetime
@@ -116,14 +115,14 @@ class DocumentCreate(BaseModel):
 
 class DocumentResponse(BaseModel):
     """Schema for document response."""
-    id: UUID
-    travel_request_id: UUID
+    id: int
+    travel_request_id: int
     document_type: DocumentType
     file_name: str
     file_url: str
     file_size: Optional[int] = None
     mime_type: Optional[str] = None
-    uploaded_by: UUID
+    uploaded_by: int
     uploaded_at: datetime
     uploader_name: Optional[str] = None
 
@@ -136,8 +135,8 @@ class DocumentResponse(BaseModel):
 class TravelerCreate(BaseModel):
     """Schema for adding a traveler to a request."""
     traveler_type: TravelerType
-    user_id: Optional[UUID] = None  # For SELF or STAFF
-    dependant_id: Optional[UUID] = None  # For DEPENDANT
+    user_id: Optional[int] = None  # For SELF or STAFF
+    dependant_id: Optional[int] = None  # For DEPENDANT
     traveler_name: str = Field(..., min_length=1, max_length=255)
     traveler_email: Optional[str] = None
     traveler_phone: Optional[str] = None
@@ -146,11 +145,11 @@ class TravelerCreate(BaseModel):
 
 class TravelerResponse(BaseModel):
     """Schema for traveler response."""
-    id: UUID
-    travel_request_id: UUID
+    id: int
+    travel_request_id: int
     traveler_type: TravelerType
-    user_id: Optional[UUID] = None
-    dependant_id: Optional[UUID] = None
+    user_id: Optional[int] = None
+    dependant_id: Optional[int] = None
     traveler_name: str
     traveler_email: Optional[str] = None
     traveler_phone: Optional[str] = None
@@ -171,7 +170,7 @@ class TravelRequestBase(BaseModel):
 
 class TravelRequestCreate(TravelRequestBase):
     """Schema for creating a travel request."""
-    tenant_id: UUID
+    tenant_id: int
     destinations: Optional[List[DestinationCreate]] = None
     travelers: Optional[List[TravelerCreate]] = None
 
@@ -184,17 +183,17 @@ class TravelRequestUpdate(BaseModel):
 
 class TravelRequestResponse(TravelRequestBase):
     """Schema for travel request response."""
-    id: UUID
-    tenant_id: UUID
-    user_id: UUID
+    id: int
+    tenant_id: int
+    user_id: int
     status: TravelRequestStatus
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime] = None
-    approved_by: Optional[UUID] = None
+    approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
     rejection_reason: Optional[str] = None
-    rejected_by: Optional[UUID] = None
+    rejected_by: Optional[int] = None
     rejected_at: Optional[datetime] = None
     user_name: Optional[str] = None
     approver_name: Optional[str] = None
@@ -233,7 +232,7 @@ class RejectionAction(BaseModel):
 
 class TravelRequestSummary(BaseModel):
     """Summary for booking purposes."""
-    id: UUID
+    id: int
     title: str
     purpose: Optional[str]
     user_name: str
