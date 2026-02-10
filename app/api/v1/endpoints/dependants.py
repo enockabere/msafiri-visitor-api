@@ -74,13 +74,15 @@ async def get_my_dependants(
     return dependants
 
 
-@router.post("/", response_model=DependantResponse)
+@router.post("/", response_model=DependantResponse, status_code=status.HTTP_201_CREATED)
 async def create_dependant(
     dependant_data: DependantCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new dependant."""
+    logger.info(f"Creating dependant for user {current_user.id}: {dependant_data.first_name} {dependant_data.last_name}")
+    
     dependant = Dependant(
         user_id=current_user.id,
         first_name=dependant_data.first_name,
@@ -97,6 +99,8 @@ async def create_dependant(
     db.add(dependant)
     db.commit()
     db.refresh(dependant)
+    
+    logger.info(f"Dependant created successfully with ID: {dependant.id}")
 
     return dependant
 
