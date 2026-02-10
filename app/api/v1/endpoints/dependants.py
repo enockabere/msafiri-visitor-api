@@ -90,11 +90,19 @@ async def create_dependant(
 ):
     """Create a new dependant."""
     logger.info(f"Creating dependant for user {current_user.id}: {dependant_data.first_name} {dependant_data.last_name}")
+    logger.info(f"Received relation_type: {dependant_data.relation_type} (type: {type(dependant_data.relation_type)})")
     
-    # Ensure relation_type is a proper enum
+    # Ensure relation_type is a proper enum - convert string to lowercase first
     relation_type = dependant_data.relation_type
     if isinstance(relation_type, str):
+        logger.info(f"Converting string relation_type '{relation_type}' to lowercase")
         relation_type = DependantRelationship(relation_type.lower())
+    elif hasattr(relation_type, 'value'):
+        # It's already an enum, get its value and ensure lowercase
+        logger.info(f"Enum relation_type value: {relation_type.value}")
+        relation_type = DependantRelationship(relation_type.value.lower())
+    
+    logger.info(f"Final relation_type: {relation_type} (type: {type(relation_type)})")
     
     dependant = Dependant(
         user_id=current_user.id,
