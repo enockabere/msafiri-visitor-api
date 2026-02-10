@@ -64,8 +64,8 @@ async def submit_claim_with_workflow(
     if claim.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if claim.status.lower() not in ["draft", "open"]:
-        raise HTTPException(status_code=400, detail="Claim already submitted")
+    if claim.status.lower() not in ["draft", "open", "rejected"]:
+        raise HTTPException(status_code=400, detail="Claim cannot be submitted")
     
     # Get user's tenant
     tenant_id = current_user.tenant_id
@@ -97,6 +97,9 @@ async def submit_claim_with_workflow(
     if not steps:
         raise HTTPException(status_code=400, detail="Workflow has no steps configured")
     
+    # Delete existing approval records if resubmitting
+    db.query(ClaimApproval).filter(ClaimApproval.claim_id == claim.id).delete()
+    
     # Create approval records
     for step in steps:
         approval = ClaimApproval(
@@ -108,9 +111,12 @@ async def submit_claim_with_workflow(
         )
         db.add(approval)
     
-    # Update claim status
+    # Update claim status and clear rejection data
     claim.status = "Pending Approval"
     claim.submitted_at = datetime.utcnow()
+    claim.rejection_reason = None
+    claim.rejected_by = None
+    claim.rejected_at = None
     
     db.commit()
     db.refresh(claim)

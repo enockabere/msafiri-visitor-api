@@ -103,10 +103,10 @@ async def update_claim(
             detail="Claim not found"
         )
     
-    if claim.status not in ("draft", "Open"):
+    if claim.status not in ("draft", "Open", "Rejected"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only update draft/Open claims"
+            detail="Can only update draft/Open/Rejected claims"
         )
     
     for field, value in claim_data.dict(exclude_unset=True).items():
@@ -135,14 +135,17 @@ async def submit_claim(
             detail="Claim not found"
         )
     
-    if claim.status not in ("draft", "Open"):
+    if claim.status not in ("draft", "Open", "Rejected"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only submit draft/Open claims"
+            detail="Can only submit draft/Open/Rejected claims"
         )
 
     claim.status = "Pending Approval"
     claim.submitted_at = datetime.utcnow()
+    claim.rejection_reason = None
+    claim.rejected_by = None
+    claim.rejected_at = None
     
     db.commit()
     db.refresh(claim)
@@ -156,6 +159,8 @@ async def cancel_claim_submission(
     current_user: User = Depends(get_current_user)
 ):
     """Cancel claim submission and revert to Open status"""
+    from app.models.claim_approval import ClaimApproval
+    
     claim = db.query(Claim).filter(
         Claim.id == claim_id,
         Claim.user_id == current_user.id
@@ -171,6 +176,18 @@ async def cancel_claim_submission(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can only cancel Pending Approval claims"
+        )
+    
+    # Check if any approver has already approved or rejected
+    any_action_taken = db.query(ClaimApproval).filter(
+        ClaimApproval.claim_id == claim_id,
+        ClaimApproval.status.in_(["APPROVED", "REJECTED"])
+    ).first()
+    
+    if any_action_taken:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel submission - approval process has already started"
         )
 
     claim.status = "Open"
