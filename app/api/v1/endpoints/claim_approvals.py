@@ -114,5 +114,25 @@ async def submit_claim_with_workflow(
     claim.submitted_at = datetime.utcnow()
     
     db.commit()
+    db.refresh(claim)
     
-    return {"message": "Claim submitted successfully", "workflow_steps": len(steps)}
+    # Return the updated claim in the format expected by mobile app
+    return {
+        "id": claim.id,
+        "user_id": claim.user_id,
+        "description": claim.description,
+        "total_amount": float(claim.total_amount),
+        "currency": claim.currency,
+        "status": claim.status,
+        "expense_type": claim.expense_type,
+        "payment_method": claim.payment_method,
+        "mpesa_number": claim.mpesa_number,
+        "bank_account": claim.bank_account,
+        "cash_pickup_date": claim.cash_pickup_date.isoformat() if claim.cash_pickup_date else None,
+        "cash_hours": claim.cash_hours,
+        "created_at": claim.created_at.isoformat() if claim.created_at else None,
+        "submitted_at": claim.submitted_at.isoformat() if claim.submitted_at else None,
+        "approved_at": claim.approved_at.isoformat() if claim.approved_at else None,
+        "approved_by": claim.approved_by,
+        "items": []
+    }
