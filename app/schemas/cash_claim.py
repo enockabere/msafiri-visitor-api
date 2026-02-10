@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from decimal import Decimal
@@ -55,11 +55,15 @@ class ClaimResponse(ClaimBase):
     created_at: datetime
     submitted_at: Optional[datetime] = None
     approved_at: Optional[datetime] = None
-    approved_by: Optional[int] = None
+    approved_by: Optional[str] = None
     rejection_reason: Optional[str] = None
-    rejected_by: Optional[int] = None
+    rejected_by: Optional[str] = None
     rejected_at: Optional[datetime] = None
     items: List[ClaimItemResponse] = []
+
+    @field_serializer('approved_by', 'rejected_by')
+    def serialize_user_ids(self, value: Optional[int]) -> Optional[str]:
+        return str(value) if value is not None else None
 
     class Config:
         from_attributes = True
