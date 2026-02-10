@@ -24,150 +24,164 @@ def get_user_tenants(
     try:
         from app.models.user_tenants import UserTenant
         from app.models.tenant import Tenant
-        
+        from app.models.user_roles import UserRole as UserRoleModel
+
+        print(f"DEBUG: Getting tenants for user {current_user.email}")
+
+        tenants_found = {}  # Use dict to avoid duplicates, keyed by tenant slug
+
+        # 1. Check user_tenants table
         user_tenants = db.query(UserTenant).join(Tenant).filter(
             UserTenant.user_id == current_user.id,
             UserTenant.is_active == True
         ).all()
-        
-        # Group tenants and collect all roles for each tenant
-        tenant_roles = {}
+
         for ut in user_tenants:
-            tenant_id = ut.tenant_id
-            if tenant_id not in tenant_roles:
-                tenant_roles[tenant_id] = {
-                    "tenant_id": tenant_id,
-                    "tenant_name": ut.tenant.name if ut.tenant else tenant_id,
+            tenant_slug = ut.tenant_id
+            if tenant_slug not in tenants_found:
+                tenants_found[tenant_slug] = {
+                    "id": ut.tenant.id if ut.tenant else None,
+                    "tenant_slug": tenant_slug,
+                    "tenant_name": ut.tenant.name if ut.tenant else tenant_slug,
                     "roles": [],
                     "is_active": ut.is_active,
                     "is_primary": ut.is_primary
                 }
-            
-            # Add role if not already present
             role_value = ut.role.value if ut.role else None
-            if role_value and role_value not in tenant_roles[tenant_id]["roles"]:
-                tenant_roles[tenant_id]["roles"].append(role_value)
-        
-        tenants = []
-        for tenant_data in tenant_roles.values():
-            # Set primary role as the first role, or use the first role available
-            primary_role = tenant_data["roles"][0] if tenant_data["roles"] else None
+            if role_value and role_value not in tenants_found[tenant_slug]["roles"]:
+                tenants_found[tenant_slug]["roles"].append(role_value)
 
-            tenants.append({
-                "tenant_id": tenant_data["tenant_id"],
-                "tenant_slug": tenant_data["tenant_id"],  # Add tenant_slug for frontend compatibility
-                "tenant_name": tenant_data["tenant_name"],
-                "role": primary_role,  # Keep for backward compatibility
-                "roles": tenant_data["roles"],  # All roles for this tenant
-                "is_active": tenant_data["is_active"],
-                "is_primary": tenant_data["is_primary"]
-            })
-        
-        # If user has no tenant associations from user_tenants, check user_roles table
-        if not tenants:
-            from app.models.user_roles import UserRole as UserRoleModel
+        print(f"DEBUG: Found {len(tenants_found)} tenants from user_tenants table")
 
-            # Get all roles with tenant_id from user_roles table
-            user_role_tenants = db.query(UserRoleModel).filter(
-                UserRoleModel.user_id == current_user.id,
-                UserRoleModel.tenant_id.isnot(None)
-            ).all()
+        # 2. Check user_roles table for tenant-specific roles
+        user_role_tenants = db.query(UserRoleModel).filter(
+            UserRoleModel.user_id == current_user.id,
+            UserRoleModel.tenant_id.isnot(None)
+        ).all()
 
-            # Group by tenant_id
-            role_tenant_map = {}
-            for ur in user_role_tenants:
-                if ur.tenant_id not in role_tenant_map:
-                    role_tenant_map[ur.tenant_id] = []
-                role_tenant_map[ur.tenant_id].append(ur.role)
-
-            # Create tenant entries from user_roles
-            for tenant_slug, roles in role_tenant_map.items():
+        for ur in user_role_tenants:
+            tenant_slug = ur.tenant_id
+            if tenant_slug not in tenants_found:
                 tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
                 if tenant:
-                    tenants.append({
-                        "tenant_id": tenant.slug,
-                        "tenant_slug": tenant.slug,
+                    tenants_found[tenant_slug] = {
+                        "id": tenant.id,
+                        "tenant_slug": tenant_slug,
                         "tenant_name": tenant.name,
-                        "role": roles[0] if roles else None,
-                        "roles": roles,
+                        "roles": [],
                         "is_active": True,
-                        "is_primary": tenant.slug == current_user.tenant_id
-                    })
+                        "is_primary": tenant_slug == current_user.tenant_id
+                    }
+            if tenant_slug in tenants_found:
+                role_value = ur.role.value if hasattr(ur.role, 'value') else str(ur.role)
+                if role_value and role_value not in tenants_found[tenant_slug]["roles"]:
+                    tenants_found[tenant_slug]["roles"].append(role_value)
 
-            print(f"DEBUG: Found {len(tenants)} tenants from user_roles table")
+        print(f"DEBUG: Found {len(tenants_found)} tenants after user_roles check")
 
-        # If still no tenants but user has a primary tenant_id (and it's not 'default'), include it
-        if not tenants and current_user.tenant_id and current_user.tenant_id != 'default':
-            tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
-            if tenant:
-                # Include all user roles from session if available
-                user_roles = []
-                if hasattr(current_user, 'all_roles') and current_user.all_roles:
-                    user_roles = current_user.all_roles
-                elif current_user.role:
-                    user_roles = [current_user.role.value]
+        # 3. Check if user is admin_email of any tenant
+        admin_tenants = db.query(Tenant).filter(
+            Tenant.admin_email == current_user.email,
+            Tenant.is_active == True
+        ).all()
 
-                tenants.append({
-                    "tenant_id": tenant.slug,
+        for tenant in admin_tenants:
+            if tenant.slug not in tenants_found:
+                tenants_found[tenant.slug] = {
+                    "id": tenant.id,
                     "tenant_slug": tenant.slug,
                     "tenant_name": tenant.name,
-                    "role": current_user.role.value if current_user.role else None,
-                    "roles": user_roles,
+                    "roles": [],
                     "is_active": True,
-                    "is_primary": True
-                })
-        
-        # If we have tenants but they don't include all session roles, merge them
-        elif tenants and hasattr(current_user, 'all_roles') and current_user.all_roles:
-            print(f"DEBUG: Merging session roles. User: {current_user.email}, Session roles: {current_user.all_roles}")
-            for tenant in tenants:
-                # Add any missing roles from session to each tenant
-                session_roles = current_user.all_roles if isinstance(current_user.all_roles, list) else []
-                existing_roles = tenant.get('roles', [])
-                
-                print(f"DEBUG: Tenant {tenant['tenant_id']} - Existing roles: {existing_roles}, Session roles: {session_roles}")
-                
-                # Merge session roles with existing tenant roles
-                all_roles = list(set(existing_roles + session_roles))
-                tenant['roles'] = all_roles
-                
-                print(f"DEBUG: Merged roles for tenant {tenant['tenant_id']}: {all_roles}")
-                
-                # Update primary role if needed
-                if not tenant.get('role') and all_roles:
-                    tenant['role'] = all_roles[0]
-        
-        print(f"DEBUG: Final tenants response: {tenants}")
-        
+                    "is_primary": tenant.slug == current_user.tenant_id
+                }
+            if "Tenant Administrator" not in tenants_found[tenant.slug]["roles"]:
+                tenants_found[tenant.slug]["roles"].append("Tenant Administrator")
+
+        print(f"DEBUG: Found {len(tenants_found)} tenants after admin_email check")
+
+        # 4. Check if user is contact_email of any tenant
+        contact_tenants = db.query(Tenant).filter(
+            Tenant.contact_email == current_user.email,
+            Tenant.is_active == True
+        ).all()
+
+        for tenant in contact_tenants:
+            if tenant.slug not in tenants_found:
+                tenants_found[tenant.slug] = {
+                    "id": tenant.id,
+                    "tenant_slug": tenant.slug,
+                    "tenant_name": tenant.name,
+                    "roles": [],
+                    "is_active": True,
+                    "is_primary": tenant.slug == current_user.tenant_id
+                }
+            if "Contact" not in tenants_found[tenant.slug]["roles"]:
+                tenants_found[tenant.slug]["roles"].append("Contact")
+
+        # 5. Include user's primary tenant_id if not already found
+        if current_user.tenant_id and current_user.tenant_id != 'default':
+            if current_user.tenant_id not in tenants_found:
+                tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
+                if tenant:
+                    tenants_found[tenant.slug] = {
+                        "id": tenant.id,
+                        "tenant_slug": tenant.slug,
+                        "tenant_name": tenant.name,
+                        "roles": [current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)],
+                        "is_active": True,
+                        "is_primary": True
+                    }
+
+        print(f"DEBUG: Total tenants found: {len(tenants_found)}")
+
+        # Build final response
+        tenants = []
+        for tenant_slug, data in tenants_found.items():
+            primary_role = data["roles"][0] if data["roles"] else None
+            tenants.append({
+                "id": data["id"],
+                "tenant_id": tenant_slug,
+                "tenant_slug": tenant_slug,
+                "tenant_name": data["tenant_name"],
+                "role": primary_role,
+                "roles": data["roles"],
+                "is_active": data["is_active"],
+                "is_primary": data["is_primary"]
+            })
+
+        print(f"DEBUG: Returning {len(tenants)} tenants: {[t['tenant_slug'] for t in tenants]}")
         return tenants
-        
+
     except Exception as e:
         print(f"Error fetching user tenants: {e}")
+        import traceback
+        traceback.print_exc()
         # Fallback: return user's primary tenant if available (and it's not 'default')
         if current_user.tenant_id and current_user.tenant_id != 'default':
             try:
                 from app.models.tenant import Tenant
                 tenant = db.query(Tenant).filter(Tenant.slug == current_user.tenant_id).first()
                 if tenant:
-                    # Include all user roles from session if available
                     user_roles = []
-                    if hasattr(current_user, 'all_roles') and current_user.all_roles:
-                        user_roles = current_user.all_roles
-                    elif current_user.role:
+                    if hasattr(current_user.role, 'value'):
                         user_roles = [current_user.role.value]
+                    elif current_user.role:
+                        user_roles = [str(current_user.role)]
 
                     return [{
+                        "id": tenant.id,
                         "tenant_id": tenant.slug,
                         "tenant_slug": tenant.slug,
                         "tenant_name": tenant.name,
-                        "role": current_user.role.value if current_user.role else None,
+                        "role": user_roles[0] if user_roles else None,
                         "roles": user_roles,
                         "is_active": True,
                         "is_primary": True
                     }]
             except Exception as fallback_error:
                 print(f"Fallback error: {fallback_error}")
-        
+
         return []
 
 @router.post("/set-active-tenant/{tenant_id}")
