@@ -84,7 +84,7 @@ def upgrade() -> None:
         sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
         sa.Column('first_name', sa.String(100), nullable=False),
         sa.Column('last_name', sa.String(100), nullable=False),
-        sa.Column('relationship', sa.Enum('spouse', 'child', 'parent', 'sibling', 'other', name='dependantrelationship'), nullable=False),
+        sa.Column('relation_type', sa.Enum('spouse', 'child', 'parent', 'sibling', 'other', name='dependantrelationship'), nullable=False),
         sa.Column('date_of_birth', sa.Date, nullable=True),
         sa.Column('passport_number', sa.String(50), nullable=True),
         sa.Column('passport_expiry', sa.Date, nullable=True),

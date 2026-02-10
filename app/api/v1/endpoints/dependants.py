@@ -22,7 +22,7 @@ class DependantBase(BaseModel):
     """Base schema for dependant."""
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    relationship: DependantRelationship
+    relation_type: DependantRelationship
     date_of_birth: Optional[date] = None
     passport_number: Optional[str] = Field(None, max_length=50)
     passport_expiry: Optional[date] = None
@@ -40,7 +40,7 @@ class DependantUpdate(BaseModel):
     """Schema for updating a dependant."""
     first_name: Optional[str] = Field(None, min_length=1, max_length=100)
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
-    relationship: Optional[DependantRelationship] = None
+    relation_type: Optional[DependantRelationship] = None
     date_of_birth: Optional[date] = None
     passport_number: Optional[str] = Field(None, max_length=50)
     passport_expiry: Optional[date] = None
@@ -86,7 +86,7 @@ async def create_dependant(
         user_id=current_user.id,
         first_name=dependant_data.first_name,
         last_name=dependant_data.last_name,
-        relationship=dependant_data.relationship,
+        relation_type=dependant_data.relation_type,
         date_of_birth=dependant_data.date_of_birth,
         passport_number=dependant_data.passport_number,
         passport_expiry=dependant_data.passport_expiry,
