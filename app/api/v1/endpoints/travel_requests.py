@@ -11,14 +11,15 @@ import os
 from app.db.database import get_db
 from app.models.travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
-    TravelRequestStatus, TransportMode, MessageSenderType, DocumentType
+    TravelRequestStatus, TransportMode, MessageSenderType, DocumentType,
+    TravelRequestTraveler, TravelerType, Dependant
 )
 from app.models.user import User
 from app.schemas.travel_request import (
     TravelRequestCreate, TravelRequestUpdate, TravelRequestResponse, TravelRequestDetailResponse,
     TravelRequestListResponse, DestinationCreate, DestinationUpdate, DestinationResponse,
     MessageCreate, MessageResponse, DocumentResponse, ApprovalAction, RejectionAction,
-    TravelRequestSummary
+    TravelRequestSummary, TravelerCreate, TravelerResponse
 )
 from app.api.deps import get_current_user
 
@@ -103,6 +104,33 @@ async def create_travel_request(
             )
             db.add(destination)
 
+    # Add travelers if provided
+    if request_data.travelers:
+        for traveler_data in request_data.travelers:
+            traveler = TravelRequestTraveler(
+                travel_request_id=travel_request.id,
+                traveler_type=traveler_data.traveler_type,
+                user_id=traveler_data.user_id,
+                dependant_id=traveler_data.dependant_id,
+                traveler_name=traveler_data.traveler_name,
+                traveler_email=traveler_data.traveler_email,
+                traveler_phone=traveler_data.traveler_phone,
+                is_primary=traveler_data.is_primary
+            )
+            db.add(traveler)
+    else:
+        # Add the current user as the primary traveler by default
+        traveler = TravelRequestTraveler(
+            travel_request_id=travel_request.id,
+            traveler_type=TravelerType.SELF,
+            user_id=current_user.id,
+            traveler_name=f"{current_user.first_name} {current_user.last_name}",
+            traveler_email=current_user.email,
+            traveler_phone=current_user.phone_number,
+            is_primary=1
+        )
+        db.add(traveler)
+
     # Add system message
     system_message = TravelRequestMessage(
         travel_request_id=travel_request.id,
@@ -130,7 +158,8 @@ async def get_travel_request(
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations),
         joinedload(TravelRequest.messages).joinedload(TravelRequestMessage.sender),
-        joinedload(TravelRequest.documents)
+        joinedload(TravelRequest.documents),
+        joinedload(TravelRequest.travelers)
     ).filter(
         TravelRequest.id == request_id,
         TravelRequest.user_id == current_user.id

@@ -13,7 +13,7 @@ import io
 from app.db.database import get_db
 from app.models.travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
-    TravelRequestStatus, MessageSenderType, DocumentType
+    TravelRequestStatus, MessageSenderType, DocumentType, TravelRequestTraveler
 )
 from app.models.user import User
 from app.schemas.travel_request import (
@@ -124,7 +124,8 @@ async def get_travel_request_admin(
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations),
         joinedload(TravelRequest.messages).joinedload(TravelRequestMessage.sender),
-        joinedload(TravelRequest.documents).joinedload(TravelRequestDocument.uploader)
+        joinedload(TravelRequest.documents).joinedload(TravelRequestDocument.uploader),
+        joinedload(TravelRequest.travelers)
     ).filter(TravelRequest.id == request_id).first()
 
     if not travel_request:
@@ -410,7 +411,8 @@ async def download_booking_summary(
     """Download a booking summary for a travel request."""
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations),
-        joinedload(TravelRequest.user)
+        joinedload(TravelRequest.user),
+        joinedload(TravelRequest.travelers)
     ).filter(TravelRequest.id == request_id).first()
 
     if not travel_request:
@@ -435,13 +437,28 @@ async def download_booking_summary(
     csv_content.write(f"Purpose: {travel_request.purpose or 'N/A'}\n")
     csv_content.write(f"Status: {travel_request.status.value}\n\n")
 
-    csv_content.write("TRAVELER INFORMATION\n")
+    csv_content.write("REQUESTER INFORMATION\n")
     csv_content.write("-" * 30 + "\n")
     csv_content.write(f"Name: {user.first_name} {user.last_name}\n")
     csv_content.write(f"Email: {user.email}\n")
     csv_content.write(f"Phone: {user.phone_number or 'N/A'}\n\n")
 
-    csv_content.write("DESTINATIONS\n")
+    csv_content.write("TRAVELERS\n")
+    csv_content.write("-" * 30 + "\n")
+    if travel_request.travelers:
+        for idx, traveler in enumerate(travel_request.travelers, 1):
+            primary_label = " (Primary)" if traveler.is_primary else ""
+            csv_content.write(f"\n{idx}. {traveler.traveler_name}{primary_label}\n")
+            csv_content.write(f"   Type: {traveler.traveler_type.value}\n")
+            if traveler.traveler_email:
+                csv_content.write(f"   Email: {traveler.traveler_email}\n")
+            if traveler.traveler_phone:
+                csv_content.write(f"   Phone: {traveler.traveler_phone}\n")
+    else:
+        csv_content.write(f"Name: {user.first_name} {user.last_name}\n")
+        csv_content.write(f"Email: {user.email}\n")
+
+    csv_content.write("\n\nDESTINATIONS\n")
     csv_content.write("-" * 30 + "\n")
     for idx, dest in enumerate(travel_request.destinations, 1):
         csv_content.write(f"\nLeg {idx}:\n")

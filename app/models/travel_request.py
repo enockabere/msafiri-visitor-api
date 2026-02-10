@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from app.db.base_class import Base
+from app.db.database import Base
 
 
 class TravelRequestStatus(str, PyEnum):
@@ -42,6 +42,22 @@ class DocumentType(str, PyEnum):
     OTHER = "other"
 
 
+class DependantRelationship(str, PyEnum):
+    """Relationship types for dependants."""
+    SPOUSE = "spouse"
+    CHILD = "child"
+    PARENT = "parent"
+    SIBLING = "sibling"
+    OTHER = "other"
+
+
+class TravelerType(str, PyEnum):
+    """Type of traveler in a travel request."""
+    SELF = "self"  # The user making the request
+    DEPENDANT = "dependant"  # User's dependant
+    STAFF = "staff"  # Staff member from same tenant
+
+
 class TravelRequest(Base):
     """Travel request model."""
     __tablename__ = "travel_requests"
@@ -74,6 +90,7 @@ class TravelRequest(Base):
     destinations = relationship("TravelRequestDestination", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestDestination.order")
     messages = relationship("TravelRequestMessage", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestMessage.created_at")
     documents = relationship("TravelRequestDocument", back_populates="travel_request", cascade="all, delete-orphan")
+    travelers = relationship("TravelRequestTraveler", back_populates="travel_request", cascade="all, delete-orphan")
 
 
 class TravelRequestDestination(Base):
@@ -129,3 +146,49 @@ class TravelRequestDocument(Base):
     # Relationships
     travel_request = relationship("TravelRequest", back_populates="documents")
     uploader = relationship("User")
+
+
+class Dependant(Base):
+    """User's dependant (family member) who can travel with them."""
+    __tablename__ = "dependants"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    relationship = Column(Enum(DependantRelationship), nullable=False)
+    date_of_birth = Column(Date, nullable=True)
+    passport_number = Column(String(50), nullable=True)
+    passport_expiry = Column(Date, nullable=True)
+    nationality = Column(String(100), nullable=True)
+    phone_number = Column(String(50), nullable=True)
+    email = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User", backref="dependants")
+
+
+class TravelRequestTraveler(Base):
+    """Traveler in a travel request - can be self, dependant, or staff member."""
+    __tablename__ = "travel_request_travelers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    travel_request_id = Column(UUID(as_uuid=True), ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    traveler_type = Column(Enum(TravelerType), nullable=False)
+    # For SELF or STAFF type - reference to users table
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # For DEPENDANT type - reference to dependants table
+    dependant_id = Column(UUID(as_uuid=True), ForeignKey("dependants.id"), nullable=True)
+    # Denormalized fields for quick access
+    traveler_name = Column(String(255), nullable=False)
+    traveler_email = Column(String(255), nullable=True)
+    traveler_phone = Column(String(50), nullable=True)
+    is_primary = Column(Integer, default=0, nullable=False)  # 1 if this is the main traveler
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    travel_request = relationship("TravelRequest", back_populates="travelers")
+    user = relationship("User", foreign_keys=[user_id])
+    dependant = relationship("Dependant")

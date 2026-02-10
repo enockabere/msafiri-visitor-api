@@ -36,7 +36,8 @@ from .code_of_conduct import CodeOfConduct
 from .cash_claim import Claim, ClaimItem
 from .travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
-    TravelRequestStatus, TransportMode, MessageSenderType, DocumentType
+    TravelRequestStatus, TransportMode, MessageSenderType, DocumentType,
+    Dependant, TravelRequestTraveler, DependantRelationship, TravelerType
 )
 
 __all__ = [
@@ -54,5 +55,6 @@ __all__ = [
     "VettingCommittee", "VettingCommitteeMember", "ParticipantSelection", "VettingStatus", "ApprovalStatus", "VettingCommitteeApprover", "VettingMemberSelection", "VettingMemberComment", "VettingMemberSubmission",
     "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem",
     "TravelRequest", "TravelRequestDestination", "TravelRequestMessage", "TravelRequestDocument",
-    "TravelRequestStatus", "TransportMode", "MessageSenderType", "DocumentType"
+    "TravelRequestStatus", "TransportMode", "MessageSenderType", "DocumentType",
+    "Dependant", "TravelRequestTraveler", "DependantRelationship", "TravelerType"
 ]

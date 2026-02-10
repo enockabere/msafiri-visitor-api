@@ -77,14 +77,51 @@ def upgrade() -> None:
         sa.Column('uploaded_at', sa.DateTime, nullable=False),
     )
 
+    # Create dependants table (user's family members)
+    op.create_table(
+        'dependants',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('first_name', sa.String(100), nullable=False),
+        sa.Column('last_name', sa.String(100), nullable=False),
+        sa.Column('relationship', sa.Enum('spouse', 'child', 'parent', 'sibling', 'other', name='dependantrelationship'), nullable=False),
+        sa.Column('date_of_birth', sa.Date, nullable=True),
+        sa.Column('passport_number', sa.String(50), nullable=True),
+        sa.Column('passport_expiry', sa.Date, nullable=True),
+        sa.Column('nationality', sa.String(100), nullable=True),
+        sa.Column('phone_number', sa.String(50), nullable=True),
+        sa.Column('email', sa.String(255), nullable=True),
+        sa.Column('created_at', sa.DateTime, nullable=False),
+        sa.Column('updated_at', sa.DateTime, nullable=False),
+    )
+
+    # Create travel_request_travelers table (who is traveling)
+    op.create_table(
+        'travel_request_travelers',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('travel_request_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('travel_requests.id', ondelete='CASCADE'), nullable=False, index=True),
+        sa.Column('traveler_type', sa.Enum('self', 'dependant', 'staff', name='travelertype'), nullable=False),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id'), nullable=True),
+        sa.Column('dependant_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('dependants.id'), nullable=True),
+        sa.Column('traveler_name', sa.String(255), nullable=False),
+        sa.Column('traveler_email', sa.String(255), nullable=True),
+        sa.Column('traveler_phone', sa.String(50), nullable=True),
+        sa.Column('is_primary', sa.Integer, default=0, nullable=False),
+        sa.Column('created_at', sa.DateTime, nullable=False),
+    )
+
 
 def downgrade() -> None:
+    op.drop_table('travel_request_travelers')
+    op.drop_table('dependants')
     op.drop_table('travel_request_documents')
     op.drop_table('travel_request_messages')
     op.drop_table('travel_request_destinations')
     op.drop_table('travel_requests')
 
     # Drop enums
+    op.execute('DROP TYPE IF EXISTS travelertype')
+    op.execute('DROP TYPE IF EXISTS dependantrelationship')
     op.execute('DROP TYPE IF EXISTS documenttype')
     op.execute('DROP TYPE IF EXISTS messagesendertype')
     op.execute('DROP TYPE IF EXISTS transportmode')

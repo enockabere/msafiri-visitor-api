@@ -990,6 +990,14 @@ def get_event_participant_permissions(
         "can_approve_vetting": can_approve_vetting
     }
 
+# Dependants (user's family members for travel)
+from app.api.v1.endpoints import dependants
+api_router.include_router(
+    dependants.router,
+    prefix="/dependants",
+    tags=["dependants"]
+)
+
 # Travel Requests (user endpoints)
 from app.api.v1.endpoints import travel_requests
 api_router.include_router(

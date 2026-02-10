@@ -39,6 +39,13 @@ class DocumentType(str, Enum):
     OTHER = "other"
 
 
+class TravelerType(str, Enum):
+    """Type of traveler."""
+    SELF = "self"
+    DEPENDANT = "dependant"
+    STAFF = "staff"
+
+
 # ===== Destination Schemas =====
 
 class DestinationBase(BaseModel):
@@ -124,6 +131,36 @@ class DocumentResponse(BaseModel):
         from_attributes = True
 
 
+# ===== Traveler Schemas =====
+
+class TravelerCreate(BaseModel):
+    """Schema for adding a traveler to a request."""
+    traveler_type: TravelerType
+    user_id: Optional[UUID] = None  # For SELF or STAFF
+    dependant_id: Optional[UUID] = None  # For DEPENDANT
+    traveler_name: str = Field(..., min_length=1, max_length=255)
+    traveler_email: Optional[str] = None
+    traveler_phone: Optional[str] = None
+    is_primary: int = 0
+
+
+class TravelerResponse(BaseModel):
+    """Schema for traveler response."""
+    id: UUID
+    travel_request_id: UUID
+    traveler_type: TravelerType
+    user_id: Optional[UUID] = None
+    dependant_id: Optional[UUID] = None
+    traveler_name: str
+    traveler_email: Optional[str] = None
+    traveler_phone: Optional[str] = None
+    is_primary: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ===== Travel Request Schemas =====
 
 class TravelRequestBase(BaseModel):
@@ -136,6 +173,7 @@ class TravelRequestCreate(TravelRequestBase):
     """Schema for creating a travel request."""
     tenant_id: UUID
     destinations: Optional[List[DestinationCreate]] = None
+    travelers: Optional[List[TravelerCreate]] = None
 
 
 class TravelRequestUpdate(BaseModel):
@@ -166,10 +204,11 @@ class TravelRequestResponse(TravelRequestBase):
 
 
 class TravelRequestDetailResponse(TravelRequestResponse):
-    """Detailed response including destinations, messages, and documents."""
+    """Detailed response including destinations, messages, documents, and travelers."""
     destinations: List[DestinationResponse] = []
     messages: List[MessageResponse] = []
     documents: List[DocumentResponse] = []
+    travelers: List[TravelerResponse] = []
 
 
 class TravelRequestListResponse(BaseModel):
