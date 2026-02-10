@@ -11,7 +11,7 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get("/claims/{claim_id}/approvals")
+@router.get("/{claim_id}/approvals")
 async def get_claim_approvals(
     claim_id: int,
     current_user: User = Depends(get_current_user),
@@ -51,7 +51,7 @@ async def get_claim_approvals(
     return result
 
 
-@router.post("/claims/{claim_id}/submit")
+@router.post("/{claim_id}/submit")
 async def submit_claim_with_workflow(
     claim_id: int,
     current_user: User = Depends(get_current_user),
