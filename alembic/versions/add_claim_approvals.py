@@ -31,7 +31,7 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(['claim_id'], ['claims.id'], ),
-        sa.ForeignKeyConstraint(['workflow_step_id'], ['approval_workflow_steps.id'], ),
+        sa.ForeignKeyConstraint(['workflow_step_id'], ['approval_steps.id'], ),
         sa.ForeignKeyConstraint(['approver_user_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
