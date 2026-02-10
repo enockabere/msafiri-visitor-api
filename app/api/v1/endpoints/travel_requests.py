@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/", response_model=List[TravelRequestResponse])
 async def get_user_travel_requests(
-    tenant_id: Optional[UUID] = None,
+    tenant_id: Optional[int] = None,
     status_filter: Optional[TravelRequestStatus] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
