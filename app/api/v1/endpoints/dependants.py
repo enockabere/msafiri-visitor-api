@@ -1,9 +1,9 @@
 """Dependants API endpoints - for managing user's family members."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime, date
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import logging
 
 from app.db.database import get_db
@@ -21,13 +21,21 @@ class DependantBase(BaseModel):
     """Base schema for dependant."""
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    relation_type: DependantRelationship
+    relation_type: Union[DependantRelationship, str]
     date_of_birth: Optional[date] = None
     passport_number: Optional[str] = Field(None, max_length=50)
     passport_expiry: Optional[date] = None
     nationality: Optional[str] = Field(None, max_length=100)
     phone_number: Optional[str] = Field(None, max_length=50)
     email: Optional[str] = Field(None, max_length=255)
+    
+    @field_validator('relation_type', mode='before')
+    @classmethod
+    def normalize_relation_type(cls, v):
+        """Convert relation_type to lowercase enum value."""
+        if isinstance(v, str):
+            return v.lower()
+        return v
 
 
 class DependantCreate(DependantBase):
@@ -83,16 +91,16 @@ async def create_dependant(
     """Create a new dependant."""
     logger.info(f"Creating dependant for user {current_user.id}: {dependant_data.first_name} {dependant_data.last_name}")
     
-    # Convert relation_type to lowercase to match database enum
-    relation_type_value = dependant_data.relation_type
-    if isinstance(relation_type_value, str):
-        relation_type_value = DependantRelationship(relation_type_value.lower())
+    # Ensure relation_type is a proper enum
+    relation_type = dependant_data.relation_type
+    if isinstance(relation_type, str):
+        relation_type = DependantRelationship(relation_type.lower())
     
     dependant = Dependant(
         user_id=current_user.id,
         first_name=dependant_data.first_name,
         last_name=dependant_data.last_name,
-        relation_type=relation_type_value,
+        relation_type=relation_type,
         date_of_birth=dependant_data.date_of_birth,
         passport_number=dependant_data.passport_number,
         passport_expiry=dependant_data.passport_expiry,
