@@ -84,67 +84,23 @@ async def get_my_dependants(
 
 @router.post("/", response_model=DependantResponse, status_code=status.HTTP_201_CREATED)
 async def create_dependant(
-    request: dict,
+    dependant_data: DependantCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new dependant."""
-    from sqlalchemy import text
-    
     logger.info(f"Creating dependant for user {current_user.id}")
-    logger.info(f"Received request data: {request}")
     
-    first_name = request.get('first_name')
-    last_name = request.get('last_name')
-    relation_type_str = request.get('relation_type', '').lower()
-    
-    logger.info(f"Relation type string: {relation_type_str}")
-    
-    try:
-        relation_type = DependantRelationship(relation_type_str)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid relation_type: {relation_type_str}"
-        )
-    
-    logger.info(f"Enum value: {relation_type.value}")
-    
-    now = datetime.utcnow()
-    result = db.execute(
-        text("""
-            INSERT INTO dependants 
-            (user_id, first_name, last_name, relation_type, date_of_birth, 
-             passport_number, passport_expiry, nationality, phone_number, email, 
-             created_at, updated_at)
-            VALUES 
-            (:user_id, :first_name, :last_name, :relation_type, :date_of_birth,
-             :passport_number, :passport_expiry, :nationality, :phone_number, :email,
-             :created_at, :updated_at)
-            RETURNING id
-        """),
-        {
-            'user_id': current_user.id,
-            'first_name': first_name,
-            'last_name': last_name,
-            'relation_type': relation_type.value,
-            'date_of_birth': request.get('date_of_birth'),
-            'passport_number': request.get('passport_number'),
-            'passport_expiry': request.get('passport_expiry'),
-            'nationality': request.get('nationality'),
-            'phone_number': request.get('phone_number'),
-            'email': request.get('email'),
-            'created_at': now,
-            'updated_at': now
-        }
+    dependant = Dependant(
+        user_id=current_user.id,
+        **dependant_data.dict()
     )
     
-    dependant_id = result.fetchone()[0]
+    db.add(dependant)
     db.commit()
+    db.refresh(dependant)
     
-    dependant = db.query(Dependant).filter(Dependant.id == dependant_id).first()
     logger.info(f"Dependant created successfully with ID: {dependant.id}")
-
     return dependant
 
 

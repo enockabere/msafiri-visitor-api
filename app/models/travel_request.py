@@ -154,7 +154,7 @@ class Dependant(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    relation_type = Column(Enum(DependantRelationship), nullable=False)
+    relation_type = Column(Enum(DependantRelationship, values_callable=lambda x: [e.value for e in x]), nullable=False)
     date_of_birth = Column(Date, nullable=True)
     passport_number = Column(String(50), nullable=True)
     passport_expiry = Column(Date, nullable=True)
