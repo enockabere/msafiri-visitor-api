@@ -22,24 +22,23 @@ async def get_claim_approvals(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
     
-    # Check if user owns the claim
-    if claim.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this claim")
-    
     # Get all approvals for this claim
     approvals = (
-        db.query(ClaimApproval, User)
+        db.query(ClaimApproval, User, ApprovalStep)
         .join(User, ClaimApproval.approver_user_id == User.id)
+        .join(ApprovalStep, ClaimApproval.workflow_step_id == ApprovalStep.id)
         .filter(ClaimApproval.claim_id == claim_id)
         .order_by(ClaimApproval.step_order)
         .all()
     )
     
     result = []
-    for approval, approver in approvals:
+    for approval, approver, step in approvals:
         result.append({
             "id": approval.id,
             "step_order": approval.step_order,
+            "step_name": step.step_name,
+            "approver_user_id": approval.approver_user_id,
             "approver_name": approver.full_name or approver.email,
             "approver_email": approver.email,
             "status": approval.status,
