@@ -156,6 +156,8 @@ async def approve_or_reject_expense_claim(
     db: Session = Depends(get_db),
 ):
     """Approve or reject an expense claim"""
+    from app.models.claim_approval import ClaimApproval
+    
     get_tenant_or_404(db, tenant_slug)
     check_finance_access(current_user, db, tenant_slug)
 
@@ -169,12 +171,55 @@ async def approve_or_reject_expense_claim(
     action = action_data.action
 
     if action == "approve":
-        claim.status = "Approved"
-        claim.approved_by = current_user.id
-        claim.approved_at = datetime.utcnow()
+        # Find the current user's OPEN approval step
+        current_approval = db.query(ClaimApproval).filter(
+            ClaimApproval.claim_id == claim_id,
+            ClaimApproval.approver_user_id == current_user.id,
+            ClaimApproval.status == "OPEN"
+        ).first()
+        
+        if not current_approval:
+            raise HTTPException(status_code=403, detail="You are not authorized to approve this claim at this step")
+        
+        # Mark current step as APPROVED
+        current_approval.status = "APPROVED"
+        current_approval.approved_at = datetime.utcnow()
+        
+        # Check if there are more steps
+        next_approval = db.query(ClaimApproval).filter(
+            ClaimApproval.claim_id == claim_id,
+            ClaimApproval.step_order > current_approval.step_order
+        ).order_by(ClaimApproval.step_order).first()
+        
+        if next_approval:
+            # Move next step to OPEN
+            next_approval.status = "OPEN"
+        else:
+            # All steps completed - approve the claim
+            claim.status = "Approved"
+            claim.approved_by = current_user.id
+            claim.approved_at = datetime.utcnow()
+            
     elif action == "reject":
         if not action_data.rejection_reason:
             raise HTTPException(status_code=400, detail="Rejection reason is required")
+        
+        # Find the current user's OPEN approval step
+        current_approval = db.query(ClaimApproval).filter(
+            ClaimApproval.claim_id == claim_id,
+            ClaimApproval.approver_user_id == current_user.id,
+            ClaimApproval.status == "OPEN"
+        ).first()
+        
+        if not current_approval:
+            raise HTTPException(status_code=403, detail="You are not authorized to reject this claim at this step")
+        
+        # Mark current step as REJECTED
+        current_approval.status = "REJECTED"
+        current_approval.rejected_at = datetime.utcnow()
+        current_approval.rejection_reason = action_data.rejection_reason
+        
+        # Reject the entire claim
         claim.status = "Rejected"
         claim.rejected_by = current_user.id
         claim.rejected_at = datetime.utcnow()
