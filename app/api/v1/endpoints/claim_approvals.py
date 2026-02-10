@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.cash_claim import Claim
 from app.models.claim_approval import ClaimApproval
-from app.models.approval_workflow import ApprovalWorkflow, ApprovalWorkflowStep
+from app.models.approver import ApprovalWorkflow, ApprovalStep
 from app.models.user import User
 from app.core.deps import get_current_user
 from datetime import datetime
@@ -89,9 +89,9 @@ async def submit_claim_with_workflow(
     
     # Get workflow steps
     steps = (
-        db.query(ApprovalWorkflowStep)
-        .filter(ApprovalWorkflowStep.workflow_id == workflow.id)
-        .order_by(ApprovalWorkflowStep.step_order)
+        db.query(ApprovalStep)
+        .filter(ApprovalStep.workflow_id == workflow.id)
+        .order_by(ApprovalStep.step_order)
         .all()
     )
     
