@@ -83,11 +83,16 @@ async def create_dependant(
     """Create a new dependant."""
     logger.info(f"Creating dependant for user {current_user.id}: {dependant_data.first_name} {dependant_data.last_name}")
     
+    # Convert relation_type to lowercase to match database enum
+    relation_type_value = dependant_data.relation_type
+    if isinstance(relation_type_value, str):
+        relation_type_value = DependantRelationship(relation_type_value.lower())
+    
     dependant = Dependant(
         user_id=current_user.id,
         first_name=dependant_data.first_name,
         last_name=dependant_data.last_name,
-        relation_type=dependant_data.relation_type,
+        relation_type=relation_type_value,
         date_of_birth=dependant_data.date_of_birth,
         passport_number=dependant_data.passport_number,
         passport_expiry=dependant_data.passport_expiry,
