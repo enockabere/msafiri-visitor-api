@@ -883,6 +883,14 @@ api_router.include_router(
     tags=["approvers"]
 )
 
+# Claim approvals (expense claim workflow)
+from app.api.v1.endpoints import claim_approvals
+api_router.include_router(
+    claim_approvals.router,
+    prefix="/claims",
+    tags=["claim-approvals"]
+)
+
 # Test endpoint for cash claims
 @api_router.get("/cash-claims/test")
 def test_cash_claims():
