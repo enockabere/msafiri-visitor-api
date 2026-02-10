@@ -15,7 +15,7 @@ class UserRole(BaseModel):
 
     # Relationships
     user = relationship("User", back_populates="user_roles")
-    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    tenant = relationship("Tenant", foreign_keys=[tenant_id], primaryjoin="UserRole.tenant_id == Tenant.slug")
 
     # Constraints - user can have the same role in different tenants, but only once per tenant
     __table_args__ = (

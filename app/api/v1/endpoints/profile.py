@@ -25,11 +25,10 @@ def get_my_profile(
     
     try:
         from sqlalchemy.orm import joinedload
-        from app.models.user_roles import UserRole as UserRoleModel
 
-        # Get full user object with all profile fields and eagerly load user_roles with tenant
+        # Get full user object with all profile fields and eagerly load user_roles
         full_user = db.query(crud.user.model).options(
-            joinedload(crud.user.model.user_roles).joinedload(UserRoleModel.tenant)
+            joinedload(crud.user.model.user_roles)
         ).filter(crud.user.model.id == current_user.id).first()
         
         if not full_user:
@@ -53,16 +52,38 @@ def get_my_profile(
                 password_age_days = (now_tz - password_changed_tz).days
         
         # Get tenant roles with numeric tenant IDs
+        # First, get all unique tenant slugs and fetch tenants in one query
+        from app.models.tenant import Tenant
+
         tenant_roles = []
         if hasattr(full_user, 'user_roles') and full_user.user_roles:
+            logger.info(f"User {full_user.email} has {len(full_user.user_roles)} roles")
+
+            # Get unique tenant slugs
+            tenant_slugs = set(ur.tenant_id for ur in full_user.user_roles if ur.tenant_id)
+            logger.info(f"Unique tenant slugs: {tenant_slugs}")
+
+            # Fetch all tenants at once
+            tenants_map = {}
+            if tenant_slugs:
+                tenants = db.query(Tenant).filter(Tenant.slug.in_(tenant_slugs)).all()
+                tenants_map = {t.slug: t for t in tenants}
+                logger.info(f"Fetched {len(tenants)} tenants: {list(tenants_map.keys())}")
+
             for ur in full_user.user_roles:
+                logger.info(f"  Role: {ur.role}, tenant_slug: {ur.tenant_id}")
                 if ur.tenant_id:  # Only include tenant-specific roles
-                    # Get tenant details if available
+                    # Get tenant from our fetched map
+                    tenant = tenants_map.get(ur.tenant_id)
                     tenant_numeric_id = None
                     tenant_name = None
-                    if ur.tenant:
-                        tenant_numeric_id = ur.tenant.id
-                        tenant_name = ur.tenant.name
+
+                    if tenant:
+                        tenant_numeric_id = tenant.id
+                        tenant_name = tenant.name
+                        logger.info(f"    -> Tenant found: id={tenant_numeric_id}, name={tenant_name}")
+                    else:
+                        logger.warning(f"    -> Tenant NOT found for slug: {ur.tenant_id}")
 
                     tenant_roles.append(schemas.TenantRoleSchema(
                         tenant_id=tenant_numeric_id,
@@ -70,6 +91,7 @@ def get_my_profile(
                         tenant_name=tenant_name,
                         role=ur.role.value if hasattr(ur.role, 'value') else str(ur.role)
                     ))
+            logger.info(f"Total tenant_roles to return: {len(tenant_roles)}")
         
         # Create UserProfile response with safe defaults
         return schemas.UserProfile(
