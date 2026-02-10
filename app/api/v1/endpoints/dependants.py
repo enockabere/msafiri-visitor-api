@@ -84,37 +84,43 @@ async def get_my_dependants(
 
 @router.post("/", response_model=DependantResponse, status_code=status.HTTP_201_CREATED)
 async def create_dependant(
-    dependant_data: DependantCreate,
+    request: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create a new dependant."""
-    logger.info(f"Creating dependant for user {current_user.id}: {dependant_data.first_name} {dependant_data.last_name}")
-    logger.info(f"Received relation_type: {dependant_data.relation_type} (type: {type(dependant_data.relation_type)})")
+    logger.info(f"Creating dependant for user {current_user.id}")
+    logger.info(f"Received request data: {request}")
     
-    # Ensure relation_type is a proper enum - convert string to lowercase first
-    relation_type = dependant_data.relation_type
-    if isinstance(relation_type, str):
-        logger.info(f"Converting string relation_type '{relation_type}' to lowercase")
-        relation_type = DependantRelationship(relation_type.lower())
-    elif hasattr(relation_type, 'value'):
-        # It's already an enum, get its value and ensure lowercase
-        logger.info(f"Enum relation_type value: {relation_type.value}")
-        relation_type = DependantRelationship(relation_type.value.lower())
+    # Manually parse and validate the data to avoid Pydantic enum issues
+    first_name = request.get('first_name')
+    last_name = request.get('last_name')
+    relation_type_str = request.get('relation_type', '').lower()
     
-    logger.info(f"Final relation_type: {relation_type} (type: {type(relation_type)})")
+    logger.info(f"Relation type string: {relation_type_str}")
+    
+    # Convert string to enum
+    try:
+        relation_type = DependantRelationship(relation_type_str)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid relation_type: {relation_type_str}"
+        )
+    
+    logger.info(f"Converted to enum: {relation_type} (value: {relation_type.value})")
     
     dependant = Dependant(
         user_id=current_user.id,
-        first_name=dependant_data.first_name,
-        last_name=dependant_data.last_name,
+        first_name=first_name,
+        last_name=last_name,
         relation_type=relation_type,
-        date_of_birth=dependant_data.date_of_birth,
-        passport_number=dependant_data.passport_number,
-        passport_expiry=dependant_data.passport_expiry,
-        nationality=dependant_data.nationality,
-        phone_number=dependant_data.phone_number,
-        email=dependant_data.email
+        date_of_birth=request.get('date_of_birth'),
+        passport_number=request.get('passport_number'),
+        passport_expiry=request.get('passport_expiry'),
+        nationality=request.get('nationality'),
+        phone_number=request.get('phone_number'),
+        email=request.get('email')
     )
 
     db.add(dependant)
