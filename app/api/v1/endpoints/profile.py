@@ -25,10 +25,11 @@ def get_my_profile(
     
     try:
         from sqlalchemy.orm import joinedload
-        
-        # Get full user object with all profile fields and eagerly load user_roles
+        from app.models.user_roles import UserRole as UserRoleModel
+
+        # Get full user object with all profile fields and eagerly load user_roles with tenant
         full_user = db.query(crud.user.model).options(
-            joinedload(crud.user.model.user_roles)
+            joinedload(crud.user.model.user_roles).joinedload(UserRoleModel.tenant)
         ).filter(crud.user.model.id == current_user.id).first()
         
         if not full_user:
@@ -51,17 +52,24 @@ def get_my_profile(
                     password_changed_tz = full_user.password_changed_at
                 password_age_days = (now_tz - password_changed_tz).days
         
-        # Get tenant roles
+        # Get tenant roles with numeric tenant IDs
         tenant_roles = []
         if hasattr(full_user, 'user_roles') and full_user.user_roles:
-            tenant_roles = [
-                schemas.TenantRoleSchema(
-                    tenant_slug=ur.tenant_id,
-                    role=ur.role.value if hasattr(ur.role, 'value') else str(ur.role)
-                )
-                for ur in full_user.user_roles
-                if ur.tenant_id  # Only include tenant-specific roles
-            ]
+            for ur in full_user.user_roles:
+                if ur.tenant_id:  # Only include tenant-specific roles
+                    # Get tenant details if available
+                    tenant_numeric_id = None
+                    tenant_name = None
+                    if ur.tenant:
+                        tenant_numeric_id = ur.tenant.id
+                        tenant_name = ur.tenant.name
+
+                    tenant_roles.append(schemas.TenantRoleSchema(
+                        tenant_id=tenant_numeric_id,
+                        tenant_slug=ur.tenant_id,
+                        tenant_name=tenant_name,
+                        role=ur.role.value if hasattr(ur.role, 'value') else str(ur.role)
+                    ))
         
         # Create UserProfile response with safe defaults
         return schemas.UserProfile(

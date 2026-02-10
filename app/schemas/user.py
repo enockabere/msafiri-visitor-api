@@ -10,9 +10,11 @@ from app.models.user import UserRole, AuthProvider, UserStatus, Gender
 
 class TenantRoleSchema(BaseModel):
     """Schema for user tenant roles"""
+    tenant_id: Optional[int] = None  # Numeric tenant ID for API calls
     tenant_slug: str
+    tenant_name: Optional[str] = None  # Tenant display name
     role: str
-    
+
     class Config:
         from_attributes = True
 
