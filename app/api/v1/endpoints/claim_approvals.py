@@ -65,7 +65,7 @@ async def submit_claim_with_workflow(
     if claim.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if claim.status != "draft":
+    if claim.status.lower() not in ["draft", "open"]:
         raise HTTPException(status_code=400, detail="Claim already submitted")
     
     # Get user's tenant
