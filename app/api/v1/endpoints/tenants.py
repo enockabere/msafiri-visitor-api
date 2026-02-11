@@ -468,6 +468,50 @@ def read_tenant_by_id(
     
     return schemas.TenantWithStats(**tenant_data)
 
+@router.get("/mobile/my-tenant", response_model=schemas.Tenant)
+def get_my_tenant_mobile(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Get current user's tenant info for mobile app.
+
+    This endpoint allows any authenticated user to get their own tenant's
+    basic info including country and city for travel requests.
+    """
+    if not current_user.tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not associated with any tenant"
+        )
+
+    tenant = crud.tenant.get_by_slug(db, slug=current_user.tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+
+    return tenant
+
+
+@router.get("/mobile/all", response_model=List[schemas.TenantBasic])
+def get_all_tenants_mobile(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+) -> Any:
+    """Get all active tenants with basic info for mobile app.
+
+    Returns only basic tenant info (id, name, slug, country, city) for
+    project visit destinations. Available to any authenticated user.
+    """
+    tenants = crud.tenant.get_multi(db, limit=1000)
+    # Filter to only active tenants
+    active_tenants = [t for t in tenants if t.is_active]
+    return active_tenants
+
+
 @router.post("/update-timezones")
 def update_tenant_timezones(
     *,

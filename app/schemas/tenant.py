@@ -90,6 +90,20 @@ class TenantWithStats(Tenant):
     pending_users: int = 0
     last_user_activity: Optional[datetime] = None
 
+
+class TenantBasic(BaseModel):
+    """Basic tenant info for mobile app (travel requests)"""
+    id: int
+    name: str
+    slug: str
+    country: Optional[str] = None
+    city: Optional[str] = None
+    is_active: bool = True
+
+    class Config:
+        from_attributes = True
+
+
 class TenantNotificationSettings(BaseModel):
     """Settings for tenant notifications"""
     tenant_id: int

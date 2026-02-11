@@ -2,7 +2,7 @@
 from typing import Optional
 from datetime import datetime
 from .tenant import (
-    Tenant, TenantCreate, TenantUpdate, TenantWithStats, 
+    Tenant, TenantCreate, TenantUpdate, TenantWithStats, TenantBasic,
     TenantEditRequest, TenantNotificationSettings
 )
 from .user import (
@@ -88,7 +88,7 @@ class TenantWithStats(Tenant):
 # Export all schemas for easy imports
 __all__ = [
     # Tenant schemas
-    "Tenant", "TenantCreate", "TenantUpdate", "TenantWithStats", 
+    "Tenant", "TenantCreate", "TenantUpdate", "TenantWithStats", "TenantBasic",
     "TenantEditRequest", "TenantNotificationSettings",
     
     # User core schemas
