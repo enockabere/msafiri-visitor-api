@@ -93,6 +93,7 @@ class VendorAccommodationBase(BaseModel):
     rate_half_board: Optional[int] = Field(None, ge=0)
     rate_full_board: Optional[int] = Field(None, ge=0)
     rate_bed_only: Optional[int] = Field(None, ge=0)
+    rate_currency: str = Field(default='KES', max_length=3)
 
 class VendorAccommodationCreate(VendorAccommodationBase):
     pass
@@ -109,6 +110,7 @@ class VendorAccommodationUpdate(BaseModel):
     rate_half_board: Optional[int] = Field(None, ge=0)
     rate_full_board: Optional[int] = Field(None, ge=0)
     rate_bed_only: Optional[int] = Field(None, ge=0)
+    rate_currency: Optional[str] = Field(None, max_length=3)
 
 class VendorAccommodation(VendorAccommodationBase):
     id: int

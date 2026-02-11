@@ -71,6 +71,7 @@ class VendorAccommodation(Base):
     rate_half_board = Column(Integer, nullable=True)  # Half Board rate
     rate_full_board = Column(Integer, nullable=True)  # Full Board rate
     rate_bed_only = Column(Integer, nullable=True)  # Bed Only rate
+    rate_currency = Column(String(3), nullable=False, default='KES')  # Currency code (ISO 4217)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
