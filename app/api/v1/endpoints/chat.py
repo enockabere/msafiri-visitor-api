@@ -4,9 +4,8 @@ from sqlalchemy import and_, or_, desc, func, select
 from typing import List, Optional
 import json
 from datetime import datetime, timedelta
-import cloudinary
-import cloudinary.uploader
 import os
+import uuid
 from dotenv import load_dotenv
 from app.db.database import get_db
 from app.models.chat import ChatRoom, ChatMessage, DirectMessage, ChatType
@@ -24,12 +23,9 @@ from app.core.websocket_manager import manager, notification_manager
 # Load environment variables
 load_dotenv()
 
-# Configure Cloudinary
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
-)
+# Azure Blob Storage configuration
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_CHAT_CONTAINER = os.getenv("AZURE_CHAT_CONTAINER", "chat-attachments")
 
 router = APIRouter()
 
@@ -223,7 +219,7 @@ async def upload_chat_attachment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload chat attachment (image, document, voice message) to Cloudinary"""
+    """Upload chat attachment (image, document, voice message) to Azure Blob Storage"""
     
     # Validate file size (15MB limit for attachments, 5MB for voice)
     max_size = 5 * 1024 * 1024 if file.content_type and 'audio' in file.content_type else 15 * 1024 * 1024
@@ -236,75 +232,76 @@ async def upload_chat_attachment(
 
     # Determine file type and folder
     file_type = "document"
-    folder = "msafiri-documents/chat-files"
-    resource_type = "auto"
+    folder = "documents"
 
     if file.content_type:
         if file.content_type.startswith('image/'):
             file_type = "image"
-            folder = "msafiri-documents/chat-images"
-            resource_type = "image"
+            folder = "images"
         elif file.content_type.startswith('audio/'):
             file_type = "voice"
-            folder = "msafiri-documents/chat-voice"
-            resource_type = "video"  # Cloudinary uses 'video' for audio files
+            folder = "voice"
         elif file.content_type.startswith('video/'):
             file_type = "video"
-            folder = "msafiri-documents/chat-videos"
-            resource_type = "video"
-        elif file.content_type == 'application/pdf':
-            file_type = "document"
-            resource_type = "raw"
+            folder = "videos"
     
-    # Fallback: detect by filename extension if content-type is missing/wrong
+    # Fallback: detect by filename extension
     filename = file.filename or ""
     if filename.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp')):
         file_type = "image"
-        folder = "msafiri-documents/chat-images"
-        resource_type = "image"
+        folder = "images"
     elif filename.lower().endswith(('.mp3', '.wav', '.m4a', '.aac', '.ogg')):
         file_type = "voice"
-        folder = "msafiri-documents/chat-voice"
-        resource_type = "video"
+        folder = "voice"
     elif filename.lower().endswith(('.mp4', '.avi', '.mov', '.wmv', '.flv')):
         file_type = "video"
-        folder = "msafiri-documents/chat-videos"
-        resource_type = "video"
+        folder = "videos"
 
     try:
-        # Validate Cloudinary configuration
-        if not os.getenv("CLOUDINARY_CLOUD_NAME"):
-            raise HTTPException(status_code=500, detail="Cloudinary cloud name is not configured")
+        # Validate Azure configuration
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(status_code=500, detail="Azure Storage is not configured")
+
+        from azure.storage.blob import BlobServiceClient, ContentSettings
 
         # Read file content
         file_content = await file.read()
 
-        # Generate unique filename with timestamp
+        # Generate unique filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = file.filename or "file"
-        public_id = f"{current_user.email.split('@')[0]}_{timestamp}_{filename.split('.')[0]}"
+        ext = os.path.splitext(filename)[1] if filename else ""
+        unique_filename = f"{folder}/{current_user.email.split('@')[0]}_{timestamp}_{uuid.uuid4().hex[:8]}{ext}"
 
-        # Upload to Cloudinary
-        result = cloudinary.uploader.upload(
-            file_content,
-            public_id=public_id,
-            folder=folder,
-            resource_type=resource_type,
-            use_filename=True,
-            unique_filename=True
-        )
+        # Create blob service client
+        blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+        container_client = blob_service_client.get_container_client(AZURE_CHAT_CONTAINER)
+
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container(public_access='blob')
+        except Exception:
+            pass
+
+        # Upload to Azure
+        blob_client = container_client.get_blob_client(unique_filename)
+        content_settings = ContentSettings(content_type=file.content_type)
+        blob_client.upload_blob(file_content, overwrite=True, content_settings=content_settings)
+
+        # Get file URL
+        file_url = blob_client.url
 
         return {
             "success": True,
-            "file_url": result["secure_url"],
+            "file_url": file_url,
             "file_type": file_type,
             "file_name": filename,
             "file_size": file.size,
-            "public_id": result["public_id"],
-            "duration": result.get("duration"),  # For audio/video files
-            "format": result.get("format")
+            "duration": None,
+            "format": ext.lstrip('.') if ext else None
         }
 
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Azure Storage SDK not installed")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
@@ -1174,6 +1171,8 @@ async def websocket_notifications(
     
     except WebSocketDisconnect:
         notification_manager.disconnect_user(websocket, user.email if 'user' in locals() else None)
+    except ImportError:
+        raise HTTPException(status_code=500, detail="Azure Storage SDK not installed")
     except Exception as e:
         print(f"WebSocket notification error: {e}")
         await websocket.close(code=1011)
