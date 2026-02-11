@@ -113,6 +113,41 @@ def get_tenant_users(
     users = crud.user.get_by_tenant(db, tenant_id=tenant_id, skip=skip, limit=limit)
     return users
 
+
+@router.get("/mobile/my-colleagues", response_model=List[schemas.User])
+def get_my_colleagues_mobile(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    skip: int = 0,
+    limit: int = 100
+) -> Any:
+    """Get colleagues from the current user's tenant for mobile app.
+
+    Returns active users from the same tenant, excluding the current user.
+    Used for adding colleagues as travelers in travel requests.
+    """
+    if not current_user.tenant_id:
+        return []
+
+    # Get all users from the same tenant
+    users = crud.user.get_by_tenant(
+        db,
+        tenant_id=current_user.tenant_id,
+        skip=skip,
+        limit=limit
+    )
+
+    # Filter out current user and inactive users
+    colleagues = [
+        u for u in users
+        if u.id != current_user.id and u.is_active
+    ]
+
+    logger.info(f"Returning {len(colleagues)} colleagues for user {current_user.email}")
+
+    return colleagues
+
 @router.put("/{tenant_id}/users/{user_id}/role", response_model=schemas.User)
 def update_user_tenant_role(
     *,
