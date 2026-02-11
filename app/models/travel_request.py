@@ -56,6 +56,13 @@ class TravelerType(str, PyEnum):
     STAFF = "staff"  # Staff member from same tenant
 
 
+class TravelerAcceptanceStatus(str, PyEnum):
+    """Acceptance status for colleague travelers."""
+    PENDING = "pending"  # Not yet responded
+    ACCEPTED = "accepted"  # Accepted to travel
+    DECLINED = "declined"  # Declined the invitation
+
+
 class TravelRequest(Base):
     """Travel request model."""
     __tablename__ = "travel_requests"
@@ -80,6 +87,10 @@ class TravelRequest(Base):
     rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     rejected_at = Column(DateTime, nullable=True)
 
+    # Approval workflow tracking
+    workflow_id = Column(Integer, ForeignKey("approval_workflows.id"), nullable=True)
+    current_approval_step = Column(Integer, default=0, nullable=False)  # 0 = not started, 1+ = step number
+
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     user = relationship("User", foreign_keys=[user_id], backref="travel_requests")
@@ -89,6 +100,7 @@ class TravelRequest(Base):
     messages = relationship("TravelRequestMessage", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestMessage.created_at")
     documents = relationship("TravelRequestDocument", back_populates="travel_request", cascade="all, delete-orphan")
     travelers = relationship("TravelRequestTraveler", back_populates="travel_request", cascade="all, delete-orphan")
+    approval_history = relationship("TravelRequestApproval", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestApproval.created_at")
 
 
 class TravelRequestDestination(Base):
@@ -186,7 +198,41 @@ class TravelRequestTraveler(Base):
     is_primary = Column(Integer, default=0, nullable=False)  # 1 if this is the main traveler
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # Acceptance tracking for STAFF travelers (colleagues)
+    acceptance_status = Column(
+        Enum(TravelerAcceptanceStatus),
+        default=TravelerAcceptanceStatus.PENDING,
+        nullable=False
+    )
+    accepted_at = Column(DateTime, nullable=True)
+    declined_at = Column(DateTime, nullable=True)
+    decline_reason = Column(Text, nullable=True)
+
     # Relationships
     travel_request = relationship("TravelRequest", back_populates="travelers")
     user = relationship("User", foreign_keys=[user_id])
     dependant = relationship("Dependant")
+
+
+class ApprovalActionType(str, PyEnum):
+    """Type of approval action."""
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class TravelRequestApproval(Base):
+    """Track approval history for travel requests."""
+    __tablename__ = "travel_request_approvals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    step_number = Column(Integer, nullable=False)
+    step_name = Column(String(255), nullable=True)
+    approver_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action = Column(Enum(ApprovalActionType), nullable=False)
+    comments = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    travel_request = relationship("TravelRequest", back_populates="approval_history")
+    approver = relationship("User")

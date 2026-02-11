@@ -11,14 +11,17 @@ from app.db.database import get_db
 from app.models.travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
     TravelRequestStatus, TransportMode, MessageSenderType, DocumentType,
-    TravelRequestTraveler, TravelerType, Dependant
+    TravelRequestTraveler, TravelerType, Dependant, TravelerAcceptanceStatus,
+    TravelRequestApproval, ApprovalActionType
 )
 from app.models.user import User
+from app.models.approver import ApprovalWorkflow, ApprovalStep
 from app.schemas.travel_request import (
     TravelRequestCreate, TravelRequestUpdate, TravelRequestResponse, TravelRequestDetailResponse,
     TravelRequestListResponse, DestinationCreate, DestinationUpdate, DestinationResponse,
     MessageCreate, MessageResponse, DocumentResponse, ApprovalAction, RejectionAction,
-    TravelRequestSummary, TravelerCreate, TravelerResponse
+    TravelRequestSummary, TravelerCreate, TravelerResponse, TravelInvitationResponse,
+    TravelerAcceptAction, TravelerDeclineAction, ApprovalHistoryResponse
 )
 from app.api.deps import get_current_user
 
@@ -153,18 +156,35 @@ async def get_travel_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get a specific travel request with details."""
+    """Get a specific travel request with details.
+
+    Users can view their own requests. Colleagues who are added as travelers
+    can also view the request (but cannot modify it).
+    """
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations),
         joinedload(TravelRequest.messages).joinedload(TravelRequestMessage.sender),
         joinedload(TravelRequest.documents),
-        joinedload(TravelRequest.travelers)
+        joinedload(TravelRequest.travelers),
+        joinedload(TravelRequest.approval_history)
     ).filter(
-        TravelRequest.id == request_id,
-        TravelRequest.user_id == current_user.id
+        TravelRequest.id == request_id
     ).first()
 
     if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Check if user is owner or a traveler
+    is_owner = travel_request.user_id == current_user.id
+    is_traveler = any(
+        t.user_id == current_user.id and t.traveler_type == TravelerType.STAFF
+        for t in travel_request.travelers
+    )
+
+    if not is_owner and not is_traveler:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Travel request not found"
@@ -180,6 +200,11 @@ async def get_travel_request(
         if doc.uploader:
             doc.uploader_name = f"{doc.uploader.first_name} {doc.uploader.last_name}"
 
+    # Add approver names to approval history
+    for approval in travel_request.approval_history:
+        if approval.approver:
+            approval.approver_name = f"{approval.approver.first_name} {approval.approver.last_name}"
+
     travel_request.user_name = f"{travel_request.user.first_name} {travel_request.user.last_name}"
     if travel_request.approver:
         travel_request.approver_name = f"{travel_request.approver.first_name} {travel_request.approver.last_name}"
@@ -194,7 +219,11 @@ async def update_travel_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Update a travel request (only draft requests)."""
+    """Update a travel request (draft or rejected requests only).
+
+    Users can edit their draft requests before submission.
+    Users can also edit rejected requests to address feedback and resubmit.
+    """
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id,
         TravelRequest.user_id == current_user.id
@@ -206,10 +235,11 @@ async def update_travel_request(
             detail="Travel request not found"
         )
 
-    if travel_request.status != TravelRequestStatus.DRAFT:
+    # Allow editing of DRAFT and REJECTED requests
+    if travel_request.status not in [TravelRequestStatus.DRAFT, TravelRequestStatus.REJECTED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only update draft travel requests"
+            detail="Can only update draft or rejected travel requests"
         )
 
     for field, value in request_data.dict(exclude_unset=True).items():
@@ -259,7 +289,8 @@ async def submit_travel_request(
 ):
     """Submit a travel request for approval."""
     travel_request = db.query(TravelRequest).options(
-        joinedload(TravelRequest.destinations)
+        joinedload(TravelRequest.destinations),
+        joinedload(TravelRequest.tenant)
     ).filter(
         TravelRequest.id == request_id,
         TravelRequest.user_id == current_user.id
@@ -271,10 +302,11 @@ async def submit_travel_request(
             detail="Travel request not found"
         )
 
-    if travel_request.status != TravelRequestStatus.DRAFT:
+    # Allow submission from DRAFT or REJECTED status (for resubmission)
+    if travel_request.status not in [TravelRequestStatus.DRAFT, TravelRequestStatus.REJECTED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only submit draft travel requests"
+            detail="Can only submit draft or rejected travel requests"
         )
 
     if not travel_request.destinations:
@@ -283,15 +315,39 @@ async def submit_travel_request(
             detail="Please add at least one destination before submitting"
         )
 
+    # Find approval workflow for this tenant
+    tenant_slug = travel_request.tenant.slug if travel_request.tenant else None
+    workflow = None
+    if tenant_slug:
+        workflow = db.query(ApprovalWorkflow).filter(
+            ApprovalWorkflow.tenant_id == tenant_slug,
+            ApprovalWorkflow.workflow_type == "TRAVEL_REQUEST",
+            ApprovalWorkflow.is_active == True
+        ).first()
+
+    # Set up workflow tracking
+    if workflow:
+        travel_request.workflow_id = workflow.id
+        travel_request.current_approval_step = 1  # Start at step 1
+
     travel_request.status = TravelRequestStatus.PENDING_APPROVAL
     travel_request.submitted_at = datetime.utcnow()
+    # Clear any previous rejection info
+    travel_request.rejection_reason = None
+    travel_request.rejected_by = None
+    travel_request.rejected_at = None
 
     # Add system message
+    is_resubmit = travel_request.status == TravelRequestStatus.REJECTED
+    message_content = "Travel request resubmitted for approval." if is_resubmit else "Travel request submitted for approval."
+    if workflow:
+        message_content += f" Workflow: {workflow.name} ({len(workflow.steps)} approval step(s))."
+
     system_message = TravelRequestMessage(
         travel_request_id=travel_request.id,
         sender_id=current_user.id,
         sender_type=MessageSenderType.SYSTEM,
-        content="Travel request submitted for approval."
+        content=message_content
     )
     db.add(system_message)
 
@@ -299,6 +355,181 @@ async def submit_travel_request(
     db.refresh(travel_request)
 
     return travel_request
+
+
+# ===== Travel Invitations (for colleagues added as travelers) =====
+
+@router.get("/invitations", response_model=List[TravelInvitationResponse])
+async def get_travel_invitations(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get travel requests where the current user is added as a traveler (but not the owner).
+
+    This allows colleagues to see travel requests they've been invited to join.
+    """
+    # Find travel requests where user is a traveler (STAFF type) but not the owner
+    travelers = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.user_id == current_user.id,
+        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+    ).all()
+
+    if not travelers:
+        return []
+
+    request_ids = [t.travel_request_id for t in travelers]
+
+    query = db.query(TravelRequest).options(
+        joinedload(TravelRequest.destinations),
+        joinedload(TravelRequest.user)
+    ).filter(
+        TravelRequest.id.in_(request_ids),
+        TravelRequest.user_id != current_user.id  # Exclude requests owned by the user
+    )
+
+    # Filter by acceptance status if provided
+    if status_filter:
+        if status_filter == "pending":
+            # Get pending invitations
+            pending_traveler_request_ids = [
+                t.travel_request_id for t in travelers
+                if t.acceptance_status == TravelerAcceptanceStatus.PENDING
+            ]
+            query = query.filter(TravelRequest.id.in_(pending_traveler_request_ids))
+        elif status_filter == "accepted":
+            accepted_traveler_request_ids = [
+                t.travel_request_id for t in travelers
+                if t.acceptance_status == TravelerAcceptanceStatus.ACCEPTED
+            ]
+            query = query.filter(TravelRequest.id.in_(accepted_traveler_request_ids))
+
+    requests = query.order_by(desc(TravelRequest.created_at)).all()
+
+    # Build response with traveler acceptance info
+    traveler_map = {t.travel_request_id: t for t in travelers}
+    result = []
+
+    for req in requests:
+        traveler = traveler_map.get(req.id)
+        if traveler:
+            result.append(TravelInvitationResponse(
+                id=req.id,
+                title=req.title,
+                purpose=req.purpose,
+                status=req.status,
+                created_at=req.created_at,
+                submitted_at=req.submitted_at,
+                owner_id=req.user_id,
+                owner_name=f"{req.user.first_name} {req.user.last_name}" if req.user else "Unknown",
+                owner_email=req.user.email if req.user else None,
+                traveler_id=traveler.id,
+                acceptance_status=traveler.acceptance_status,
+                accepted_at=traveler.accepted_at,
+                declined_at=traveler.declined_at,
+                destinations=[DestinationResponse.from_orm(d) for d in req.destinations]
+            ))
+
+    return result
+
+
+@router.post("/{request_id}/accept", response_model=TravelerResponse)
+async def accept_travel_invitation(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Accept a travel invitation (for colleagues added as travelers)."""
+    # Find the traveler entry for this user
+    traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.travel_request_id == request_id,
+        TravelRequestTraveler.user_id == current_user.id,
+        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+    ).first()
+
+    if not traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel invitation not found"
+        )
+
+    if traveler.acceptance_status != TravelerAcceptanceStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation already {traveler.acceptance_status.value}"
+        )
+
+    # Accept the invitation
+    traveler.acceptance_status = TravelerAcceptanceStatus.ACCEPTED
+    traveler.accepted_at = datetime.utcnow()
+
+    # Add system message to the request
+    travel_request = db.query(TravelRequest).filter(TravelRequest.id == request_id).first()
+    if travel_request:
+        system_message = TravelRequestMessage(
+            travel_request_id=request_id,
+            sender_id=current_user.id,
+            sender_type=MessageSenderType.SYSTEM,
+            content=f"{current_user.first_name} {current_user.last_name} accepted the travel invitation."
+        )
+        db.add(system_message)
+
+    db.commit()
+    db.refresh(traveler)
+
+    return traveler
+
+
+@router.post("/{request_id}/decline", response_model=TravelerResponse)
+async def decline_travel_invitation(
+    request_id: int,
+    decline_data: TravelerDeclineAction,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Decline a travel invitation (for colleagues added as travelers)."""
+    # Find the traveler entry for this user
+    traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.travel_request_id == request_id,
+        TravelRequestTraveler.user_id == current_user.id,
+        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+    ).first()
+
+    if not traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel invitation not found"
+        )
+
+    if traveler.acceptance_status != TravelerAcceptanceStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invitation already {traveler.acceptance_status.value}"
+        )
+
+    # Decline the invitation
+    traveler.acceptance_status = TravelerAcceptanceStatus.DECLINED
+    traveler.declined_at = datetime.utcnow()
+    traveler.decline_reason = decline_data.reason
+
+    # Add system message to the request
+    travel_request = db.query(TravelRequest).filter(TravelRequest.id == request_id).first()
+    if travel_request:
+        decline_msg = f"{current_user.first_name} {current_user.last_name} declined the travel invitation."
+        if decline_data.reason:
+            decline_msg += f" Reason: {decline_data.reason}"
+        system_message = TravelRequestMessage(
+            travel_request_id=request_id,
+            sender_id=current_user.id,
+            sender_type=MessageSenderType.SYSTEM,
+            content=decline_msg
+        )
+        db.add(system_message)
+
+    db.commit()
+    db.refresh(traveler)
+
+    return traveler
 
 
 # ===== Destination Endpoints =====
@@ -322,10 +553,10 @@ async def add_destination(
             detail="Travel request not found"
         )
 
-    if travel_request.status != TravelRequestStatus.DRAFT:
+    if travel_request.status not in [TravelRequestStatus.DRAFT, TravelRequestStatus.REJECTED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only add destinations to draft travel requests"
+            detail="Can only add destinations to draft or rejected travel requests"
         )
 
     # Get the next order number

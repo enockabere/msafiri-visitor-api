@@ -45,6 +45,19 @@ class TravelerType(str, Enum):
     STAFF = "staff"
 
 
+class TravelerAcceptanceStatus(str, Enum):
+    """Acceptance status for colleague travelers."""
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+
+class ApprovalActionType(str, Enum):
+    """Type of approval action."""
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
 # ===== Destination Schemas =====
 
 class DestinationBase(BaseModel):
@@ -155,6 +168,11 @@ class TravelerResponse(BaseModel):
     traveler_phone: Optional[str] = None
     is_primary: int
     created_at: datetime
+    # Acceptance tracking for STAFF travelers
+    acceptance_status: TravelerAcceptanceStatus = TravelerAcceptanceStatus.PENDING
+    accepted_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None
+    decline_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -197,17 +215,12 @@ class TravelRequestResponse(TravelRequestBase):
     rejected_at: Optional[datetime] = None
     user_name: Optional[str] = None
     approver_name: Optional[str] = None
+    # Workflow tracking
+    workflow_id: Optional[int] = None
+    current_approval_step: int = 0
 
     class Config:
         from_attributes = True
-
-
-class TravelRequestDetailResponse(TravelRequestResponse):
-    """Detailed response including destinations, messages, documents, and travelers."""
-    destinations: List[DestinationResponse] = []
-    messages: List[MessageResponse] = []
-    documents: List[DocumentResponse] = []
-    travelers: List[TravelerResponse] = []
 
 
 class TravelRequestListResponse(BaseModel):
@@ -241,3 +254,68 @@ class TravelRequestSummary(BaseModel):
     created_at: datetime
     submitted_at: Optional[datetime]
     destinations: List[DestinationResponse]
+
+
+# ===== Approval History Schemas =====
+
+class ApprovalHistoryResponse(BaseModel):
+    """Schema for approval history entry."""
+    id: int
+    travel_request_id: int
+    step_number: int
+    step_name: Optional[str] = None
+    approver_id: int
+    approver_name: Optional[str] = None
+    action: ApprovalActionType
+    comments: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===== Traveler Acceptance Schemas =====
+
+class TravelerAcceptAction(BaseModel):
+    """Schema for accepting a travel invitation."""
+    pass
+
+
+class TravelerDeclineAction(BaseModel):
+    """Schema for declining a travel invitation."""
+    reason: Optional[str] = None
+
+
+# ===== Travel Invitation Schema =====
+
+class TravelInvitationResponse(BaseModel):
+    """Schema for travel invitation (requests where user is a traveler but not owner)."""
+    id: int
+    title: str
+    purpose: Optional[str] = None
+    status: TravelRequestStatus
+    created_at: datetime
+    submitted_at: Optional[datetime] = None
+    # Owner info
+    owner_id: int
+    owner_name: str
+    owner_email: Optional[str] = None
+    # Traveler's acceptance status
+    traveler_id: int
+    acceptance_status: TravelerAcceptanceStatus
+    accepted_at: Optional[datetime] = None
+    declined_at: Optional[datetime] = None
+    # Destinations for context
+    destinations: List[DestinationResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+class TravelRequestDetailResponse(TravelRequestResponse):
+    """Detailed response including destinations, messages, documents, travelers, and approval history."""
+    destinations: List[DestinationResponse] = []
+    messages: List[MessageResponse] = []
+    documents: List[DocumentResponse] = []
+    travelers: List[TravelerResponse] = []
+    approval_history: List[ApprovalHistoryResponse] = []
