@@ -90,41 +90,61 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         return self.create_notification(db, notification_data=notification_data)
     
     def get_user_notifications(
-        self, 
-        db: Session, 
-        *, 
-        user_id: int, 
+        self,
+        db: Session,
+        *,
+        user_id: int,
         tenant_id: Optional[str],  # Can be None for super admins
         unread_only: bool = False,
-        skip: int = 0, 
+        skip: int = 0,
         limit: int = 50
     ) -> List[Notification]:
         """Get notifications for a specific user - includes chat notifications"""
-        
-        # Base query - get notifications for this user OR broadcast notifications
-        query = db.query(Notification).filter(
-            or_(
-                Notification.user_id == user_id,
-                Notification.user_id.is_(None)  # Broadcast notifications
-            )
-        )
-        
-        # For mobile users, don't filter by tenant to include all their notifications
-        # For admin users, filter by tenant
+
+        # Always filter by user to prevent cross-user data leakage
+        # Users can see: their own notifications + system-wide broadcasts (tenant_id = "system")
         if tenant_id is not None and tenant_id != "system":
-            # Regular users: see notifications for their tenant AND system notifications
-            query = query.filter(
+            # Regular users with a tenant: see their notifications + their tenant broadcasts + system broadcasts
+            query = db.query(Notification).filter(
                 or_(
-                    Notification.tenant_id == tenant_id,
-                    Notification.tenant_id == "system",
-                    Notification.tenant_id.is_(None)
+                    # User's own notifications
+                    Notification.user_id == user_id,
+                    # Tenant-wide broadcasts for their tenant
+                    and_(
+                        Notification.user_id.is_(None),
+                        Notification.tenant_id == tenant_id
+                    ),
+                    # System-wide broadcasts
+                    and_(
+                        Notification.user_id.is_(None),
+                        or_(
+                            Notification.tenant_id == "system",
+                            Notification.tenant_id.is_(None)
+                        )
+                    )
                 )
             )
-        # Super admins and mobile users: see notifications from all tenants
-        
+        else:
+            # Mobile users without tenant or super admins: only see their own notifications + system broadcasts
+            # Do NOT show other tenants' broadcast notifications
+            query = db.query(Notification).filter(
+                or_(
+                    # User's own notifications (regardless of tenant)
+                    Notification.user_id == user_id,
+                    # System-wide broadcasts only (not tenant-specific)
+                    and_(
+                        Notification.user_id.is_(None),
+                        or_(
+                            Notification.tenant_id == "system",
+                            Notification.tenant_id.is_(None)
+                        )
+                    )
+                )
+            )
+
         if unread_only:
             query = query.filter(Notification.is_read == False)
-        
+
         return query.order_by(desc(Notification.created_at)).offset(skip).limit(limit).all()
     
     def get_sent_notifications(
@@ -269,26 +289,45 @@ class CRUDNotification(CRUDBase[Notification, NotificationCreate, NotificationUp
         """Get notification statistics for a user - includes chat notifications"""
 
         try:
-            # Base query - get notifications for this user OR broadcast notifications
-            base_query = db.query(Notification).filter(
-                or_(
-                    Notification.user_id == user_id,
-                    Notification.user_id.is_(None)  # Broadcast notifications
-                )
-            )
-
-            # For mobile users, don't filter by tenant to include all their notifications
-            # For admin users, filter by tenant
+            # Always filter by user to prevent cross-user data leakage
+            # Users can see: their own notifications + system-wide broadcasts
             if tenant_id is not None and tenant_id != "system":
-                # Regular users: see notifications for their tenant AND system notifications
-                base_query = base_query.filter(
+                # Regular users with a tenant
+                base_query = db.query(Notification).filter(
                     or_(
-                        Notification.tenant_id == tenant_id,
-                        Notification.tenant_id == "system",
-                        Notification.tenant_id.is_(None)
+                        # User's own notifications
+                        Notification.user_id == user_id,
+                        # Tenant-wide broadcasts for their tenant
+                        and_(
+                            Notification.user_id.is_(None),
+                            Notification.tenant_id == tenant_id
+                        ),
+                        # System-wide broadcasts
+                        and_(
+                            Notification.user_id.is_(None),
+                            or_(
+                                Notification.tenant_id == "system",
+                                Notification.tenant_id.is_(None)
+                            )
+                        )
                     )
                 )
-            # Super admins and mobile users: see notifications from all tenants
+            else:
+                # Mobile users without tenant or super admins
+                base_query = db.query(Notification).filter(
+                    or_(
+                        # User's own notifications
+                        Notification.user_id == user_id,
+                        # System-wide broadcasts only
+                        and_(
+                            Notification.user_id.is_(None),
+                            or_(
+                                Notification.tenant_id == "system",
+                                Notification.tenant_id.is_(None)
+                            )
+                        )
+                    )
+                )
 
             total = base_query.count()
 

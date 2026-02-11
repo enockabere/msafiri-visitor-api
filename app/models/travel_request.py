@@ -208,6 +208,21 @@ class TravelRequestTraveler(Base):
     declined_at = Column(DateTime, nullable=True)
     decline_reason = Column(Text, nullable=True)
 
+    # Passport data (from Document Intelligence extraction)
+    passport_file_url = Column(String(1024), nullable=True)
+    passport_uploaded_at = Column(DateTime, nullable=True)
+    passport_number = Column(String(50), nullable=True)
+    passport_full_name = Column(String(255), nullable=True)
+    passport_date_of_birth = Column(Date, nullable=True)
+    passport_expiry_date = Column(Date, nullable=True)
+    passport_nationality = Column(String(100), nullable=True)
+    passport_gender = Column(String(20), nullable=True)
+    passport_verified = Column(Integer, default=0, nullable=False)  # User confirmed data
+    is_child_under_18 = Column(Integer, default=0, nullable=False)  # Computed from DOB
+
+    # Relation type for dependants (e.g., child, spouse)
+    relation_type = Column(String(50), nullable=True)
+
     # Relationships
     travel_request = relationship("TravelRequest", back_populates="travelers")
     user = relationship("User", foreign_keys=[user_id])

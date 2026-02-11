@@ -154,6 +154,7 @@ class TravelerCreate(BaseModel):
     traveler_email: Optional[str] = None
     traveler_phone: Optional[str] = None
     is_primary: int = 0
+    relation_type: Optional[str] = None  # e.g., "child", "spouse"
 
 
 class TravelerResponse(BaseModel):
@@ -173,6 +174,19 @@ class TravelerResponse(BaseModel):
     accepted_at: Optional[datetime] = None
     declined_at: Optional[datetime] = None
     decline_reason: Optional[str] = None
+    # Passport data
+    passport_file_url: Optional[str] = None
+    passport_uploaded_at: Optional[datetime] = None
+    passport_number: Optional[str] = None
+    passport_full_name: Optional[str] = None
+    passport_date_of_birth: Optional[date] = None
+    passport_expiry_date: Optional[date] = None
+    passport_nationality: Optional[str] = None
+    passport_gender: Optional[str] = None
+    passport_verified: int = 0
+    is_child_under_18: int = 0
+    # Relation type for dependants
+    relation_type: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -319,3 +333,42 @@ class TravelRequestDetailResponse(TravelRequestResponse):
     documents: List[DocumentResponse] = []
     travelers: List[TravelerResponse] = []
     approval_history: List[ApprovalHistoryResponse] = []
+
+
+# ===== Passport Schemas =====
+
+class PassportSaveRequest(BaseModel):
+    """Schema for saving passport data to a traveler."""
+    file_url: str
+    passport_number: Optional[str] = None
+    full_name: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    expiry_date: Optional[date] = None
+    nationality: Optional[str] = None
+    gender: Optional[str] = None
+    verified: bool = False  # User confirmed the extracted data
+
+
+class PassportValidationResponse(BaseModel):
+    """Schema for passport validation result."""
+    can_submit: bool
+    missing_child_passports: List[int] = []  # Traveler IDs without passports
+    age_warnings: List[str] = []  # Warning messages about age
+    age_errors: List[str] = []  # Error messages about age (18+)
+    travelers_to_remove: List[int] = []  # Traveler IDs that should be removed (18+)
+    error: Optional[str] = None
+
+
+class TravelerPassportStatus(BaseModel):
+    """Schema for individual traveler's passport status."""
+    traveler_id: int
+    traveler_name: str
+    traveler_type: TravelerType
+    relation_type: Optional[str] = None
+    passport_required: bool
+    has_passport: bool
+    passport_file_url: Optional[str] = None
+    passport_number: Optional[str] = None
+    passport_expiry_date: Optional[date] = None
+    is_child_under_18: bool = False
+    age_at_travel: Optional[int] = None

@@ -602,10 +602,10 @@ async def update_destination(
             detail="Travel request not found"
         )
 
-    if travel_request.status != TravelRequestStatus.DRAFT:
+    if travel_request.status not in [TravelRequestStatus.DRAFT, TravelRequestStatus.REJECTED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only update destinations in draft travel requests"
+            detail="Can only update destinations in draft or rejected travel requests"
         )
 
     destination = db.query(TravelRequestDestination).filter(
@@ -647,10 +647,10 @@ async def delete_destination(
             detail="Travel request not found"
         )
 
-    if travel_request.status != TravelRequestStatus.DRAFT:
+    if travel_request.status not in [TravelRequestStatus.DRAFT, TravelRequestStatus.REJECTED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only delete destinations from draft travel requests"
+            detail="Can only delete destinations from draft or rejected travel requests"
         )
 
     destination = db.query(TravelRequestDestination).filter(
