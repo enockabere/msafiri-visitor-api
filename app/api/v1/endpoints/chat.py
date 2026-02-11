@@ -972,7 +972,7 @@ def get_available_users(
             "email": user.email,
             "name": user.full_name or user.email,
             "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-            "profile_image_url": user.profile_image_url
+            "profile_image_url": user.profile_picture_url
         }
         for user in users
     ]
