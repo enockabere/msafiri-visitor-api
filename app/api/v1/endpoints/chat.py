@@ -875,12 +875,19 @@ def get_conversations(
                     }.get(last_msg.file_type, '📎 File')
                     formatted_last_message = file_type_display
             
+            # Get user's profile image
+            user = db.query(User).filter(User.email == email).first()
+            profile_image = ""
+            if user:
+                profile_image = user.avatar_url or user.profile_picture_url or ""
+            
             conversations.append({
                 "email": email,
                 "name": name,
                 "last_message": formatted_last_message,
                 "last_message_time": last_msg.created_at if last_msg else None,
-                "unread_count": unread_count
+                "unread_count": unread_count,
+                "profile_image_url": profile_image
             })
     
     # Process received messages
@@ -918,12 +925,19 @@ def get_conversations(
                     }.get(last_msg.file_type, '📎 File')
                     formatted_last_message = file_type_display
             
+            # Get user's profile image
+            user = db.query(User).filter(User.email == email).first()
+            profile_image = ""
+            if user:
+                profile_image = user.avatar_url or user.profile_picture_url or ""
+            
             conversations.append({
                 "email": email,
                 "name": name,
                 "last_message": formatted_last_message,
                 "last_message_time": last_msg.created_at if last_msg else None,
-                "unread_count": unread_count
+                "unread_count": unread_count,
+                "profile_image_url": profile_image
             })
     
     # Sort by last message time
