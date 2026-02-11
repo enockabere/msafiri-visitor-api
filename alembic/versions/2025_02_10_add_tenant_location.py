@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'add_tenant_location'
-down_revision = None  # Update with your latest revision
+revision = '2025_02_10_add_tenant_location'
+down_revision = 'add_currency_rates'
 branch_labels = None
 depends_on = None
 

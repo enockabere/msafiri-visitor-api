@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_hotel_rates'
-down_revision = None  # Update this with your latest revision
+down_revision = '102_add_vetting_member_submissions'
 branch_labels = None
 depends_on = None
 
