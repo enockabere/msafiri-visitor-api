@@ -66,6 +66,11 @@ class VendorAccommodation(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     current_occupants = Column(Integer, default=0)
+    # Hotel rates
+    rate_bed_breakfast = Column(Integer, nullable=True)  # Bed & Breakfast rate
+    rate_half_board = Column(Integer, nullable=True)  # Half Board rate
+    rate_full_board = Column(Integer, nullable=True)  # Full Board rate
+    rate_bed_only = Column(Integer, nullable=True)  # Bed Only rate
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

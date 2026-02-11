@@ -89,6 +89,10 @@ class VendorAccommodationBase(BaseModel):
     capacity: int = Field(default=0, ge=0)
     description: Optional[str] = None
     is_active: bool = True
+    rate_bed_breakfast: Optional[int] = Field(None, ge=0)
+    rate_half_board: Optional[int] = Field(None, ge=0)
+    rate_full_board: Optional[int] = Field(None, ge=0)
+    rate_bed_only: Optional[int] = Field(None, ge=0)
 
 class VendorAccommodationCreate(VendorAccommodationBase):
     pass
@@ -101,6 +105,10 @@ class VendorAccommodationUpdate(BaseModel):
     capacity: Optional[int] = Field(None, ge=0)
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    rate_bed_breakfast: Optional[int] = Field(None, ge=0)
+    rate_half_board: Optional[int] = Field(None, ge=0)
+    rate_full_board: Optional[int] = Field(None, ge=0)
+    rate_bed_only: Optional[int] = Field(None, ge=0)
 
 class VendorAccommodation(VendorAccommodationBase):
     id: int
