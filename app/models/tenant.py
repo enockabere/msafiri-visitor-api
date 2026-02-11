@@ -35,6 +35,9 @@ class Tenant(BaseModel):
     address = Column(Text, nullable=True)
     website = Column(String(255), nullable=True)
     country = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    latitude = Column(String(20), nullable=True)
+    longitude = Column(String(20), nullable=True)
     timezone = Column(String(50), nullable=True)
     
     # Branding

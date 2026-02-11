@@ -15,6 +15,9 @@ class TenantBase(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
+    city: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     timezone: Optional[str] = None
     
 class TenantCreate(TenantBase):
@@ -42,6 +45,9 @@ class TenantUpdate(BaseModel):
     address: Optional[str] = None
     website: Optional[str] = None
     country: Optional[str] = None
+    city: Optional[str] = None
+    latitude: Optional[str] = None
+    longitude: Optional[str] = None
     timezone: Optional[str] = None
     allow_self_registration: Optional[bool] = None
     require_admin_approval: Optional[bool] = None
