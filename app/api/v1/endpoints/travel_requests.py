@@ -83,13 +83,21 @@ async def create_travel_request(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new travel request."""
+    # Debug logging
+    status_value = TravelRequestStatus.DRAFT.value
+    logger.info(f"Creating travel request with status: {status_value} (type: {type(status_value)})")
+    logger.info(f"TravelRequestStatus.DRAFT = {TravelRequestStatus.DRAFT}")
+    logger.info(f"TravelRequestStatus.DRAFT.value = {TravelRequestStatus.DRAFT.value}")
+    
     travel_request = TravelRequest(
         tenant_id=request_data.tenant_id,
         user_id=current_user.id,
         title=request_data.title,
         purpose=request_data.purpose,
-        status=TravelRequestStatus.DRAFT.value  # Use .value to get lowercase string
+        status=status_value
     )
+    
+    logger.info(f"TravelRequest object created, status attribute: {travel_request.status} (type: {type(travel_request.status)})")
 
     db.add(travel_request)
     db.flush()
