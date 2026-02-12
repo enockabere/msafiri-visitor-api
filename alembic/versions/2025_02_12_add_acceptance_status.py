@@ -39,28 +39,31 @@ def upgrade() -> None:
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     if 'travel_request_approvals' not in inspector.get_table_names():
-        # Create approval action enum only if table doesn't exist
-        approval_action_type = sa.Enum('approved', 'rejected', name='approvalactiontype')
-        approval_action_type.create(op.get_bind(), checkfirst=True)
+        # Create approval action enum only if it doesn't exist
+        conn.execute(sa.text(
+            "CREATE TYPE IF NOT EXISTS approvalactiontype AS ENUM ('approved', 'rejected')"
+        ))
 
-        # Create travel_request_approvals table
-        op.create_table('travel_request_approvals',
-            sa.Column('id', sa.Integer(), nullable=False),
-            sa.Column('travel_request_id', sa.Integer(), nullable=False),
-            sa.Column('step_number', sa.Integer(), nullable=False),
-            sa.Column('step_name', sa.String(255), nullable=True),
-            sa.Column('approver_id', sa.Integer(), nullable=False),
-            sa.Column('action', sa.Enum('approved', 'rejected', name='approvalactiontype'), nullable=False),
-            sa.Column('comments', sa.Text(), nullable=True),
-            sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
-            sa.PrimaryKeyConstraint('id'),
-            sa.ForeignKeyConstraint(['travel_request_id'], ['travel_requests.id'], ondelete='CASCADE'),
-            sa.ForeignKeyConstraint(['approver_id'], ['users.id'])
-        )
-        op.create_index('ix_travel_request_approvals_travel_request_id',
-                        'travel_request_approvals', ['travel_request_id'])
-        op.create_index('ix_travel_request_approvals_approver_id',
-                        'travel_request_approvals', ['approver_id'])
+        # Create travel_request_approvals table using raw SQL to avoid enum recreation
+        conn.execute(sa.text("""
+            CREATE TABLE travel_request_approvals (
+                id SERIAL PRIMARY KEY,
+                travel_request_id INTEGER NOT NULL REFERENCES travel_requests(id) ON DELETE CASCADE,
+                step_number INTEGER NOT NULL,
+                step_name VARCHAR(255),
+                approver_id INTEGER NOT NULL REFERENCES users(id),
+                action approvalactiontype NOT NULL,
+                comments TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """))
+        
+        conn.execute(sa.text(
+            "CREATE INDEX ix_travel_request_approvals_travel_request_id ON travel_request_approvals(travel_request_id)"
+        ))
+        conn.execute(sa.text(
+            "CREATE INDEX ix_travel_request_approvals_approver_id ON travel_request_approvals(approver_id)"
+        ))
 
 
 def downgrade() -> None:
