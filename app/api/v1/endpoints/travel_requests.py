@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
+import sqlalchemy as sa
 from typing import List, Optional
 from datetime import datetime
 import logging
@@ -169,7 +170,7 @@ async def get_travel_invitations(
     # Find travel requests where user is a traveler (STAFF type) but not the owner
     travelers = db.query(TravelRequestTraveler).filter(
         TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type == 'staff'
+        TravelRequestTraveler.traveler_type.cast(sa.String) == 'staff'
     ).all()
 
     if not travelers:
