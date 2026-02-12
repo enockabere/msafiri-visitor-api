@@ -153,6 +153,83 @@ async def create_travel_request(
     return travel_request
 
 
+# ===== Travel Invitations (for colleagues added as travelers) =====
+# NOTE: This must come BEFORE /{request_id} to avoid route conflicts
+
+@router.get("/invitations", response_model=List[TravelInvitationResponse])
+async def get_travel_invitations(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get travel requests where the current user is added as a traveler (but not the owner).
+
+    This allows colleagues to see travel requests they've been invited to join.
+    """
+    # Find travel requests where user is a traveler (STAFF type) but not the owner
+    travelers = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.user_id == current_user.id,
+        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+    ).all()
+
+    if not travelers:
+        return []
+
+    request_ids = [t.travel_request_id for t in travelers]
+
+    query = db.query(TravelRequest).options(
+        joinedload(TravelRequest.destinations),
+        joinedload(TravelRequest.user)
+    ).filter(
+        TravelRequest.id.in_(request_ids),
+        TravelRequest.user_id != current_user.id  # Exclude requests owned by the user
+    )
+
+    # Filter by acceptance status if provided
+    if status_filter:
+        if status_filter == "pending":
+            # Get pending invitations
+            pending_traveler_request_ids = [
+                t.travel_request_id for t in travelers
+                if t.acceptance_status == TravelerAcceptanceStatus.PENDING
+            ]
+            query = query.filter(TravelRequest.id.in_(pending_traveler_request_ids))
+        elif status_filter == "accepted":
+            accepted_traveler_request_ids = [
+                t.travel_request_id for t in travelers
+                if t.acceptance_status == TravelerAcceptanceStatus.ACCEPTED
+            ]
+            query = query.filter(TravelRequest.id.in_(accepted_traveler_request_ids))
+
+    requests = query.order_by(desc(TravelRequest.created_at)).all()
+
+    # Build response with traveler acceptance info
+    traveler_map = {t.travel_request_id: t for t in travelers}
+    result = []
+
+    for req in requests:
+        traveler = traveler_map.get(req.id)
+        if traveler:
+            result.append(TravelInvitationResponse(
+                id=req.id,
+                title=req.title,
+                purpose=req.purpose,
+                status=req.status,
+                created_at=req.created_at,
+                submitted_at=req.submitted_at,
+                owner_id=req.user_id,
+                owner_name=f"{req.user.first_name} {req.user.last_name}" if req.user else "Unknown",
+                owner_email=req.user.email if req.user else None,
+                traveler_id=traveler.id,
+                acceptance_status=traveler.acceptance_status,
+                accepted_at=traveler.accepted_at,
+                declined_at=traveler.declined_at,
+                destinations=[DestinationResponse.from_orm(d) for d in req.destinations]
+            ))
+
+    return result
+
+
 @router.get("/{request_id}", response_model=TravelRequestDetailResponse)
 async def get_travel_request(
     request_id: int,
@@ -358,82 +435,6 @@ async def submit_travel_request(
     db.refresh(travel_request)
 
     return travel_request
-
-
-# ===== Travel Invitations (for colleagues added as travelers) =====
-
-@router.get("/invitations", response_model=List[TravelInvitationResponse])
-async def get_travel_invitations(
-    status_filter: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get travel requests where the current user is added as a traveler (but not the owner).
-
-    This allows colleagues to see travel requests they've been invited to join.
-    """
-    # Find travel requests where user is a traveler (STAFF type) but not the owner
-    travelers = db.query(TravelRequestTraveler).filter(
-        TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type == TravelerType.STAFF
-    ).all()
-
-    if not travelers:
-        return []
-
-    request_ids = [t.travel_request_id for t in travelers]
-
-    query = db.query(TravelRequest).options(
-        joinedload(TravelRequest.destinations),
-        joinedload(TravelRequest.user)
-    ).filter(
-        TravelRequest.id.in_(request_ids),
-        TravelRequest.user_id != current_user.id  # Exclude requests owned by the user
-    )
-
-    # Filter by acceptance status if provided
-    if status_filter:
-        if status_filter == "pending":
-            # Get pending invitations
-            pending_traveler_request_ids = [
-                t.travel_request_id for t in travelers
-                if t.acceptance_status == TravelerAcceptanceStatus.PENDING
-            ]
-            query = query.filter(TravelRequest.id.in_(pending_traveler_request_ids))
-        elif status_filter == "accepted":
-            accepted_traveler_request_ids = [
-                t.travel_request_id for t in travelers
-                if t.acceptance_status == TravelerAcceptanceStatus.ACCEPTED
-            ]
-            query = query.filter(TravelRequest.id.in_(accepted_traveler_request_ids))
-
-    requests = query.order_by(desc(TravelRequest.created_at)).all()
-
-    # Build response with traveler acceptance info
-    traveler_map = {t.travel_request_id: t for t in travelers}
-    result = []
-
-    for req in requests:
-        traveler = traveler_map.get(req.id)
-        if traveler:
-            result.append(TravelInvitationResponse(
-                id=req.id,
-                title=req.title,
-                purpose=req.purpose,
-                status=req.status,
-                created_at=req.created_at,
-                submitted_at=req.submitted_at,
-                owner_id=req.user_id,
-                owner_name=f"{req.user.first_name} {req.user.last_name}" if req.user else "Unknown",
-                owner_email=req.user.email if req.user else None,
-                traveler_id=traveler.id,
-                acceptance_status=traveler.acceptance_status,
-                accepted_at=traveler.accepted_at,
-                declined_at=traveler.declined_at,
-                destinations=[DestinationResponse.from_orm(d) for d in req.destinations]
-            ))
-
-    return result
 
 
 @router.post("/{request_id}/accept", response_model=TravelerResponse)
