@@ -12,7 +12,7 @@ class PassportExtractionService:
 
     def __init__(self):
         self.endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-        self.api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+        self.api_key = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_KEY") or os.getenv("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
 
     async def extract_passport_data(self, image_url: str) -> Dict[str, Any]:
         """
