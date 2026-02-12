@@ -87,8 +87,8 @@ async def create_travel_request(
         tenant_id=request_data.tenant_id,
         user_id=current_user.id,
         title=request_data.title,
-        purpose=request_data.purpose,
-        status=TravelRequestStatus.DRAFT
+        purpose=request_data.purpose
+        # status will default to 'draft' from database
     )
 
     db.add(travel_request)

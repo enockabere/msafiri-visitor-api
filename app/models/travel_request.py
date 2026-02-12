@@ -15,6 +15,16 @@ class TravelRequestStatus(str, PyEnum):
     REJECTED = "rejected"
     COMPLETED = "completed"
 
+    @classmethod
+    def _missing_(cls, value):
+        """Handle case-insensitive enum lookup."""
+        if isinstance(value, str):
+            value = value.lower()
+            for member in cls:
+                if member.value == value:
+                    return member
+        return None
+
 
 class TransportMode(str, PyEnum):
     """Transport mode options."""
