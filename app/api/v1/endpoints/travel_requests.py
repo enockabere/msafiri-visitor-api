@@ -69,9 +69,9 @@ async def get_user_travel_requests(
 
     # Add user names
     for req in requests:
-        req.user_name = f"{req.user.first_name} {req.user.last_name}" if req.user else None
+        req.user_name = req.user.full_name if req.user else None
         if req.approver:
-            req.approver_name = f"{req.approver.first_name} {req.approver.last_name}"
+            req.approver_name = req.approver.full_name
 
     return requests
 
@@ -138,7 +138,7 @@ async def create_travel_request(
             travel_request_id=travel_request.id,
             traveler_type=TravelerType.SELF,
             user_id=current_user.id,
-            traveler_name=f"{current_user.first_name} {current_user.last_name}",
+            traveler_name=current_user.full_name,
             traveler_email=current_user.email,
             traveler_phone=current_user.phone_number,
             is_primary=1
@@ -157,7 +157,7 @@ async def create_travel_request(
     db.commit()
     db.refresh(travel_request)
 
-    travel_request.user_name = f"{current_user.first_name} {current_user.last_name}"
+    travel_request.user_name = current_user.full_name
 
     return travel_request
 
@@ -227,7 +227,7 @@ async def get_travel_invitations(
                 created_at=req.created_at,
                 submitted_at=req.submitted_at,
                 owner_id=req.user_id,
-                owner_name=f"{req.user.first_name} {req.user.last_name}" if req.user else "Unknown",
+                owner_name=req.user.full_name if req.user else "Unknown",
                 owner_email=req.user.email if req.user else None,
                 traveler_id=traveler.id,
                 acceptance_status=traveler.acceptance_status,
@@ -282,21 +282,21 @@ async def get_travel_request(
     # Add user names to messages
     for msg in travel_request.messages:
         if msg.sender:
-            msg.sender_name = f"{msg.sender.first_name} {msg.sender.last_name}"
+            msg.sender_name = msg.sender.full_name
 
     # Add uploader names to documents
     for doc in travel_request.documents:
         if doc.uploader:
-            doc.uploader_name = f"{doc.uploader.first_name} {doc.uploader.last_name}"
+            doc.uploader_name = doc.uploader.full_name
 
     # Add approver names to approval history
     for approval in travel_request.approval_history:
         if approval.approver:
-            approval.approver_name = f"{approval.approver.first_name} {approval.approver.last_name}"
+            approval.approver_name = approval.approver.full_name
 
-    travel_request.user_name = f"{travel_request.user.first_name} {travel_request.user.last_name}"
+    travel_request.user_name = travel_request.user.full_name
     if travel_request.approver:
-        travel_request.approver_name = f"{travel_request.approver.first_name} {travel_request.approver.last_name}"
+        travel_request.approver_name = travel_request.approver.full_name
 
     return travel_request
 
@@ -483,7 +483,7 @@ async def accept_travel_invitation(
             travel_request_id=request_id,
             sender_id=current_user.id,
             sender_type=MessageSenderType.SYSTEM,
-            content=f"{current_user.first_name} {current_user.last_name} accepted the travel invitation."
+            content=f"{current_user.full_name} accepted the travel invitation."
         )
         db.add(system_message)
 
@@ -528,7 +528,7 @@ async def decline_travel_invitation(
     # Add system message to the request
     travel_request = db.query(TravelRequest).filter(TravelRequest.id == request_id).first()
     if travel_request:
-        decline_msg = f"{current_user.first_name} {current_user.last_name} declined the travel invitation."
+        decline_msg = f"{current_user.full_name} declined the travel invitation."
         if decline_data.reason:
             decline_msg += f" Reason: {decline_data.reason}"
         system_message = TravelRequestMessage(
@@ -711,7 +711,7 @@ async def get_messages(
 
     for msg in messages:
         if msg.sender:
-            msg.sender_name = f"{msg.sender.first_name} {msg.sender.last_name}"
+            msg.sender_name = msg.sender.full_name
 
     return messages
 
@@ -746,7 +746,7 @@ async def send_message(
     db.commit()
     db.refresh(message)
 
-    message.sender_name = f"{current_user.first_name} {current_user.last_name}"
+    message.sender_name = current_user.full_name
 
     return message
 
@@ -779,7 +779,7 @@ async def get_documents(
 
     for doc in documents:
         if doc.uploader:
-            doc.uploader_name = f"{doc.uploader.first_name} {doc.uploader.last_name}"
+            doc.uploader_name = doc.uploader.full_name
 
     return documents
 
