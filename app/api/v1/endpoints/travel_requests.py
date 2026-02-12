@@ -169,7 +169,7 @@ async def get_travel_invitations(
     # Find travel requests where user is a traveler (STAFF type) but not the owner
     travelers = db.query(TravelRequestTraveler).filter(
         TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+        TravelRequestTraveler.traveler_type == 'staff'
     ).all()
 
     if not travelers:
@@ -260,7 +260,7 @@ async def get_travel_request(
     # Check if user is owner or a traveler
     is_owner = travel_request.user_id == current_user.id
     is_traveler = any(
-        t.user_id == current_user.id and t.traveler_type == TravelerType.STAFF
+        t.user_id == current_user.id and t.traveler_type == 'staff'
         for t in travel_request.travelers
     )
 
@@ -448,7 +448,7 @@ async def accept_travel_invitation(
     traveler = db.query(TravelRequestTraveler).filter(
         TravelRequestTraveler.travel_request_id == request_id,
         TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+        TravelRequestTraveler.traveler_type == 'staff'
     ).first()
 
     if not traveler:
@@ -496,7 +496,7 @@ async def decline_travel_invitation(
     traveler = db.query(TravelRequestTraveler).filter(
         TravelRequestTraveler.travel_request_id == request_id,
         TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type == TravelerType.STAFF
+        TravelRequestTraveler.traveler_type == 'staff'
     ).first()
 
     if not traveler:
@@ -973,7 +973,7 @@ async def get_travelers_passport_status(
     # Check access
     is_owner = travel_request.user_id == current_user.id
     is_traveler = any(
-        t.user_id == current_user.id and t.traveler_type == TravelerType.STAFF
+        t.user_id == current_user.id and t.traveler_type == 'staff'
         for t in travel_request.travelers
     )
 
