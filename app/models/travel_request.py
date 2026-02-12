@@ -83,7 +83,7 @@ class TravelRequest(Base):
     title = Column(String(255), nullable=False)
     purpose = Column(Text, nullable=True)
     status = Column(
-        Enum(TravelRequestStatus),
+        Enum(TravelRequestStatus, native_enum=False, length=50),
         server_default='draft',
         nullable=False,
         index=True
