@@ -88,7 +88,7 @@ async def create_travel_request(
         user_id=current_user.id,
         title=request_data.title,
         purpose=request_data.purpose,
-        status='draft'  # Set as string directly
+        status=TravelRequestStatus.DRAFT.value  # Use .value to get lowercase string
     )
 
     db.add(travel_request)
