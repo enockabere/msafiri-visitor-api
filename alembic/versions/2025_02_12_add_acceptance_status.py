@@ -39,12 +39,16 @@ def upgrade() -> None:
     conn = op.get_bind()
     inspector = sa.inspect(conn)
     if 'travel_request_approvals' not in inspector.get_table_names():
-        # Create approval action enum only if it doesn't exist
-        conn.execute(sa.text(
-            "CREATE TYPE IF NOT EXISTS approvalactiontype AS ENUM ('approved', 'rejected')"
+        # Check if enum exists, create only if it doesn't
+        result = conn.execute(sa.text(
+            "SELECT 1 FROM pg_type WHERE typname = 'approvalactiontype'"
         ))
+        if not result.fetchone():
+            conn.execute(sa.text(
+                "CREATE TYPE approvalactiontype AS ENUM ('approved', 'rejected')"
+            ))
 
-        # Create travel_request_approvals table using raw SQL to avoid enum recreation
+        # Create travel_request_approvals table using raw SQL
         conn.execute(sa.text("""
             CREATE TABLE travel_request_approvals (
                 id SERIAL PRIMARY KEY,
