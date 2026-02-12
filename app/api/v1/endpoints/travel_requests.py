@@ -12,7 +12,7 @@ from app.models.travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
     TravelRequestStatus, TransportMode, MessageSenderType, DocumentType,
     TravelRequestTraveler, TravelerType, Dependant, TravelerAcceptanceStatus,
-    TravelRequestApproval, ApprovalActionType
+    TravelRequestApproval, ApprovalActionType, DependantRelationship
 )
 from app.models.user import User
 from app.models.approver import ApprovalWorkflow, ApprovalStep
@@ -21,8 +21,10 @@ from app.schemas.travel_request import (
     TravelRequestListResponse, DestinationCreate, DestinationUpdate, DestinationResponse,
     MessageCreate, MessageResponse, DocumentResponse, ApprovalAction, RejectionAction,
     TravelRequestSummary, TravelerCreate, TravelerResponse, TravelInvitationResponse,
-    TravelerAcceptAction, TravelerDeclineAction, ApprovalHistoryResponse
+    TravelerAcceptAction, TravelerDeclineAction, ApprovalHistoryResponse,
+    PassportSaveRequest, PassportValidationResponse, TravelerPassportStatus
 )
+from app.services.traveler_validation_service import traveler_validation_service
 from app.api.deps import get_current_user
 
 # Azure Blob Storage
@@ -117,7 +119,8 @@ async def create_travel_request(
                 traveler_name=traveler_data.traveler_name,
                 traveler_email=traveler_data.traveler_email,
                 traveler_phone=traveler_data.traveler_phone,
-                is_primary=traveler_data.is_primary
+                is_primary=traveler_data.is_primary,
+                relation_type=traveler_data.relation_type
             )
             db.add(traveler)
     else:
@@ -769,3 +772,242 @@ async def get_documents(
             doc.uploader_name = f"{doc.uploader.first_name} {doc.uploader.last_name}"
 
     return documents
+
+
+# ===== Passport Endpoints =====
+
+@router.post("/{request_id}/travelers/{traveler_id}/passport/save", response_model=TravelerResponse)
+async def save_traveler_passport(
+    request_id: int,
+    traveler_id: int,
+    passport_data: PassportSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Save passport data to a traveler (after extraction).
+
+    Receives file_url + extracted fields from the reusable passport endpoint.
+    Validates age for child dependants - must be under 18 at travel date.
+    """
+    # Verify travel request ownership
+    travel_request = db.query(TravelRequest).options(
+        joinedload(TravelRequest.destinations)
+    ).filter(
+        TravelRequest.id == request_id,
+        TravelRequest.user_id == current_user.id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Get the traveler
+    traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.id == traveler_id,
+        TravelRequestTraveler.travel_request_id == request_id
+    ).first()
+
+    if not traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Traveler not found"
+        )
+
+    # If this is a child dependant, validate age
+    is_child_dependant = (
+        traveler.traveler_type == TravelerType.DEPENDANT and
+        traveler.relation_type == DependantRelationship.CHILD.value
+    )
+
+    if is_child_dependant and passport_data.date_of_birth:
+        earliest_departure = traveler_validation_service.get_earliest_departure_date(travel_request)
+        if earliest_departure:
+            age_at_travel = traveler_validation_service.calculate_age_at_date(
+                passport_data.date_of_birth,
+                earliest_departure
+            )
+            if age_at_travel >= 18:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{traveler.traveler_name} will be {age_at_travel} years old at the time of travel. "
+                           f"Child dependants must be under 18. Please remove this traveler from the request."
+                )
+
+    # Update traveler with passport data
+    traveler.passport_file_url = passport_data.file_url
+    traveler.passport_uploaded_at = datetime.utcnow()
+    traveler.passport_number = passport_data.passport_number
+    traveler.passport_full_name = passport_data.full_name
+    traveler.passport_date_of_birth = passport_data.date_of_birth
+    traveler.passport_expiry_date = passport_data.expiry_date
+    traveler.passport_nationality = passport_data.nationality
+    traveler.passport_gender = passport_data.gender
+    traveler.passport_verified = 1 if passport_data.verified else 0
+
+    # Calculate is_child_under_18 flag
+    if passport_data.date_of_birth:
+        traveler.is_child_under_18 = 1 if traveler_validation_service.calculate_is_child_under_18(
+            passport_data.date_of_birth
+        ) else 0
+
+    db.commit()
+    db.refresh(traveler)
+
+    return traveler
+
+
+@router.delete("/{request_id}/travelers/{traveler_id}/passport")
+async def remove_traveler_passport(
+    request_id: int,
+    traveler_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Remove passport data from a traveler."""
+    # Verify travel request ownership
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id,
+        TravelRequest.user_id == current_user.id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Get the traveler
+    traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.id == traveler_id,
+        TravelRequestTraveler.travel_request_id == request_id
+    ).first()
+
+    if not traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Traveler not found"
+        )
+
+    # Clear passport data
+    traveler.passport_file_url = None
+    traveler.passport_uploaded_at = None
+    traveler.passport_number = None
+    traveler.passport_full_name = None
+    traveler.passport_date_of_birth = None
+    traveler.passport_expiry_date = None
+    traveler.passport_nationality = None
+    traveler.passport_gender = None
+    traveler.passport_verified = 0
+    traveler.is_child_under_18 = 0
+
+    db.commit()
+
+    return {"message": "Passport data removed successfully"}
+
+
+@router.get("/{request_id}/passport-validation", response_model=PassportValidationResponse)
+async def validate_passports_for_submission(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check passport requirements before submission.
+
+    Returns information about:
+    - Whether the request can be submitted
+    - Child dependants missing passport uploads (mandatory)
+    - Age warnings (children close to turning 18)
+    - Age errors (children already 18+)
+    - Travelers that should be removed
+    """
+    # Verify travel request ownership
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id,
+        TravelRequest.user_id == current_user.id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Run validation
+    validation_result = traveler_validation_service.validate_passport_requirements(
+        db, request_id
+    )
+
+    return PassportValidationResponse(**validation_result)
+
+
+@router.get("/{request_id}/travelers/passport-status")
+async def get_travelers_passport_status(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get passport upload status for all travelers.
+
+    Returns each traveler with their passport requirement and upload status.
+    """
+    # Verify travel request ownership or traveler access
+    travel_request = db.query(TravelRequest).options(
+        joinedload(TravelRequest.travelers),
+        joinedload(TravelRequest.destinations)
+    ).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Check access
+    is_owner = travel_request.user_id == current_user.id
+    is_traveler = any(
+        t.user_id == current_user.id and t.traveler_type == TravelerType.STAFF
+        for t in travel_request.travelers
+    )
+
+    if not is_owner and not is_traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    earliest_departure = traveler_validation_service.get_earliest_departure_date(travel_request)
+
+    result = []
+    for traveler in travel_request.travelers:
+        passport_required = traveler_validation_service.is_passport_required(traveler)
+        has_passport = traveler.passport_file_url is not None
+
+        age_at_travel = None
+        if traveler.passport_date_of_birth and earliest_departure:
+            age_at_travel = traveler_validation_service.calculate_age_at_date(
+                traveler.passport_date_of_birth,
+                earliest_departure
+            )
+
+        result.append(TravelerPassportStatus(
+            traveler_id=traveler.id,
+            traveler_name=traveler.traveler_name,
+            traveler_type=traveler.traveler_type,
+            relation_type=traveler.relation_type,
+            passport_required=passport_required,
+            has_passport=has_passport,
+            passport_file_url=traveler.passport_file_url,
+            passport_number=traveler.passport_number,
+            passport_expiry_date=traveler.passport_expiry_date,
+            is_child_under_18=traveler.is_child_under_18 == 1,
+            age_at_travel=age_at_travel
+        ))
+
+    return result

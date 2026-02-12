@@ -656,6 +656,14 @@ api_router.include_router(
     tags=["passport-upload"]
 )
 
+# Reusable passport extraction endpoint (Azure Document Intelligence)
+from app.api.v1.endpoints import passport
+api_router.include_router(
+    passport.router,
+    prefix="/passport",
+    tags=["passport-extraction"]
+)
+
 from app.api.v1.endpoints import flight_itinerary
 api_router.include_router(
     flight_itinerary.router,
