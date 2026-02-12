@@ -451,7 +451,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             extracted_data = {
                 "merchant_name": "",
                 "total_amount": 0.0,
-                "currency": "KES",
+                "currency": None,  # Don't default to KES yet
                 "date": datetime.now().isoformat(),
                 "items": [],
                 "tax_amount": 0.0,
@@ -487,6 +487,10 @@ def get_claim_tools(db: Session, user_id: int) -> list:
                             item_data["quantity"] = qty.value_number
                         items.append(item_data)
                     extracted_data["items"] = items
+            
+            # Only default to KES if no currency was extracted
+            if extracted_data["currency"] is None:
+                extracted_data["currency"] = "KES"
 
             return _decimal_to_float(extracted_data)
         except Exception as e:
