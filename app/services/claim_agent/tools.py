@@ -143,8 +143,8 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             db.query(func.sum(ClaimItem.amount))
             .filter(ClaimItem.claim_id == claim_id)
             .scalar()
-            or 0
-        ) + amount
+            or Decimal(0)
+        ) + Decimal(str(amount))
         db.commit()
         db.refresh(item)
 
@@ -283,7 +283,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             db.query(func.sum(ClaimItem.amount))
             .filter(ClaimItem.claim_id == claim.id)
             .scalar()
-            or 0
+            or Decimal(0)
         )
         db.commit()
         db.refresh(item)
