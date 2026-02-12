@@ -385,7 +385,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
 
             claim.status = "Pending Approval"
             claim.submitted_at = datetime.utcnow()
-            db.flush()
+            db.commit()
             db.refresh(claim)
 
             return {
@@ -418,7 +418,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
 
             claim.status = "Open"
             claim.submitted_at = None
-            db.flush()
+            db.commit()
             db.refresh(claim)
 
             return {
