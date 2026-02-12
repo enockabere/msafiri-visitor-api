@@ -451,6 +451,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             extracted_data = {
                 "merchant_name": "",
                 "total_amount": 0.0,
+                "currency": "KES",
                 "date": datetime.now().isoformat(),
                 "items": [],
                 "tax_amount": 0.0,
@@ -465,6 +466,9 @@ def get_claim_tools(db: Session, user_id: int) -> list:
                 total = receipt.fields.get("Total")
                 if total:
                     extracted_data["total_amount"] = float(total.value_currency.amount)
+                    # Extract currency code if available
+                    if hasattr(total.value_currency, 'code') and total.value_currency.code:
+                        extracted_data["currency"] = total.value_currency.code
                 tax = receipt.fields.get("TotalTax")
                 if tax:
                     extracted_data["tax_amount"] = float(tax.value_currency.amount)
