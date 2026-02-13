@@ -565,23 +565,19 @@ async def decline_travel_invitation(
             detail="Travel invitation not found"
         )
 
-    if traveler.acceptance_status != TravelerAcceptanceStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invitation already {traveler.acceptance_status.value}"
-        )
-
-    # Decline the invitation
-    traveler.acceptance_status = TravelerAcceptanceStatus.DECLINED
-    traveler.declined_at = datetime.utcnow()
+    # Decline the invitation (or cancel acceptance)
+    traveler.acceptance_status = TravelerAcceptanceStatus.PENDING
+    traveler.declined_at = None
+    traveler.accepted_at = None
     traveler.decline_reason = decline_data.reason
 
     # Add system message to the request
     travel_request = db.query(TravelRequest).filter(TravelRequest.id == request_id).first()
     if travel_request:
-        decline_msg = f"{current_user.full_name} declined the travel invitation."
         if decline_data.reason:
-            decline_msg += f" Reason: {decline_data.reason}"
+            decline_msg = f"{current_user.full_name} declined the travel invitation. Reason: {decline_data.reason}"
+        else:
+            decline_msg = f"{current_user.full_name} cancelled their acceptance."
         system_message = TravelRequestMessage(
             travel_request_id=request_id,
             sender_id=current_user.id,
