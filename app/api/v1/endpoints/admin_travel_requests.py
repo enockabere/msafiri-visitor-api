@@ -203,10 +203,10 @@ async def approve_travel_request(
     # Check if there are approval steps
     approval_steps = db.query(TravelRequestApprovalStep).filter(
         TravelRequestApprovalStep.travel_request_id == request_id
-    ).all()
+    ).order_by(TravelRequestApprovalStep.step_order).all()
     
     if not approval_steps:
-        # No workflow - approve directly (old behavior)
+        # No workflow - approve directly
         travel_request.status = TravelRequestStatus.APPROVED
         travel_request.approved_by = current_user.id
         travel_request.approved_at = datetime.utcnow()
@@ -230,7 +230,7 @@ async def approve_travel_request(
     ).first()
     
     if not current_approval:
-        # Debug: Check all approval steps
+        # Debug logging
         all_approvals = db.query(TravelRequestApprovalStep).filter(
             TravelRequestApprovalStep.travel_request_id == request_id
         ).all()
@@ -243,35 +243,37 @@ async def approve_travel_request(
             detail="You are not authorized to approve this travel request at this step"
         )
     
-    # Update budget fields if provided
-    if approval_data:
-        current_approval.budget_code = approval_data.get('budget_code')
-        current_approval.activity_code = approval_data.get('activity_code')
-        current_approval.cost_center = approval_data.get('cost_center')
-        current_approval.section = approval_data.get('section')
+    # Check if this is the last step
+    is_last_step = not any(step.step_order > current_approval.step_order for step in approval_steps)
+    
+    # If last step, require budget fields
+    if is_last_step:
+        if not travel_request.budget_code or not travel_request.activity_code or \
+           not travel_request.cost_center or not travel_request.section:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Budget Code, Activity Code, Cost Center, and Section are required before final approval"
+            )
     
     # Mark current step as APPROVED
     current_approval.status = "APPROVED"
     current_approval.approved_at = datetime.utcnow()
     
     # Check if there are more steps
-    next_approval = db.query(TravelRequestApprovalStep).filter(
-        TravelRequestApprovalStep.travel_request_id == request_id,
-        TravelRequestApprovalStep.step_order > current_approval.step_order
-    ).order_by(TravelRequestApprovalStep.step_order).first()
+    next_approval = next((step for step in approval_steps if step.step_order > current_approval.step_order), None)
     
     if next_approval:
-        # Move next step to OPEN
+        # Move next step to OPEN - DO NOT change travel request status
         next_approval.status = "OPEN"
         system_message = TravelRequestMessage(
             travel_request_id=travel_request.id,
             sender_id=current_user.id,
             sender_type=MessageSenderType.SYSTEM,
-            content=f"Travel request approved by {current_user.full_name} at step {current_approval.step_order}. Awaiting next approval."
+            content=f"Step {current_approval.step_order} approved by {current_user.full_name}. Awaiting step {next_approval.step_order} approval."
         )
         db.add(system_message)
     else:
-        # All steps completed - approve the travel request
+        # All steps completed - NOW approve the travel request
         travel_request.status = TravelRequestStatus.APPROVED
         travel_request.approved_by = current_user.id
         travel_request.approved_at = datetime.utcnow()
@@ -632,6 +634,42 @@ async def complete_travel_request(
         content="Travel request marked as completed."
     )
     db.add(system_message)
+
+    db.commit()
+    db.refresh(travel_request)
+
+    return travel_request
+
+
+@router.put("/{request_id}/budget", response_model=TravelRequestResponse)
+async def update_budget_fields(
+    request_id: int,
+    budget_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update budget fields for a travel request (any admin can do this)."""
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    if not check_admin_access(current_user, travel_request.tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
+    # Update budget fields
+    travel_request.budget_code = budget_data.get('budget_code')
+    travel_request.activity_code = budget_data.get('activity_code')
+    travel_request.cost_center = budget_data.get('cost_center')
+    travel_request.section = budget_data.get('section')
 
     db.commit()
     db.refresh(travel_request)

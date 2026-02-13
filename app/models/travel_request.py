@@ -101,6 +101,12 @@ class TravelRequest(Base):
     workflow_id = Column(Integer, ForeignKey("approval_workflows.id"), nullable=True)
     current_approval_step = Column(Integer, default=0, nullable=False)  # 0 = not started, 1+ = step number
 
+    # Budget fields (can be filled by any admin, required before final approval)
+    budget_code = Column(String(100), nullable=True)
+    activity_code = Column(String(100), nullable=True)
+    cost_center = Column(String(100), nullable=True)
+    section = Column(String(100), nullable=True)
+
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
     user = relationship("User", foreign_keys=[user_id], backref="travel_requests")
