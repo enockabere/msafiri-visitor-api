@@ -704,9 +704,10 @@ async def reset_to_pending(
         )
 
     # Delete existing approval steps
-    db.query(TravelRequestApprovalStep).filter(
+    deleted_count = db.query(TravelRequestApprovalStep).filter(
         TravelRequestApprovalStep.travel_request_id == request_id
     ).delete()
+    logger.info(f"Deleted {deleted_count} existing approval steps for request {request_id}")
 
     # Reset travel request status
     travel_request.status = TravelRequestStatus.PENDING_APPROVAL
@@ -724,6 +725,8 @@ async def reset_to_pending(
         .first()
     )
     
+    logger.info(f"Found workflow: {workflow.id if workflow else 'None'} for tenant {travel_request.tenant_id}")
+    
     if workflow:
         # Get workflow steps
         steps = (
@@ -732,6 +735,8 @@ async def reset_to_pending(
             .order_by(ApprovalStep.step_order)
             .all()
         )
+        
+        logger.info(f"Found {len(steps)} workflow steps")
         
         if steps:
             # Create approval records
@@ -744,10 +749,12 @@ async def reset_to_pending(
                     status="OPEN" if step.step_order == 1 else "PENDING"
                 )
                 db.add(approval)
+                logger.info(f"Created approval step {step.step_order} for user {step.approver_user_id}")
             
             travel_request.workflow_id = workflow.id
             travel_request.current_approval_step = 1
     else:
+        logger.warning(f"No workflow found for tenant {travel_request.tenant_id}")
         travel_request.workflow_id = None
         travel_request.current_approval_step = 0
 
@@ -762,5 +769,11 @@ async def reset_to_pending(
 
     db.commit()
     db.refresh(travel_request)
+    
+    # Verify approval steps were created
+    created_approvals = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id
+    ).count()
+    logger.info(f"Verified {created_approvals} approval steps created for request {request_id}")
 
     return travel_request

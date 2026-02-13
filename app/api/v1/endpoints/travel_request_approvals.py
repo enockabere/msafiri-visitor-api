@@ -27,7 +27,7 @@ async def get_travel_request_approvals(
     approvals = (
         db.query(TravelRequestApprovalStep, User, ApprovalStep)
         .join(User, TravelRequestApprovalStep.approver_user_id == User.id)
-        .join(ApprovalStep, TravelRequestApprovalStep.workflow_step_id == ApprovalStep.id)
+        .outerjoin(ApprovalStep, TravelRequestApprovalStep.workflow_step_id == ApprovalStep.id)
         .filter(TravelRequestApprovalStep.travel_request_id == request_id)
         .order_by(TravelRequestApprovalStep.step_order)
         .all()
@@ -38,7 +38,7 @@ async def get_travel_request_approvals(
         result.append({
             "id": approval.id,
             "step_order": approval.step_order,
-            "step_name": step.step_name,
+            "step_name": step.step_name if step else f"Approval Step {approval.step_order}",
             "approver_user_id": approval.approver_user_id,
             "approver_name": approver.full_name or approver.email,
             "approver_email": approver.email,
