@@ -191,7 +191,8 @@ async def get_travel_invitations(
         joinedload(TravelRequest.user)
     ).filter(
         TravelRequest.id.in_(request_ids),
-        TravelRequest.user_id != current_user.id  # Exclude requests owned by the user
+        TravelRequest.user_id != current_user.id,  # Exclude requests owned by the user
+        TravelRequest.status.in_([TravelRequestStatus.PENDING_APPROVAL, TravelRequestStatus.APPROVED, TravelRequestStatus.COMPLETED])  # Only show submitted requests
     )
 
     # Filter by acceptance status if provided
