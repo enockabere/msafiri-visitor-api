@@ -26,6 +26,7 @@ class TravelRequestApprovalStep(BaseModel):
     section = Column(String(100), nullable=True)
     
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     travel_request = relationship("TravelRequest", foreign_keys=[travel_request_id])

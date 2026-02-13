@@ -34,6 +34,7 @@ def upgrade():
         sa.Column('cost_center', sa.String(100), nullable=True),
         sa.Column('section', sa.String(100), nullable=True),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['travel_request_id'], ['travel_requests.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['workflow_step_id'], ['approval_steps.id']),
         sa.ForeignKeyConstraint(['approver_user_id'], ['users.id']),
