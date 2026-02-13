@@ -447,6 +447,49 @@ async def submit_travel_request(
     return travel_request
 
 
+
+@router.post("/{request_id}/cancel-submission", response_model=TravelRequestResponse)
+async def cancel_travel_request_submission(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel a pending travel request submission and return it to draft status."""
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id,
+        TravelRequest.user_id == current_user.id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    if travel_request.status != TravelRequestStatus.PENDING_APPROVAL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only cancel pending approval requests"
+        )
+
+    travel_request.status = TravelRequestStatus.DRAFT
+    travel_request.submitted_at = None
+    travel_request.workflow_id = None
+    travel_request.current_approval_step = None
+
+    system_message = TravelRequestMessage(
+        travel_request_id=travel_request.id,
+        sender_id=current_user.id,
+        sender_type=MessageSenderType.SYSTEM,
+        content="Travel request submission cancelled. Request returned to draft status."
+    )
+    db.add(system_message)
+
+    db.commit()
+    db.refresh(travel_request)
+
+    return travel_request
+
 @router.post("/{request_id}/accept", response_model=TravelerResponse)
 async def accept_travel_invitation(
     request_id: int,
