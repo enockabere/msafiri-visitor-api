@@ -232,6 +232,11 @@ class TravelRequestResponse(TravelRequestBase):
     # Workflow tracking
     workflow_id: Optional[int] = None
     current_approval_step: int = 0
+    # Budget fields
+    budget_code: Optional[str] = None
+    activity_code: Optional[str] = None
+    cost_center: Optional[str] = None
+    section: Optional[str] = None
 
     class Config:
         from_attributes = True
