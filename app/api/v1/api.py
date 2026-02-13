@@ -1030,6 +1030,14 @@ api_router.include_router(
     tags=["admin-travel-requests"]
 )
 
+# Travel Request Approvals (workflow)
+from app.api.v1.endpoints import travel_request_approvals
+api_router.include_router(
+    travel_request_approvals.router,
+    prefix="/travel-requests",
+    tags=["travel-request-approvals"]
+)
+
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])
 async def api_root():

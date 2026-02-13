@@ -171,10 +171,13 @@ async def get_travel_request_admin(
 @router.post("/{request_id}/approve", response_model=TravelRequestResponse)
 async def approve_travel_request(
     request_id: int,
+    approval_data: dict = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Approve a travel request."""
+    """Approve a travel request with workflow support."""
+    from app.models.travel_request_approval_step import TravelRequestApprovalStep
+    
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id
     ).first()
@@ -197,18 +200,61 @@ async def approve_travel_request(
             detail="Can only approve pending travel requests"
         )
 
-    travel_request.status = TravelRequestStatus.APPROVED
-    travel_request.approved_by = current_user.id
-    travel_request.approved_at = datetime.utcnow()
-
-    # Add system message
-    system_message = TravelRequestMessage(
-        travel_request_id=travel_request.id,
-        sender_id=current_user.id,
-        sender_type=MessageSenderType.SYSTEM,
-        content=f"Travel request approved by {current_user.full_name}."
-    )
-    db.add(system_message)
+    # Find the current user's OPEN approval step
+    current_approval = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id,
+        TravelRequestApprovalStep.approver_user_id == current_user.id,
+        TravelRequestApprovalStep.status == "OPEN"
+    ).first()
+    
+    if not current_approval:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to approve this travel request at this step"
+        )
+    
+    # Update budget fields if provided
+    if approval_data:
+        current_approval.budget_code = approval_data.get('budget_code')
+        current_approval.activity_code = approval_data.get('activity_code')
+        current_approval.cost_center = approval_data.get('cost_center')
+        current_approval.section = approval_data.get('section')
+    
+    # Mark current step as APPROVED
+    current_approval.status = "APPROVED"
+    current_approval.approved_at = datetime.utcnow()
+    
+    # Check if there are more steps
+    next_approval = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id,
+        TravelRequestApprovalStep.step_order > current_approval.step_order
+    ).order_by(TravelRequestApprovalStep.step_order).first()
+    
+    if next_approval:
+        # Move next step to OPEN
+        next_approval.status = "OPEN"
+        # Add system message
+        system_message = TravelRequestMessage(
+            travel_request_id=travel_request.id,
+            sender_id=current_user.id,
+            sender_type=MessageSenderType.SYSTEM,
+            content=f"Travel request approved by {current_user.full_name} at step {current_approval.step_order}. Awaiting next approval."
+        )
+        db.add(system_message)
+    else:
+        # All steps completed - approve the travel request
+        travel_request.status = TravelRequestStatus.APPROVED
+        travel_request.approved_by = current_user.id
+        travel_request.approved_at = datetime.utcnow()
+        
+        # Add system message
+        system_message = TravelRequestMessage(
+            travel_request_id=travel_request.id,
+            sender_id=current_user.id,
+            sender_type=MessageSenderType.SYSTEM,
+            content=f"Travel request fully approved by {current_user.full_name}."
+        )
+        db.add(system_message)
 
     db.commit()
     db.refresh(travel_request)
@@ -223,7 +269,9 @@ async def reject_travel_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Reject a travel request."""
+    """Reject a travel request with workflow support."""
+    from app.models.travel_request_approval_step import TravelRequestApprovalStep
+    
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id
     ).first()
@@ -246,6 +294,25 @@ async def reject_travel_request(
             detail="Can only reject pending travel requests"
         )
 
+    # Find the current user's OPEN approval step
+    current_approval = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id,
+        TravelRequestApprovalStep.approver_user_id == current_user.id,
+        TravelRequestApprovalStep.status == "OPEN"
+    ).first()
+    
+    if not current_approval:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to reject this travel request at this step"
+        )
+    
+    # Mark current step as REJECTED
+    current_approval.status = "REJECTED"
+    current_approval.rejected_at = datetime.utcnow()
+    current_approval.rejection_reason = rejection.reason
+    
+    # Reject the entire travel request
     travel_request.status = TravelRequestStatus.REJECTED
     travel_request.rejected_by = current_user.id
     travel_request.rejected_at = datetime.utcnow()
