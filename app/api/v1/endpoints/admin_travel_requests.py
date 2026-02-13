@@ -14,7 +14,7 @@ from app.models.travel_request import (
     TravelRequest, TravelRequestDestination, TravelRequestMessage, TravelRequestDocument,
     TravelRequestStatus, MessageSenderType, DocumentType, TravelRequestTraveler
 )
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.travel_request import (
     TravelRequestResponse, TravelRequestDetailResponse, TravelRequestListResponse,
     MessageCreate, MessageResponse, DocumentResponse, ApprovalAction, RejectionAction,
@@ -46,15 +46,19 @@ logger = logging.getLogger(__name__)
 
 def check_admin_access(current_user: User, tenant_id: int):
     """Check if user has admin access to the tenant."""
-    # Super admin has access to all tenants
-    if current_user.role and current_user.role.upper() in ['SUPER_ADMIN', 'SUPERADMIN']:
-        return True
+    if not current_user.role:
+        return False
     
     # Check if user has admin role
-    if current_user.role and current_user.role.upper() in ['ADMIN', 'MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN', 'FINANCE_ADMIN']:
-        return True
+    admin_roles = [
+        UserRole.SUPER_ADMIN,
+        UserRole.MT_ADMIN,
+        UserRole.HR_ADMIN,
+        UserRole.EVENT_ADMIN,
+        UserRole.FINANCE_ADMIN
+    ]
     
-    return False
+    return current_user.role in admin_roles
 
 
 @router.get("/", response_model=List[TravelRequestResponse])
