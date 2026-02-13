@@ -299,6 +299,16 @@ async def get_travel_request(
     if travel_request.approver:
         travel_request.approver_name = travel_request.approver.full_name
 
+    # Filter travelers: colleagues only see themselves and their own dependants
+    if not is_owner:
+        travel_request.travelers = [
+            t for t in travel_request.travelers
+            if t.user_id == current_user.id or 
+            (t.traveler_type.upper() == 'DEPENDANT' and 
+             any(parent.user_id == current_user.id for parent in travel_request.travelers 
+                 if parent.traveler_type.upper() == 'STAFF' and parent.user_id == current_user.id))
+        ]
+
     return travel_request
 
 
