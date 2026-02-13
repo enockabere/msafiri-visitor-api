@@ -39,6 +39,8 @@ from .travel_request import (
     TravelRequestStatus, TransportMode, MessageSenderType, DocumentType,
     Dependant, TravelRequestTraveler, DependantRelationship, TravelerType
 )
+from .travel_request_checklist import TravelRequestChecklist
+from .travel_request_approval_step import TravelRequestApprovalStep
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole",
@@ -56,5 +58,6 @@ __all__ = [
     "FormField", "FormResponse", "CodeOfConduct", "Claim", "ClaimItem",
     "TravelRequest", "TravelRequestDestination", "TravelRequestMessage", "TravelRequestDocument",
     "TravelRequestStatus", "TransportMode", "MessageSenderType", "DocumentType",
-    "Dependant", "TravelRequestTraveler", "DependantRelationship", "TravelerType"
+    "Dependant", "TravelRequestTraveler", "DependantRelationship", "TravelerType",
+    "TravelRequestChecklist", "TravelRequestApprovalStep"
 ]
