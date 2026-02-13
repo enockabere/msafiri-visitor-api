@@ -275,6 +275,7 @@ async def approve_travel_request(
             )
     
     # Mark current step as APPROVED
+    logger.info(f"Marking step {current_approval.step_order} as APPROVED")
     current_approval.status = "APPROVED"
     current_approval.approved_at = datetime.utcnow()
     
@@ -282,6 +283,7 @@ async def approve_travel_request(
     next_approval = next((step for step in approval_steps if step.step_order > current_approval.step_order), None)
     
     if next_approval:
+        logger.info(f"Moving step {next_approval.step_order} to OPEN")
         # Move next step to OPEN - DO NOT change travel request status
         next_approval.status = "OPEN"
         system_message = TravelRequestMessage(
@@ -292,6 +294,7 @@ async def approve_travel_request(
         )
         db.add(system_message)
     else:
+        logger.info("All steps completed - approving travel request")
         # All steps completed - NOW approve the travel request
         travel_request.status = TravelRequestStatus.APPROVED
         travel_request.approved_by = current_user.id
@@ -305,7 +308,9 @@ async def approve_travel_request(
         )
         db.add(system_message)
 
+    logger.info("Committing changes to database")
     db.commit()
+    logger.info("Changes committed successfully")
     db.refresh(travel_request)
 
     return travel_request
