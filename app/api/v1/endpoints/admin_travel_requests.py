@@ -200,6 +200,28 @@ async def approve_travel_request(
             detail="Can only approve pending travel requests"
         )
 
+    # Check if there are approval steps
+    approval_steps = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id
+    ).all()
+    
+    if not approval_steps:
+        # No workflow - approve directly (old behavior)
+        travel_request.status = TravelRequestStatus.APPROVED
+        travel_request.approved_by = current_user.id
+        travel_request.approved_at = datetime.utcnow()
+        
+        system_message = TravelRequestMessage(
+            travel_request_id=travel_request.id,
+            sender_id=current_user.id,
+            sender_type=MessageSenderType.SYSTEM,
+            content=f"Travel request approved by {current_user.full_name}."
+        )
+        db.add(system_message)
+        db.commit()
+        db.refresh(travel_request)
+        return travel_request
+
     # Find the current user's OPEN approval step
     current_approval = db.query(TravelRequestApprovalStep).filter(
         TravelRequestApprovalStep.travel_request_id == request_id,
@@ -233,7 +255,6 @@ async def approve_travel_request(
     if next_approval:
         # Move next step to OPEN
         next_approval.status = "OPEN"
-        # Add system message
         system_message = TravelRequestMessage(
             travel_request_id=travel_request.id,
             sender_id=current_user.id,
@@ -247,7 +268,6 @@ async def approve_travel_request(
         travel_request.approved_by = current_user.id
         travel_request.approved_at = datetime.utcnow()
         
-        # Add system message
         system_message = TravelRequestMessage(
             travel_request_id=travel_request.id,
             sender_id=current_user.id,
