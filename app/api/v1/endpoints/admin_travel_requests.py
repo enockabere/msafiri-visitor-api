@@ -230,6 +230,14 @@ async def approve_travel_request(
     ).first()
     
     if not current_approval:
+        # Debug: Check all approval steps
+        all_approvals = db.query(TravelRequestApprovalStep).filter(
+            TravelRequestApprovalStep.travel_request_id == request_id
+        ).all()
+        logger.error(f"Current user ID: {current_user.id} (type: {type(current_user.id)})")
+        for appr in all_approvals:
+            logger.error(f"Approval step: user_id={appr.approver_user_id} (type: {type(appr.approver_user_id)}), status={appr.status}")
+        
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to approve this travel request at this step"
