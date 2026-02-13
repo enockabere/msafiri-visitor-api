@@ -887,6 +887,28 @@ async def save_traveler_passport(
             detail="Travel request not found"
         )
 
+    # Validate passport expiry - must not be expired
+    if passport_data.expiry_date:
+        from datetime import date
+        if passport_data.expiry_date < date.today():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Passport has expired. Please upload a valid passport with a future expiry date."
+            )
+
+    # Validate passport number uniqueness within the travel request
+    if passport_data.passport_number:
+        existing_passport = db.query(TravelRequestTraveler).filter(
+            TravelRequestTraveler.travel_request_id == request_id,
+            TravelRequestTraveler.id != traveler_id,
+            TravelRequestTraveler.passport_number == passport_data.passport_number
+        ).first()
+        if existing_passport:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Passport number {passport_data.passport_number} is already used by {existing_passport.traveler_name}. Each traveler must have a unique passport number."
+            )
+
     # If this is a child dependant, validate age
     is_child_dependant = (
         traveler.traveler_type == TravelerType.DEPENDANT and
