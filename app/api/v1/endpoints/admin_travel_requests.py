@@ -230,6 +230,19 @@ async def approve_travel_request(
     ).first()
     
     if not current_approval:
+        # Check if user already approved
+        already_approved = db.query(TravelRequestApprovalStep).filter(
+            TravelRequestApprovalStep.travel_request_id == request_id,
+            TravelRequestApprovalStep.approver_user_id == current_user.id,
+            TravelRequestApprovalStep.status == "APPROVED"
+        ).first()
+        
+        if already_approved:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You have already approved this travel request"
+            )
+        
         # Debug logging
         all_approvals = db.query(TravelRequestApprovalStep).filter(
             TravelRequestApprovalStep.travel_request_id == request_id
