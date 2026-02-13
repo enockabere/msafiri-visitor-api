@@ -715,10 +715,19 @@ async def reset_to_pending(
     travel_request.approved_at = None
     
     # Get active workflow for TRAVEL_REQUEST
+    tenant_id_str = str(travel_request.tenant_id)
+    logger.info(f"Searching for workflow with tenant_id='{tenant_id_str}', workflow_type='TRAVEL_REQUEST', is_active=True")
+    
+    # Debug: Check all workflows
+    all_workflows = db.query(ApprovalWorkflow).all()
+    logger.info(f"Total workflows in database: {len(all_workflows)}")
+    for wf in all_workflows:
+        logger.info(f"  Workflow ID={wf.id}, tenant_id='{wf.tenant_id}' (type: {type(wf.tenant_id)}), type='{wf.workflow_type}', active={wf.is_active}")
+    
     workflow = (
         db.query(ApprovalWorkflow)
         .filter(
-            ApprovalWorkflow.tenant_id == str(travel_request.tenant_id),
+            ApprovalWorkflow.tenant_id == tenant_id_str,
             ApprovalWorkflow.workflow_type == "TRAVEL_REQUEST",
             ApprovalWorkflow.is_active == True
         )
