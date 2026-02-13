@@ -46,11 +46,14 @@ logger = logging.getLogger(__name__)
 
 def check_admin_access(current_user: User, tenant_id: int):
     """Check if user has admin access to the tenant."""
-    # Check if user has admin role for this tenant
-    for user_tenant in current_user.user_tenants:
-        if str(user_tenant.tenant_id) == str(tenant_id):
-            if user_tenant.role in ['admin', 'super_admin', 'owner']:
-                return True
+    # Super admin has access to all tenants
+    if current_user.role and current_user.role.upper() in ['SUPER_ADMIN', 'SUPERADMIN']:
+        return True
+    
+    # Check if user has admin role
+    if current_user.role and current_user.role.upper() in ['ADMIN', 'MT_ADMIN', 'HR_ADMIN', 'EVENT_ADMIN', 'FINANCE_ADMIN']:
+        return True
+    
     return False
 
 
@@ -82,9 +85,9 @@ async def get_all_travel_requests(
 
     # Add user names
     for req in requests:
-        req.user_name = f"{req.user.first_name} {req.user.last_name}" if req.user else None
+        req.user_name = req.user.full_name if req.user else None
         if req.approver:
-            req.approver_name = f"{req.approver.first_name} {req.approver.last_name}"
+            req.approver_name = req.approver.full_name
 
     return requests
 
@@ -108,7 +111,7 @@ async def get_pending_travel_requests(
     ).order_by(TravelRequest.submitted_at).all()
 
     for req in requests:
-        req.user_name = f"{req.user.first_name} {req.user.last_name}" if req.user else None
+        req.user_name = req.user.full_name if req.user else None
 
     return requests
 
@@ -142,15 +145,15 @@ async def get_travel_request_admin(
     # Add names
     for msg in travel_request.messages:
         if msg.sender:
-            msg.sender_name = f"{msg.sender.first_name} {msg.sender.last_name}"
+            msg.sender_name = msg.sender.full_name
 
     for doc in travel_request.documents:
         if doc.uploader:
-            doc.uploader_name = f"{doc.uploader.first_name} {doc.uploader.last_name}"
+            doc.uploader_name = doc.uploader.full_name
 
-    travel_request.user_name = f"{travel_request.user.first_name} {travel_request.user.last_name}"
+    travel_request.user_name = travel_request.user.full_name
     if travel_request.approver:
-        travel_request.approver_name = f"{travel_request.approver.first_name} {travel_request.approver.last_name}"
+        travel_request.approver_name = travel_request.approver.full_name
 
     return travel_request
 
@@ -193,7 +196,7 @@ async def approve_travel_request(
         travel_request_id=travel_request.id,
         sender_id=current_user.id,
         sender_type=MessageSenderType.SYSTEM,
-        content=f"Travel request approved by {current_user.first_name} {current_user.last_name}."
+        content=f"Travel request approved by {current_user.full_name}."
     )
     db.add(system_message)
 
@@ -243,7 +246,7 @@ async def reject_travel_request(
         travel_request_id=travel_request.id,
         sender_id=current_user.id,
         sender_type=MessageSenderType.SYSTEM,
-        content=f"Travel request rejected by {current_user.first_name} {current_user.last_name}. Reason: {rejection.reason}"
+        content=f"Travel request rejected by {current_user.full_name}. Reason: {rejection.reason}"
     )
     db.add(system_message)
 
@@ -288,7 +291,7 @@ async def send_admin_message(
     db.commit()
     db.refresh(message)
 
-    message.sender_name = f"{current_user.first_name} {current_user.last_name}"
+    message.sender_name = current_user.full_name
 
     return message
 
@@ -389,7 +392,7 @@ async def upload_ticket(
         db.commit()
         db.refresh(document)
 
-        document.uploader_name = f"{current_user.first_name} {current_user.last_name}"
+        document.uploader_name = current_user.full_name
 
         return document
 
@@ -438,7 +441,7 @@ async def download_booking_summary(
 
     csv_content.write("REQUESTER INFORMATION\n")
     csv_content.write("-" * 30 + "\n")
-    csv_content.write(f"Name: {user.first_name} {user.last_name}\n")
+    csv_content.write(f"Name: {user.full_name}\n")
     csv_content.write(f"Email: {user.email}\n")
     csv_content.write(f"Phone: {user.phone_number or 'N/A'}\n\n")
 
@@ -454,7 +457,7 @@ async def download_booking_summary(
             if traveler.traveler_phone:
                 csv_content.write(f"   Phone: {traveler.traveler_phone}\n")
     else:
-        csv_content.write(f"Name: {user.first_name} {user.last_name}\n")
+        csv_content.write(f"Name: {user.full_name}\n")
         csv_content.write(f"Email: {user.email}\n")
 
     csv_content.write("\n\nDESTINATIONS\n")
