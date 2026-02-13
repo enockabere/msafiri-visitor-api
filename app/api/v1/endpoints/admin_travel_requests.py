@@ -645,8 +645,9 @@ async def reset_to_pending(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Reset an approved travel request back to pending for re-approval."""
+    """Reset an approved travel request back to pending and reinitialize workflow."""
     from app.models.travel_request_approval_step import TravelRequestApprovalStep
+    from app.models.approver import ApprovalWorkflow, ApprovalStep
     
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id
@@ -673,8 +674,44 @@ async def reset_to_pending(
     travel_request.status = TravelRequestStatus.PENDING_APPROVAL
     travel_request.approved_by = None
     travel_request.approved_at = None
-    travel_request.workflow_id = None
-    travel_request.current_approval_step = 0
+    
+    # Get active workflow for TRAVEL_REQUEST
+    workflow = (
+        db.query(ApprovalWorkflow)
+        .filter(
+            ApprovalWorkflow.tenant_id == str(travel_request.tenant_id),
+            ApprovalWorkflow.workflow_type == "TRAVEL_REQUEST",
+            ApprovalWorkflow.is_active == True
+        )
+        .first()
+    )
+    
+    if workflow:
+        # Get workflow steps
+        steps = (
+            db.query(ApprovalStep)
+            .filter(ApprovalStep.workflow_id == workflow.id)
+            .order_by(ApprovalStep.step_order)
+            .all()
+        )
+        
+        if steps:
+            # Create approval records
+            for step in steps:
+                approval = TravelRequestApprovalStep(
+                    travel_request_id=travel_request.id,
+                    workflow_step_id=step.id,
+                    step_order=step.step_order,
+                    approver_user_id=step.approver_user_id,
+                    status="OPEN" if step.step_order == 1 else "PENDING"
+                )
+                db.add(approval)
+            
+            travel_request.workflow_id = workflow.id
+            travel_request.current_approval_step = 1
+    else:
+        travel_request.workflow_id = None
+        travel_request.current_approval_step = 0
 
     # Add system message
     system_message = TravelRequestMessage(
