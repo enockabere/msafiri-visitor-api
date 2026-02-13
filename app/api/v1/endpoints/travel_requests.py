@@ -178,7 +178,7 @@ async def get_travel_invitations(
     # Find travel requests where user is a traveler (STAFF type) but not the owner
     travelers = db.query(TravelRequestTraveler).filter(
         TravelRequestTraveler.user_id == current_user.id,
-        TravelRequestTraveler.traveler_type.cast(sa.String) == 'staff'
+        TravelRequestTraveler.traveler_type.in_(['staff', 'STAFF'])
     ).all()
 
     if not travelers:
@@ -270,7 +270,7 @@ async def get_travel_request(
     # Check if user is owner or a traveler
     is_owner = travel_request.user_id == current_user.id
     is_traveler = any(
-        t.user_id == current_user.id and t.traveler_type == 'staff'
+        t.user_id == current_user.id and t.traveler_type.upper() == 'STAFF'
         for t in travel_request.travelers
     )
 
