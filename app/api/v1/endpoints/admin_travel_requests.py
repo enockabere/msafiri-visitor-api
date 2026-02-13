@@ -714,20 +714,23 @@ async def reset_to_pending(
     travel_request.approved_by = None
     travel_request.approved_at = None
     
+    # Get tenant slug for workflow lookup
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter(Tenant.id == travel_request.tenant_id).first()
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant not found"
+        )
+    
+    tenant_slug = tenant.slug
+    logger.info(f"Searching for workflow with tenant_slug='{tenant_slug}', workflow_type='TRAVEL_REQUEST', is_active=True")
+    
     # Get active workflow for TRAVEL_REQUEST
-    tenant_id_str = str(travel_request.tenant_id)
-    logger.info(f"Searching for workflow with tenant_id='{tenant_id_str}', workflow_type='TRAVEL_REQUEST', is_active=True")
-    
-    # Debug: Check all workflows
-    all_workflows = db.query(ApprovalWorkflow).all()
-    logger.info(f"Total workflows in database: {len(all_workflows)}")
-    for wf in all_workflows:
-        logger.info(f"  Workflow ID={wf.id}, tenant_id='{wf.tenant_id}' (type: {type(wf.tenant_id)}), type='{wf.workflow_type}', active={wf.is_active}")
-    
     workflow = (
         db.query(ApprovalWorkflow)
         .filter(
-            ApprovalWorkflow.tenant_id == tenant_id_str,
+            ApprovalWorkflow.tenant_id == tenant_slug,
             ApprovalWorkflow.workflow_type == "TRAVEL_REQUEST",
             ApprovalWorkflow.is_active == True
         )
