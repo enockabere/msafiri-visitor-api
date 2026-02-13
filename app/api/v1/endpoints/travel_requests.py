@@ -475,7 +475,7 @@ async def cancel_travel_request_submission(
     travel_request.status = TravelRequestStatus.DRAFT
     travel_request.submitted_at = None
     travel_request.workflow_id = None
-    travel_request.current_approval_step = None
+    travel_request.current_approval_step = 0
 
     system_message = TravelRequestMessage(
         travel_request_id=travel_request.id,
