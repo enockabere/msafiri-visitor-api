@@ -83,6 +83,8 @@ async def create_travel_request(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new travel request."""
+    from app.models.travel_request_checklist import TravelRequestChecklist
+    
     # Debug logging
     status_value = TravelRequestStatus.DRAFT.value
     logger.info(f"Creating travel request with status: {status_value} (type: {type(status_value)})")
@@ -144,6 +146,18 @@ async def create_travel_request(
             is_primary=1
         )
         db.add(traveler)
+
+    # Add checklist data if provided
+    if hasattr(request_data, 'checklist_data') and request_data.checklist_data:
+        for checklist_data in request_data.checklist_data:
+            checklist = TravelRequestChecklist(
+                travel_request_id=travel_request.id,
+                traveler_name=checklist_data.get('traveler_name'),
+                nationality=checklist_data.get('nationality'),
+                destination_tenants=checklist_data.get('destination_tenants'),
+                checklist_items=checklist_data.get('items')
+            )
+            db.add(checklist)
 
     # Add system message
     system_message = TravelRequestMessage(

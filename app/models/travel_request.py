@@ -117,6 +117,7 @@ class TravelRequest(Base):
     documents = relationship("TravelRequestDocument", back_populates="travel_request", cascade="all, delete-orphan")
     travelers = relationship("TravelRequestTraveler", back_populates="travel_request", cascade="all, delete-orphan")
     approval_history = relationship("TravelRequestApproval", back_populates="travel_request", cascade="all, delete-orphan", order_by="TravelRequestApproval.created_at")
+    checklists = relationship("TravelRequestChecklist", back_populates="travel_request", cascade="all, delete-orphan")
 
 
 class TravelRequestDestination(Base):
