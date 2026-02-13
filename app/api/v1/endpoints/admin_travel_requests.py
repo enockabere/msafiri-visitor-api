@@ -77,7 +77,10 @@ async def get_all_travel_requests(
             detail="Admin access required"
         )
 
-    query = db.query(TravelRequest).filter(TravelRequest.tenant_id == tenant_id)
+    query = db.query(TravelRequest).options(
+        joinedload(TravelRequest.destinations),
+        joinedload(TravelRequest.travelers)
+    ).filter(TravelRequest.tenant_id == tenant_id)
 
     if status_filter:
         query = query.filter(TravelRequest.status == status_filter)
@@ -109,7 +112,10 @@ async def get_pending_travel_requests(
             detail="Admin access required"
         )
 
-    requests = db.query(TravelRequest).filter(
+    requests = db.query(TravelRequest).options(
+        joinedload(TravelRequest.destinations),
+        joinedload(TravelRequest.travelers)
+    ).filter(
         TravelRequest.tenant_id == tenant_id,
         TravelRequest.status == TravelRequestStatus.PENDING_APPROVAL
     ).order_by(TravelRequest.submitted_at).all()
