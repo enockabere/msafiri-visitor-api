@@ -609,3 +609,55 @@ async def complete_travel_request(
     db.refresh(travel_request)
 
     return travel_request
+
+
+@router.post("/{request_id}/reset-to-pending", response_model=TravelRequestResponse)
+async def reset_to_pending(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Reset an approved travel request back to pending for re-approval."""
+    from app.models.travel_request_approval_step import TravelRequestApprovalStep
+    
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    if not check_admin_access(current_user, travel_request.tenant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+
+    # Delete existing approval steps
+    db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id
+    ).delete()
+
+    # Reset travel request status
+    travel_request.status = TravelRequestStatus.PENDING_APPROVAL
+    travel_request.approved_by = None
+    travel_request.approved_at = None
+    travel_request.workflow_id = None
+    travel_request.current_approval_step = 0
+
+    # Add system message
+    system_message = TravelRequestMessage(
+        travel_request_id=travel_request.id,
+        sender_id=current_user.id,
+        sender_type=MessageSenderType.SYSTEM,
+        content=f"Travel request reset to pending by {current_user.full_name}."
+    )
+    db.add(system_message)
+
+    db.commit()
+    db.refresh(travel_request)
+
+    return travel_request
