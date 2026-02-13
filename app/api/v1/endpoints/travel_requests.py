@@ -1129,6 +1129,8 @@ async def get_travel_request_approvals(
     current_user: User = Depends(get_current_user)
 ):
     """Get approval workflow steps for a travel request."""
+    from app.models.travel_request_approval_step import TravelRequestApprovalStep
+
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id
     ).first()
@@ -1139,57 +1141,35 @@ async def get_travel_request_approvals(
             detail="Travel request not found"
         )
 
-    if not travel_request.workflow_id:
+    # Get approval steps from TravelRequestApprovalStep table (current state)
+    approval_steps = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id
+    ).order_by(TravelRequestApprovalStep.step_order).all()
+
+    if not approval_steps:
         return []
 
-    # Get workflow steps
-    workflow = db.query(ApprovalWorkflow).options(
-        joinedload(ApprovalWorkflow.steps)
-    ).filter(
-        ApprovalWorkflow.id == travel_request.workflow_id
-    ).first()
-
-    if not workflow:
-        return []
-
-    # Get approval history
-    approval_history = db.query(TravelRequestApproval).filter(
-        TravelRequestApproval.travel_request_id == request_id
-    ).all()
-
-    # Build response
+    # Build response from the actual approval steps
     result = []
-    for step in sorted(workflow.steps, key=lambda x: x.step_order):
-        # Find matching approval history
-        approval = next(
-            (a for a in approval_history if a.step_order == step.step_order),
-            None
-        )
-
-        # Determine status
-        if approval:
-            if approval.action == ApprovalActionType.APPROVED:
-                step_status = "APPROVED"
-            elif approval.action == ApprovalActionType.REJECTED:
-                step_status = "REJECTED"
-            else:
-                step_status = "PENDING"
-        elif travel_request.current_approval_step == step.step_order:
-            step_status = "OPEN"
-        else:
-            step_status = "PENDING"
+    for step in approval_steps:
+        # Get approver details
+        approver = db.query(User).filter(User.id == step.approver_user_id).first()
 
         result.append({
             "id": step.id,
             "step_order": step.step_order,
-            "step_name": step.step_name,
+            "step_name": f"Approval Step {step.step_order}",
             "approver_user_id": step.approver_user_id,
-            "approver_name": step.approver.full_name if step.approver else "Unknown",
-            "approver_email": step.approver.email if step.approver else None,
-            "status": step_status,
-            "approved_at": approval.created_at if approval and approval.action == ApprovalActionType.APPROVED else None,
-            "rejected_at": approval.created_at if approval and approval.action == ApprovalActionType.REJECTED else None,
-            "rejection_reason": approval.comments if approval and approval.action == ApprovalActionType.REJECTED else None,
+            "approver_name": approver.full_name if approver else "Unknown",
+            "approver_email": approver.email if approver else None,
+            "status": step.status,
+            "approved_at": step.approved_at.isoformat() if step.approved_at else None,
+            "rejected_at": step.rejected_at.isoformat() if step.rejected_at else None,
+            "rejection_reason": step.rejection_reason,
+            "budget_code": step.budget_code,
+            "activity_code": step.activity_code,
+            "cost_center": step.cost_center,
+            "section": step.section,
         })
 
     return result
