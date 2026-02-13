@@ -846,13 +846,14 @@ async def save_traveler_passport(
 
     Receives file_url + extracted fields from the reusable passport endpoint.
     Validates age for child dependants - must be under 18 at travel date.
+
+    Access: Owner can save for any traveler, invited staff can save their own passport.
     """
-    # Verify travel request ownership
+    # Get the travel request
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations)
     ).filter(
-        TravelRequest.id == request_id,
-        TravelRequest.user_id == current_user.id
+        TravelRequest.id == request_id
     ).first()
 
     if not travel_request:
@@ -871,6 +872,19 @@ async def save_traveler_passport(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Traveler not found"
+        )
+
+    # Check access: owner can save for any traveler, invited staff can only save for themselves
+    is_owner = travel_request.user_id == current_user.id
+    is_own_passport = (
+        traveler.traveler_type == TravelerType.STAFF and
+        traveler.user_id == current_user.id
+    )
+
+    if not is_owner and not is_own_passport:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
         )
 
     # If this is a child dependant, validate age
@@ -923,11 +937,14 @@ async def remove_traveler_passport(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Remove passport data from a traveler."""
-    # Verify travel request ownership
+    """
+    Remove passport data from a traveler.
+
+    Access: Owner can remove for any traveler, invited staff can remove their own passport.
+    """
+    # Get the travel request
     travel_request = db.query(TravelRequest).filter(
-        TravelRequest.id == request_id,
-        TravelRequest.user_id == current_user.id
+        TravelRequest.id == request_id
     ).first()
 
     if not travel_request:
@@ -946,6 +963,19 @@ async def remove_traveler_passport(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Traveler not found"
+        )
+
+    # Check access: owner can remove for any traveler, invited staff can only remove their own
+    is_owner = travel_request.user_id == current_user.id
+    is_own_passport = (
+        traveler.traveler_type == TravelerType.STAFF and
+        traveler.user_id == current_user.id
+    )
+
+    if not is_owner and not is_own_passport:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
         )
 
     # Clear passport data
