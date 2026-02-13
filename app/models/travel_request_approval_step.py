@@ -2,10 +2,10 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from app.db.database import Base
+from app.models.base import BaseModel
 
 
-class TravelRequestApprovalStep(Base):
+class TravelRequestApprovalStep(BaseModel):
     """Track approval steps for travel requests with workflow."""
     __tablename__ = "travel_request_approval_steps"
 
