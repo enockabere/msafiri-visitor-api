@@ -178,6 +178,8 @@ async def approve_travel_request(
     """Approve a travel request with workflow support."""
     from app.models.travel_request_approval_step import TravelRequestApprovalStep
     
+    logger.info(f"=== APPROVE REQUEST {request_id} by user {current_user.id} ===")
+    
     travel_request = db.query(TravelRequest).filter(
         TravelRequest.id == request_id
     ).first()
@@ -204,6 +206,10 @@ async def approve_travel_request(
     approval_steps = db.query(TravelRequestApprovalStep).filter(
         TravelRequestApprovalStep.travel_request_id == request_id
     ).order_by(TravelRequestApprovalStep.step_order).all()
+    
+    logger.info(f"Found {len(approval_steps)} approval steps")
+    for step in approval_steps:
+        logger.info(f"  Step {step.step_order}: user_id={step.approver_user_id}, status={step.status}")
     
     if not approval_steps:
         # No workflow - approve directly
