@@ -1218,3 +1218,105 @@ async def get_travel_request_approvals(
         })
 
     return result
+
+
+
+# ===== Checklist Endpoints =====
+
+@router.get("/{request_id}/checklists")
+async def get_travel_request_checklists(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get checklists for a travel request."""
+    from app.models.travel_request_checklist import TravelRequestChecklist
+
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Check access
+    is_owner = travel_request.user_id == current_user.id
+    is_traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.travel_request_id == request_id,
+        TravelRequestTraveler.user_id == current_user.id
+    ).first() is not None
+
+    if not is_owner and not is_traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    checklists = db.query(TravelRequestChecklist).filter(
+        TravelRequestChecklist.travel_request_id == request_id
+    ).all()
+
+    return [{
+        "id": c.id,
+        "traveler_name": c.traveler_name,
+        "nationality": c.nationality,
+        "destination_tenants": c.destination_tenants,
+        "items": c.checklist_items
+    } for c in checklists]
+
+
+@router.put("/{request_id}/checklists")
+async def update_travel_request_checklists(
+    request_id: int,
+    checklist_data: List[dict],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update checklists for a travel request."""
+    from app.models.travel_request_checklist import TravelRequestChecklist
+
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Check access
+    is_owner = travel_request.user_id == current_user.id
+    is_traveler = db.query(TravelRequestTraveler).filter(
+        TravelRequestTraveler.travel_request_id == request_id,
+        TravelRequestTraveler.user_id == current_user.id
+    ).first() is not None
+
+    if not is_owner and not is_traveler:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Delete existing checklists
+    db.query(TravelRequestChecklist).filter(
+        TravelRequestChecklist.travel_request_id == request_id
+    ).delete()
+
+    # Add new checklists
+    for data in checklist_data:
+        checklist = TravelRequestChecklist(
+            travel_request_id=request_id,
+            traveler_name=data.get('traveler_name'),
+            nationality=data.get('nationality'),
+            destination_tenants=data.get('destination_tenants'),
+            checklist_items=data.get('items')
+        )
+        db.add(checklist)
+
+    db.commit()
+
+    return {"message": "Checklists updated successfully"}
