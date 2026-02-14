@@ -896,7 +896,7 @@ async def save_traveler_passport(
     """
     from app.models.travel_request_checklist import TravelRequestChecklist
     from app.models.tenant import Tenant
-    from app.models.checklist_item import ChecklistItem
+    from app.models.country_travel_requirement import CountryTravelRequirement
     
     # Get the travel request
     travel_request = db.query(TravelRequest).options(
@@ -997,46 +997,96 @@ async def save_traveler_passport(
 
     # Generate checklist for this traveler if nationality is provided
     if passport_data.nationality and travel_request.destinations:
+        from app.models.country_travel_requirement import CountryTravelRequirement
+        
         logger.info(f"Generating checklist for traveler {traveler.id} with nationality {passport_data.nationality}")
         
         # Get destination tenant slugs
-        destination_tenant_ids = set()
+        destination_tenant_slugs = []
         for dest in travel_request.destinations:
             logger.info(f"Processing destination: {dest.destination}")
-            # Parse destination to extract tenant info
             parts = dest.destination.split(', ')
             if len(parts) >= 2:
                 city = parts[0]
                 country = parts[1]
                 logger.info(f"Looking for tenant with city={city}, country={country}")
-                # Find tenant by city and country
                 tenant = db.query(Tenant).filter(
                     Tenant.city == city,
                     Tenant.country == country
                 ).first()
                 if tenant:
                     logger.info(f"Found tenant: {tenant.slug}")
-                    destination_tenant_ids.add(tenant.slug)
+                    destination_tenant_slugs.append(tenant.slug)
                 else:
                     logger.warning(f"No tenant found for city={city}, country={country}")
         
-        logger.info(f"Destination tenant IDs: {destination_tenant_ids}")
+        logger.info(f"Destination tenant slugs: {destination_tenant_slugs}")
         
-        # Get checklist items for this nationality and destinations
-        checklist_items_query = db.query(ChecklistItem).filter(
-            ChecklistItem.nationality == passport_data.nationality
-        )
+        # Build checklist items from country travel requirements
+        all_items = []
+        for tenant_slug in destination_tenant_slugs:
+            tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
+            if not tenant:
+                continue
+            
+            # Get travel requirements for this tenant and nationality
+            requirement = db.query(CountryTravelRequirement).filter(
+                CountryTravelRequirement.tenant_id == tenant.id,
+                CountryTravelRequirement.country == passport_data.nationality
+            ).first()
+            
+            if requirement:
+                logger.info(f"Found requirements for {tenant.name} and {passport_data.nationality}")
+                
+                if requirement.visa_required:
+                    all_items.append({
+                        "name": "Visa",
+                        "description": f"Valid visa for {passport_data.nationality} nationals visiting {tenant.country}",
+                        "required": True,
+                        "tenant_name": tenant.name,
+                        "has_item": None
+                    })
+                
+                if requirement.eta_required:
+                    all_items.append({
+                        "name": "ETA (Electronic Travel Authorization)",
+                        "description": f"Electronic travel authorization for {tenant.country}",
+                        "required": True,
+                        "tenant_name": tenant.name,
+                        "has_item": None
+                    })
+                
+                if requirement.passport_required:
+                    all_items.append({
+                        "name": "Valid Passport",
+                        "description": "Passport valid for at least 6 months",
+                        "required": True,
+                        "tenant_name": tenant.name,
+                        "has_item": None
+                    })
+                
+                if requirement.flight_ticket_required:
+                    all_items.append({
+                        "name": "Flight Ticket",
+                        "description": "Confirmed flight ticket",
+                        "required": True,
+                        "tenant_name": tenant.name,
+                        "has_item": None
+                    })
+                
+                if requirement.additional_requirements:
+                    for req in requirement.additional_requirements:
+                        all_items.append({
+                            "name": req.get('name', ''),
+                            "description": req.get('description'),
+                            "required": req.get('required', False),
+                            "tenant_name": tenant.name,
+                            "has_item": None
+                        })
         
-        if destination_tenant_ids:
-            checklist_items_query = checklist_items_query.filter(
-                ChecklistItem.tenant_id.in_(destination_tenant_ids)
-            )
+        logger.info(f"Built {len(all_items)} checklist items")
         
-        checklist_items = checklist_items_query.all()
-        logger.info(f"Found {len(checklist_items)} checklist items")
-        
-        # Create checklist if items found
-        if checklist_items:
+        if all_items:
             # Delete existing checklist for this traveler
             deleted = db.query(TravelRequestChecklist).filter(
                 TravelRequestChecklist.travel_request_id == request_id,
@@ -1044,30 +1094,19 @@ async def save_traveler_passport(
             ).delete()
             logger.info(f"Deleted {deleted} existing checklists for traveler {traveler_id}")
             
-            # Build checklist items
-            items = []
-            for item in checklist_items:
-                items.append({
-                    "name": item.name,
-                    "description": item.description,
-                    "required": item.required,
-                    "tenant_name": item.tenant.name if item.tenant else None,
-                    "has_item": None
-                })
-            
             # Create new checklist
             checklist = TravelRequestChecklist(
                 travel_request_id=request_id,
                 traveler_id=traveler_id,
                 traveler_name=traveler.traveler_name,
                 nationality=passport_data.nationality,
-                destination_tenants=list(destination_tenant_ids),
-                checklist_items=items
+                destination_tenants=destination_tenant_slugs,
+                checklist_items=all_items
             )
             db.add(checklist)
-            logger.info(f"Created checklist with {len(items)} items for traveler {traveler_id}")
+            logger.info(f"Created checklist with {len(all_items)} items for traveler {traveler_id}")
         else:
-            logger.warning(f"No checklist items found for nationality={passport_data.nationality}, tenants={destination_tenant_ids}")
+            logger.warning(f"No checklist items found for nationality={passport_data.nationality}, tenants={destination_tenant_slugs}")
 
     db.commit()
     db.refresh(traveler)
