@@ -1041,7 +1041,11 @@ async def save_traveler_passport(
                 tenant = db.query(Tenant).filter(Tenant.name == tenant_name).first()
                 if tenant:
                     logger.info(f"Found tenant ID={tenant.id}, slug={tenant.slug}, name={tenant.name}")
-                    destination_tenant_slugs.append(tenant.slug)
+                    # Skip current tenant (no checklist for returning home)
+                    if tenant.id != travel_request.tenant_id:
+                        destination_tenant_slugs.append(tenant.slug)
+                    else:
+                        logger.info(f"Skipping current tenant {tenant.slug}")
                 else:
                     logger.warning(f"No tenant found for name={tenant_name}")
             else:
