@@ -1307,7 +1307,8 @@ async def update_travel_request_checklists(
     ).delete()
 
     # Add new checklists
-    checklist_data = request_body.get('checklists', [])`n    for data in checklist_data:
+    checklist_data = request_body.get('checklists', [])
+    for data in checklist_data:
         checklist = TravelRequestChecklist(
             travel_request_id=request_id,
             traveler_name=data.get('traveler_name'),
