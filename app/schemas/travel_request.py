@@ -213,6 +213,7 @@ class TravelRequestCreate(TravelRequestBase):
     tenant_id: int
     destinations: Optional[List[DestinationCreate]] = None
     travelers: Optional[List[TravelerCreate]] = None
+    checklist_data: Optional[List[dict]] = None
 
 
 class TravelRequestUpdate(BaseModel):
