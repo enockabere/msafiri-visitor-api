@@ -436,8 +436,32 @@ async def submit_travel_request(
             ApprovalWorkflow.is_active == True
         ).first()
 
-    # Set up workflow tracking
+    # Set up workflow tracking and create approval steps
     if workflow:
+        from app.models.travel_request_approval_step import TravelRequestApprovalStep
+        
+        # Delete any existing approval steps (in case of resubmission)
+        db.query(TravelRequestApprovalStep).filter(
+            TravelRequestApprovalStep.travel_request_id == travel_request.id
+        ).delete()
+        
+        # Get workflow steps
+        steps = db.query(ApprovalStep).filter(
+            ApprovalStep.workflow_id == workflow.id
+        ).order_by(ApprovalStep.step_order).all()
+        
+        if steps:
+            # Create approval step records
+            for step in steps:
+                approval = TravelRequestApprovalStep(
+                    travel_request_id=travel_request.id,
+                    workflow_step_id=step.id,
+                    step_order=step.step_order,
+                    approver_user_id=step.approver_user_id,
+                    status="OPEN" if step.step_order == 1 else "PENDING"
+                )
+                db.add(approval)
+        
         travel_request.workflow_id = workflow.id
         travel_request.current_approval_step = 1  # Start at step 1
 
