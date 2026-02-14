@@ -10,6 +10,7 @@ class TravelRequestChecklist(BaseModel):
 
     id = Column(Integer, primary_key=True, index=True)
     travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    traveler_id = Column(Integer, ForeignKey("travel_request_travelers.id", ondelete="CASCADE"), nullable=True, index=True)
     traveler_name = Column(String(255), nullable=False)
     nationality = Column(String(100), nullable=True)
     destination_tenants = Column(JSONB, nullable=True)  # List of tenant slugs

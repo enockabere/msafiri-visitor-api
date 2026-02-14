@@ -894,6 +894,10 @@ async def save_traveler_passport(
 
     Access: Owner can save for any traveler, invited staff can save their own passport.
     """
+    from app.models.travel_request_checklist import TravelRequestChecklist
+    from app.models.tenant import Tenant
+    from app.models.checklist_item import ChecklistItem
+    
     # Get the travel request
     travel_request = db.query(TravelRequest).options(
         joinedload(TravelRequest.destinations)
@@ -990,6 +994,66 @@ async def save_traveler_passport(
         traveler.is_child_under_18 = 1 if traveler_validation_service.calculate_is_child_under_18(
             passport_data.date_of_birth
         ) else 0
+
+    # Generate checklist for this traveler if nationality is provided
+    if passport_data.nationality and travel_request.destinations:
+        # Get destination tenant slugs
+        destination_tenant_ids = set()
+        for dest in travel_request.destinations:
+            # Parse destination to extract tenant info
+            parts = dest.destination.split(', ')
+            if len(parts) >= 2:
+                city = parts[0]
+                country = parts[1]
+                # Find tenant by city and country
+                tenant = db.query(Tenant).filter(
+                    Tenant.city == city,
+                    Tenant.country == country
+                ).first()
+                if tenant:
+                    destination_tenant_ids.add(tenant.slug)
+        
+        # Get checklist items for this nationality and destinations
+        checklist_items_query = db.query(ChecklistItem).filter(
+            ChecklistItem.nationality == passport_data.nationality
+        )
+        
+        if destination_tenant_ids:
+            checklist_items_query = checklist_items_query.filter(
+                ChecklistItem.tenant_id.in_(destination_tenant_ids)
+            )
+        
+        checklist_items = checklist_items_query.all()
+        
+        # Create checklist if items found
+        if checklist_items:
+            # Delete existing checklist for this traveler
+            db.query(TravelRequestChecklist).filter(
+                TravelRequestChecklist.travel_request_id == request_id,
+                TravelRequestChecklist.traveler_name == traveler.traveler_name
+            ).delete()
+            
+            # Build checklist items
+            items = []
+            for item in checklist_items:
+                items.append({
+                    "name": item.name,
+                    "description": item.description,
+                    "required": item.required,
+                    "tenant_name": item.tenant.name if item.tenant else None,
+                    "has_item": None
+                })
+            
+            # Create new checklist
+            checklist = TravelRequestChecklist(
+                travel_request_id=request_id,
+                traveler_id=traveler_id,
+                traveler_name=traveler.traveler_name,
+                nationality=passport_data.nationality,
+                destination_tenants=list(destination_tenant_ids),
+                checklist_items=items
+            )
+            db.add(checklist)
 
     db.commit()
     db.refresh(traveler)
@@ -1261,6 +1325,7 @@ async def get_travel_request_checklists(
 
     return [{
         "id": c.id,
+        "traveler_id": c.traveler_id,
         "traveler_name": c.traveler_name,
         "nationality": c.nationality,
         "destination_tenants": c.destination_tenants,
