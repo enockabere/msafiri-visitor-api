@@ -999,9 +999,31 @@ async def save_traveler_passport(
     if passport_data.nationality and travel_request.destinations:
         from app.models.country_travel_requirements import CountryTravelRequirement
         
+        # Map ISO 3-letter codes to full country names (same as mobile app)
+        iso_to_country = {
+            'CAN': 'Canada', 'USA': 'United States', 'GBR': 'United Kingdom',
+            'KEN': 'Kenya', 'UGA': 'Uganda', 'TZA': 'Tanzania', 'RWA': 'Rwanda',
+            'ETH': 'Ethiopia', 'SSD': 'South Sudan', 'SOM': 'Somalia', 'BDI': 'Burundi',
+            'COD': 'Democratic Republic of the Congo', 'ZAF': 'South Africa',
+            'NGA': 'Nigeria', 'GHA': 'Ghana', 'EGY': 'Egypt', 'MAR': 'Morocco',
+            'DZA': 'Algeria', 'TUN': 'Tunisia', 'LBY': 'Libya', 'SDN': 'Sudan',
+            'FRA': 'France', 'DEU': 'Germany', 'ITA': 'Italy', 'ESP': 'Spain',
+            'NLD': 'Netherlands', 'BEL': 'Belgium', 'CHE': 'Switzerland',
+            'AUT': 'Austria', 'SWE': 'Sweden', 'NOR': 'Norway', 'DNK': 'Denmark',
+            'FIN': 'Finland', 'POL': 'Poland', 'IND': 'India', 'CHN': 'China',
+            'JPN': 'Japan', 'KOR': 'South Korea', 'AUS': 'Australia',
+            'NZL': 'New Zealand', 'BRA': 'Brazil', 'ARG': 'Argentina',
+            'MEX': 'Mexico', 'CHL': 'Chile', 'COL': 'Colombia', 'PER': 'Peru',
+        }
+        
+        # Convert ISO code to full country name
+        nationality = passport_data.nationality
+        if len(nationality) == 3 and nationality.isupper():
+            nationality = iso_to_country.get(nationality, nationality)
+        
         logger.info(f"=== CHECKLIST GENERATION START ===")
         logger.info(f"Traveler ID: {traveler.id}, Name: {traveler.traveler_name}")
-        logger.info(f"Nationality: {passport_data.nationality}")
+        logger.info(f"Nationality: {passport_data.nationality} -> {nationality}")
         logger.info(f"Number of destinations: {len(travel_request.destinations)}")
         
         # Get destination tenant slugs by extracting from parentheses
@@ -1040,7 +1062,7 @@ async def save_traveler_passport(
             # Get travel requirements for this tenant and nationality
             requirement = db.query(CountryTravelRequirement).filter(
                 CountryTravelRequirement.tenant_id == tenant.id,
-                CountryTravelRequirement.country == passport_data.nationality
+                CountryTravelRequirement.country == nationality
             ).first()
             
             if requirement:
@@ -1049,7 +1071,7 @@ async def save_traveler_passport(
                 if requirement.visa_required:
                     all_items.append({
                         "name": "Visa",
-                        "description": f"Valid visa for {passport_data.nationality} nationals visiting {tenant.country}",
+                        "description": f"Valid visa for {nationality} nationals visiting {tenant.country}",
                         "required": True,
                         "tenant_name": tenant.name,
                         "has_item": None
@@ -1110,7 +1132,7 @@ async def save_traveler_passport(
                 travel_request_id=request_id,
                 traveler_id=traveler_id,
                 traveler_name=traveler.traveler_name,
-                nationality=passport_data.nationality,
+                nationality=nationality,
                 destination_tenants=destination_tenant_slugs,
                 checklist_items=all_items
             )
