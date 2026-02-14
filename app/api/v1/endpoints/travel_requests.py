@@ -997,7 +997,7 @@ async def save_traveler_passport(
 
     # Generate checklist for this traveler if nationality is provided
     if passport_data.nationality and travel_request.destinations:
-        from app.models.country_travel_requirement import CountryTravelRequirement
+        from app.models.country_travel_requirements import CountryTravelRequirement
         
         logger.info(f"=== CHECKLIST GENERATION START ===")
         logger.info(f"Traveler ID: {traveler.id}, Name: {traveler.traveler_name}")
