@@ -896,7 +896,7 @@ async def save_traveler_passport(
     """
     from app.models.travel_request_checklist import TravelRequestChecklist
     from app.models.tenant import Tenant
-    from app.models.country_travel_requirement import CountryTravelRequirement
+    from app.models.country_travel_requirements import CountryTravelRequirement
     
     # Get the travel request
     travel_request = db.query(TravelRequest).options(
