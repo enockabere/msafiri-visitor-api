@@ -997,21 +997,30 @@ async def save_traveler_passport(
 
     # Generate checklist for this traveler if nationality is provided
     if passport_data.nationality and travel_request.destinations:
+        logger.info(f"Generating checklist for traveler {traveler.id} with nationality {passport_data.nationality}")
+        
         # Get destination tenant slugs
         destination_tenant_ids = set()
         for dest in travel_request.destinations:
+            logger.info(f"Processing destination: {dest.destination}")
             # Parse destination to extract tenant info
             parts = dest.destination.split(', ')
             if len(parts) >= 2:
                 city = parts[0]
                 country = parts[1]
+                logger.info(f"Looking for tenant with city={city}, country={country}")
                 # Find tenant by city and country
                 tenant = db.query(Tenant).filter(
                     Tenant.city == city,
                     Tenant.country == country
                 ).first()
                 if tenant:
+                    logger.info(f"Found tenant: {tenant.slug}")
                     destination_tenant_ids.add(tenant.slug)
+                else:
+                    logger.warning(f"No tenant found for city={city}, country={country}")
+        
+        logger.info(f"Destination tenant IDs: {destination_tenant_ids}")
         
         # Get checklist items for this nationality and destinations
         checklist_items_query = db.query(ChecklistItem).filter(
@@ -1024,14 +1033,16 @@ async def save_traveler_passport(
             )
         
         checklist_items = checklist_items_query.all()
+        logger.info(f"Found {len(checklist_items)} checklist items")
         
         # Create checklist if items found
         if checklist_items:
             # Delete existing checklist for this traveler
-            db.query(TravelRequestChecklist).filter(
+            deleted = db.query(TravelRequestChecklist).filter(
                 TravelRequestChecklist.travel_request_id == request_id,
-                TravelRequestChecklist.traveler_name == traveler.traveler_name
+                TravelRequestChecklist.traveler_id == traveler_id
             ).delete()
+            logger.info(f"Deleted {deleted} existing checklists for traveler {traveler_id}")
             
             # Build checklist items
             items = []
@@ -1054,6 +1065,9 @@ async def save_traveler_passport(
                 checklist_items=items
             )
             db.add(checklist)
+            logger.info(f"Created checklist with {len(items)} items for traveler {traveler_id}")
+        else:
+            logger.warning(f"No checklist items found for nationality={passport_data.nationality}, tenants={destination_tenant_ids}")
 
     db.commit()
     db.refresh(traveler)
