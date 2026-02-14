@@ -131,7 +131,14 @@ async def create_travel_request(
                 traveler_email=traveler_data.traveler_email,
                 traveler_phone=traveler_data.traveler_phone,
                 is_primary=traveler_data.is_primary,
-                relation_type=traveler_data.relation_type
+                relation_type=traveler_data.relation_type,
+                passport_file_url=traveler_data.passport_file_url,
+                passport_number=traveler_data.passport_number,
+                passport_full_name=traveler_data.passport_full_name,
+                passport_date_of_birth=traveler_data.passport_date_of_birth,
+                passport_expiry_date=traveler_data.passport_expiry_date,
+                passport_nationality=traveler_data.passport_nationality,
+                passport_gender=traveler_data.passport_gender
             )
             db.add(traveler)
     else:
