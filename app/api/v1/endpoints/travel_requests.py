@@ -999,7 +999,10 @@ async def save_traveler_passport(
     if passport_data.nationality and travel_request.destinations:
         from app.models.country_travel_requirement import CountryTravelRequirement
         
-        logger.info(f"Generating checklist for traveler {traveler.id} with nationality {passport_data.nationality}")
+        logger.info(f"=== CHECKLIST GENERATION START ===")
+        logger.info(f"Traveler ID: {traveler.id}, Name: {traveler.traveler_name}")
+        logger.info(f"Nationality: {passport_data.nationality}")
+        logger.info(f"Number of destinations: {len(travel_request.destinations)}")
         
         # Get destination tenant slugs
         destination_tenant_slugs = []
@@ -1015,7 +1018,7 @@ async def save_traveler_passport(
                     Tenant.country == country
                 ).first()
                 if tenant:
-                    logger.info(f"Found tenant: {tenant.slug}")
+                    logger.info(f"Found tenant ID={tenant.id}, slug={tenant.slug}, name={tenant.name}")
                     destination_tenant_slugs.append(tenant.slug)
                 else:
                     logger.warning(f"No tenant found for city={city}, country={country}")
@@ -1027,7 +1030,10 @@ async def save_traveler_passport(
         for tenant_slug in destination_tenant_slugs:
             tenant = db.query(Tenant).filter(Tenant.slug == tenant_slug).first()
             if not tenant:
+                logger.warning(f"Tenant not found for slug: {tenant_slug}")
                 continue
+            
+            logger.info(f"Querying requirements for tenant_id={tenant.id}, country={passport_data.nationality}")
             
             # Get travel requirements for this tenant and nationality
             requirement = db.query(CountryTravelRequirement).filter(
@@ -1036,7 +1042,7 @@ async def save_traveler_passport(
             ).first()
             
             if requirement:
-                logger.info(f"Found requirements for {tenant.name} and {passport_data.nationality}")
+                logger.info(f"Found requirements: visa={requirement.visa_required}, eta={requirement.eta_required}, passport={requirement.passport_required}, flight={requirement.flight_ticket_required}")
                 
                 if requirement.visa_required:
                     all_items.append({
@@ -1075,6 +1081,7 @@ async def save_traveler_passport(
                     })
                 
                 if requirement.additional_requirements:
+                    logger.info(f"Additional requirements: {requirement.additional_requirements}")
                     for req in requirement.additional_requirements:
                         all_items.append({
                             "name": req.get('name', ''),
@@ -1083,6 +1090,8 @@ async def save_traveler_passport(
                             "tenant_name": tenant.name,
                             "has_item": None
                         })
+            else:
+                logger.warning(f"No requirements found for tenant_id={tenant.id}, country={passport_data.nationality}")
         
         logger.info(f"Built {len(all_items)} checklist items")
         
@@ -1105,8 +1114,10 @@ async def save_traveler_passport(
             )
             db.add(checklist)
             logger.info(f"Created checklist with {len(all_items)} items for traveler {traveler_id}")
+            logger.info(f"=== CHECKLIST GENERATION END ===")
         else:
             logger.warning(f"No checklist items found for nationality={passport_data.nationality}, tenants={destination_tenant_slugs}")
+            logger.info(f"=== CHECKLIST GENERATION END (NO ITEMS) ===")
 
     db.commit()
     db.refresh(traveler)
