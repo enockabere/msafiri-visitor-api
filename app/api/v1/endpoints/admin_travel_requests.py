@@ -813,3 +813,49 @@ async def reset_to_pending(
     logger.info(f"Verified {created_approvals} approval steps created for request {request_id}")
 
     return travel_request
+
+
+@router.get("/{request_id}/checklists")
+async def get_admin_travel_request_checklists(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get checklists for a travel request (admin or approver access)."""
+    from app.models.travel_request_checklist import TravelRequestChecklist
+    from app.models.travel_request_approval_step import TravelRequestApprovalStep
+
+    travel_request = db.query(TravelRequest).filter(
+        TravelRequest.id == request_id
+    ).first()
+
+    if not travel_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Travel request not found"
+        )
+
+    # Check if user is admin or an approver for this request
+    is_admin = check_admin_access(current_user, travel_request.tenant_id)
+    is_approver = db.query(TravelRequestApprovalStep).filter(
+        TravelRequestApprovalStep.travel_request_id == request_id,
+        TravelRequestApprovalStep.approver_user_id == current_user.id
+    ).first() is not None
+
+    if not is_admin and not is_approver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or approver access required"
+        )
+
+    checklists = db.query(TravelRequestChecklist).filter(
+        TravelRequestChecklist.travel_request_id == request_id
+    ).all()
+
+    return [{
+        "id": c.id,
+        "traveler_name": c.traveler_name,
+        "nationality": c.nationality,
+        "destination_tenants": c.destination_tenants,
+        "items": c.checklist_items
+    } for c in checklists]
