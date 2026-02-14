@@ -1004,24 +1004,26 @@ async def save_traveler_passport(
         logger.info(f"Nationality: {passport_data.nationality}")
         logger.info(f"Number of destinations: {len(travel_request.destinations)}")
         
-        # Get destination tenant slugs
+        # Get destination tenant slugs by extracting from parentheses
         destination_tenant_slugs = []
         for dest in travel_request.destinations:
             logger.info(f"Processing destination: {dest.destination}")
-            parts = dest.destination.split(', ')
-            if len(parts) >= 2:
-                city = parts[0]
-                country = parts[1]
-                logger.info(f"Looking for tenant with city={city}, country={country}")
-                tenant = db.query(Tenant).filter(
-                    Tenant.city == city,
-                    Tenant.country == country
-                ).first()
+            # Extract tenant name from parentheses at the end
+            # Format: "City, Country (Tenant Name)"
+            import re
+            match = re.search(r'\(([^)]+)\)\s*$', dest.destination)
+            if match:
+                tenant_name = match.group(1)
+                logger.info(f"Extracted tenant name: {tenant_name}")
+                # Find tenant by name
+                tenant = db.query(Tenant).filter(Tenant.name == tenant_name).first()
                 if tenant:
                     logger.info(f"Found tenant ID={tenant.id}, slug={tenant.slug}, name={tenant.name}")
                     destination_tenant_slugs.append(tenant.slug)
                 else:
-                    logger.warning(f"No tenant found for city={city}, country={country}")
+                    logger.warning(f"No tenant found for name={tenant_name}")
+            else:
+                logger.warning(f"Could not extract tenant name from destination: {dest.destination}")
         
         logger.info(f"Destination tenant slugs: {destination_tenant_slugs}")
         
