@@ -155,6 +155,14 @@ class TravelerCreate(BaseModel):
     traveler_phone: Optional[str] = None
     is_primary: int = 0
     relation_type: Optional[str] = None  # e.g., "child", "spouse"
+    # Passport fields
+    passport_file_url: Optional[str] = None
+    passport_number: Optional[str] = None
+    passport_full_name: Optional[str] = None
+    passport_date_of_birth: Optional[date] = None
+    passport_expiry_date: Optional[date] = None
+    passport_nationality: Optional[str] = None
+    passport_gender: Optional[str] = None
 
 
 class TravelerResponse(BaseModel):
