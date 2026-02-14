@@ -1271,7 +1271,7 @@ async def get_travel_request_checklists(
 @router.put("/{request_id}/checklists")
 async def update_travel_request_checklists(
     request_id: int,
-    checklist_data: List[dict],
+    request_body: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -1307,7 +1307,7 @@ async def update_travel_request_checklists(
     ).delete()
 
     # Add new checklists
-    for data in checklist_data:
+    checklist_data = request_body.get('checklists', [])`n    for data in checklist_data:
         checklist = TravelRequestChecklist(
             travel_request_id=request_id,
             traveler_name=data.get('traveler_name'),
@@ -1320,3 +1320,4 @@ async def update_travel_request_checklists(
     db.commit()
 
     return {"message": "Checklists updated successfully"}
+
