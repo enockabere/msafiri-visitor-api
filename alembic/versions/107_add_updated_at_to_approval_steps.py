@@ -1,7 +1,7 @@
 """add updated_at to approval steps
 
-Revision ID: 106
-Revises: 105
+Revision ID: 107
+Revises: 106
 Create Date: 2025-02-14 12:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '106'
-down_revision = '105'
+revision = '107'
+down_revision = '106'
 branch_labels = None
 depends_on = None
 

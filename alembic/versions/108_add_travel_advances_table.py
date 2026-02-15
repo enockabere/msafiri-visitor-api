@@ -1,7 +1,7 @@
 """add travel_advances table
 
-Revision ID: 107
-Revises: 106
+Revision ID: 108
+Revises: 107
 Create Date: 2024-01-16 10:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = '107'
-down_revision = '106'
+revision = '108'
+down_revision = '107'
 branch_labels = None
 depends_on = None
 
