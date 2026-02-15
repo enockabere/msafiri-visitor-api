@@ -4,7 +4,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user
+from app.db.database import get_db
+from app.api.deps import get_current_user
 from app.models import User, TravelAdvance, TravelRequest, TravelRequestTraveler, TravelRequestStatus
 from app.schemas.travel_advance import TravelAdvanceCreate, TravelAdvanceResponse, TravelAdvanceUpdate
 
