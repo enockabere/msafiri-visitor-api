@@ -60,8 +60,21 @@ def create_perdiem_request(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Calculate daily rate and total amount (simplified - should be based on event/location)
-    daily_rate = 50.00  # Default rate
+    # Get daily rate from tenant's per diem setup
+    from app.models.perdiem_setup import PerdiemSetup
+    from decimal import Decimal
+    
+    perdiem_setup = db.query(PerdiemSetup).filter(
+        PerdiemSetup.tenant_id == event.tenant_id
+    ).first()
+    
+    if perdiem_setup:
+        daily_rate = perdiem_setup.daily_rate
+        currency = perdiem_setup.currency
+    else:
+        daily_rate = Decimal('50.00')
+        currency = 'USD'
+    
     total_amount = daily_rate * request.requested_days
     
     perdiem_request = PerdiemRequest(
@@ -71,6 +84,7 @@ def create_perdiem_request(
         calculated_days=(request.departure_date - request.arrival_date).days + 1,
         requested_days=request.requested_days,
         daily_rate=daily_rate,
+        currency=currency,
         total_amount=total_amount,
         status="pending_approval",  # Use string directly
         justification=request.justification,
@@ -283,6 +297,25 @@ def update_perdiem_request(
     if perdiem_request.status != "open":
         raise HTTPException(status_code=400, detail=f"Can only update open requests. Current status: {perdiem_request.status}")
     
+    # Get participant and event to fetch tenant's per diem setup
+    participant = db.query(EventParticipant).filter(EventParticipant.id == perdiem_request.participant_id).first()
+    event = db.query(Event).filter(Event.id == participant.event_id).first()
+    
+    # Get daily rate from tenant's per diem setup
+    from app.models.perdiem_setup import PerdiemSetup
+    from decimal import Decimal
+    
+    perdiem_setup = db.query(PerdiemSetup).filter(
+        PerdiemSetup.tenant_id == event.tenant_id
+    ).first()
+    
+    if perdiem_setup:
+        perdiem_request.daily_rate = perdiem_setup.daily_rate
+        perdiem_request.currency = perdiem_setup.currency
+    else:
+        perdiem_request.daily_rate = Decimal('50.00')
+        perdiem_request.currency = 'USD'
+    
     # Update fields
     perdiem_request.arrival_date = request.arrival_date
     perdiem_request.departure_date = request.departure_date
@@ -302,9 +335,8 @@ def update_perdiem_request(
     perdiem_request.accommodation_type = request.accommodation_type
     perdiem_request.accommodation_name = request.accommodation_name
 
-    # Recalculate amounts
-    daily_rate = 50.00  # Default rate
-    perdiem_request.total_amount = daily_rate * request.requested_days
+    # Recalculate total amount
+    perdiem_request.total_amount = perdiem_request.daily_rate * request.requested_days
     
     db.commit()
     db.refresh(perdiem_request)
