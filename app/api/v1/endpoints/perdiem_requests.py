@@ -165,6 +165,13 @@ def update_my_perdiem_request(
 ):
     """Visitor updates their perdiem request (only if open or pending)"""
     
+    print(f"\n{'='*80}")
+    print(f"🔄 PER DIEM UPDATE REQUEST STARTED")
+    print(f"User: {current_user.email}")
+    print(f"Requested Days: {update_data.requested_days}")
+    print(f"Justification: {update_data.justification}")
+    print(f"{'='*80}\n")
+    
     # Get user's perdiem request (allow updates for open and pending status)
     request = db.query(PerdiemRequest).join(
         EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
@@ -176,13 +183,22 @@ def update_my_perdiem_request(
     ).first()
     
     if not request:
+        print(f"❌ ERROR - No editable perdiem request found for {current_user.email}")
         raise HTTPException(status_code=404, detail="No editable perdiem request found")
+    
+    print(f"✅ Found existing request ID: {request.id}")
+    print(f"   Current Status: {request.status}")
+    print(f"   Current Rate: {request.currency} {request.daily_rate}")
+    print(f"   Current Days: {request.requested_days}")
+    print(f"   Current Total: {request.currency} {request.total_amount}")
     
     # Recalculate rates from tenant setup
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     event = db.query(Event).filter(Event.id == participant.event_id).first()
     
-    print(f"🔄 UPDATE - Event ID: {event.id}, Tenant ID: {event.tenant_id}")
+    print(f"\n🔍 Fetching tenant setup...")
+    print(f"   Event ID: {event.id}")
+    print(f"   Tenant ID: {event.tenant_id}")
     
     # Fetch per diem setup for the event's tenant
     perdiem_setup = db.query(PerdiemSetup).filter(
@@ -192,21 +208,27 @@ def update_my_perdiem_request(
     if perdiem_setup:
         request.daily_rate = perdiem_setup.daily_rate
         request.currency = perdiem_setup.currency
-        print(f"💰 UPDATE - Using tenant setup: {request.currency} {request.daily_rate}")
+        print(f"✅ Using tenant setup: {request.currency} {request.daily_rate}")
     else:
         request.daily_rate = event.perdiem_rate or Decimal('50.00')
         request.currency = 'USD'
-        print(f"⚠️ UPDATE - Using fallback: {request.currency} {request.daily_rate}")
+        print(f"⚠️ No tenant setup found - Using fallback: {request.currency} {request.daily_rate}")
     
     # Update request
     request.requested_days = update_data.requested_days
     request.justification = update_data.justification
     request.total_amount = request.daily_rate * update_data.requested_days
     
-    print(f"💵 UPDATE - Calculation: {request.daily_rate} x {request.requested_days} = {request.total_amount} {request.currency}")
+    print(f"\n💰 NEW CALCULATION:")
+    print(f"   Daily Rate: {request.currency} {request.daily_rate}")
+    print(f"   Days: {request.requested_days}")
+    print(f"   Total: {request.currency} {request.total_amount}")
     
     db.commit()
     db.refresh(request)
+    
+    print(f"\n✅ PER DIEM UPDATE COMPLETED")
+    print(f"{'='*80}\n")
     
     return request
 
