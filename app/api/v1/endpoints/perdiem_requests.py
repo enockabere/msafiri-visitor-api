@@ -349,24 +349,29 @@ def update_perdiem_request_by_id(
 ):
     """Update perdiem request by ID (mobile app endpoint)"""
     
+    print(f"🔄 UPDATE REQUEST {request_id} by {current_user.email}")
     logger.info(f"🔄 PER DIEM UPDATE BY ID: {request_id} by {current_user.email}")
     logger.info(f"Update Data: {update_data}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
+        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
+        print(f"❌ Unauthorized")
         logger.error(f"❌ Unauthorized - Request belongs to {participant.email}, not {current_user.email}")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
+        print(f"❌ Cannot update - Status is {request.status}")
         logger.error(f"❌ Cannot update - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only update open or pending requests")
     
+    print(f"✅ Found request - Current: {request.currency} {request.total_amount}")
     logger.info(f"✅ Found request - Current: {request.currency} {request.total_amount}")
     
     # Recalculate rates from tenant setup
@@ -376,10 +381,12 @@ def update_perdiem_request_by_id(
     if perdiem_setup:
         request.daily_rate = perdiem_setup.daily_rate
         request.currency = perdiem_setup.currency
+        print(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
         logger.info(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
     else:
         request.daily_rate = event.perdiem_rate or Decimal('50.00')
         request.currency = 'USD'
+        print(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
         logger.warning(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
     
     # Update fields
@@ -396,11 +403,13 @@ def update_perdiem_request_by_id(
     
     request.total_amount = request.daily_rate * request.requested_days
     
+    print(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
     logger.info(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
     
     db.commit()
     db.refresh(request)
     
+    print(f"✅ UPDATE COMPLETED")
     logger.info(f"✅ UPDATE COMPLETED")
     
     return request
@@ -413,22 +422,27 @@ def cancel_perdiem_request(
 ):
     """Cancel perdiem request"""
     
+    print(f"🚫 CANCEL REQUEST {request_id} by {current_user.email}")
     logger.info(f"🚫 CANCEL PER DIEM REQUEST {request_id} by {current_user.email}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
+        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
+    print(f"Current Status: {request.status}, Amount: {request.currency} {request.total_amount}")
     logger.info(f"Current Status: {request.status}, Amount: {request.currency} {request.total_amount}")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
+        print(f"❌ Unauthorized - Request belongs to {participant.email}")
         logger.error(f"❌ Unauthorized - Request belongs to {participant.email}")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
+        print(f"❌ Cannot cancel - Status is {request.status}")
         logger.error(f"❌ Cannot cancel - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only cancel open or pending requests")
     
@@ -436,9 +450,10 @@ def cancel_perdiem_request(
     request.status = PerdiemStatus.OPEN
     db.commit()
     
+    print(f"✅ CANCEL SUCCESSFUL - Status: {old_status} → OPEN")
     logger.info(f"✅ CANCEL SUCCESSFUL - Status: {old_status} → OPEN")
     
-    return {"message": "Request cancelled successfully"}
+    return {"message": "Request cancelled successfully", "status": "open"}
 
 @router.post("/{request_id}/submit")
 def submit_perdiem_request(
@@ -448,26 +463,31 @@ def submit_perdiem_request(
 ):
     """Submit perdiem request for approval"""
     
+    print(f"📤 SUBMIT REQUEST {request_id} by {current_user.email}")
     logger.info(f"📤 SUBMIT PER DIEM REQUEST {request_id} by {current_user.email}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
+        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
+        print(f"❌ Unauthorized")
         logger.error(f"❌ Unauthorized")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status != PerdiemStatus.OPEN:
+        print(f"❌ Cannot submit - Status is {request.status}")
         logger.error(f"❌ Cannot submit - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only submit open requests")
     
     request.status = PerdiemStatus.PENDING
     db.commit()
     
+    print(f"✅ SUBMIT SUCCESSFUL - Status: OPEN → PENDING")
     logger.info(f"✅ SUBMIT SUCCESSFUL - Status: OPEN → PENDING")
     
     return {"message": "Request submitted successfully"}
