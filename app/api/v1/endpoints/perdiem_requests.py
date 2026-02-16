@@ -337,3 +337,158 @@ def record_perdiem_payment(
     db.commit()
     
     return {"message": "Payment recorded successfully"}
+
+@router.put("/{request_id}")
+def update_perdiem_request_by_id(
+    request_id: int,
+    update_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update perdiem request by ID (mobile app endpoint)"""
+    
+    print(f"\n{'='*80}")
+    print(f"🔄 PER DIEM UPDATE BY ID: {request_id}")
+    print(f"User: {current_user.email}")
+    print(f"Update Data: {update_data}")
+    print(f"{'='*80}\n")
+    
+    request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not request:
+        print(f"❌ Request {request_id} not found")
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify user owns this request
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    if participant.email != current_user.email:
+        print(f"❌ Unauthorized - Request belongs to {participant.email}, not {current_user.email}")
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
+        print(f"❌ Cannot update - Status is {request.status}")
+        raise HTTPException(status_code=400, detail="Can only update open or pending requests")
+    
+    print(f"✅ Found request - Current: {request.currency} {request.total_amount}")
+    
+    # Recalculate rates from tenant setup
+    event = db.query(Event).filter(Event.id == participant.event_id).first()
+    perdiem_setup = db.query(PerdiemSetup).filter(PerdiemSetup.tenant_id == event.tenant_id).first()
+    
+    if perdiem_setup:
+        request.daily_rate = perdiem_setup.daily_rate
+        request.currency = perdiem_setup.currency
+        print(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
+    else:
+        request.daily_rate = event.perdiem_rate or Decimal('50.00')
+        request.currency = 'USD'
+        print(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
+    
+    # Update fields
+    if 'requested_days' in update_data:
+        request.requested_days = update_data['requested_days']
+    if 'purpose' in update_data:
+        request.justification = update_data['purpose']
+    if 'payment_method' in update_data:
+        request.payment_method = update_data['payment_method']
+    if 'cash_pickup_date' in update_data:
+        request.cash_pickup_date = update_data['cash_pickup_date']
+    if 'mpesa_number' in update_data:
+        request.mpesa_number = update_data['mpesa_number']
+    
+    request.total_amount = request.daily_rate * request.requested_days
+    
+    print(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
+    
+    db.commit()
+    db.refresh(request)
+    
+    print(f"✅ UPDATE COMPLETED\n{'='*80}\n")
+    
+    return request
+
+@router.post("/{request_id}/cancel")
+def cancel_perdiem_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel perdiem request"""
+    
+    print(f"\n🚫 CANCEL REQUEST {request_id} by {current_user.email}")
+    
+    request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify user owns this request
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    if participant.email != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
+        raise HTTPException(status_code=400, detail="Can only cancel open or pending requests")
+    
+    request.status = PerdiemStatus.CANCELLED
+    db.commit()
+    
+    print(f"✅ Request {request_id} cancelled\n")
+    
+    return {"message": "Request cancelled successfully"}
+
+@router.post("/{request_id}/submit")
+def submit_perdiem_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Submit perdiem request for approval"""
+    
+    print(f"\n📤 SUBMIT REQUEST {request_id} by {current_user.email}")
+    
+    request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify user owns this request
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    if participant.email != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if request.status != PerdiemStatus.OPEN:
+        raise HTTPException(status_code=400, detail="Can only submit open requests")
+    
+    request.status = PerdiemStatus.PENDING
+    db.commit()
+    
+    print(f"✅ Request {request_id} submitted\n")
+    
+    return {"message": "Request submitted successfully"}
+
+@router.post("/{request_id}/received")
+def mark_perdiem_received(
+    request_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark perdiem as received"""
+    
+    print(f"\n✅ MARK RECEIVED {request_id} by {current_user.email}")
+    
+    request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Verify user owns this request
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    if participant.email != current_user.email:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    if request.status != PerdiemStatus.ISSUED:
+        raise HTTPException(status_code=400, detail="Can only mark issued requests as received")
+    
+    request.status = PerdiemStatus.COMPLETED
+    db.commit()
+    
+    print(f"✅ Request {request_id} marked as received\n")
+    
+    return {"message": "Marked as received successfully"}
