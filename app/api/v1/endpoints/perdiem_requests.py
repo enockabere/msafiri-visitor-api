@@ -9,6 +9,7 @@ from app.models.perdiem_request import PerdiemRequest, PerdiemStatus
 from app.models.event_participant import EventParticipant
 from app.models.event import Event
 from app.models.travel_ticket import ParticipantTicket
+from app.models.perdiem_setup import PerdiemSetup
 from app.schemas.perdiem_request import (
     PerdiemRequestCreate, PerdiemRequestUpdate, PerdiemRequest as PerdiemSchema,
     PerdiemApprovalAction, PerdiemPaymentAction, ParticipantPerdiemSummary
@@ -111,9 +112,21 @@ def create_perdiem_request(
     calculated_days = (request_data.departure_date - request_data.arrival_date).days + 1
     requested_days = request_data.requested_days or calculated_days
     
-    # Get daily rate from events
+    # Get daily rate from tenant's per diem setup
     event = db.query(Event).filter(Event.id == participant.event_id).first()
-    daily_rate = event.perdiem_rate or Decimal('50.00')
+    
+    # Fetch per diem setup for the event's tenant
+    perdiem_setup = db.query(PerdiemSetup).filter(
+        PerdiemSetup.tenant_id == event.tenant_id
+    ).first()
+    
+    if perdiem_setup:
+        daily_rate = perdiem_setup.daily_rate
+        currency = perdiem_setup.currency
+    else:
+        # Fallback to event rate or default
+        daily_rate = event.perdiem_rate or Decimal('50.00')
+        currency = 'USD'
     
     total_amount = daily_rate * requested_days
     
@@ -125,6 +138,7 @@ def create_perdiem_request(
         calculated_days=calculated_days,
         requested_days=requested_days,
         daily_rate=daily_rate,
+        currency=currency,
         total_amount=total_amount,
         justification=request_data.justification
     )
