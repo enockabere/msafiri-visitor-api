@@ -63,6 +63,10 @@ class PerdiemRequest(BaseModel):
     rejection_reason: Optional[str] = None
     accommodation_type: Optional[str] = None
     accommodation_name: Optional[str] = None
+    accommodation_days: Optional[int] = None
+    accommodation_rate: Optional[Decimal] = None
+    accommodation_deduction: Optional[Decimal] = None
+    per_diem_base_amount: Optional[Decimal] = None
     created_at: datetime
 
     class Config:
