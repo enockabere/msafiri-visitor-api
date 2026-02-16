@@ -5,9 +5,11 @@ import enum
 
 class PerdiemStatus(enum.Enum):
     OPEN = "open"
+    PENDING = "pending"
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
+    CANCELLED = "cancelled"
     ISSUED = "issued"
     COMPLETED = "completed"
 

@@ -414,24 +414,40 @@ def cancel_perdiem_request(
 ):
     """Cancel perdiem request"""
     
-    print(f"\n🚫 CANCEL REQUEST {request_id} by {current_user.email}")
+    print(f"\n{'='*80}")
+    print(f"🚫 CANCEL PER DIEM REQUEST")
+    print(f"Request ID: {request_id}")
+    print(f"User: {current_user.email}")
+    print(f"{'='*80}\n")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
+        print(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
+    
+    print(f"✅ Found request")
+    print(f"   Current Status: {request.status}")
+    print(f"   Current Amount: {request.currency} {request.total_amount}")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
+        print(f"❌ Unauthorized - Request belongs to {participant.email}, not {current_user.email}")
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    print(f"✅ Authorization verified")
+    
     if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
+        print(f"❌ Cannot cancel - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only cancel open or pending requests")
     
-    request.status = PerdiemStatus.CANCELLED
+    old_status = request.status
+    request.status = PerdiemStatus.OPEN
     db.commit()
     
-    print(f"✅ Request {request_id} cancelled\n")
+    print(f"✅ CANCEL SUCCESSFUL")
+    print(f"   Status changed: {old_status} → OPEN")
+    print(f"{'='*80}\n")
     
     return {"message": "Request cancelled successfully"}
 
