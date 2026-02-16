@@ -39,6 +39,7 @@ class PerdiemRequest(BaseModel):
     calculated_days: int
     requested_days: int
     daily_rate: Decimal
+    currency: Optional[str] = None
     total_amount: Decimal
     status: str
     justification: Optional[str] = None
