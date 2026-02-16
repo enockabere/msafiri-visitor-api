@@ -61,10 +61,10 @@ def create_perdiem_request(
         raise HTTPException(status_code=404, detail="Event not found")
     
     # Get daily rate from tenant's per diem setup
-    from app.models.perdiem_setup import PerdiemSetup
+    from app.models.perdiem_setup import PerDiemSetup
     
-    perdiem_setup = db.query(PerdiemSetup).filter(
-        PerdiemSetup.tenant_id == event.tenant_id
+    perdiem_setup = db.query(PerDiemSetup).filter(
+        PerDiemSetup.tenant_id == event.tenant_id
     ).first()
     
     if not perdiem_setup:
@@ -299,10 +299,10 @@ def update_perdiem_request(
     event = db.query(Event).filter(Event.id == participant.event_id).first()
     
     # Get daily rate from tenant's per diem setup
-    from app.models.perdiem_setup import PerdiemSetup
+    from app.models.perdiem_setup import PerDiemSetup
     
-    perdiem_setup = db.query(PerdiemSetup).filter(
-        PerdiemSetup.tenant_id == event.tenant_id
+    perdiem_setup = db.query(PerDiemSetup).filter(
+        PerDiemSetup.tenant_id == event.tenant_id
     ).first()
     
     if not perdiem_setup:
