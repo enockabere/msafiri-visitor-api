@@ -19,7 +19,6 @@ from app.api.deps import get_current_user
 from app.models.user import User
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 @router.get("/my-perdiem-eligibility", response_model=ParticipantPerdiemSummary)
 def get_my_perdiem_eligibility(
@@ -117,28 +116,20 @@ def create_perdiem_request(
     # Get daily rate from tenant's per diem setup
     event = db.query(Event).filter(Event.id == participant.event_id).first()
     
-    print(f"🔍 DEBUG - Event ID: {event.id}, Tenant ID: {event.tenant_id}")
-    
     # Fetch per diem setup for the event's tenant
     perdiem_setup = db.query(PerdiemSetup).filter(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
-    print(f"🔍 DEBUG - Per Diem Setup Found: {perdiem_setup is not None}")
-    
     if perdiem_setup:
         daily_rate = perdiem_setup.daily_rate
         currency = perdiem_setup.currency
-        print(f"💰 DEBUG - Using tenant setup: {currency} {daily_rate}")
     else:
         # Fallback to event rate or default
         daily_rate = event.perdiem_rate or Decimal('50.00')
         currency = 'USD'
-        print(f"⚠️ DEBUG - Using fallback: {currency} {daily_rate}")
     
     total_amount = daily_rate * requested_days
-    
-    print(f"💵 DEBUG - Calculation: {daily_rate} x {requested_days} = {total_amount} {currency}")
     
     # Create request
     perdiem_request = PerdiemRequest(
@@ -167,13 +158,6 @@ def update_my_perdiem_request(
 ):
     """Visitor updates their perdiem request (only if open or pending)"""
     
-    print(f"\n{'='*80}")
-    print(f"🔄 PER DIEM UPDATE REQUEST STARTED")
-    print(f"User: {current_user.email}")
-    print(f"Requested Days: {update_data.requested_days}")
-    print(f"Justification: {update_data.justification}")
-    print(f"{'='*80}\n")
-    
     # Get user's perdiem request (allow updates for open and pending status)
     request = db.query(PerdiemRequest).join(
         EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
@@ -185,22 +169,11 @@ def update_my_perdiem_request(
     ).first()
     
     if not request:
-        print(f"❌ ERROR - No editable perdiem request found for {current_user.email}")
         raise HTTPException(status_code=404, detail="No editable perdiem request found")
-    
-    print(f"✅ Found existing request ID: {request.id}")
-    print(f"   Current Status: {request.status}")
-    print(f"   Current Rate: {request.currency} {request.daily_rate}")
-    print(f"   Current Days: {request.requested_days}")
-    print(f"   Current Total: {request.currency} {request.total_amount}")
     
     # Recalculate rates from tenant setup
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     event = db.query(Event).filter(Event.id == participant.event_id).first()
-    
-    print(f"\n🔍 Fetching tenant setup...")
-    print(f"   Event ID: {event.id}")
-    print(f"   Tenant ID: {event.tenant_id}")
     
     # Fetch per diem setup for the event's tenant
     perdiem_setup = db.query(PerdiemSetup).filter(
@@ -210,27 +183,17 @@ def update_my_perdiem_request(
     if perdiem_setup:
         request.daily_rate = perdiem_setup.daily_rate
         request.currency = perdiem_setup.currency
-        print(f"✅ Using tenant setup: {request.currency} {request.daily_rate}")
     else:
         request.daily_rate = event.perdiem_rate or Decimal('50.00')
         request.currency = 'USD'
-        print(f"⚠️ No tenant setup found - Using fallback: {request.currency} {request.daily_rate}")
     
     # Update request
     request.requested_days = update_data.requested_days
     request.justification = update_data.justification
     request.total_amount = request.daily_rate * update_data.requested_days
     
-    print(f"\n💰 NEW CALCULATION:")
-    print(f"   Daily Rate: {request.currency} {request.daily_rate}")
-    print(f"   Days: {request.requested_days}")
-    print(f"   Total: {request.currency} {request.total_amount}")
-    
     db.commit()
     db.refresh(request)
-    
-    print(f"\n✅ PER DIEM UPDATE COMPLETED")
-    print(f"{'='*80}\n")
     
     return request
 
@@ -349,29 +312,25 @@ def update_perdiem_request_by_id(
 ):
     """Update perdiem request by ID (mobile app endpoint)"""
     
-    print(f"🔄 UPDATE REQUEST {request_id} by {current_user.email}")
+    logger = logging.getLogger(__name__)
     logger.info(f"🔄 PER DIEM UPDATE BY ID: {request_id} by {current_user.email}")
     logger.info(f"Update Data: {update_data}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
-        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
-        print(f"❌ Unauthorized")
         logger.error(f"❌ Unauthorized - Request belongs to {participant.email}, not {current_user.email}")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
-        print(f"❌ Cannot update - Status is {request.status}")
         logger.error(f"❌ Cannot update - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only update open or pending requests")
     
-    print(f"✅ Found request - Current: {request.currency} {request.total_amount}")
     logger.info(f"✅ Found request - Current: {request.currency} {request.total_amount}")
     
     # Recalculate rates from tenant setup
@@ -381,12 +340,10 @@ def update_perdiem_request_by_id(
     if perdiem_setup:
         request.daily_rate = perdiem_setup.daily_rate
         request.currency = perdiem_setup.currency
-        print(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
         logger.info(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
     else:
         request.daily_rate = event.perdiem_rate or Decimal('50.00')
         request.currency = 'USD'
-        print(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
         logger.warning(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
     
     # Update fields
@@ -403,13 +360,11 @@ def update_perdiem_request_by_id(
     
     request.total_amount = request.daily_rate * request.requested_days
     
-    print(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
     logger.info(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
     
     db.commit()
     db.refresh(request)
     
-    print(f"✅ UPDATE COMPLETED")
     logger.info(f"✅ UPDATE COMPLETED")
     
     return request
@@ -422,27 +377,23 @@ def cancel_perdiem_request(
 ):
     """Cancel perdiem request"""
     
-    print(f"🚫 CANCEL REQUEST {request_id} by {current_user.email}")
+    logger = logging.getLogger(__name__)
     logger.info(f"🚫 CANCEL PER DIEM REQUEST {request_id} by {current_user.email}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
-        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
-    print(f"Current Status: {request.status}, Amount: {request.currency} {request.total_amount}")
     logger.info(f"Current Status: {request.status}, Amount: {request.currency} {request.total_amount}")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
-        print(f"❌ Unauthorized - Request belongs to {participant.email}")
         logger.error(f"❌ Unauthorized - Request belongs to {participant.email}")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status not in [PerdiemStatus.OPEN, PerdiemStatus.PENDING]:
-        print(f"❌ Cannot cancel - Status is {request.status}")
         logger.error(f"❌ Cannot cancel - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only cancel open or pending requests")
     
@@ -450,7 +401,6 @@ def cancel_perdiem_request(
     request.status = PerdiemStatus.OPEN
     db.commit()
     
-    print(f"✅ CANCEL SUCCESSFUL - Status: {old_status} → OPEN")
     logger.info(f"✅ CANCEL SUCCESSFUL - Status: {old_status} → OPEN")
     
     return {"message": "Request cancelled successfully", "status": "open"}
@@ -463,31 +413,27 @@ def submit_perdiem_request(
 ):
     """Submit perdiem request for approval"""
     
-    print(f"📤 SUBMIT REQUEST {request_id} by {current_user.email}")
+    logger = logging.getLogger(__name__)
     logger.info(f"📤 SUBMIT PER DIEM REQUEST {request_id} by {current_user.email}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
-        print(f"❌ Request {request_id} not found")
         logger.error(f"❌ Request {request_id} not found")
         raise HTTPException(status_code=404, detail="Request not found")
     
     # Verify user owns this request
     participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
     if participant.email != current_user.email:
-        print(f"❌ Unauthorized")
         logger.error(f"❌ Unauthorized")
         raise HTTPException(status_code=403, detail="Not authorized")
     
     if request.status != PerdiemStatus.OPEN:
-        print(f"❌ Cannot submit - Status is {request.status}")
         logger.error(f"❌ Cannot submit - Status is {request.status}")
         raise HTTPException(status_code=400, detail="Can only submit open requests")
     
     request.status = PerdiemStatus.PENDING
     db.commit()
     
-    print(f"✅ SUBMIT SUCCESSFUL - Status: OPEN → PENDING")
     logger.info(f"✅ SUBMIT SUCCESSFUL - Status: OPEN → PENDING")
     
     return {"message": "Request submitted successfully"}
@@ -500,7 +446,8 @@ def mark_perdiem_received(
 ):
     """Mark perdiem as received"""
     
-    print(f"\n✅ MARK RECEIVED {request_id} by {current_user.email}")
+    logger = logging.getLogger(__name__)
+    logger.info(f"✅ MARK RECEIVED {request_id} by {current_user.email}")
     
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
@@ -517,6 +464,6 @@ def mark_perdiem_received(
     request.status = PerdiemStatus.COMPLETED
     db.commit()
     
-    print(f"✅ Request {request_id} marked as received\n")
+    logger.info(f"✅ Request {request_id} marked as received")
     
     return {"message": "Marked as received successfully"}
