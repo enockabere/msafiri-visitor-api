@@ -115,20 +115,28 @@ def create_perdiem_request(
     # Get daily rate from tenant's per diem setup
     event = db.query(Event).filter(Event.id == participant.event_id).first()
     
+    print(f"🔍 DEBUG - Event ID: {event.id}, Tenant ID: {event.tenant_id}")
+    
     # Fetch per diem setup for the event's tenant
     perdiem_setup = db.query(PerdiemSetup).filter(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
+    print(f"🔍 DEBUG - Per Diem Setup Found: {perdiem_setup is not None}")
+    
     if perdiem_setup:
         daily_rate = perdiem_setup.daily_rate
         currency = perdiem_setup.currency
+        print(f"💰 DEBUG - Using tenant setup: {currency} {daily_rate}")
     else:
         # Fallback to event rate or default
         daily_rate = event.perdiem_rate or Decimal('50.00')
         currency = 'USD'
+        print(f"⚠️ DEBUG - Using fallback: {currency} {daily_rate}")
     
     total_amount = daily_rate * requested_days
+    
+    print(f"💵 DEBUG - Calculation: {daily_rate} x {requested_days} = {total_amount} {currency}")
     
     # Create request
     perdiem_request = PerdiemRequest(
