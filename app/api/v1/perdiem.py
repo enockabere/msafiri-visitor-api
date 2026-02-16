@@ -307,6 +307,9 @@ def update_perdiem_request(
     perdiem_request.currency = perdiem_setup.currency
     
     # Calculate accommodation deduction
+    # Event days = calculated_days (from arrival to departure)
+    event_days = (request.departure_date - request.arrival_date).days + 1
+    
     accommodation_rate = 0
     if request.accommodation_type:
         acc_type = request.accommodation_type.lower().replace(' ', '').replace('_', '')
@@ -319,9 +322,11 @@ def update_perdiem_request(
         elif acc_type in ['bedonly', 'roomonly']:
             accommodation_rate = perdiem_setup.bed_only_rate or 0
     
-    perdiem_request.accommodation_days = request.requested_days
+    # Per diem base = requested_days × daily_rate
+    # Accommodation deduction = event_days × accommodation_rate
+    perdiem_request.accommodation_days = event_days
     perdiem_request.accommodation_rate = accommodation_rate
-    perdiem_request.accommodation_deduction = accommodation_rate * request.requested_days
+    perdiem_request.accommodation_deduction = accommodation_rate * event_days
     perdiem_request.per_diem_base_amount = perdiem_request.daily_rate * request.requested_days
     perdiem_request.total_amount = perdiem_request.per_diem_base_amount - perdiem_request.accommodation_deduction
     
@@ -343,9 +348,6 @@ def update_perdiem_request(
     perdiem_request.mpesa_number = request.mpesa_number
     perdiem_request.accommodation_type = request.accommodation_type
     perdiem_request.accommodation_name = request.accommodation_name
-
-    # Recalculate total amount
-    perdiem_request.total_amount = perdiem_request.daily_rate * request.requested_days
     
     db.commit()
     db.refresh(perdiem_request)
