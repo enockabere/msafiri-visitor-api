@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '091'
-down_revision = '090'
+revision = '091_remove_currency_default'
+down_revision = '090_add_accommodation_rates'
 branch_labels = None
 depends_on = None
 
