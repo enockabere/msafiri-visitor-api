@@ -65,7 +65,7 @@ class PerdiemRequest(BaseModel):
     rejection_reason = Column(Text)
     
     payment_reference = Column(String(255))
-    currency = Column(String(10), default="USD")  # Currency for the per diem payment
+    currency = Column(String(10), nullable=False)
     
     # Approval details
     approver_role = Column(String(100))  # FinCo or Travel Admin
