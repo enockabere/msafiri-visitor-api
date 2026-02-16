@@ -62,19 +62,16 @@ def create_perdiem_request(
     
     # Get daily rate from tenant's per diem setup
     from app.models.perdiem_setup import PerdiemSetup
-    from decimal import Decimal
     
     perdiem_setup = db.query(PerdiemSetup).filter(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
-    if perdiem_setup:
-        daily_rate = perdiem_setup.daily_rate
-        currency = perdiem_setup.currency
-    else:
-        daily_rate = Decimal('50.00')
-        currency = 'USD'
+    if not perdiem_setup:
+        raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
     
+    daily_rate = perdiem_setup.daily_rate
+    currency = perdiem_setup.currency
     total_amount = daily_rate * request.requested_days
     
     perdiem_request = PerdiemRequest(
@@ -303,18 +300,16 @@ def update_perdiem_request(
     
     # Get daily rate from tenant's per diem setup
     from app.models.perdiem_setup import PerdiemSetup
-    from decimal import Decimal
     
     perdiem_setup = db.query(PerdiemSetup).filter(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
-    if perdiem_setup:
-        perdiem_request.daily_rate = perdiem_setup.daily_rate
-        perdiem_request.currency = perdiem_setup.currency
-    else:
-        perdiem_request.daily_rate = Decimal('50.00')
-        perdiem_request.currency = 'USD'
+    if not perdiem_setup:
+        raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
+    
+    perdiem_request.daily_rate = perdiem_setup.daily_rate
+    perdiem_request.currency = perdiem_setup.currency
     
     # Update fields
     perdiem_request.arrival_date = request.arrival_date

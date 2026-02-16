@@ -121,13 +121,11 @@ def create_perdiem_request(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
-    if perdiem_setup:
-        daily_rate = perdiem_setup.daily_rate
-        currency = perdiem_setup.currency
-    else:
-        # Fallback to event rate or default
-        daily_rate = event.perdiem_rate or Decimal('50.00')
-        currency = 'USD'
+    if not perdiem_setup:
+        raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
+    
+    daily_rate = perdiem_setup.daily_rate
+    currency = perdiem_setup.currency
     
     total_amount = daily_rate * requested_days
     
@@ -180,12 +178,11 @@ def update_my_perdiem_request(
         PerdiemSetup.tenant_id == event.tenant_id
     ).first()
     
-    if perdiem_setup:
-        request.daily_rate = perdiem_setup.daily_rate
-        request.currency = perdiem_setup.currency
-    else:
-        request.daily_rate = event.perdiem_rate or Decimal('50.00')
-        request.currency = 'USD'
+    if not perdiem_setup:
+        raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
+    
+    request.daily_rate = perdiem_setup.daily_rate
+    request.currency = perdiem_setup.currency
     
     # Update request
     request.requested_days = update_data.requested_days
@@ -337,14 +334,13 @@ def update_perdiem_request_by_id(
     event = db.query(Event).filter(Event.id == participant.event_id).first()
     perdiem_setup = db.query(PerdiemSetup).filter(PerdiemSetup.tenant_id == event.tenant_id).first()
     
-    if perdiem_setup:
-        request.daily_rate = perdiem_setup.daily_rate
-        request.currency = perdiem_setup.currency
-        logger.info(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
-    else:
-        request.daily_rate = event.perdiem_rate or Decimal('50.00')
-        request.currency = 'USD'
-        logger.warning(f"⚠️ Using fallback: {request.currency} {request.daily_rate}")
+    if not perdiem_setup:
+        logger.error(f"❌ No per diem setup for tenant {event.tenant_id}")
+        raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
+    
+    request.daily_rate = perdiem_setup.daily_rate
+    request.currency = perdiem_setup.currency
+    logger.info(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
     
     # Update fields
     if 'requested_days' in update_data:
