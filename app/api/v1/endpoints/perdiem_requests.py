@@ -163,25 +163,47 @@ def update_my_perdiem_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Visitor updates their perdiem request (only if pending)"""
+    """Visitor updates their perdiem request (only if open or pending)"""
     
-    # Get user's perdiem request
+    # Get user's perdiem request (allow updates for open and pending status)
     request = db.query(PerdiemRequest).join(
         EventParticipant, PerdiemRequest.participant_id == EventParticipant.id
     ).filter(
         and_(
             EventParticipant.email == current_user.email,
-            PerdiemRequest.status == PerdiemStatus.PENDING
+            PerdiemRequest.status.in_([PerdiemStatus.OPEN, PerdiemStatus.PENDING])
         )
     ).first()
     
     if not request:
-        raise HTTPException(status_code=404, detail="No pending perdiem request found")
+        raise HTTPException(status_code=404, detail="No editable perdiem request found")
+    
+    # Recalculate rates from tenant setup
+    participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+    event = db.query(Event).filter(Event.id == participant.event_id).first()
+    
+    print(f"🔄 UPDATE - Event ID: {event.id}, Tenant ID: {event.tenant_id}")
+    
+    # Fetch per diem setup for the event's tenant
+    perdiem_setup = db.query(PerdiemSetup).filter(
+        PerdiemSetup.tenant_id == event.tenant_id
+    ).first()
+    
+    if perdiem_setup:
+        request.daily_rate = perdiem_setup.daily_rate
+        request.currency = perdiem_setup.currency
+        print(f"💰 UPDATE - Using tenant setup: {request.currency} {request.daily_rate}")
+    else:
+        request.daily_rate = event.perdiem_rate or Decimal('50.00')
+        request.currency = 'USD'
+        print(f"⚠️ UPDATE - Using fallback: {request.currency} {request.daily_rate}")
     
     # Update request
     request.requested_days = update_data.requested_days
     request.justification = update_data.justification
     request.total_amount = request.daily_rate * update_data.requested_days
+    
+    print(f"💵 UPDATE - Calculation: {request.daily_rate} x {request.requested_days} = {request.total_amount} {request.currency}")
     
     db.commit()
     db.refresh(request)
