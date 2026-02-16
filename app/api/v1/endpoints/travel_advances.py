@@ -43,6 +43,17 @@ def create_advance(
     if travel_request.user_id != current_user.id and traveler.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to request advance for this traveler")
     
+    # Validate per diem requires accommodation type
+    if advance_data.expense_category == 'per_diem' and not advance_data.accommodation_type:
+        raise HTTPException(status_code=400, detail="Accommodation type is required for per diem advances")
+
+    # Validate cash payment requires pickup date and hours
+    if advance_data.payment_method == 'cash':
+        if not advance_data.cash_pickup_date:
+            raise HTTPException(status_code=400, detail="Cash pickup date is required for cash payment")
+        if not advance_data.cash_hours:
+            raise HTTPException(status_code=400, detail="Cash hours is required for cash payment")
+
     # Create advance
     advance = TravelAdvance(
         travel_request_id=advance_data.travel_request_id,
@@ -50,7 +61,14 @@ def create_advance(
         user_id=current_user.id,
         tenant_id=travel_request.tenant_id,
         expense_category=advance_data.expense_category,
-        amount=advance_data.amount
+        amount=advance_data.amount,
+        currency=advance_data.currency,
+        accommodation_type=advance_data.accommodation_type,
+        payment_method=advance_data.payment_method,
+        cash_pickup_date=advance_data.cash_pickup_date,
+        cash_hours=advance_data.cash_hours,
+        mpesa_number=advance_data.mpesa_number,
+        bank_account=advance_data.bank_account
     )
     
     db.add(advance)
