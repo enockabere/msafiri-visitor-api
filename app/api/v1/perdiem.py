@@ -306,6 +306,25 @@ def update_perdiem_request(
     perdiem_request.daily_rate = perdiem_setup.daily_rate
     perdiem_request.currency = perdiem_setup.currency
     
+    # Calculate accommodation deduction
+    accommodation_rate = 0
+    if request.accommodation_type:
+        acc_type = request.accommodation_type.lower().replace(' ', '').replace('_', '')
+        if acc_type == 'fullboard':
+            accommodation_rate = perdiem_setup.fullboard_rate or 0
+        elif acc_type == 'halfboard':
+            accommodation_rate = perdiem_setup.halfboard_rate or 0
+        elif acc_type in ['bedandbreakfast', 'b&b', 'bb']:
+            accommodation_rate = perdiem_setup.bed_and_breakfast_rate or 0
+        elif acc_type in ['bedonly', 'roomonly']:
+            accommodation_rate = perdiem_setup.bed_only_rate or 0
+    
+    perdiem_request.accommodation_days = request.requested_days
+    perdiem_request.accommodation_rate = accommodation_rate
+    perdiem_request.accommodation_deduction = accommodation_rate * request.requested_days
+    perdiem_request.per_diem_base_amount = perdiem_request.daily_rate * request.requested_days
+    perdiem_request.total_amount = perdiem_request.per_diem_base_amount - perdiem_request.accommodation_deduction
+    
     # Update fields
     perdiem_request.arrival_date = request.arrival_date
     perdiem_request.departure_date = request.departure_date
