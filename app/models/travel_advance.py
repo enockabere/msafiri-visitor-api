@@ -68,22 +68,7 @@ class TravelAdvance(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # Approval tracking
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    approved_at = Column(DateTime, nullable=True)
-    rejected_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    rejected_at = Column(DateTime, nullable=True)
-    rejection_reason = Column(Text, nullable=True)
-
-    # Disbursement tracking
-    disbursed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    disbursed_at = Column(DateTime, nullable=True)
-    disbursement_reference = Column(String(255), nullable=True)
-
     # Relationships
     travel_request = relationship("TravelRequest")
     traveler = relationship("TravelRequestTraveler")
-    approver = relationship("User", foreign_keys=[approved_by])
-    rejector = relationship("User", foreign_keys=[rejected_by])
-    disburser = relationship("User", foreign_keys=[disbursed_by])
     tenant = relationship("Tenant")
