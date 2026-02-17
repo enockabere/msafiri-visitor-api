@@ -26,19 +26,24 @@ async def get_user_bank_accounts(
     # Decrypt sensitive fields
     result = []
     for account in accounts:
-        result.append(BankAccountResponse(
-            id=account.id,
-            bank_name=encryption_service.decrypt(account.bank_name_encrypted),
-            account_name=encryption_service.decrypt(account.account_name_encrypted),
-            account_number=encryption_service.decrypt(account.account_number_encrypted),
-            branch_name=encryption_service.decrypt(account.branch_name_encrypted) if account.branch_name_encrypted else None,
-            swift_code=encryption_service.decrypt(account.swift_code_encrypted) if account.swift_code_encrypted else None,
-            currency=account.currency,
-            is_primary=account.is_primary,
-            is_active=account.is_active,
-            created_at=account.created_at,
-            updated_at=account.updated_at
-        ))
+        try:
+            result.append(BankAccountResponse(
+                id=account.id,
+                bank_name=encryption_service.decrypt(account.bank_name_encrypted),
+                account_name=encryption_service.decrypt(account.account_name_encrypted),
+                account_number=encryption_service.decrypt(account.account_number_encrypted),
+                branch_name=encryption_service.decrypt(account.branch_name_encrypted) if account.branch_name_encrypted else None,
+                swift_code=encryption_service.decrypt(account.swift_code_encrypted) if account.swift_code_encrypted else None,
+                currency=account.currency,
+                is_primary=account.is_primary,
+                is_active=account.is_active,
+                created_at=account.created_at,
+                updated_at=account.updated_at
+            ))
+        except Exception as e:
+            # Skip accounts that can't be decrypted (wrong encryption key)
+            print(f"Warning: Could not decrypt bank account {account.id}: {e}")
+            continue
     
     return result
 

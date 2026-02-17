@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://41.90.17.25:3000")
     MOBILE_DEEP_LINK: str = os.getenv("MOBILE_DEEP_LINK", "msafiri://auth")
 
+    # Encryption key for sensitive data (bank accounts, etc.)
+    ENCRYPTION_KEY: Optional[str] = os.getenv("ENCRYPTION_KEY")
 
     DEFAULT_NOTIFICATION_PRIORITY: str = os.getenv("DEFAULT_NOTIFICATION_PRIORITY", "medium")
     AUTO_SEND_WELCOME_EMAILS: bool = os.getenv("AUTO_SEND_WELCOME_EMAILS", "true").lower() == "true"
