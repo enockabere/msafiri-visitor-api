@@ -228,16 +228,24 @@ def should_prompt_feedback(
         return {"should_prompt": False, "reason": "dismissed_too_many"}
     
     # Check time-based prompting
-    now = datetime.utcnow()
+    from datetime import timezone
+    now = datetime.now(timezone.utc)
     
     if prompt_record.last_prompted_at is None:
         # First prompt after 3 days of app usage
         user_created = current_user.created_at
+        # Make user_created timezone-aware if it's naive
+        if user_created.tzinfo is None:
+            user_created = user_created.replace(tzinfo=timezone.utc)
         if now - user_created >= timedelta(days=3):
             return {"should_prompt": True, "reason": "first_prompt"}
     else:
         # Subsequent prompts - wait 7 days between prompts
-        if now - prompt_record.last_prompted_at >= timedelta(days=7):
+        last_prompted = prompt_record.last_prompted_at
+        # Make last_prompted timezone-aware if it's naive
+        if last_prompted.tzinfo is None:
+            last_prompted = last_prompted.replace(tzinfo=timezone.utc)
+        if now - last_prompted >= timedelta(days=7):
             return {"should_prompt": True, "reason": "periodic_prompt"}
     
     return {"should_prompt": False, "reason": "too_soon"}
