@@ -85,11 +85,16 @@ class AzureDocumentIntelligenceService:
                 else:
                     logger.warning("⚠️ No transaction date found")
                 
-                # Total amount
+                # Total amount and currency
                 total = receipt.fields.get("Total")
                 if total:
                     extracted_data["total_amount"] = float(total.value_currency.amount)
-                    logger.info(f"💰 Total: {total.value_currency.amount} (confidence: {total.confidence})")
+                    # Extract currency code if available
+                    if hasattr(total.value_currency, 'code') and total.value_currency.code:
+                        extracted_data["currency"] = total.value_currency.code
+                        logger.info(f"💰 Total: {total.value_currency.code} {total.value_currency.amount} (confidence: {total.confidence})")
+                    else:
+                        logger.info(f"💰 Total: {total.value_currency.amount} (confidence: {total.confidence})")
                 else:
                     logger.warning("⚠️ No total amount found")
                 
