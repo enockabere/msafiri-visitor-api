@@ -189,9 +189,44 @@ async def approve_perdiem_workflow_step(
         next_step.status = "OPEN"
         logger.info(f"Opened next approval step {next_step.step_order} for per diem request {request_id}")
     else:
-        # All steps approved - mark request as issued
+        # All steps approved - mark request as issued and send email
         perdiem_request.status = "issued"
         logger.info(f"All approval steps completed for per diem request {request_id}, marked as issued")
+        
+        # Send issued email notification
+        from app.api.v1.endpoints.tenant_perdiem_approvals import send_perdiem_issued_email
+        from app.models.tenant import Tenant
+        
+        participant = db.query(EventParticipant).filter(EventParticipant.id == perdiem_request.participant_id).first()
+        event = db.query(Event).filter(Event.id == participant.event_id).first() if participant else None
+        
+        if participant and event:
+            tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
+            if tenant:
+                # Send email in background
+                import asyncio
+                asyncio.create_task(send_perdiem_issued_email(
+                    tenant_slug=tenant.slug,
+                    participant_name=participant.full_name or participant.email,
+                    participant_email=participant.email,
+                    event_name=event.title,
+                    event_location=getattr(event, 'location', 'TBD'),
+                    event_dates=f"{event.start_date} to {event.end_date}",
+                    requested_days=perdiem_request.requested_days,
+                    daily_rate=float(perdiem_request.daily_rate) if perdiem_request.daily_rate else 0,
+                    currency=perdiem_request.currency or 'USD',
+                    total_amount=float(perdiem_request.total_amount) if perdiem_request.total_amount else 0,
+                    purpose=perdiem_request.purpose or perdiem_request.justification or "Event participation",
+                    approver_name=perdiem_request.approver_full_name or perdiem_request.approved_by or "Approver",
+                    approver_email=perdiem_request.approved_by or "",
+                    finance_admin_email=current_user.email,
+                    per_diem_base_amount=float(perdiem_request.per_diem_base_amount) if perdiem_request.per_diem_base_amount else 0,
+                    accommodation_type=perdiem_request.accommodation_type or "",
+                    accommodation_days=perdiem_request.accommodation_days or 0,
+                    accommodation_rate=float(perdiem_request.accommodation_rate) if perdiem_request.accommodation_rate else 0,
+                    accommodation_deduction=float(perdiem_request.accommodation_deduction) if perdiem_request.accommodation_deduction else 0,
+                    db=db
+                ))
     
     db.commit()
     
