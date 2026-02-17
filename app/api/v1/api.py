@@ -1062,6 +1062,14 @@ api_router.include_router(
     tags=["tenant-travel-advances"]
 )
 
+# Bank Accounts
+from app.api.v1.endpoints import bank_accounts
+api_router.include_router(
+    bank_accounts.router,
+    prefix="/users",
+    tags=["bank-accounts"]
+)
+
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])
 async def api_root():

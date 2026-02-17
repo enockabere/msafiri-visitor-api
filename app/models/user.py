@@ -104,3 +104,4 @@ class User(BaseModel):
     consents = relationship("UserConsent", back_populates="user")
     preferences = relationship("UserPreferences", back_populates="user", uselist=False)
     user_roles = relationship("UserRole", back_populates="user", cascade="all, delete-orphan")
+    bank_accounts = relationship("UserBankAccount", back_populates="user", cascade="all, delete-orphan")
