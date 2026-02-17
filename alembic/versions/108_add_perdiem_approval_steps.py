@@ -1,7 +1,7 @@
 """add perdiem approval steps
 
-Revision ID: 109_add_perdiem_approval_steps
-Revises: 108
+Revision ID: 108_add_perdiem_approval_steps
+Revises: 107_add_updated_at_to_approval_steps
 Create Date: 2024-01-20 10:00:00.000000
 
 """
@@ -9,8 +9,8 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = '109_add_perdiem_approval_steps'
-down_revision = '108'
+revision = '108_add_perdiem_approval_steps'
+down_revision = '107_add_updated_at_to_approval_steps'
 branch_labels = None
 depends_on = None
 
