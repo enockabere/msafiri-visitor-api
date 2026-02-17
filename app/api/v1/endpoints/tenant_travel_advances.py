@@ -56,9 +56,6 @@ def check_finance_access(user: User, db: Session, tenant_slug: str):
 
 def format_advance(advance: TravelAdvance, db: Session) -> dict:
     """Format a travel advance for response."""
-    # Get the requester (user who created the advance request)
-    requester = db.query(User).filter(User.id == advance.user_id).first()
-
     # Get the traveler info
     traveler = advance.traveler
     traveler_user = db.query(User).filter(User.id == traveler.user_id).first() if traveler and traveler.user_id else None
@@ -70,12 +67,7 @@ def format_advance(advance: TravelAdvance, db: Session) -> dict:
         "id": advance.id,
         "travel_request_id": advance.travel_request_id,
         "traveler_id": advance.traveler_id,
-        "user_id": advance.user_id,
         "tenant_id": advance.tenant_id,
-
-        # Requester info
-        "requester_name": requester.full_name or requester.email if requester else "Unknown",
-        "requester_email": requester.email if requester else "Unknown",
 
         # Traveler info
         "traveler_name": traveler.traveler_name if traveler else "Unknown",
@@ -108,18 +100,6 @@ def format_advance(advance: TravelAdvance, db: Session) -> dict:
         # Timestamps
         "created_at": advance.created_at.isoformat() if advance.created_at else None,
         "updated_at": advance.updated_at.isoformat() if advance.updated_at else None,
-
-        # Approval tracking
-        "approved_by": advance.approved_by,
-        "approved_at": advance.approved_at.isoformat() if advance.approved_at else None,
-        "rejected_by": advance.rejected_by,
-        "rejected_at": advance.rejected_at.isoformat() if advance.rejected_at else None,
-        "rejection_reason": advance.rejection_reason,
-
-        # Disbursement tracking
-        "disbursed_by": advance.disbursed_by,
-        "disbursed_at": advance.disbursed_at.isoformat() if advance.disbursed_at else None,
-        "disbursement_reference": advance.disbursement_reference,
     }
 
 
@@ -141,7 +121,7 @@ async def get_pending_travel_advances(
         )
         .filter(
             TravelAdvance.tenant_id == tenant.id,
-            TravelAdvance.status == AdvanceStatus.PENDING
+            TravelAdvance.status == "pending"
         )
         .order_by(TravelAdvance.created_at.desc())
         .all()
@@ -168,9 +148,9 @@ async def get_approved_travel_advances(
         )
         .filter(
             TravelAdvance.tenant_id == tenant.id,
-            TravelAdvance.status == AdvanceStatus.APPROVED
+            TravelAdvance.status == "approved"
         )
-        .order_by(TravelAdvance.approved_at.desc())
+        .order_by(TravelAdvance.created_at.desc())
         .all()
     )
 
@@ -195,9 +175,9 @@ async def get_disbursed_travel_advances(
         )
         .filter(
             TravelAdvance.tenant_id == tenant.id,
-            TravelAdvance.status == AdvanceStatus.DISBURSED
+            TravelAdvance.status == "disbursed"
         )
-        .order_by(TravelAdvance.disbursed_at.desc())
+        .order_by(TravelAdvance.created_at.desc())
         .all()
     )
 
@@ -222,91 +202,13 @@ async def get_rejected_travel_advances(
         )
         .filter(
             TravelAdvance.tenant_id == tenant.id,
-            TravelAdvance.status == AdvanceStatus.REJECTED
+            TravelAdvance.status == "rejected"
         )
-        .order_by(TravelAdvance.rejected_at.desc())
+        .order_by(TravelAdvance.created_at.desc())
         .all()
     )
 
     return [format_advance(adv, db) for adv in advances]
-
-
-@router.post("/{tenant_slug}/travel-advances/{advance_id}/approve")
-async def approve_or_reject_travel_advance(
-    tenant_slug: str,
-    advance_id: int,
-    action_data: ApprovalAction,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Approve or reject a travel advance."""
-    tenant = get_tenant_or_404(db, tenant_slug)
-    check_finance_access(current_user, db, tenant_slug)
-
-    advance = db.query(TravelAdvance).filter(
-        TravelAdvance.id == advance_id,
-        TravelAdvance.tenant_id == tenant.id
-    ).first()
-
-    if not advance:
-        raise HTTPException(status_code=404, detail="Travel advance not found")
-
-    if advance.status != AdvanceStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Advance is not in pending status")
-
-    action = action_data.action.lower()
-
-    if action == "approve":
-        advance.status = AdvanceStatus.APPROVED
-        advance.approved_by = current_user.id
-        advance.approved_at = datetime.utcnow()
-        message = "Travel advance approved successfully"
-    elif action == "reject":
-        if not action_data.rejection_reason:
-            raise HTTPException(status_code=400, detail="Rejection reason is required")
-
-        advance.status = AdvanceStatus.REJECTED
-        advance.rejected_by = current_user.id
-        advance.rejected_at = datetime.utcnow()
-        advance.rejection_reason = action_data.rejection_reason
-        message = "Travel advance rejected successfully"
-    else:
-        raise HTTPException(status_code=400, detail="Invalid action. Must be 'approve' or 'reject'")
-
-    db.commit()
-    return {"message": message}
-
-
-@router.post("/{tenant_slug}/travel-advances/{advance_id}/disburse")
-async def disburse_travel_advance(
-    tenant_slug: str,
-    advance_id: int,
-    action_data: DisburseAction,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Mark a travel advance as disbursed."""
-    tenant = get_tenant_or_404(db, tenant_slug)
-    check_finance_access(current_user, db, tenant_slug)
-
-    advance = db.query(TravelAdvance).filter(
-        TravelAdvance.id == advance_id,
-        TravelAdvance.tenant_id == tenant.id
-    ).first()
-
-    if not advance:
-        raise HTTPException(status_code=404, detail="Travel advance not found")
-
-    if advance.status != AdvanceStatus.APPROVED:
-        raise HTTPException(status_code=400, detail="Advance must be approved before disbursement")
-
-    advance.status = AdvanceStatus.DISBURSED
-    advance.disbursed_by = current_user.id
-    advance.disbursed_at = datetime.utcnow()
-    advance.disbursement_reference = action_data.disbursement_reference
-
-    db.commit()
-    return {"message": "Travel advance disbursed successfully"}
 
 
 @router.get("/{tenant_slug}/travel-advances/count")
@@ -321,7 +223,7 @@ async def get_travel_advance_count(
 
     count = db.query(TravelAdvance).filter(
         TravelAdvance.tenant_id == tenant.id,
-        TravelAdvance.status == AdvanceStatus.PENDING
+        TravelAdvance.status == "pending"
     ).count()
 
     return {"count": count}
