@@ -83,7 +83,7 @@ def create_perdiem_request(
         daily_rate=daily_rate,
         currency=currency,
         total_amount=total_amount,
-        status="pending_approval",  # Use string directly
+        status="open",  # Create as draft (open status)
         justification=request.justification,
         event_type=request.event_type,
         purpose=request.purpose,
@@ -114,14 +114,8 @@ def create_perdiem_request(
     print(f"🔧 DEBUG - Refreshed object: {perdiem_request.__dict__}")
     db.refresh(perdiem_request)
     
-    # Send approval request emails
-    background_tasks.add_task(
-        send_perdiem_approval_emails,
-        perdiem_request,
-        participant,
-        event,
-        db
-    )
+    # Don't send emails on creation - only when submitted
+    # Emails will be sent when status changes to pending_approval via /submit endpoint
     
     print(f"🔧 DEBUG - About to return per diem request: {perdiem_request}")
     print(f"🔧 DEBUG - Return data type: {type(perdiem_request)}")
@@ -405,6 +399,7 @@ def cancel_perdiem_request(
 @router.post("/{request_id}/submit")
 def submit_perdiem_request(
     request_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -423,6 +418,18 @@ def submit_perdiem_request(
     db.refresh(perdiem_request)
     
     print(f"🔧 DEBUG - Submit request - New status: {perdiem_request.status}")
+    
+    # Send approval request emails after submission
+    participant = db.query(EventParticipant).filter(EventParticipant.id == perdiem_request.participant_id).first()
+    event = db.query(Event).filter(Event.id == participant.event_id).first()
+    
+    background_tasks.add_task(
+        send_perdiem_approval_emails,
+        perdiem_request,
+        participant,
+        event,
+        db
+    )
     
     return {"message": "Request submitted for approval", "status": perdiem_request.status}
 
