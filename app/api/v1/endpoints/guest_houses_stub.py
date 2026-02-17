@@ -25,6 +25,11 @@ class GuestHouseUpdate(BaseModel):
     longitude: Optional[float] = None
     facilities: Optional[Dict[str, Any]] = None
     house_rules: Optional[str] = None
+    fullboard_rate: Optional[float] = None
+    halfboard_rate: Optional[float] = None
+    bed_and_breakfast_rate: Optional[float] = None
+    bed_only_rate: Optional[float] = None
+    currency: Optional[str] = None
 
 class RoomCreate(BaseModel):
     room_number: str
@@ -85,6 +90,11 @@ async def get_guest_houses(
                 "tenant_id": gh.tenant_id,
                 "created_by": gh.created_by,
                 "created_at": gh.created_at.isoformat() if gh.created_at else None,
+                "fullboard_rate": float(gh.fullboard_rate) if gh.fullboard_rate else None,
+                "halfboard_rate": float(gh.halfboard_rate) if gh.halfboard_rate else None,
+                "bed_and_breakfast_rate": float(gh.bed_and_breakfast_rate) if gh.bed_and_breakfast_rate else None,
+                "bed_only_rate": float(gh.bed_only_rate) if gh.bed_only_rate else None,
+                "currency": gh.currency,
                 "rooms": []
             }
             
@@ -208,6 +218,16 @@ async def update_guest_house(
             guest_house.facilities = json.dumps(guest_house_data.facilities)
         if guest_house_data.house_rules is not None:
             guest_house.house_rules = guest_house_data.house_rules
+        if guest_house_data.fullboard_rate is not None:
+            guest_house.fullboard_rate = guest_house_data.fullboard_rate
+        if guest_house_data.halfboard_rate is not None:
+            guest_house.halfboard_rate = guest_house_data.halfboard_rate
+        if guest_house_data.bed_and_breakfast_rate is not None:
+            guest_house.bed_and_breakfast_rate = guest_house_data.bed_and_breakfast_rate
+        if guest_house_data.bed_only_rate is not None:
+            guest_house.bed_only_rate = guest_house_data.bed_only_rate
+        if guest_house_data.currency is not None:
+            guest_house.currency = guest_house_data.currency
         
         db.commit()
         
