@@ -131,6 +131,14 @@ api_router.include_router(
     tags=["per-diem-approvals"]
 )
 
+# Per diem workflow approvals
+from app.api.v1.endpoints import perdiem_workflow_approvals
+api_router.include_router(
+    perdiem_workflow_approvals.router,
+    prefix="/per-diem-requests",
+    tags=["perdiem-workflow-approvals"]
+)
+
 # Per diem check endpoint
 from app.api.v1.endpoints import perdiem_check
 api_router.include_router(
