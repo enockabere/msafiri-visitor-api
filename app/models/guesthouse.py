@@ -23,6 +23,12 @@ class GuestHouse(Base):
     is_active = Column(Boolean, default=True)
     total_rooms = Column(Integer, default=0)
     occupied_rooms = Column(Integer, default=0)
+    # Hotel rates
+    fullboard_rate = Column(Integer, nullable=True)
+    halfboard_rate = Column(Integer, nullable=True)
+    bed_and_breakfast_rate = Column(Integer, nullable=True)
+    bed_only_rate = Column(Integer, nullable=True)
+    currency = Column(String(3), nullable=True, default='KES')
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     created_by = Column(String(200), nullable=True)
