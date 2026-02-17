@@ -50,18 +50,18 @@ class TravelAdvance(Base):
     traveler_id = Column(Integer, ForeignKey("travel_request_travelers.id", ondelete="CASCADE"), nullable=False, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
-    expense_category = Column(Enum(ExpenseCategory), nullable=False)
+    expense_category = Column(String(50), nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), nullable=False, default="KES")
-    status = Column(Enum(AdvanceStatus), default=AdvanceStatus.PENDING, nullable=False, index=True)
+    status = Column(String(20), default="pending", nullable=False, index=True)
 
     # Per diem specific - accommodation type
-    accommodation_type = Column(Enum(AccommodationType), nullable=True)
+    accommodation_type = Column(String(50), nullable=True)
 
     # Payment details
-    payment_method = Column(Enum(PaymentMethod), nullable=False, default=PaymentMethod.CASH)
+    payment_method = Column(String(20), nullable=False, default="cash")
     cash_pickup_date = Column(Date, nullable=True)
-    cash_hours = Column(Enum(CashHours), nullable=True)
+    cash_hours = Column(String(20), nullable=True)
     mpesa_number = Column(String(20), nullable=True)
     bank_account = Column(String(50), nullable=True)
 
