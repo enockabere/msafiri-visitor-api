@@ -229,25 +229,58 @@ def _normalize_gender(gender_identity):
     else:
         return 'other'
 
+def _get_vendor_rate_for_board_type(db, vendor_accommodation_id, board_type):
+    """Get the rate for a specific board type from vendor accommodation"""
+    vendor_query = text("""
+        SELECT rate_bed_breakfast, rate_half_board, rate_full_board, rate_bed_only, rate_currency
+        FROM vendor_accommodations WHERE id = :vendor_id
+    """)
+    vendor = db.execute(vendor_query, {"vendor_id": vendor_accommodation_id}).fetchone()
+
+    if not vendor:
+        return None, 'KES'
+
+    rate = None
+    if board_type == 'FullBoard':
+        rate = vendor.rate_full_board
+    elif board_type == 'HalfBoard':
+        rate = vendor.rate_half_board
+    elif board_type == 'BedAndBreakfast':
+        rate = vendor.rate_bed_breakfast
+    elif board_type == 'BedOnly':
+        rate = vendor.rate_bed_only
+
+    return rate, vendor.rate_currency or 'KES'
+
+def _get_event_board_type(db, event_id):
+    """Get accommodation_type from event"""
+    event_query = text("SELECT accommodation_type FROM events WHERE id = :event_id")
+    result = db.execute(event_query, {"event_id": event_id}).fetchone()
+    return result.accommodation_type if result else None
+
 def _book_single_room(db, event, participant, tenant_id, user_id):
     """Book a single room for participant"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
-    
+
     # Check single room availability in vendor event accommodation
     vendor_query = text("""
-        SELECT single_rooms FROM vendor_event_accommodations 
+        SELECT single_rooms FROM vendor_event_accommodations
         WHERE id = :accommodation_setup_id AND single_rooms > 0
     """)
     vendor = db.execute(vendor_query, {"accommodation_setup_id": event.accommodation_setup_id}).fetchone()
-    
+
     if not vendor:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No single rooms available"
         )
-    
-    # Create allocation
+
+    # Get board type from event and rate from vendor
+    board_type = _get_event_board_type(db, event.id)
+    rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
+
+    # Create allocation with board_type and rate
     allocation_data = AccommodationAllocationCreate(
         guest_name=participant.full_name,
         guest_email=participant.email,
@@ -258,20 +291,23 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
         vendor_accommodation_id=event.vendor_accommodation_id,
         room_type="single",
         participant_id=participant.id,
-        event_id=event.id
+        event_id=event.id,
+        board_type=board_type,
+        rate_per_day=rate_per_day,
+        rate_currency=rate_currency
     )
-    
+
     allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
-    
+
     # Update room count in vendor event accommodation
     db.execute(text("""
-        UPDATE vendor_event_accommodations 
-        SET single_rooms = single_rooms - 1 
+        UPDATE vendor_event_accommodations
+        SET single_rooms = single_rooms - 1
         WHERE id = :accommodation_setup_id
     """), {"accommodation_setup_id": event.accommodation_setup_id})
-    
+
     db.commit()
 
     return {"message": "Single room booked successfully", "allocation_id": allocation.id}
@@ -323,19 +359,25 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
     """Merge two single room bookings into one double room"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
-    
 
-    
-    # Update existing allocation to double room
+    # Get board type from event and rate from vendor
+    board_type = _get_event_board_type(db, event.id)
+    rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
+
+    # Update existing allocation to double room with board_type and rate
     db.execute(text("""
-        UPDATE accommodation_allocations 
-        SET room_type = 'double', number_of_guests = 2
+        UPDATE accommodation_allocations
+        SET room_type = 'double', number_of_guests = 2,
+            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency
         WHERE id = :allocation_id
-    """), {"allocation_id": existing_allocation.id})
-    
+    """), {
+        "allocation_id": existing_allocation.id,
+        "board_type": board_type,
+        "rate_per_day": rate_per_day,
+        "rate_currency": rate_currency
+    })
 
-    
-    # Create new allocation for second person
+    # Create new allocation for second person with board_type and rate
     allocation_data = AccommodationAllocationCreate(
         guest_name=new_participant.full_name,
         guest_email=new_participant.email,
@@ -346,24 +388,23 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
         vendor_accommodation_id=event.vendor_accommodation_id,
         room_type="double",
         participant_id=new_participant.id,
-        event_id=event.id
+        event_id=event.id,
+        board_type=board_type,
+        rate_per_day=rate_per_day,
+        rate_currency=rate_currency
     )
-    
+
     new_allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
-    
 
-    
     # Update room counts (return 1 single, take 1 double)
     db.execute(text("""
-        UPDATE vendor_event_accommodations 
+        UPDATE vendor_event_accommodations
         SET single_rooms = single_rooms + 1, double_rooms = double_rooms - 1
         WHERE id = :accommodation_setup_id
     """), {"accommodation_setup_id": event.accommodation_setup_id})
-    
 
-    
     db.commit()
 
     return {
@@ -378,21 +419,25 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     """Book single room temporarily (waiting for match)"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
-    
+
     # Check single room availability
     vendor_query = text("""
-        SELECT single_rooms FROM vendor_event_accommodations 
+        SELECT single_rooms FROM vendor_event_accommodations
         WHERE id = :accommodation_setup_id AND single_rooms > 0
     """)
     vendor = db.execute(vendor_query, {"accommodation_setup_id": event.accommodation_setup_id}).fetchone()
-    
+
     if not vendor:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No rooms available"
         )
-    
-    # Create allocation (single room, but can be merged later)
+
+    # Get board type from event and rate from vendor
+    board_type = _get_event_board_type(db, event.id)
+    rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
+
+    # Create allocation (single room, but can be merged later) with board_type and rate
     allocation_data = AccommodationAllocationCreate(
         guest_name=participant.full_name,
         guest_email=participant.email,
@@ -403,20 +448,23 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
         vendor_accommodation_id=event.vendor_accommodation_id,
         room_type="single",
         participant_id=participant.id,
-        event_id=event.id
+        event_id=event.id,
+        board_type=board_type,
+        rate_per_day=rate_per_day,
+        rate_currency=rate_currency
     )
-    
+
     allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
-    
+
     # Update room count
     db.execute(text("""
-        UPDATE vendor_event_accommodations 
-        SET single_rooms = single_rooms - 1 
+        UPDATE vendor_event_accommodations
+        SET single_rooms = single_rooms - 1
         WHERE id = :accommodation_setup_id
     """), {"accommodation_setup_id": event.accommodation_setup_id})
-    
+
     db.commit()
 
     return {

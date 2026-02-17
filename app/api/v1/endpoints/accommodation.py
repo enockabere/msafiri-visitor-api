@@ -109,6 +109,41 @@ def get_guesthouses(
     guesthouses = crud.guesthouse.get_by_tenant(db, tenant_id=tenant_id)
     return guesthouses
 
+@router.get("/guesthouses/{guesthouse_id}/rates")
+def get_guesthouse_rates(
+    guesthouse_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    tenant_context: str = Depends(deps.get_tenant_context),
+) -> Any:
+    """Get accommodation rates for a guesthouse"""
+    from app.models.guesthouse import GuestHouse
+
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+
+    guesthouse = db.query(GuestHouse).filter(
+        GuestHouse.id == guesthouse_id,
+        GuestHouse.tenant_id == tenant_id
+    ).first()
+
+    if not guesthouse:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Guesthouse not found"
+        )
+
+    return {
+        "guesthouse_id": guesthouse.id,
+        "name": guesthouse.name,
+        "currency": guesthouse.currency or "KES",
+        "rates": {
+            "FullBoard": guesthouse.fullboard_rate,
+            "HalfBoard": guesthouse.halfboard_rate,
+            "BedAndBreakfast": guesthouse.bed_and_breakfast_rate,
+            "BedOnly": guesthouse.bed_only_rate
+        }
+    }
+
 @router.post("/guesthouses", response_model=schemas.GuestHouse)
 def create_guesthouse(
     *,
@@ -321,17 +356,38 @@ def create_room_allocation(
                             )
         
         tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-        
+
+        # Auto-populate rate from guesthouse if board_type is provided
+        if allocation_data.get("room_id") and allocation_data.get("board_type"):
+            from app.models.guesthouse import GuestHouse, Room
+            room = db.query(Room).filter(Room.id == allocation_data["room_id"]).first()
+            if room:
+                guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                if guesthouse:
+                    board_type = allocation_data["board_type"]
+                    rate = None
+                    if board_type == 'FullBoard':
+                        rate = guesthouse.fullboard_rate
+                    elif board_type == 'HalfBoard':
+                        rate = guesthouse.halfboard_rate
+                    elif board_type == 'BedAndBreakfast':
+                        rate = guesthouse.bed_and_breakfast_rate
+                    elif board_type == 'BedOnly':
+                        rate = guesthouse.bed_only_rate
+
+                    allocation_data["rate_per_day"] = rate
+                    allocation_data["rate_currency"] = guesthouse.currency or "KES"
+
         # Convert dict to schema object for CRUD operation
         from app.schemas.accommodation import AccommodationAllocationCreate
         allocation_schema = AccommodationAllocationCreate(**allocation_data)
-        
+
         allocation = crud.accommodation_allocation.create_with_tenant(
             db, obj_in=allocation_schema, tenant_id=tenant_id, user_id=current_user.id
         )
         print(f"[DEBUG] DEBUG: ===== ALLOCATION CREATED SUCCESSFULLY: {allocation.id} =====")
         return allocation
-        
+
     except Exception as e:
         print(f"[DEBUG] DEBUG: Error creating allocation: {str(e)}")
         import traceback
@@ -941,6 +997,9 @@ def get_allocations(
                 "accommodation_type": allocation.accommodation_type,
                 "status": allocation.status,
                 "room_type": allocation.room_type,  # Include room type
+                "board_type": allocation.board_type,  # Include board type (FullBoard, HalfBoard, etc.)
+                "rate_per_day": float(allocation.rate_per_day) if allocation.rate_per_day else None,
+                "rate_currency": allocation.rate_currency or "KES",
                 "room": None,
                 "vendor_accommodation": None,
                 "event": None,
@@ -1658,6 +1717,9 @@ def get_participant_accommodation(
                         "room_occupants": len(roommates) + 1 if allocation.room_type == "double" else 1,
                         "is_shared": allocation.room_type == "double",
                         "room_type": allocation.room_type,
+                        "board_type": allocation.board_type,
+                        "rate_per_day": float(allocation.rate_per_day) if allocation.rate_per_day else None,
+                        "rate_currency": allocation.rate_currency or "KES",
                         "vendor_name": vendor.vendor_name,
                         "vendor_contact": vendor.contact_phone,
                         "description": vendor.description,
@@ -1679,6 +1741,113 @@ def get_participant_accommodation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching participant accommodation: {str(e)}"
         )
+
+@router.get("/participant/{participant_id}/perdiem-accommodation")
+def get_participant_perdiem_accommodation(
+    participant_id: int,
+    start_date: str = None,
+    end_date: str = None,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user),
+    x_tenant_id: str = Header(None, alias="X-Tenant-ID"),
+    x_tenant_context: str = Header(None, alias="X-Tenant-Context"),
+) -> Any:
+    """Get accommodation details for per diem calculation.
+    Returns accommodation bookings with board_type and daily rate for the given date range.
+    """
+    from app.models.guesthouse import AccommodationAllocation, VendorAccommodation, GuestHouse, Room
+    from datetime import datetime
+
+    tenant_context = x_tenant_context or x_tenant_id or current_user.tenant_id
+    tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
+
+    # Build base query for participant allocations
+    query = db.query(AccommodationAllocation).filter(
+        AccommodationAllocation.participant_id == participant_id,
+        AccommodationAllocation.tenant_id == tenant_id,
+        AccommodationAllocation.status.in_(["booked", "checked_in"])
+    )
+
+    # Filter by date range if provided
+    if start_date:
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            query = query.filter(AccommodationAllocation.check_out_date >= start)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            query = query.filter(AccommodationAllocation.check_in_date <= end)
+        except ValueError:
+            pass
+
+    allocations = query.all()
+
+    result = []
+    for allocation in allocations:
+        accommodation_name = None
+        board_type = allocation.board_type
+        rate_per_day = float(allocation.rate_per_day) if allocation.rate_per_day else None
+        rate_currency = allocation.rate_currency or "KES"
+
+        # Get accommodation name
+        if allocation.vendor_accommodation_id:
+            vendor = db.query(VendorAccommodation).filter(
+                VendorAccommodation.id == allocation.vendor_accommodation_id
+            ).first()
+            if vendor:
+                accommodation_name = vendor.vendor_name
+                # If rate not set in allocation, get from vendor based on board_type
+                if rate_per_day is None and board_type:
+                    if board_type == 'FullBoard':
+                        rate_per_day = vendor.rate_full_board
+                    elif board_type == 'HalfBoard':
+                        rate_per_day = vendor.rate_half_board
+                    elif board_type == 'BedAndBreakfast':
+                        rate_per_day = vendor.rate_bed_breakfast
+                    elif board_type == 'BedOnly':
+                        rate_per_day = vendor.rate_bed_only
+                    rate_currency = vendor.rate_currency or "KES"
+
+        elif allocation.room_id:
+            room = db.query(Room).filter(Room.id == allocation.room_id).first()
+            if room:
+                guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                if guesthouse:
+                    accommodation_name = guesthouse.name
+                    # If rate not set in allocation, get from guesthouse based on board_type
+                    if rate_per_day is None and board_type:
+                        if board_type == 'FullBoard':
+                            rate_per_day = guesthouse.fullboard_rate
+                        elif board_type == 'HalfBoard':
+                            rate_per_day = guesthouse.halfboard_rate
+                        elif board_type == 'BedAndBreakfast':
+                            rate_per_day = guesthouse.bed_and_breakfast_rate
+                        elif board_type == 'BedOnly':
+                            rate_per_day = guesthouse.bed_only_rate
+                        rate_currency = guesthouse.currency or "KES"
+
+        # Calculate number of days
+        days = 0
+        if allocation.check_in_date and allocation.check_out_date:
+            days = (allocation.check_out_date - allocation.check_in_date).days
+
+        result.append({
+            "allocation_id": allocation.id,
+            "accommodation_type": allocation.accommodation_type,
+            "accommodation_name": accommodation_name,
+            "board_type": board_type,
+            "rate_per_day": float(rate_per_day) if rate_per_day else None,
+            "rate_currency": rate_currency,
+            "check_in_date": allocation.check_in_date.isoformat() if allocation.check_in_date else None,
+            "check_out_date": allocation.check_out_date.isoformat() if allocation.check_out_date else None,
+            "days": days,
+            "total_accommodation_cost": float(rate_per_day * days) if rate_per_day and days else None
+        })
+
+    return result
 
 @router.put("/vendor-event-setup/{setup_id}", response_model=schemas.VendorEventAccommodation)
 def update_vendor_event_setup(

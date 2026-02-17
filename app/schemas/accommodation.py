@@ -140,6 +140,9 @@ class AccommodationAllocationCreate(AccommodationAllocationBase):
     vendor_accommodation_id: Optional[int] = None
     event_id: Optional[int] = None
     room_type: Optional[str] = None  # single, double - for vendor accommodations
+    board_type: Optional[str] = None  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    rate_per_day: Optional[float] = None  # Daily rate from vendor hotel or guesthouse
+    rate_currency: Optional[str] = 'KES'  # Currency code
 
 class AccommodationAllocationUpdate(BaseModel):
     guest_name: Optional[str] = Field(None, min_length=1, max_length=200)
@@ -160,6 +163,9 @@ class AccommodationAllocation(AccommodationAllocationBase):
     vendor_accommodation_id: Optional[int] = None
     status: AllocationStatus = AllocationStatus.BOOKED
     room_type: Optional[str] = None  # single, double - for vendor accommodations
+    board_type: Optional[str] = None  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    rate_per_day: Optional[float] = None  # Daily rate from vendor hotel or guesthouse
+    rate_currency: Optional[str] = 'KES'  # Currency code
     created_at: datetime
     updated_at: Optional[datetime] = None
     created_by: Optional[int] = None

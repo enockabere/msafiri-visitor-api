@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Date
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean, Date, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -105,6 +105,10 @@ class AccommodationAllocation(Base):
     notes = Column(Text, nullable=True)
     status = Column(String(20), default="booked")  # booked, checked_in, released, cancelled
     room_type = Column(String(20), nullable=True)  # single, double - for vendor accommodations
+    # Board type and rate fields for per diem calculations
+    board_type = Column(String(50), nullable=True)  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    rate_per_day = Column(Numeric(10, 2), nullable=True)  # Daily rate from vendor hotel or guesthouse
+    rate_currency = Column(String(3), nullable=True, default='KES')  # Currency code
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     created_by = Column(Integer, nullable=True)
