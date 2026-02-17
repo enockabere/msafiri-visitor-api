@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+from decimal import Decimal
 import logging
 import os
 
@@ -415,7 +416,7 @@ async def add_claim_item(
     db.add(item)
 
     # Update claim total amount
-    claim.total_amount = (claim.total_amount or 0) + item_data.amount
+    claim.total_amount = (claim.total_amount or Decimal('0')) + Decimal(str(item_data.amount))
 
     db.commit()
     db.refresh(item)
