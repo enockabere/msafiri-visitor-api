@@ -396,9 +396,15 @@ async def approve_tenant_perdiem(
         per_diem_base_amount = daily_rate * request.requested_days
 
         # Calculate accommodation deduction based on accommodation_type
+        # Accommodation should only apply to event days, not all requested days
         accommodation_rate = 0
         accommodation_deduction = 0
-        accommodation_days = request.requested_days  # Assume accommodation for all requested days
+        
+        # Get event dates to calculate actual event duration
+        event_start = event.start_date
+        event_end = event.end_date
+        event_duration_days = (event_end - event_start).days + 1
+        accommodation_days = event_duration_days  # Accommodation only for event days
 
         if setup and request.accommodation_type:
             accommodation_type = request.accommodation_type.lower().replace(' ', '').replace('_', '')
@@ -411,7 +417,7 @@ async def approve_tenant_perdiem(
             elif accommodation_type in ['bedonly', 'roomonly']:
                 accommodation_rate = float(setup.bed_only_rate or 0)
 
-            # Calculate total deduction
+            # Calculate total deduction (only for event days)
             accommodation_deduction = accommodation_rate * accommodation_days
 
         # Calculate final total amount after deduction

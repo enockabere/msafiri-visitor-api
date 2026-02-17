@@ -301,8 +301,11 @@ def update_perdiem_request(
     perdiem_request.currency = perdiem_setup.currency
     
     # Calculate accommodation deduction
-    # Event days = calculated_days (from arrival to departure)
-    event_days = (request.departure_date - request.arrival_date).days + 1
+    # Accommodation should only apply to event days, not all requested days
+    # Get event dates to calculate actual event duration
+    event_start = event.start_date
+    event_end = event.end_date
+    event_duration_days = (event_end - event_start).days + 1
     
     accommodation_rate = 0
     if request.accommodation_type:
@@ -317,10 +320,10 @@ def update_perdiem_request(
             accommodation_rate = perdiem_setup.bed_only_rate or 0
     
     # Per diem base = requested_days × daily_rate
-    # Accommodation deduction = event_days × accommodation_rate
-    perdiem_request.accommodation_days = event_days
+    # Accommodation deduction = event_duration_days × accommodation_rate (only for event days)
+    perdiem_request.accommodation_days = event_duration_days
     perdiem_request.accommodation_rate = accommodation_rate
-    perdiem_request.accommodation_deduction = accommodation_rate * event_days
+    perdiem_request.accommodation_deduction = accommodation_rate * event_duration_days
     perdiem_request.per_diem_base_amount = perdiem_request.daily_rate * request.requested_days
     perdiem_request.total_amount = perdiem_request.per_diem_base_amount - perdiem_request.accommodation_deduction
     
