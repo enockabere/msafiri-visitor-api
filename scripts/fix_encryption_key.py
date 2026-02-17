@@ -3,34 +3,29 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from sqlalchemy.orm import Session
-from app.db.database import SessionLocal
-from app.models.user_bank_account import UserBankAccount
+from sqlalchemy import create_engine, text
+from app.core.config import settings
 
 
 def delete_corrupted_accounts():
     """Delete all bank accounts that can't be decrypted."""
-    db: Session = SessionLocal()
+    engine = create_engine(settings.DATABASE_URL)
     try:
-        accounts = db.query(UserBankAccount).all()
-        deleted_count = 0
-        
-        print(f"Found {len(accounts)} bank accounts in database")
-        
-        for account in accounts:
-            print(f"Deleting bank account ID {account.id} (user_id: {account.user_id})")
-            db.delete(account)
-            deleted_count += 1
-        
-        db.commit()
-        print(f"\n✅ Successfully deleted {deleted_count} bank accounts")
-        print("Users will need to re-add their bank accounts with the new encryption key")
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT COUNT(*) FROM user_bank_accounts"))
+            count = result.scalar()
+            print(f"Found {count} bank accounts in database")
+            
+            conn.execute(text("DELETE FROM user_bank_accounts"))
+            conn.commit()
+            
+            print(f"\n✅ Successfully deleted {count} bank accounts")
+            print("Users will need to re-add their bank accounts with the new encryption key")
         
     except Exception as e:
         print(f"❌ Error: {e}")
-        db.rollback()
     finally:
-        db.close()
+        engine.dispose()
 
 
 if __name__ == "__main__":
