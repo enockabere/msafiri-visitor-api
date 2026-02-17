@@ -9,10 +9,7 @@ from app.db.database import Base
 
 class ExpenseCategory(str, PyEnum):
     """Expense category for travel advances."""
-    VISA_MONEY = "visa_money"
     PER_DIEM = "per_diem"
-    SECURITY = "security"
-    TRANSPORT = "transport"  # Replaces TICKET - to be surrendered
 
 
 class AccommodationType(str, PyEnum):
@@ -51,7 +48,6 @@ class TravelAdvance(Base):
     id = Column(Integer, primary_key=True, index=True)
     travel_request_id = Column(Integer, ForeignKey("travel_requests.id", ondelete="CASCADE"), nullable=False, index=True)
     traveler_id = Column(Integer, ForeignKey("travel_request_travelers.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
 
     expense_category = Column(Enum(ExpenseCategory), nullable=False)
@@ -87,7 +83,6 @@ class TravelAdvance(Base):
     # Relationships
     travel_request = relationship("TravelRequest")
     traveler = relationship("TravelRequestTraveler")
-    user = relationship("User", foreign_keys=[user_id])
     approver = relationship("User", foreign_keys=[approved_by])
     rejector = relationship("User", foreign_keys=[rejected_by])
     disburser = relationship("User", foreign_keys=[disbursed_by])
