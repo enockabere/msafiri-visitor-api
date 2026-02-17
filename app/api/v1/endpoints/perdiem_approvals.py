@@ -37,7 +37,7 @@ async def approve_perdiem(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Approve or reject a per diem request"""
+    """Approve or reject a per diem request (FinCo/Travel Admin approval)"""
     request = db.query(PerdiemRequest).filter(PerdiemRequest.id == request_id).first()
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -46,9 +46,55 @@ async def approve_perdiem(
         raise HTTPException(status_code=403, detail="Not authorized to approve this request")
     
     if action.action == "approve":
-        request.status = PerdiemStatus.LINE_MANAGER_APPROVED
+        request.status = PerdiemStatus.APPROVED
         request.approved_by = current_user.email
         request.approved_at = datetime.utcnow()
+        
+        # Initialize workflow after FinCo/Travel Admin approval
+        from app.models.approver import ApprovalWorkflow, ApprovalStep
+        from app.models.perdiem_approval_step import PerdiemApprovalStep
+        from app.models.event_participant import EventParticipant
+        from app.models.event import Event
+        
+        # Get participant and event to find tenant
+        participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
+        if participant:
+            event = db.query(Event).filter(Event.id == participant.event_id).first()
+            if event and event.tenant_id:
+                # Get active workflow for PER_DIEM
+                workflow = (
+                    db.query(ApprovalWorkflow)
+                    .filter(
+                        ApprovalWorkflow.tenant_id == str(event.tenant_id),
+                        ApprovalWorkflow.workflow_type == "PER_DIEM",
+                        ApprovalWorkflow.is_active == True
+                    )
+                    .first()
+                )
+                
+                if workflow:
+                    # Get workflow steps
+                    steps = (
+                        db.query(ApprovalStep)
+                        .filter(ApprovalStep.workflow_id == workflow.id)
+                        .order_by(ApprovalStep.step_order)
+                        .all()
+                    )
+                    
+                    if steps:
+                        # Delete existing approval records if reinitializing
+                        db.query(PerdiemApprovalStep).filter(PerdiemApprovalStep.perdiem_request_id == request.id).delete()
+                        
+                        # Create approval records
+                        for step in steps:
+                            approval = PerdiemApprovalStep(
+                                perdiem_request_id=request.id,
+                                workflow_step_id=step.id,
+                                step_order=step.step_order,
+                                approver_user_id=step.approver_user_id,
+                                status="OPEN" if step.step_order == 1 else "PENDING"
+                            )
+                            db.add(approval)
         
         # Send approval email
         background_tasks.add_task(
