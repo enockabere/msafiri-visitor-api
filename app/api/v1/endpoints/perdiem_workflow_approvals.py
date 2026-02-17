@@ -88,11 +88,17 @@ async def initialize_perdiem_workflow(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Event has no tenant assigned")
     
-    # Get active workflow for PER_DIEM
+    # Get tenant to find slug
+    from app.models.tenant import Tenant
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    # Get active workflow for PER_DIEM using tenant slug
     workflow = (
         db.query(ApprovalWorkflow)
         .filter(
-            ApprovalWorkflow.tenant_id == str(tenant_id),
+            ApprovalWorkflow.tenant_id == tenant.slug,
             ApprovalWorkflow.workflow_type == "PER_DIEM",
             ApprovalWorkflow.is_active == True
         )
@@ -100,7 +106,7 @@ async def initialize_perdiem_workflow(
     )
     
     if not workflow:
-        logger.warning(f"No active PER_DIEM workflow found for tenant {tenant_id}")
+        logger.warning(f"No active PER_DIEM workflow found for tenant {tenant.slug} (id: {tenant_id})")
         raise HTTPException(status_code=400, detail="No active approval workflow found for per diem requests")
     
     # Get workflow steps

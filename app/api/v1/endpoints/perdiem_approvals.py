@@ -55,46 +55,50 @@ async def approve_perdiem(
         from app.models.perdiem_approval_step import PerdiemApprovalStep
         from app.models.event_participant import EventParticipant
         from app.models.event import Event
+        from app.models.tenant import Tenant
         
         # Get participant and event to find tenant
         participant = db.query(EventParticipant).filter(EventParticipant.id == request.participant_id).first()
         if participant:
             event = db.query(Event).filter(Event.id == participant.event_id).first()
             if event and event.tenant_id:
-                # Get active workflow for PER_DIEM
-                workflow = (
-                    db.query(ApprovalWorkflow)
-                    .filter(
-                        ApprovalWorkflow.tenant_id == str(event.tenant_id),
-                        ApprovalWorkflow.workflow_type == "PER_DIEM",
-                        ApprovalWorkflow.is_active == True
-                    )
-                    .first()
-                )
-                
-                if workflow:
-                    # Get workflow steps
-                    steps = (
-                        db.query(ApprovalStep)
-                        .filter(ApprovalStep.workflow_id == workflow.id)
-                        .order_by(ApprovalStep.step_order)
-                        .all()
+                # Get tenant to find slug
+                tenant = db.query(Tenant).filter(Tenant.id == event.tenant_id).first()
+                if tenant:
+                    # Get active workflow for PER_DIEM using tenant slug
+                    workflow = (
+                        db.query(ApprovalWorkflow)
+                        .filter(
+                            ApprovalWorkflow.tenant_id == tenant.slug,
+                            ApprovalWorkflow.workflow_type == "PER_DIEM",
+                            ApprovalWorkflow.is_active == True
+                        )
+                        .first()
                     )
                     
-                    if steps:
-                        # Delete existing approval records if reinitializing
-                        db.query(PerdiemApprovalStep).filter(PerdiemApprovalStep.perdiem_request_id == request.id).delete()
+                    if workflow:
+                        # Get workflow steps
+                        steps = (
+                            db.query(ApprovalStep)
+                            .filter(ApprovalStep.workflow_id == workflow.id)
+                            .order_by(ApprovalStep.step_order)
+                            .all()
+                        )
                         
-                        # Create approval records
-                        for step in steps:
-                            approval = PerdiemApprovalStep(
-                                perdiem_request_id=request.id,
-                                workflow_step_id=step.id,
-                                step_order=step.step_order,
-                                approver_user_id=step.approver_user_id,
-                                status="OPEN" if step.step_order == 1 else "PENDING"
-                            )
-                            db.add(approval)
+                        if steps:
+                            # Delete existing approval records if reinitializing
+                            db.query(PerdiemApprovalStep).filter(PerdiemApprovalStep.perdiem_request_id == request.id).delete()
+                            
+                            # Create approval records
+                            for step in steps:
+                                approval = PerdiemApprovalStep(
+                                    perdiem_request_id=request.id,
+                                    workflow_step_id=step.id,
+                                    step_order=step.step_order,
+                                    approver_user_id=step.approver_user_id,
+                                    status="OPEN" if step.step_order == 1 else "PENDING"
+                                )
+                                db.add(approval)
         
         # Send approval email
         background_tasks.add_task(
