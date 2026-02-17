@@ -1046,6 +1046,14 @@ api_router.include_router(
     tags=["travel-advances"]
 )
 
+# Tenant-specific travel advances (admin portal)
+from app.api.v1.endpoints import tenant_travel_advances
+api_router.include_router(
+    tenant_travel_advances.router,
+    prefix="/tenants",
+    tags=["tenant-travel-advances"]
+)
+
 # Add a test endpoint to verify the router works
 @api_router.get("/", tags=["root"])
 async def api_root():

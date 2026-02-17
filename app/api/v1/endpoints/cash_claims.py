@@ -356,5 +356,120 @@ async def get_claim(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Claim not found"
         )
-    
+
     return claim
+
+
+class ClaimItemCreate(BaseModel):
+    merchant_name: str
+    amount: float
+    currency: str = "KES"
+    date: str
+    category: str
+    receipt_image_url: str | None = None
+    extracted_data: dict | None = None
+
+
+@router.post("/{claim_id}/items")
+async def add_claim_item(
+    claim_id: int,
+    item_data: ClaimItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add an item to a claim"""
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.user_id == current_user.id
+    ).first()
+
+    if not claim:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found"
+        )
+
+    if claim.status not in ("draft", "Open"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only add items to draft/Open claims"
+        )
+
+    # Parse date
+    try:
+        item_date = datetime.strptime(item_data.date, "%Y-%m-%d").date()
+    except ValueError:
+        item_date = datetime.utcnow().date()
+
+    item = ClaimItem(
+        claim_id=claim_id,
+        merchant_name=item_data.merchant_name,
+        amount=item_data.amount,
+        currency=item_data.currency,
+        date=item_date,
+        category=item_data.category,
+        receipt_image_url=item_data.receipt_image_url,
+        extracted_data=item_data.extracted_data
+    )
+
+    db.add(item)
+
+    # Update claim total amount
+    claim.total_amount = (claim.total_amount or 0) + item_data.amount
+
+    db.commit()
+    db.refresh(item)
+
+    return {
+        "id": item.id,
+        "claim_id": item.claim_id,
+        "merchant_name": item.merchant_name,
+        "amount": float(item.amount),
+        "currency": item.currency,
+        "date": item.date.isoformat() if item.date else None,
+        "category": item.category,
+        "receipt_image_url": item.receipt_image_url,
+    }
+
+
+@router.get("/{claim_id}/approvals")
+async def get_claim_approvals(
+    claim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get approval workflow for a claim"""
+    from app.models.claim_approval import ClaimApproval
+
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.user_id == current_user.id
+    ).first()
+
+    if not claim:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found"
+        )
+
+    approvals = db.query(ClaimApproval).filter(
+        ClaimApproval.claim_id == claim_id
+    ).order_by(ClaimApproval.step_order).all()
+
+    result = []
+    for approval in approvals:
+        approver = db.query(User).filter(User.id == approval.approver_user_id).first()
+        result.append({
+            "id": approval.id,
+            "step_order": approval.step_order,
+            "step_name": approval.step_name,
+            "approver_user_id": approval.approver_user_id,
+            "approver_name": approver.full_name if approver else "Unknown",
+            "approver_email": approver.email if approver else "Unknown",
+            "status": approval.status,
+            "approved_at": approval.approved_at.isoformat() if approval.approved_at else None,
+            "rejected_at": approval.rejected_at.isoformat() if approval.rejected_at else None,
+            "rejection_reason": approval.rejection_reason,
+        })
+
+    return result
