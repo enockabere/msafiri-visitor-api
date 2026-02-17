@@ -2,7 +2,7 @@
 from cryptography.fernet import Fernet
 from app.core.config import settings
 import base64
-import os
+import hashlib
 
 
 class EncryptionService:
@@ -10,13 +10,17 @@ class EncryptionService:
     
     def __init__(self):
         # Get encryption key from environment or generate one
-        key = settings.ENCRYPTION_KEY if hasattr(settings, 'ENCRYPTION_KEY') else self._generate_key()
-        self.cipher = Fernet(key.encode() if isinstance(key, str) else key)
-    
-    @staticmethod
-    def _generate_key() -> bytes:
-        """Generate a new encryption key."""
-        return Fernet.generate_key()
+        if hasattr(settings, 'ENCRYPTION_KEY') and settings.ENCRYPTION_KEY:
+            # Convert hex key to Fernet-compatible base64 key
+            key_bytes = bytes.fromhex(settings.ENCRYPTION_KEY)
+            # Fernet requires exactly 32 bytes, use first 32 bytes
+            key_bytes = key_bytes[:32]
+            # Encode as URL-safe base64
+            fernet_key = base64.urlsafe_b64encode(key_bytes)
+            self.cipher = Fernet(fernet_key)
+        else:
+            # Generate new key if not provided
+            self.cipher = Fernet(Fernet.generate_key())
     
     def encrypt(self, data: str) -> str:
         """Encrypt a string."""
