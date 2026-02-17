@@ -10,11 +10,5 @@ class PerDiemSetup(BaseModel):
     currency = Column(String(10), nullable=False)
     modified_by = Column(String(255), nullable=True)
 
-    # Accommodation deduction rates (to subtract from daily per diem)
-    fullboard_rate = Column(Numeric(10,2), nullable=True, default=0)  # Full Board rate per day
-    halfboard_rate = Column(Numeric(10,2), nullable=True, default=0)  # Half Board rate per day
-    bed_and_breakfast_rate = Column(Numeric(10,2), nullable=True, default=0)  # B&B rate per day
-    bed_only_rate = Column(Numeric(10,2), nullable=True, default=0)  # Bed Only rate per day
-
     # Relationships
     tenant = relationship("Tenant", back_populates="perdiem_setup")

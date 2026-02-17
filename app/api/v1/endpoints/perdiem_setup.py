@@ -15,28 +15,16 @@ router = APIRouter()
 class PerDiemSetupCreate(BaseModel):
     daily_rate: float
     currency: str = "USD"
-    fullboard_rate: Optional[float] = 0
-    halfboard_rate: Optional[float] = 0
-    bed_and_breakfast_rate: Optional[float] = 0
-    bed_only_rate: Optional[float] = 0
 
 class PerDiemSetupUpdate(BaseModel):
     daily_rate: Optional[float] = None
     currency: Optional[str] = None
-    fullboard_rate: Optional[float] = None
-    halfboard_rate: Optional[float] = None
-    bed_and_breakfast_rate: Optional[float] = None
-    bed_only_rate: Optional[float] = None
 
 class PerDiemSetupResponse(BaseModel):
     id: int
     tenant_id: int
     daily_rate: float
     currency: str
-    fullboard_rate: Optional[float] = 0
-    halfboard_rate: Optional[float] = 0
-    bed_and_breakfast_rate: Optional[float] = 0
-    bed_only_rate: Optional[float] = 0
     modified_by: Optional[str] = None
     updated_at: Optional[datetime] = None
 
@@ -109,10 +97,6 @@ def create_perdiem_setup(
         tenant_id=tenant.id,
         daily_rate=Decimal(str(setup_data.daily_rate)),
         currency=setup_data.currency,
-        fullboard_rate=Decimal(str(setup_data.fullboard_rate or 0)),
-        halfboard_rate=Decimal(str(setup_data.halfboard_rate or 0)),
-        bed_and_breakfast_rate=Decimal(str(setup_data.bed_and_breakfast_rate or 0)),
-        bed_only_rate=Decimal(str(setup_data.bed_only_rate or 0)),
         modified_by=current_user.email or current_user.username,
         updated_at=datetime.utcnow()
     )
@@ -151,14 +135,6 @@ def update_perdiem_setup(
         setup.daily_rate = Decimal(str(setup_data.daily_rate))
     if setup_data.currency is not None:
         setup.currency = setup_data.currency
-    if setup_data.fullboard_rate is not None:
-        setup.fullboard_rate = Decimal(str(setup_data.fullboard_rate))
-    if setup_data.halfboard_rate is not None:
-        setup.halfboard_rate = Decimal(str(setup_data.halfboard_rate))
-    if setup_data.bed_and_breakfast_rate is not None:
-        setup.bed_and_breakfast_rate = Decimal(str(setup_data.bed_and_breakfast_rate))
-    if setup_data.bed_only_rate is not None:
-        setup.bed_only_rate = Decimal(str(setup_data.bed_only_rate))
 
     setup.modified_by = current_user.email or current_user.username
     setup.updated_at = datetime.utcnow()
