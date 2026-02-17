@@ -1,7 +1,7 @@
 """add rates to guest houses
 
 Revision ID: 111_add_rates_to_guest_houses
-Revises: 110_add_perdiem_approval_steps
+Revises: bb07279c4f71
 Create Date: 2025-02-17
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '111_add_rates_to_guest_houses'
-down_revision = '110_add_perdiem_approval_steps'
+down_revision = 'bb07279c4f71'
 branch_labels = None
 depends_on = None
 
