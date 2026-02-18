@@ -216,12 +216,13 @@ def restore_complete_form_fields(
         {"field_name": "projectOfWork", "field_label": "Project of Work", "field_type": "text", "is_required": False, "order_index": 111, "section": "personal"},
         
         # Contact Details Section
-        {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
+        {"field_name": "hasActiveMsfEmail", "field_label": "Do you have an active MSF email address?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
         {"field_name": "msfEmail", "field_label": "MSF Email Address", "field_type": "email", "is_required": False, "order_index": 202, "section": "contact"},
-        {"field_name": "hrcoEmail", "field_label": "HRCO Email Address", "field_type": "email", "is_required": False, "order_index": 203, "section": "contact"},
-        {"field_name": "careerManagerEmail", "field_label": "Career Manager Email", "field_type": "email", "is_required": False, "order_index": 204, "section": "contact"},
-        {"field_name": "lineManagerEmail", "field_label": "Line Manager Email", "field_type": "email", "is_required": False, "order_index": 205, "section": "contact"},
-        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 206, "section": "contact", "is_protected": True},
+        {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": False, "order_index": 203, "section": "contact"},
+        {"field_name": "hrcoEmail", "field_label": "HRCO Email Address", "field_type": "email", "is_required": False, "order_index": 204, "section": "contact"},
+        {"field_name": "careerManagerEmail", "field_label": "Career Manager Email", "field_type": "email", "is_required": False, "order_index": 205, "section": "contact"},
+        {"field_name": "lineManagerEmail", "field_label": "Line Manager Email", "field_type": "email", "is_required": False, "order_index": 206, "section": "contact"},
+        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 207, "section": "contact", "is_protected": True},
         
         # Travel & Accommodation Section
         {"field_name": "travellingInternationally", "field_label": "Will you be travelling internationally?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 301, "section": "travel"},
@@ -562,8 +563,10 @@ def initialize_default_form_fields(
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 105, "section": "personal", "is_protected": True},
         
         # Contact Details Section
-        {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
-        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 202, "section": "contact", "is_protected": True},
+        {"field_name": "hasActiveMsfEmail", "field_label": "Do you have an active MSF email address?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
+        {"field_name": "msfEmail", "field_label": "MSF Email Address", "field_type": "email", "is_required": False, "order_index": 202, "section": "contact"},
+        {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": False, "order_index": 203, "section": "contact"},
+        {"field_name": "phoneNumber", "field_label": "Phone Number", "field_type": "phone", "is_required": True, "order_index": 204, "section": "contact", "is_protected": True},
         
         # Travel & Accommodation Section
         {"field_name": "travellingInternationally", "field_label": "Will you be travelling internationally?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 301, "section": "travel"},
