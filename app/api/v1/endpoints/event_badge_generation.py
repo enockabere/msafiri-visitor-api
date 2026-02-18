@@ -42,11 +42,14 @@ async def generate_badges_for_event(
     
     # Get event badge configuration
     badge_config_query = text("""
-        SELECT 
+        SELECT
             eb.id,
             eb.template_variables,
             bt.template_content,
             bt.name as template_name,
+            bt.logo_url,
+            bt.avatar_url,
+            bt.enable_qr_code,
             e.title as event_name,
             e.start_date,
             e.end_date,
@@ -69,17 +72,18 @@ async def generate_badges_for_event(
             detail="Badge configuration not found"
         )
     
-    # Get participants who have provided certificate_name (used as badge name)
+    # Get participants who have provided badge_name or certificate_name
     participants_query = text("""
-        SELECT 
+        SELECT
             ep.id,
             ep.full_name,
             ep.certificate_name,
+            ep.badge_name,
             ep.email
         FROM event_participants ep
         WHERE ep.event_id = :event_id
-        AND ep.certificate_name IS NOT NULL
-        AND ep.certificate_name != ''
+        AND (ep.badge_name IS NOT NULL AND ep.badge_name != ''
+             OR ep.certificate_name IS NOT NULL AND ep.certificate_name != '')
         AND ep.status = 'confirmed'
     """)
     
@@ -121,17 +125,25 @@ async def generate_badges_for_event(
                 "participant_id": participant.id
             }).fetchone()
             
+            # Use badge_name if available, otherwise certificate_name, otherwise full_name
+            display_badge_name = participant.badge_name or participant.certificate_name or participant.full_name
+
+            # Check if QR code is enabled (default to True if not specified)
+            enable_qr_code = badge_config.enable_qr_code if badge_config.enable_qr_code is not None else True
+
             # Generate badge PDF
             badge_url = await generate_badge(
                 participant_id=participant.id,
                 event_id=event_id,
                 template_html=badge_config.template_content,
                 participant_name=participant.full_name,
-                badge_name=participant.certificate_name,  # Use certificate_name as badge name
+                badge_name=display_badge_name,
                 event_name=badge_config.event_name,
                 event_dates=event_dates,
-                event_location=badge_config.event_location,
-                tagline=tagline
+                tagline=tagline,
+                logo_url=badge_config.logo_url or "",
+                avatar_url=badge_config.avatar_url or "",
+                enable_qr_code=enable_qr_code
             )
             
             # Save or update badge record

@@ -375,13 +375,7 @@ async def generate_loi_pdf(
             'issue_country': passport_record.issue_country
         }
         logger.info(f"Passport data loaded from local database for {participant.email}")
-        except Exception as e:
-            logger.error(f"Error fetching passport data: {str(e)}")
-            raise HTTPException(
-                status_code=400,
-                detail="Could not retrieve passport data. Please ensure passport details are uploaded."
-            )
-        
+
         # Prepare event details
         event_name = event.title if event else f"Event {event_id}"
         event_start_date = event.start_date.strftime('%B %d, %Y') if event and event.start_date else "TBD"

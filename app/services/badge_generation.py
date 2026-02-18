@@ -37,7 +37,9 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'tagline': data.get('tagline', ''),
         'currentDate': datetime.now().strftime('%B %d, %Y'),
         'logo': data.get('logo', ''),
-        'qrCode': data.get('qr_code', ''),
+        'qrCode': data.get('qr_code', '') or data.get('qrCode', ''),
+        'qr_code': data.get('qr_code', '') or data.get('qrCode', ''),
+        'QR': data.get('qr_code', '') or data.get('QR', ''),
     }
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
@@ -148,22 +150,30 @@ async def generate_badge(
     end_date: str = "",
     participant_role: str = "Participant",
     logo_url: str = "",
-    avatar_url: str = ""
+    avatar_url: str = "",
+    enable_qr_code: bool = True
 ) -> str:
     """
     Generate complete badge PDF and upload to Cloudinary.
     """
     try:
-        logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
+        logger.info(f"Generating badge for participant {participant_id}, event {event_id}, enable_qr_code={enable_qr_code}")
 
-        # Generate QR code URL that points to the badge itself
-        base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
-        badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
+        # Generate QR code URL only if enabled
+        qr_code_url = ""
+        if enable_qr_code:
+            base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
+            badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
+            qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
+            logger.info(f"QR code URL generated: {qr_code_url}")
 
         # Prepare data for template - only use template variables, no text replacement
+        # Use badge_name for participantName if available (this is what templates use)
+        # badge_name is already the preferred name: badge_name > certificate_name > full_name
+        display_name = badge_name if badge_name else participant_name
+
         template_data = {
-            'participant_name': participant_name,
+            'participant_name': display_name,  # Use badge_name for template display
             'badge_name': badge_name,
             'event_name': event_name,
             'event_title': event_name,
