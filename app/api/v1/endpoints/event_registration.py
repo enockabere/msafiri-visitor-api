@@ -866,19 +866,15 @@ async def get_event_participant_stats(
     event_id: int,
     db: Session = Depends(get_db)
 ):
-    """Get participant statistics for an event (excluding facilitators)"""
+    """Get participant statistics for an event"""
     
-    # Get all participants excluding facilitators
+    # Get all participants
     participants = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.role != "facilitator"
+        EventParticipant.event_id == event_id
     ).all()
     
-    # Get facilitators separately
-    facilitators = db.query(EventParticipant).filter(
-        EventParticipant.event_id == event_id,
-        EventParticipant.role == "facilitator"
-    ).all()
+    # Count facilitators
+    facilitators = [p for p in participants if p.role == "facilitator"]
     
     total_registered = len(participants)
     selected_count = len([p for p in participants if p.status == "selected"])
