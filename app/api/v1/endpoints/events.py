@@ -279,11 +279,40 @@ def create_event(
             cleanup_orphaned_vetting_roles(db)
         except Exception as e:
             logger.warning(f"[WARNING] Failed to cleanup orphaned vetting roles: {str(e)}")
-        
+
+        # Auto-populate accommodation rate from vendor hotel if both vendor and accommodation_type are set
+        event_data = event_in.model_dump() if hasattr(event_in, 'model_dump') else event_in.dict()
+        if event_data.get('vendor_accommodation_id') and event_data.get('accommodation_type'):
+            try:
+                from app.models.guesthouse import VendorAccommodation
+                vendor = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.id == event_data['vendor_accommodation_id']
+                ).first()
+                if vendor:
+                    accommodation_type = event_data['accommodation_type']
+                    rate = None
+                    if accommodation_type == 'FullBoard':
+                        rate = vendor.rate_full_board
+                    elif accommodation_type == 'HalfBoard':
+                        rate = vendor.rate_half_board
+                    elif accommodation_type == 'BedAndBreakfast':
+                        rate = vendor.rate_bed_breakfast
+                    elif accommodation_type == 'BedOnly':
+                        rate = vendor.rate_bed_only
+
+                    if rate is not None:
+                        event_data['accommodation_rate_per_day'] = rate
+                        event_data['accommodation_rate_currency'] = vendor.rate_currency or 'KES'
+                        # Update event_in with the rate data
+                        event_in = schemas.EventCreate(**event_data)
+                        logger.info(f"Set accommodation rate to {rate} {vendor.rate_currency or 'KES'} from vendor {vendor.vendor_name}")
+            except Exception as e:
+                logger.warning(f"[WARNING] Failed to auto-populate accommodation rate: {str(e)}")
+
         # Create event
         event = crud.event.create_with_tenant(
-            db, 
-            obj_in=event_in, 
+            db,
+            obj_in=event_in,
             tenant_id=tenant_obj.id,
             created_by=current_user.email
         )

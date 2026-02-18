@@ -40,6 +40,8 @@ class Event(BaseModel):
     # Accommodation Planning
     expected_participants = Column(Integer)
     accommodation_type = Column(String(50))  # FullBoard, HalfBoard, BedAndBreakfast, BedOnly
+    accommodation_rate_per_day = Column(Numeric(10, 2), nullable=True)  # Rate snapshot at event creation
+    accommodation_rate_currency = Column(String(3), nullable=True, default='KES')  # Currency code
     single_rooms = Column(Integer)
     double_rooms = Column(Integer)
     
