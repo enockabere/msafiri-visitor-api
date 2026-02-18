@@ -21,6 +21,7 @@ class VoucherRedemptionRequest(BaseModel):
     quantity: int
     participant_email: str
     notes: Optional[str] = None
+    voucher_type: Optional[str] = None  # Drinks, T-shirts, Notebooks, etc.
 
 class QRCodeResponse(BaseModel):
     qr_token: str
@@ -75,49 +76,58 @@ def get_participant_allocations(
                 
             print(f"🔍 ALLOCATIONS DEBUG: Found event: {event.title}")
                 
-            # Get voucher allocations for this event
+            # Get ALL voucher allocations for this event (including new voucher types)
+            from sqlalchemy import or_
             voucher_allocations = db.query(EventAllocation).filter(
                 EventAllocation.event_id == participant.event_id,
-                EventAllocation.drink_vouchers_per_participant > 0
+                or_(
+                    EventAllocation.drink_vouchers_per_participant > 0,
+                    EventAllocation.vouchers_per_participant > 0
+                )
             ).all()
-            
+
             print(f"🔍 ALLOCATIONS DEBUG: Found {len(voucher_allocations)} voucher allocations for event {participant.event_id}")
-            
+
             for allocation in voucher_allocations:
-                print(f"🔍 ALLOCATIONS DEBUG: Processing allocation {allocation.id} with {allocation.drink_vouchers_per_participant} vouchers")
-                
+                # Determine voucher quantity - prefer new field, fallback to legacy
+                voucher_qty = allocation.vouchers_per_participant if allocation.vouchers_per_participant > 0 else allocation.drink_vouchers_per_participant
+                voucher_type = allocation.voucher_type if allocation.voucher_type else "Drinks"
+
+                print(f"🔍 ALLOCATIONS DEBUG: Processing allocation {allocation.id} - Type: {voucher_type}, Qty: {voucher_qty}")
+
                 # Calculate remaining vouchers for this participant
                 try:
                     from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-                    
+
                     redemptions = db.query(ParticipantVoucherRedemption).filter(
                         ParticipantVoucherRedemption.allocation_id == allocation.id,
                         ParticipantVoucherRedemption.participant_id == participant.id
                     ).all()
-                    
+
                     total_redeemed = sum(r.quantity for r in redemptions)
                 except Exception as redemption_error:
                     print(f"🔍 ALLOCATIONS DEBUG: Error querying redemptions (table may not exist): {redemption_error}")
                     total_redeemed = 0
-                
-                remaining = allocation.drink_vouchers_per_participant - total_redeemed
-                
-                print(f"🔍 ALLOCATIONS DEBUG: Allocation {allocation.id} - Total: {allocation.drink_vouchers_per_participant}, Redeemed: {total_redeemed}, Remaining: {remaining}")
-                
+
+                remaining = voucher_qty - total_redeemed
+
+                print(f"🔍 ALLOCATIONS DEBUG: Allocation {allocation.id} - Total: {voucher_qty}, Redeemed: {total_redeemed}, Remaining: {remaining}")
+
                 allocation_data = {
                     "id": allocation.id,
                     "participant_id": participant.id,
                     "event_id": event.id,
                     "event_title": event.title,
                     "event_location": event.location,
-                    "allocation_type": "drink_vouchers",
-                    "total_quantity": allocation.drink_vouchers_per_participant,
+                    "allocation_type": "voucher",
+                    "voucher_type": voucher_type,  # Drinks, T-shirts, Notebooks, etc.
+                    "total_quantity": voucher_qty,
                     "remaining_quantity": remaining,
                     "redeemed_quantity": max(0, total_redeemed),
                     "status": allocation.status,
                     "created_at": allocation.created_at.isoformat() if allocation.created_at else None
                 }
-                
+
                 all_allocations.append(allocation_data)
                 print(f"🔍 ALLOCATIONS DEBUG: Added allocation to list: {allocation_data}")
         
@@ -137,45 +147,62 @@ def initiate_voucher_redemption(
     db: Session = Depends(get_db)
 ):
     """Initiate voucher redemption process - generates QR code for scanning"""
-    
+
     # Get participant
     participant = db.query(EventParticipant).filter(
         EventParticipant.email == current_user.email
     ).first()
-    
+
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
-    
+
     # Get allocation
     allocation = db.query(EventAllocation).filter(
         EventAllocation.id == request.allocation_id
     ).first()
-    
+
     if not allocation:
         raise HTTPException(status_code=404, detail="Allocation not found")
-    
-    # Check remaining vouchers (allow over-redemption)
+
+    # Get voucher type - use new field or default to Drinks
+    voucher_type = allocation.voucher_type if allocation.voucher_type else "Drinks"
+
+    # Determine voucher quantity - prefer new field, fallback to legacy
+    total_vouchers = allocation.vouchers_per_participant if allocation.vouchers_per_participant and allocation.vouchers_per_participant > 0 else allocation.drink_vouchers_per_participant
+
+    # Check remaining vouchers
     from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-    
+
     redemptions = db.query(ParticipantVoucherRedemption).filter(
         ParticipantVoucherRedemption.allocation_id == request.allocation_id,
         ParticipantVoucherRedemption.participant_id == participant.id
     ).all()
-    
+
     total_redeemed = sum(r.quantity for r in redemptions)
-    remaining = allocation.drink_vouchers_per_participant - total_redeemed
-    
-    # Allow over-redemption but log it
+    remaining = total_vouchers - total_redeemed
+
+    # Check over-redemption based on voucher type
+    # Only Drinks allow over-redemption, all other items are restricted
     is_over_redemption = request.quantity > remaining
+    allows_over_redemption = voucher_type == "Drinks"
+
     if is_over_redemption:
-        print(f"WARNING: Over-redemption detected - Participant {participant.id} requesting {request.quantity} vouchers but only {remaining} remaining")
+        if not allows_over_redemption:
+            # Non-drink items cannot be over-redeemed
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot redeem {request.quantity} {voucher_type}. Only {remaining} remaining."
+            )
+        else:
+            # Drinks can be over-redeemed, but log it
+            print(f"WARNING: Over-redemption detected - Participant {participant.id} requesting {request.quantity} drink vouchers but only {remaining} remaining")
     
     # Generate redemption token
     redemption_token = secrets.token_urlsafe(32)
-    
+
     # Store pending redemption
     from app.models.pending_voucher_redemption import PendingVoucherRedemption
-    
+
     pending_redemption = PendingVoucherRedemption(
         token=redemption_token,
         allocation_id=request.allocation_id,
@@ -185,11 +212,11 @@ def initiate_voucher_redemption(
         status="pending",
         created_at=datetime.utcnow()
     )
-    
+
     db.add(pending_redemption)
     db.commit()
-    
-    # Generate QR code
+
+    # Generate QR code with voucher type included
     qr_data = {
         "type": "voucher_redemption",
         "token": redemption_token,
@@ -197,27 +224,28 @@ def initiate_voucher_redemption(
         "allocation_id": request.allocation_id,
         "quantity": request.quantity,
         "participant_name": participant.full_name,
-        "event_id": allocation.event_id
+        "event_id": allocation.event_id,
+        "voucher_type": voucher_type
     }
-    
+
     # Create QR code image
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
     qr.add_data(f"msafiri://redeem/{redemption_token}")
     qr.make(fit=True)
-    
+
     img = qr.make_image(fill_color="black", back_color="white")
     img_buffer = io.BytesIO()
     img.save(img_buffer, format='PNG')
     img_buffer.seek(0)
-    
+
     qr_data_url = f"data:image/png;base64,{base64.b64encode(img_buffer.getvalue()).decode()}"
-    
+
     return QRCodeResponse(
         qr_token=redemption_token,
         qr_data_url=qr_data_url,
         participant_id=participant.id,
         event_id=allocation.event_id,
-        total_vouchers=allocation.drink_vouchers_per_participant,
+        total_vouchers=total_vouchers,
         remaining_vouchers=remaining,
         redemption_quantity=request.quantity
     )
@@ -229,33 +257,38 @@ def get_redemption_details(
     db: Session = Depends(get_db)
 ):
     """Get redemption details for admin scanning (admin users only)"""
-    
+
     # Check if user is admin for any event
     if not current_user.role or current_user.role not in ["ADMIN", "HR_ADMIN", "EVENT_ADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Get pending redemption
     from app.models.pending_voucher_redemption import PendingVoucherRedemption
-    
+
     pending = db.query(PendingVoucherRedemption).filter(
         PendingVoucherRedemption.token == token,
         PendingVoucherRedemption.status == "pending"
     ).first()
-    
+
     if not pending:
         raise HTTPException(status_code=404, detail="Redemption request not found or already processed")
-    
+
     # Get participant and allocation details
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == pending.participant_id
     ).first()
-    
+
     allocation = db.query(EventAllocation).filter(
         EventAllocation.id == pending.allocation_id
     ).first()
-    
+
     event = db.query(Event).filter(Event.id == allocation.event_id).first()
-    
+
+    # Get voucher type and quantity
+    voucher_type = allocation.voucher_type if allocation and allocation.voucher_type else "Drinks"
+    total_vouchers = (allocation.vouchers_per_participant if allocation and allocation.vouchers_per_participant and allocation.vouchers_per_participant > 0
+                      else allocation.drink_vouchers_per_participant if allocation else 0)
+
     return {
         "token": token,
         "participant_id": pending.participant_id,
@@ -266,7 +299,8 @@ def get_redemption_details(
         "notes": pending.notes,
         "created_at": pending.created_at.isoformat(),
         "allocation_id": pending.allocation_id,
-        "total_vouchers": allocation.drink_vouchers_per_participant if allocation else 0
+        "total_vouchers": total_vouchers,
+        "voucher_type": voucher_type
     }
 
 @router.post("/admin/confirm-redemption/{token}")
@@ -276,25 +310,25 @@ def confirm_voucher_redemption(
     db: Session = Depends(get_db)
 ):
     """Confirm voucher redemption (admin users only)"""
-    
+
     # Check if user is admin
     if not current_user.role or current_user.role not in ["ADMIN", "HR_ADMIN", "EVENT_ADMIN"]:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Get pending redemption
     from app.models.pending_voucher_redemption import PendingVoucherRedemption
-    
+
     pending = db.query(PendingVoucherRedemption).filter(
         PendingVoucherRedemption.token == token,
         PendingVoucherRedemption.status == "pending"
     ).first()
-    
+
     if not pending:
         raise HTTPException(status_code=404, detail="Redemption request not found or already processed")
-    
+
     # Create actual redemption record
     from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-    
+
     redemption = ParticipantVoucherRedemption(
         allocation_id=pending.allocation_id,
         participant_id=pending.participant_id,
@@ -303,34 +337,40 @@ def confirm_voucher_redemption(
         redeemed_by=current_user.email,
         notes=pending.notes
     )
-    
+
     db.add(redemption)
-    
+
     # Mark pending as completed
     pending.status = "completed"
     pending.processed_at = datetime.utcnow()
     pending.processed_by = current_user.email
-    
+
     db.commit()
-    
+
     # Calculate new remaining balance
     allocation = db.query(EventAllocation).filter(
         EventAllocation.id == pending.allocation_id
     ).first()
-    
+
+    # Get voucher type and total quantity
+    voucher_type = allocation.voucher_type if allocation and allocation.voucher_type else "Drinks"
+    total_vouchers = (allocation.vouchers_per_participant if allocation and allocation.vouchers_per_participant and allocation.vouchers_per_participant > 0
+                      else allocation.drink_vouchers_per_participant if allocation else 0)
+
     all_redemptions = db.query(ParticipantVoucherRedemption).filter(
         ParticipantVoucherRedemption.allocation_id == pending.allocation_id,
         ParticipantVoucherRedemption.participant_id == pending.participant_id
     ).all()
-    
+
     total_redeemed = sum(r.quantity for r in all_redemptions)
-    remaining = allocation.drink_vouchers_per_participant - total_redeemed
-    
+    remaining = total_vouchers - total_redeemed
+
     return {
         "message": "Voucher redemption confirmed successfully",
         "redeemed_quantity": pending.quantity,
         "total_redeemed": total_redeemed,
-        "remaining_vouchers": remaining
+        "remaining_vouchers": remaining,
+        "voucher_type": voucher_type
     }
 
 @router.post("/participant/voucher-redemption/complete")
@@ -348,22 +388,23 @@ def complete_voucher_redemption(
             allocation_id = int(request['allocation_id'])
             quantity = int(request['quantity'])
             scanner_email = request.get('scanner_email')
-            
-            print(f"🔍 REDEMPTION DEBUG: Processing allocation {allocation_id}, quantity {quantity}")
-            
+            voucher_type_from_request = request.get('voucher_type')
+
+            print(f"🔍 REDEMPTION DEBUG: Processing allocation {allocation_id}, quantity {quantity}, type {voucher_type_from_request}")
+
             # Get allocation
             allocation = db.query(EventAllocation).filter(
                 EventAllocation.id == allocation_id
             ).first()
-            
+
             if not allocation:
                 raise HTTPException(status_code=404, detail="Allocation not found")
-            
-            # For comprehensive voucher data format, we need to find the participant
-            # The QR code should contain participant info, but for now we'll use a workaround
-            # We'll find the participant based on the allocation and assume it's the first one
-            # This is a temporary solution - ideally we need participant_id in the QR code
-            
+
+            # Get voucher type and total quantity
+            voucher_type = allocation.voucher_type if allocation.voucher_type else "Drinks"
+            total_vouchers = (allocation.vouchers_per_participant if allocation.vouchers_per_participant and allocation.vouchers_per_participant > 0
+                              else allocation.drink_vouchers_per_participant)
+
             # Try to get participant_email from request if provided
             participant_email = request.get('participant_email')
             if participant_email:
@@ -376,13 +417,31 @@ def complete_voucher_redemption(
                 participant = db.query(EventParticipant).filter(
                     EventParticipant.event_id == allocation.event_id
                 ).first()
-            
+
             if not participant:
                 raise HTTPException(status_code=404, detail="Participant not found")
-            
-            # Create redemption record
+
+            # Check remaining vouchers and enforce over-redemption restriction
             from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
-            
+
+            existing_redemptions = db.query(ParticipantVoucherRedemption).filter(
+                ParticipantVoucherRedemption.allocation_id == allocation_id,
+                ParticipantVoucherRedemption.participant_id == participant.id
+            ).all()
+
+            total_redeemed = sum(r.quantity for r in existing_redemptions)
+            remaining = total_vouchers - total_redeemed
+
+            # Only drinks allow over-redemption
+            allows_over_redemption = voucher_type == "Drinks"
+            is_over_redemption = quantity > remaining
+
+            if is_over_redemption and not allows_over_redemption:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot redeem {quantity} {voucher_type}. Only {remaining} remaining."
+                )
+
             # Create single redemption record for the total quantity
             redemption = ParticipantVoucherRedemption(
                 allocation_id=allocation_id,
@@ -390,18 +449,19 @@ def complete_voucher_redemption(
                 quantity=quantity,
                 redeemed_at=datetime.utcnow(),
                 redeemed_by=scanner_email or "scanner",
-                notes=f"Scanned redemption via mobile app"
+                notes=f"Scanned redemption via mobile app - {voucher_type}"
             )
             db.add(redemption)
             db.commit()
-            
-            print(f"🔍 REDEMPTION DEBUG: Successfully created redemption record")
-            
+
+            print(f"🔍 REDEMPTION DEBUG: Successfully created redemption record for {voucher_type}")
+
             return {
                 "success": True,
-                "message": "Voucher redeemed successfully",
+                "message": f"{voucher_type} redeemed successfully",
                 "participant_name": participant.full_name,
-                "quantity": quantity
+                "quantity": quantity,
+                "voucher_type": voucher_type
             }
         
         # Handle token-based redemption (fallback)

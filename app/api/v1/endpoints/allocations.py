@@ -339,6 +339,69 @@ async def get_event_voucher_allocations(
     
     return voucher_allocations
 
+@router.get("/participant/{participant_id}/vouchers")
+async def get_participant_voucher_allocations(
+    participant_id: int,
+    event_id: int = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get all voucher allocations for a specific participant with redemption status"""
+
+    # Get participant to verify they exist
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.id == participant_id
+    ).first()
+
+    if not participant:
+        raise HTTPException(status_code=404, detail="Participant not found")
+
+    # Get voucher allocations for this participant's event
+    query = db.query(EventAllocation).filter(
+        EventAllocation.event_id == participant.event_id,
+        or_(
+            EventAllocation.drink_vouchers_per_participant > 0,
+            EventAllocation.vouchers_per_participant > 0
+        )
+    )
+
+    if event_id:
+        query = query.filter(EventAllocation.event_id == event_id)
+
+    allocations = query.all()
+
+    # Get redemptions for this participant
+    from app.models.participant_voucher_redemption import ParticipantVoucherRedemption
+
+    voucher_allocations = []
+    for allocation in allocations:
+        # Get voucher type and total quantity
+        voucher_type = allocation.voucher_type if allocation.voucher_type else "Drinks"
+        total_quantity = (allocation.vouchers_per_participant if allocation.vouchers_per_participant and allocation.vouchers_per_participant > 0
+                          else allocation.drink_vouchers_per_participant)
+
+        # Get redemptions for this allocation and participant
+        redemptions = db.query(ParticipantVoucherRedemption).filter(
+            ParticipantVoucherRedemption.allocation_id == allocation.id,
+            ParticipantVoucherRedemption.participant_id == participant_id
+        ).all()
+
+        total_redeemed = sum(r.quantity for r in redemptions)
+        remaining = total_quantity - total_redeemed
+
+        voucher_allocations.append({
+            "id": allocation.id,
+            "voucher_type": voucher_type,
+            "total_quantity": total_quantity,
+            "redeemed_quantity": max(0, total_redeemed),
+            "remaining_quantity": remaining,
+            "allows_over_redemption": voucher_type == "Drinks",
+            "status": allocation.status,
+            "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+        })
+
+    return {"allocations": voucher_allocations}
+
+
 @router.get("/participant/{participant_id}")
 async def get_participant_allocations(
     participant_id: int,
