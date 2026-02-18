@@ -1,8 +1,9 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Text, DateTime
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 import hashlib
 import secrets
+from datetime import datetime, timedelta
 
 class PassportRecord(BaseModel):
     __tablename__ = "passport_records"
@@ -23,9 +24,24 @@ class PassportRecord(BaseModel):
     nationality = Column(String(100), nullable=True)
     issue_country = Column(String(100), nullable=True)
     passport_image_url = Column(Text, nullable=True)  # Azure Blob URL
+    deletion_date = Column(DateTime, nullable=True)  # Auto-deletion date (30 days after event ends)
 
     # Relationships
     event = relationship("Event", back_populates="passport_records")
+    
+    def set_deletion_date(self, event_end_date):
+        """Set deletion date to 30 days after event ends"""
+        if event_end_date:
+            if isinstance(event_end_date, str):
+                event_end_date = datetime.fromisoformat(event_end_date.replace('Z', '+00:00'))
+            self.deletion_date = event_end_date + timedelta(days=30)
+    
+    def days_until_deletion(self):
+        """Calculate days remaining until deletion"""
+        if not self.deletion_date:
+            return None
+        delta = self.deletion_date - datetime.utcnow()
+        return max(0, delta.days)
 
     def generate_slug(self):
         """Generate a unique slug for this passport record"""
@@ -35,6 +51,19 @@ class PassportRecord(BaseModel):
             data = f"{self.record_id}-{self.user_email}-{salt}"
             self.slug = hashlib.sha256(data.encode()).hexdigest()[:16]
         return self.slug
+    
+    def to_dict_with_countdown(self):
+        """Convert to dict with deletion countdown"""
+        return {
+            'id': self.id,
+            'passport_number': self.passport_number,
+            'full_name': self.full_name,
+            'date_of_birth': self.date_of_birth,
+            'date_of_expiry': self.date_of_expiry,
+            'nationality': self.nationality,
+            'deletion_date': self.deletion_date.isoformat() if self.deletion_date else None,
+            'days_until_deletion': self.days_until_deletion(),
+        }
 
     @property
     def full_name(self):

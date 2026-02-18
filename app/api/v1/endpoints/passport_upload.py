@@ -283,6 +283,12 @@ async def confirm_passport(
     try:
         event_id = request.event_id
 
+        # Get event to set deletion date
+        from app.models.event import Event
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
+
         # Check for existing passport record for this user and event
         existing_record = db.query(PassportRecord).filter(
             PassportRecord.user_email == current_user.email,
@@ -301,6 +307,8 @@ async def confirm_passport(
             existing_record.gender = request.gender
             existing_record.nationality = request.nationality
             existing_record.issue_country = request.issue_country
+            # Set deletion date (30 days after event ends)
+            existing_record.set_deletion_date(event.end_date)
             # Generate slug if it doesn't exist
             if not existing_record.slug:
                 existing_record.generate_slug()
@@ -323,6 +331,8 @@ async def confirm_passport(
                 nationality=request.nationality,
                 issue_country=request.issue_country
             )
+            # Set deletion date (30 days after event ends)
+            passport_record.set_deletion_date(event.end_date)
             # Generate slug for new record
             passport_record.generate_slug()
             db.add(passport_record)
@@ -447,7 +457,7 @@ async def get_passport_record(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get passport record ID for user and event"""
+    """Get passport record with deletion countdown for user and event"""
     
     passport_record = db.query(PassportRecord).filter(
         PassportRecord.user_email == current_user.email,
@@ -463,7 +473,10 @@ async def get_passport_record(
     return {
         "record_id": passport_record.record_id,
         "slugified_id": passport_record.slug,
-        "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None
+        "created_at": passport_record.created_at.isoformat() if passport_record.created_at else None,
+        "deletion_date": passport_record.deletion_date.isoformat() if passport_record.deletion_date else None,
+        "days_until_deletion": passport_record.days_until_deletion(),
+        "passport_data": passport_record.to_dict_with_countdown()
     }
 
 @router.get("/loi/record/{record_id}")
