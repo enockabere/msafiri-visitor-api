@@ -554,7 +554,7 @@ def add_participant_role_question_to_event(
         field_name="participantRole",
         field_label="Participant Role",
         field_type="select",
-        field_options=json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]),
+        field_options=json.dumps(["Participant/Visitor", "Facilitator", "Organizer"]),
         is_required=True,
         order_index=106,
         section="personal",
@@ -655,8 +655,8 @@ def initialize_default_form_fields(
         {"field_name": "oc", "field_label": "Operation Center (OC)", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
         {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": json.dumps(["On contract", "Between contracts"]), "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 105, "section": "personal", "is_protected": True},
-        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
-        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
+        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
+        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
         
         # Contact Details Section
         {"field_name": "hasActiveMsfEmail", "field_label": "Do you have an active MSF email address?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},
