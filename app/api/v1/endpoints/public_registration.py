@@ -187,11 +187,19 @@ async def public_register_for_event(
         print(f"🔥 BASIC DEBUG: Starting registration process for {registration.firstName} {registration.lastName}")
         
         # Create participant record with all form data
+        # Map participantRole to role column values
+        role_mapping = {
+            "Participant/Visitor": "visitor",
+            "Facilitator": "facilitator",
+            "Organizer": "organizer"
+        }
+        mapped_role = role_mapping.get(registration.participantRole, "visitor")
+        
         participant = EventParticipant(
             event_id=event_id,
             email=primary_email,
             full_name=f"{registration.firstName} {registration.lastName}",
-            role=registration.participantRole or "Participant/Visitor",
+            role=mapped_role,
             status="registered",
             invited_by="public_form",
             # Basic info
