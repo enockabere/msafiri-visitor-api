@@ -522,26 +522,48 @@ from app.models.event import Event
 @api_router.get("/events/{event_id}/accommodation-stats")
 def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
     """Get accommodation booking statistics for an event"""
-    
+
     # Verify event exists
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+
     # Get participant statistics during migration period
     try:
-        # Count confirmed participants as "bookings needed"
-        confirmed_result = db.execute(text("""
-            SELECT COUNT(*) as confirmed_count
+        # Count participants by accommodation preference
+        preference_result = db.execute(text("""
+            SELECT
+                COUNT(*) as total_confirmed,
+                COUNT(CASE WHEN ep.accommodation_preference = 'staying_at_venue' THEN 1 END) as staying_at_venue,
+                COUNT(CASE WHEN ep.accommodation_preference = 'travelling_daily' THEN 1 END) as travelling_daily,
+                COUNT(CASE WHEN ep.accommodation_preference IS NULL OR ep.accommodation_preference = '' THEN 1 END) as not_specified
             FROM event_participants ep
             WHERE ep.event_id = :event_id AND ep.status = 'confirmed'
         """), {"event_id": event_id})
-        
-        confirmed_count = confirmed_result.fetchone().confirmed_count or 0
-        
+
+        pref_stats = preference_result.fetchone()
+        total_confirmed = pref_stats.total_confirmed or 0
+        staying_at_venue = pref_stats.staying_at_venue or 0
+        travelling_daily = pref_stats.travelling_daily or 0
+        not_specified = pref_stats.not_specified or 0
+
+        # Count attended participants by accommodation preference
+        attended_result = db.execute(text("""
+            SELECT
+                COUNT(*) as total_attended,
+                COUNT(CASE WHEN ep.accommodation_preference = 'staying_at_venue' THEN 1 END) as attended_staying_at_venue,
+                COUNT(CASE WHEN ep.accommodation_preference = 'travelling_daily' THEN 1 END) as attended_travelling_daily
+            FROM event_participants ep
+            WHERE ep.event_id = :event_id AND ep.status = 'attended'
+        """), {"event_id": event_id})
+
+        attended_stats = attended_result.fetchone()
+        attended_staying_at_venue = attended_stats.attended_staying_at_venue or 0
+        attended_travelling_daily = attended_stats.attended_travelling_daily or 0
+
         # Try to get actual bookings from accommodation_allocations table
         booking_result = db.execute(text("""
-            SELECT 
+            SELECT
                 COUNT(*) as total_bookings,
                 COUNT(CASE WHEN aa.status = 'checked_in' THEN 1 END) as checked_in_visitors,
                 COUNT(CASE WHEN aa.status = 'released' THEN 1 END) as checked_out_visitors
@@ -549,16 +571,26 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
             JOIN event_participants ep ON aa.participant_id = ep.id
             WHERE ep.event_id = :event_id AND aa.status IN ('booked', 'checked_in', 'released')
         """), {"event_id": event_id})
-        
+
         booking_stats = booking_result.fetchone()
-        
+
         return {
-            "total_bookings": booking_stats.total_bookings or confirmed_count,
-            "booked_rooms": booking_stats.total_bookings or confirmed_count,
+            "total_bookings": booking_stats.total_bookings or staying_at_venue,
+            "booked_rooms": booking_stats.total_bookings or staying_at_venue,
             "checked_in_visitors": booking_stats.checked_in_visitors or 0,
-            "checked_out_visitors": booking_stats.checked_out_visitors or 0
+            "checked_out_visitors": booking_stats.checked_out_visitors or 0,
+            # New fields for accommodation preference tally
+            "total_confirmed": total_confirmed,
+            "staying_at_venue": staying_at_venue,
+            "travelling_daily": travelling_daily,
+            "preference_not_specified": not_specified,
+            # Attended participants by preference
+            "attended_staying_at_venue": attended_staying_at_venue,
+            "attended_travelling_daily": attended_travelling_daily
         }
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         # Fallback: count confirmed participants
         try:
             confirmed_result = db.execute(text("""
@@ -566,19 +598,31 @@ def get_event_accommodation_stats(event_id: int, db: Session = Depends(get_db)):
                 FROM event_participants ep
                 WHERE ep.event_id = :event_id AND ep.status = 'confirmed'
             """), {"event_id": event_id})
-            
+
             confirmed_count = confirmed_result.fetchone().confirmed_count or 0
-            
+
             return {
                 "total_bookings": confirmed_count,
                 "booked_rooms": confirmed_count,
-                "checked_in_visitors": 0
+                "checked_in_visitors": 0,
+                "total_confirmed": confirmed_count,
+                "staying_at_venue": 0,
+                "travelling_daily": 0,
+                "preference_not_specified": confirmed_count,
+                "attended_staying_at_venue": 0,
+                "attended_travelling_daily": 0
             }
         except Exception:
             return {
                 "total_bookings": 0,
                 "booked_rooms": 0,
-                "checked_in_visitors": 0
+                "checked_in_visitors": 0,
+                "total_confirmed": 0,
+                "staying_at_venue": 0,
+                "travelling_daily": 0,
+                "preference_not_specified": 0,
+                "attended_staying_at_venue": 0,
+                "attended_travelling_daily": 0
             }
 
 

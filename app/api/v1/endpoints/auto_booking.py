@@ -45,38 +45,49 @@ def auto_book_all_participants(
     current_user = Depends(deps.get_current_user),
     tenant_context: str = Depends(deps.get_tenant_context),
 ) -> Any:
-    """Automatically book accommodation for all confirmed participants with optimal pairing"""
-    
+    """Automatically book accommodation for all confirmed participants who are staying at venue with optimal pairing"""
+
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    
+
     # Get event with accommodation setup
     event_query = text("""
         SELECT e.id, e.title, e.vendor_accommodation_id, e.start_date, e.end_date,
                vea.id as accommodation_setup_id, vea.single_rooms, vea.double_rooms
-        FROM events e 
+        FROM events e
         LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
-    
+
     if not event or not event.accommodation_setup_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Event not found or no accommodation setup linked"
         )
-    
-    # Get all confirmed participants with gender info
+
+    # Get all confirmed participants who are STAYING AT VENUE (not travelling daily) with gender info
     participants_query = text("""
-        SELECT ep.id, ep.full_name, ep.email, ep.role, pr.gender_identity
+        SELECT ep.id, ep.full_name, ep.email, ep.role, pr.gender_identity, ep.accommodation_preference
         FROM event_participants ep
         LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
-        WHERE ep.event_id = :event_id AND ep.status = 'confirmed'
+        WHERE ep.event_id = :event_id
+        AND ep.status = 'confirmed'
+        AND ep.accommodation_preference = 'staying_at_venue'
         ORDER BY ep.role, pr.gender_identity, ep.id
     """)
     participants = db.execute(participants_query, {"event_id": event_id}).fetchall()
-    
+
+    # Also count those travelling daily for reporting
+    travelling_daily_count = db.execute(text("""
+        SELECT COUNT(*) as count FROM event_participants
+        WHERE event_id = :event_id AND status = 'confirmed' AND accommodation_preference = 'travelling_daily'
+    """), {"event_id": event_id}).fetchone().count
+
     if not participants:
-        return {"message": "No confirmed participants found for this event"}
+        return {
+            "message": "No confirmed participants staying at venue found for this event",
+            "travelling_daily_count": travelling_daily_count
+        }
     
     # Group participants by role and gender
     facilitators = []
@@ -142,57 +153,66 @@ def _auto_book_participant_internal(
     current_user,
     tenant_context: str,
 ) -> Any:
-    """Automatically book accommodation for confirmed participant"""
-    
+    """Automatically book accommodation for confirmed participant who is staying at venue"""
+
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    
+
     # Get event with accommodation setup
     event_query = text("""
         SELECT e.id, e.title, e.start_date, e.end_date, e.vendor_accommodation_id,
                vea.id as accommodation_setup_id, vea.single_rooms, vea.double_rooms
-        FROM events e 
+        FROM events e
         LEFT JOIN vendor_event_accommodations vea ON e.id = vea.event_id
         WHERE e.id = :event_id AND e.tenant_id = :tenant_id
     """)
     event = db.execute(event_query, {"event_id": event_id, "tenant_id": tenant_id}).fetchone()
-    
+
     import logging
     logger = logging.getLogger(__name__)
     logger.info(f"Auto-booking query - event_id: {event_id}, tenant_id: {tenant_id}")
     logger.info(f"Event query result: {dict(event._mapping) if event and hasattr(event, '_mapping') else 'None'}")
-    
+
     if not event:
         logger.info(f"No event found for event_id {event_id} and tenant_id {tenant_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event not found"
         )
-    
+
     if not event.accommodation_setup_id:
         logger.info(f"No accommodation_setup_id found for event {event_id}")
-        
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No vendor accommodation setup found for this event"
         )
-    
-    # Get participant details
+
+    # Get participant details including accommodation_preference
     participant_query = text("""
-        SELECT ep.id, ep.full_name, ep.email, ep.role, pr.gender_identity
+        SELECT ep.id, ep.full_name, ep.email, ep.role, pr.gender_identity, ep.accommodation_preference
         FROM event_participants ep
         LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
         WHERE ep.id = :participant_id AND ep.event_id = :event_id AND ep.status = 'confirmed'
     """)
     participant = db.execute(participant_query, {
-        "participant_id": participant_id, 
+        "participant_id": participant_id,
         "event_id": event_id
     }).fetchone()
-    
+
     if not participant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Confirmed participant not found"
         )
+
+    # Check if participant is staying at venue - skip booking for those travelling daily
+    if participant.accommodation_preference != 'staying_at_venue':
+        logger.info(f"Participant {participant_id} is travelling daily - skipping auto-booking")
+        return {
+            "message": "Skipped - participant is travelling daily to the event",
+            "participant_name": participant.full_name,
+            "accommodation_preference": participant.accommodation_preference
+        }
     
     # Check if already booked
     existing_booking = text("""

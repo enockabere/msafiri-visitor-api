@@ -209,12 +209,11 @@ def restore_complete_form_fields(
         {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": json.dumps(["On contract", "Between contracts"]), "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
         {"field_name": "contractType", "field_label": "Contract Type", "field_type": "select", "field_options": json.dumps(["International", "National"]), "is_required": False, "order_index": 105, "section": "personal"},
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
-        {"field_name": "sex", "field_label": "Sex", "field_type": "select", "field_options": json.dumps(["Male", "Female", "Prefer not to disclose"]), "is_required": False, "order_index": 107, "section": "personal"},
-        {"field_name": "pronouns", "field_label": "Pronouns", "field_type": "text", "is_required": False, "order_index": 108, "section": "personal"},
-        {"field_name": "nationality", "field_label": "What is your nationality?", "field_type": "select", "field_options": json.dumps(["API_COUNTRIES"]), "is_required": False, "order_index": 109, "section": "personal"},
-        {"field_name": "currentPosition", "field_label": "Current Position", "field_type": "text", "is_required": False, "order_index": 110, "section": "personal"},
-        {"field_name": "countryOfWork", "field_label": "Country of Work", "field_type": "select", "field_options": json.dumps(["API_COUNTRIES"]), "is_required": False, "order_index": 111, "section": "personal"},
-        {"field_name": "projectOfWork", "field_label": "Project of Work", "field_type": "text", "is_required": False, "order_index": 112, "section": "personal"},
+        {"field_name": "pronouns", "field_label": "Pronouns", "field_type": "text", "is_required": False, "order_index": 107, "section": "personal"},
+        {"field_name": "nationality", "field_label": "What is your nationality?", "field_type": "select", "field_options": json.dumps(["API_COUNTRIES"]), "is_required": False, "order_index": 108, "section": "personal"},
+        {"field_name": "currentPosition", "field_label": "Current Position", "field_type": "text", "is_required": False, "order_index": 109, "section": "personal"},
+        {"field_name": "countryOfWork", "field_label": "Country of Work", "field_type": "select", "field_options": json.dumps(["API_COUNTRIES"]), "is_required": False, "order_index": 110, "section": "personal"},
+        {"field_name": "projectOfWork", "field_label": "Project of Work", "field_type": "text", "is_required": False, "order_index": 111, "section": "personal"},
         
         # Contact Details Section
         {"field_name": "personalEmail", "field_label": "Personal/Tembo Email Address", "field_type": "email", "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},

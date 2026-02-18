@@ -51,36 +51,47 @@ async def confirm_attendance(
     db: Session = Depends(get_db)
 ):
     """Confirm attendance for participant"""
-    
+
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id
     ).first()
-    
+
     if not participant:
         raise HTTPException(status_code=404, detail="Participant not found")
-    
+
     if participant.status != "selected":
         raise HTTPException(status_code=400, detail="Only selected participants can confirm attendance")
-    
+
     # Update status to confirmed
     participant.status = "confirmed"
     db.commit()
-    
-    # Trigger auto-booking for confirmed participant
+
+    # Only trigger auto-booking if participant is staying at venue (not travelling daily)
+    # Check accommodation_preference - only book if they said they are NOT travelling daily
+    is_staying_at_venue = participant.accommodation_preference == "staying_at_venue"
+
+    if not is_staying_at_venue:
+        logger.info(f"Participant {participant_id} is travelling daily - skipping auto-booking")
+        return {
+            "message": "Attendance confirmed successfully",
+            "auto_booking": {"message": "Skipped - participant is travelling daily to the event"}
+        }
+
+    # Trigger auto-booking for confirmed participant who is staying at venue
     try:
         from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
         from app.models.user import User
-        
+
         # Create a mock user for auto-booking (system user)
         class MockUser:
             def __init__(self):
                 self.id = 1
                 self.tenant_id = None
                 self.email = "system@msf.org"
-        
+
         mock_user = MockUser()
         tenant_context = "system"
-        
+
         booking_result = _auto_book_participant_internal(
             event_id=participant.event_id,
             participant_id=participant.id,
@@ -88,18 +99,18 @@ async def confirm_attendance(
             current_user=mock_user,
             tenant_context=tenant_context
         )
-        
+
         # Auto-generate proof of accommodation after successful booking
         try:
             await _generate_proof_after_booking(participant.id, participant.event_id, db)
         except Exception as proof_error:
             logger.error(f"Proof generation failed for participant {participant_id}: {str(proof_error)}")
-        
+
         return {
             "message": "Attendance confirmed successfully",
             "auto_booking": booking_result
         }
-        
+
     except Exception as e:
         print(f"Auto-booking failed for participant {participant_id}: {str(e)}")
         return {
