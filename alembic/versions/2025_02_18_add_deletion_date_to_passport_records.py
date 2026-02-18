@@ -1,7 +1,7 @@
 """add deletion_date to passport_records
 
 Revision ID: 2025_02_18_deletion_date
-Revises: 2025_02_18_add_passport_data_fields
+Revises: 2025_02_18_passport_data
 Create Date: 2025-02-18 16:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '2025_02_18_deletion_date'
-down_revision = '2025_02_18_add_passport_data_fields'
+down_revision = '2025_02_18_passport_data'
 branch_labels = None
 depends_on = None
 
