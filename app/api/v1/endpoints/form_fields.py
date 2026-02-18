@@ -528,6 +528,53 @@ def update_all_oc_field_labels(
         "updated_count": updated_count
     }
 
+@router.post("/events/{event_id}/add-msf-email-question")
+def add_msf_email_question_to_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add hasActiveMsfEmail question to existing events"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if field already exists
+    existing = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.field_name == "hasActiveMsfEmail"
+    ).first()
+    
+    if existing:
+        return {"message": "Field already exists", "added": False}
+    
+    # Add the field
+    form_field = FormField(
+        event_id=event_id,
+        field_name="hasActiveMsfEmail",
+        field_label="Do you have an active MSF email address?",
+        field_type="select",
+        field_options=json.dumps(["Yes", "No"]),
+        is_required=True,
+        order_index=201,
+        section="contact",
+        is_protected=True
+    )
+    db.add(form_field)
+    
+    # Update order_index for other contact fields
+    contact_fields = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.section == "contact",
+        FormField.order_index >= 201
+    ).all()
+    
+    for field in contact_fields:
+        field.order_index += 1
+    
+    db.commit()
+    return {"message": "Added hasActiveMsfEmail field", "added": True}
+
 @router.post("/events/{event_id}/initialize-default-fields")
 def initialize_default_form_fields(
     event_id: int,
