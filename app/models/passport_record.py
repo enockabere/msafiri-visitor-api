@@ -34,6 +34,11 @@ class PassportRecord(BaseModel):
         if event_end_date:
             if isinstance(event_end_date, str):
                 event_end_date = datetime.fromisoformat(event_end_date.replace('Z', '+00:00'))
+            elif hasattr(event_end_date, 'date'):
+                # Convert date to datetime
+                from datetime import date
+                if isinstance(event_end_date, date):
+                    event_end_date = datetime.combine(event_end_date, datetime.min.time())
             self.deletion_date = event_end_date + timedelta(days=30)
     
     def days_until_deletion(self):

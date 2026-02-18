@@ -135,6 +135,21 @@ async def upload_passport(
 
     logger.info(f"🚀 PASSPORT UPLOAD START: User={current_user.email}, Event={request.event_id}")
 
+    # Check if event has ended
+    from app.models.event import Event
+    event = db.query(Event).filter(Event.id == request.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if event has ended (don't allow passport upload after event ends)
+    from datetime import date
+    today = date.today()
+    if event.end_date < today:
+        raise HTTPException(
+            status_code=400,
+            detail="Event has ended. Passport upload is no longer available."
+        )
+
     # Validate image format
     try:
         image_data = base64.b64decode(request.image_data)
