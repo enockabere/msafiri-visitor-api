@@ -479,6 +479,40 @@ async def get_passport_record(
         "passport_data": passport_record.to_dict_with_countdown()
     }
 
+@router.delete("/events/{event_id}/passport-record")
+async def delete_passport_record(
+    event_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete passport record for user and event"""
+    
+    passport_record = db.query(PassportRecord).filter(
+        PassportRecord.user_email == current_user.email,
+        PassportRecord.event_id == event_id
+    ).first()
+    
+    if not passport_record:
+        raise HTTPException(
+            status_code=404,
+            detail="No passport record found for this user and event"
+        )
+    
+    # Update participant passport status
+    participant = db.query(EventParticipant).filter(
+        EventParticipant.email == current_user.email,
+        EventParticipant.event_id == event_id
+    ).first()
+    
+    if participant:
+        participant.passport_document = False
+        
+    # Delete the passport record
+    db.delete(passport_record)
+    db.commit()
+    
+    return {"status": "success", "message": "Passport record deleted successfully"}
+
 @router.get("/loi/record/{record_id}")
 async def redirect_to_loi_by_record_id(
     record_id: int,

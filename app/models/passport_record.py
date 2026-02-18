@@ -57,10 +57,15 @@ class PassportRecord(BaseModel):
         return {
             'id': self.id,
             'passport_number': self.passport_number,
+            'given_names': self.given_names,
+            'surname': self.surname,
             'full_name': self.full_name,
             'date_of_birth': self.date_of_birth,
             'date_of_expiry': self.date_of_expiry,
+            'date_of_issue': self.date_of_issue,
+            'gender': self.gender,
             'nationality': self.nationality,
+            'issue_country': self.issue_country,
             'deletion_date': self.deletion_date.isoformat() if self.deletion_date else None,
             'days_until_deletion': self.days_until_deletion(),
         }
