@@ -1,5 +1,5 @@
 # File: app/api/v1/endpoints/vetting_committee.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -860,6 +860,7 @@ def cancel_submission(
 @router.post("/{committee_id}/approve-final", response_model=VettingCommitteeResponse)
 def approve_final(
     committee_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -909,47 +910,23 @@ def approve_final(
         ParticipantSelection.committee_id == committee_id
     ).all()
     
+    participant_ids = []
     for selection in selections:
         participant = db.query(EventParticipant).filter(
             EventParticipant.id == selection.participant_id
         ).first()
         
         if participant:
-            # Update status based on selection
             new_status = "selected" if selection.selected else "not_selected"
             participant.status = new_status
             participant.updated_at = datetime.utcnow()
+            participant_ids.append((participant.id, new_status))
     
     db.commit()
     db.refresh(committee)
     
-    # Send notifications to participants
-    try:
-        from app.api.v1.endpoints.event_registration import send_status_notification
-        import asyncio
-        
-        # Get event for notification context
-        from app.models.event import Event
-        event = db.query(Event).filter(Event.id == committee.event_id).first()
-        
-        # Send notifications to all participants with updated status
-        for selection in selections:
-            participant = db.query(EventParticipant).filter(
-                EventParticipant.id == selection.participant_id
-            ).first()
-            
-            if participant and participant.email and participant.email.strip():
-                status_to_notify = "selected" if selection.selected else "not_selected"
-                try:
-                    # Run async notification
-                    asyncio.create_task(send_status_notification(participant, status_to_notify, db))
-                except Exception as e:
-                    print(f"Failed to send notification to {participant.email}: {e}")
-        
-        print(f"✅ Notifications sent for {len(selections)} participants")
-    except Exception as e:
-        print(f"❌ Error sending notifications: {e}")
-        # Don't fail the approval if notifications fail
+    # Send notifications in background
+    background_tasks.add_task(send_approval_notifications, committee.event_id, participant_ids)
     
     return committee
 
@@ -1059,3 +1036,28 @@ def delete_vetting_committee(
     db.commit()
     
     return {"message": "Vetting committee deleted successfully"}
+
+def send_approval_notifications(event_id: int, participant_ids: list):
+    """Background task to send notifications after approval"""
+    from app.db.database import SessionLocal
+    from app.api.v1.endpoints.event_registration import send_status_notification
+    import asyncio
+    
+    db = SessionLocal()
+    try:
+        for participant_id, status in participant_ids:
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.id == participant_id
+            ).first()
+            
+            if participant and participant.email and participant.email.strip():
+                try:
+                    asyncio.run(send_status_notification(participant, status, db))
+                except Exception as e:
+                    print(f"Failed to send notification to {participant.email}: {e}")
+        
+        print(f"✅ Notifications sent for {len(participant_ids)} participants")
+    except Exception as e:
+        print(f"❌ Error in background notification task: {e}")
+    finally:
+        db.close()

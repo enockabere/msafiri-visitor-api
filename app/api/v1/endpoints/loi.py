@@ -19,19 +19,34 @@ async def get_participant_loi(
     db: Session = Depends(get_db)
 ):
     """Get LOI data for a participant by email and event ID"""
-    
+
     # First, verify the participant exists for this event
     participant = db.query(EventParticipant).filter(
         EventParticipant.email == participant_email,
         EventParticipant.event_id == event_id
     ).first()
-    
+
     if not participant:
         raise HTTPException(
             status_code=404,
             detail="Participant not found for this event"
         )
-    
+
+    # LOI is only available for confirmed participants
+    if participant.status != 'confirmed':
+        raise HTTPException(
+            status_code=400,
+            detail="LOI is only available for confirmed participants. Current status: " + (participant.status or 'unknown')
+        )
+
+    # LOI is only for participants travelling internationally
+    travelling_internationally = getattr(participant, 'travelling_internationally', None) or ''
+    if travelling_internationally.lower() != 'yes':
+        raise HTTPException(
+            status_code=400,
+            detail="LOI is only available for participants travelling internationally"
+        )
+
     # Get the passport record (which contains the record_id for LOI)
     passport_record = db.query(PassportRecord).filter(
         PassportRecord.user_email == participant_email,
@@ -186,36 +201,51 @@ async def check_loi_availability(
     db: Session = Depends(get_db)
 ):
     """Check if LOI is available for a participant"""
-    
+
     # First, verify the participant exists for this event
     participant = db.query(EventParticipant).filter(
         EventParticipant.email == participant_email,
         EventParticipant.event_id == event_id
     ).first()
-    
+
     if not participant:
         return {
             "available": False,
             "message": "Participant not found for this event"
         }
-    
+
+    # LOI is only available for confirmed participants
+    if participant.status != 'confirmed':
+        return {
+            "available": False,
+            "message": "LOI is only available for confirmed participants"
+        }
+
+    # LOI is only for participants travelling internationally
+    travelling_internationally = getattr(participant, 'travelling_internationally', None) or ''
+    if travelling_internationally.lower() != 'yes':
+        return {
+            "available": False,
+            "message": "LOI is only available for participants travelling internationally"
+        }
+
     # Get the passport record
     passport_record = db.query(PassportRecord).filter(
         PassportRecord.user_email == participant_email,
         PassportRecord.event_id == event_id
     ).first()
-    
+
     if not passport_record:
         return {
             "available": False,
             "message": "No LOI record found for this participant"
         }
-    
+
     # Generate slug if it doesn't exist
     if not passport_record.slug:
         passport_record.generate_slug()
         db.commit()
-    
+
     return {
         "available": True,
         "slug": passport_record.slug,
@@ -315,13 +345,28 @@ async def generate_loi_pdf(
             EventParticipant.id == participant_id,
             EventParticipant.event_id == event_id
         ).first()
-        
+
         if not participant:
             raise HTTPException(
                 status_code=404,
                 detail="Participant not found"
             )
-        
+
+        # LOI can only be generated for confirmed participants
+        if participant.status != 'confirmed':
+            raise HTTPException(
+                status_code=400,
+                detail="LOI can only be generated for confirmed participants. Current status: " + (participant.status or 'unknown')
+            )
+
+        # LOI is only for participants travelling internationally
+        travelling_internationally = getattr(participant, 'travelling_internationally', None) or ''
+        if travelling_internationally.lower() != 'yes':
+            raise HTTPException(
+                status_code=400,
+                detail="LOI is only available for participants travelling internationally"
+            )
+
         # Get event details
         # event already fetched above
         
@@ -576,19 +621,34 @@ async def get_loi_data_for_participant(
     db: Session = Depends(get_db)
 ):
     """Get LOI data for mobile app (replaces external API base64)"""
-    
+
     # Get the participant
     participant = db.query(EventParticipant).filter(
         EventParticipant.id == participant_id,
         EventParticipant.event_id == event_id
     ).first()
-    
+
     if not participant:
         raise HTTPException(
             status_code=404,
             detail="Participant not found"
         )
-    
+
+    # LOI can only be accessed for confirmed participants
+    if participant.status != 'confirmed':
+        raise HTTPException(
+            status_code=400,
+            detail="LOI is only available for confirmed participants. Current status: " + (participant.status or 'unknown')
+        )
+
+    # LOI is only for participants travelling internationally
+    travelling_internationally = getattr(participant, 'travelling_internationally', None) or ''
+    if travelling_internationally.lower() != 'yes':
+        raise HTTPException(
+            status_code=400,
+            detail="LOI is only available for participants travelling internationally"
+        )
+
     # Get event details
     from app.models.event import Event
     event = db.query(Event).filter(Event.id == event_id).first()
