@@ -528,6 +528,53 @@ def update_all_oc_field_labels(
         "updated_count": updated_count
     }
 
+@router.post("/events/{event_id}/add-participant-role-question")
+def add_participant_role_question_to_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add participantRole question to existing events"""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if field already exists
+    existing = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.field_name == "participantRole"
+    ).first()
+    
+    if existing:
+        return {"message": "Field already exists", "added": False}
+    
+    # Add the field after genderIdentity
+    form_field = FormField(
+        event_id=event_id,
+        field_name="participantRole",
+        field_label="Participant Role",
+        field_type="select",
+        field_options=json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]),
+        is_required=True,
+        order_index=106,
+        section="personal",
+        is_protected=True
+    )
+    db.add(form_field)
+    
+    # Update order_index for fields after position 105
+    personal_fields = db.query(FormField).filter(
+        FormField.event_id == event_id,
+        FormField.section == "personal",
+        FormField.order_index > 105
+    ).all()
+    
+    for field in personal_fields:
+        field.order_index += 1
+    
+    db.commit()
+    return {"message": "Added participantRole field", "added": True}
+
 @router.post("/events/{event_id}/add-msf-email-question")
 def add_msf_email_question_to_event(
     event_id: int,
@@ -608,6 +655,8 @@ def initialize_default_form_fields(
         {"field_name": "oc", "field_label": "Operation Center (OC)", "field_type": "select", "field_options": json.dumps(["OCA", "OCB", "OCBA", "OCG", "OCP", "WACA"]), "is_required": True, "order_index": 103, "section": "personal", "is_protected": True},
         {"field_name": "contractStatus", "field_label": "Contract Status", "field_type": "select", "field_options": json.dumps(["On contract", "Between contracts"]), "is_required": True, "order_index": 104, "section": "personal", "is_protected": True},
         {"field_name": "genderIdentity", "field_label": "Gender Identity", "field_type": "select", "field_options": json.dumps(["Man", "Woman", "Non-binary", "Prefer to self-describe", "Prefer not to disclose"]), "is_required": True, "order_index": 105, "section": "personal", "is_protected": True},
+        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
+        {"field_name": "participantRole", "field_label": "Participant Role", "field_type": "select", "field_options": json.dumps(["Participant/Visitor", "Facilitator", "Organizer", "Resource Person", "Observer"]), "is_required": True, "order_index": 106, "section": "personal", "is_protected": True},
         
         # Contact Details Section
         {"field_name": "hasActiveMsfEmail", "field_label": "Do you have an active MSF email address?", "field_type": "select", "field_options": json.dumps(["Yes", "No"]), "is_required": True, "order_index": 201, "section": "contact", "is_protected": True},

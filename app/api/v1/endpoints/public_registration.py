@@ -19,6 +19,7 @@ class PublicRegistrationRequest(BaseModel):
     oc: str
     contractStatus: str
     genderIdentity: str
+    participantRole: Optional[str] = "Participant/Visitor"
     personalEmail: str
     phoneNumber: str
     codeOfConductConfirm: str
@@ -190,7 +191,7 @@ async def public_register_for_event(
             event_id=event_id,
             email=primary_email,
             full_name=f"{registration.firstName} {registration.lastName}",
-            role="attendee",
+            role=registration.participantRole or "Participant/Visitor",
             status="registered",
             invited_by="public_form",
             # Basic info
@@ -247,7 +248,7 @@ async def public_register_for_event(
         # Save dynamic field responses that are not standard fields
         standard_fields = {
             'eventId', 'firstName', 'lastName', 'oc', 'contractStatus', 'contractType',
-            'genderIdentity', 'sex', 'pronouns', 'currentPosition', 'countryOfWork',
+            'genderIdentity', 'participantRole', 'sex', 'pronouns', 'currentPosition', 'countryOfWork',
             'projectOfWork', 'personalEmail', 'msfEmail', 'hrcoEmail', 'careerManagerEmail',
             'lineManagerEmail', 'phoneNumber', 'travellingInternationally', 'nationality',
             'accommodationType', 'dietaryRequirements', 'accommodationNeeds', 'dailyMeals',
