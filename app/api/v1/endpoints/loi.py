@@ -4,7 +4,6 @@ from app.db.database import get_db
 from app.models.passport_record import PassportRecord
 from app.models.event_participant import EventParticipant
 from app.models.invitation_template import InvitationTemplate
-import requests
 import os
 import logging
 
@@ -47,99 +46,86 @@ async def get_participant_loi(
             detail="LOI is only available for participants travelling internationally"
         )
 
-    # Get the passport record (which contains the record_id for LOI)
+    # Get the passport record (which contains passport data extracted via Document Intelligence)
     passport_record = db.query(PassportRecord).filter(
         PassportRecord.user_email == participant_email,
         PassportRecord.event_id == event_id
     ).first()
-    
+
     if not passport_record:
         raise HTTPException(
             status_code=404,
             detail="No LOI record found for this participant"
         )
-    
-    # Fetch LOI data from external API using the record_id
-    try:
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
-        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-        
-        headers = {
-            'x-api-key': API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        }
-        
-        payload = {"passport_id": passport_record.record_id}
-        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            # Extract data from JSON-RPC response structure
-            if response_data.get('result', {}).get('status') == 'success':
-                loi_data = response_data['result']['data']
-                return {
-                    "participant_email": participant_email,
-                    "participant_name": participant.full_name,
-                    "event_id": event_id,
-                    "record_id": passport_record.record_id,
-                    "loi_data": loi_data
-                }
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to fetch LOI data from external API"
-                )
-        else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch LOI data from external API: {response.text}"
-            )
-            
-    except requests.RequestException as e:
+
+    # Check if passport data is complete
+    if not passport_record.passport_number:
         raise HTTPException(
-            status_code=500,
-            detail=f"External API error: {str(e)}"
+            status_code=400,
+            detail="Incomplete passport data. Please re-upload your passport."
         )
 
+    # Return passport data from local database
+    loi_data = {
+        'passport_no': passport_record.passport_number,
+        'given_names': passport_record.given_names,
+        'surname': passport_record.surname,
+        'full_name': passport_record.full_name,
+        'date_of_birth': passport_record.date_of_birth,
+        'date_of_expiry': passport_record.date_of_expiry,
+        'date_of_issue': passport_record.date_of_issue,
+        'gender': passport_record.gender,
+        'nationality': passport_record.nationality,
+        'issue_country': passport_record.issue_country
+    }
+
+    return {
+        "participant_email": participant_email,
+        "participant_name": participant.full_name,
+        "event_id": event_id,
+        "record_id": passport_record.record_id,
+        "loi_data": loi_data
+    }
+
 @router.get("/record/{record_id}/loi")
-async def get_loi_by_record_id(record_id: int):
+async def get_loi_by_record_id(
+    record_id: int,
+    db: Session = Depends(get_db)
+):
     """Get LOI data directly by record ID (for public access)"""
-    
-    try:
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{record_id}"
-        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-        
-        headers = {
-            'x-api-key': API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        }
-        
-        payload = {"passport_id": record_id}
-        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            # Extract data from JSON-RPC response structure
-            if response_data.get('result', {}).get('status') == 'success':
-                return response_data['result']['data']
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to fetch LOI data from external API"
-                )
-        else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch LOI data: {response.text}"
-            )
-            
-    except requests.RequestException as e:
+
+    # Find passport record by record_id
+    passport_record = db.query(PassportRecord).filter(
+        PassportRecord.record_id == record_id
+    ).first()
+
+    if not passport_record:
         raise HTTPException(
-            status_code=500,
-            detail=f"External API error: {str(e)}"
+            status_code=404,
+            detail="LOI document not found"
         )
+
+    # Return passport data from local database
+    if not passport_record.passport_number:
+        raise HTTPException(
+            status_code=400,
+            detail="Incomplete passport data"
+        )
+
+    return {
+        'passport_no': passport_record.passport_number,
+        'given_names': passport_record.given_names,
+        'surname': passport_record.surname,
+        'full_name': passport_record.full_name,
+        'date_of_birth': passport_record.date_of_birth,
+        'date_of_expiry': passport_record.date_of_expiry,
+        'date_of_issue': passport_record.date_of_issue,
+        'gender': passport_record.gender,
+        'nationality': passport_record.nationality,
+        'issue_country': passport_record.issue_country,
+        'event_id': passport_record.event_id,
+        'user_email': passport_record.user_email
+    }
 
 @router.get("/slug/{slug}")
 async def get_loi_by_slug(
@@ -147,52 +133,39 @@ async def get_loi_by_slug(
     db: Session = Depends(get_db)
 ):
     """Get LOI data by slug (for public access with hidden record IDs)"""
-    
+
     # Find the passport record by slug
     passport_record = db.query(PassportRecord).filter(
         PassportRecord.slug == slug
     ).first()
-    
+
     if not passport_record:
         raise HTTPException(
             status_code=404,
             detail="LOI document not found"
         )
-    
-    try:
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
-        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-        
-        headers = {
-            'x-api-key': API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-        }
-        
-        payload = {"passport_id": passport_record.record_id}
-        response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            response_data = response.json()
-            # Extract data from JSON-RPC response structure
-            if response_data.get('result', {}).get('status') == 'success':
-                return response_data['result']['data']
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to fetch LOI data from external API"
-                )
-        else:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Failed to fetch LOI data: {response.text}"
-            )
-            
-    except requests.RequestException as e:
+
+    # Return passport data from local database
+    if not passport_record.passport_number:
         raise HTTPException(
-            status_code=500,
-            detail=f"External API error: {str(e)}"
+            status_code=400,
+            detail="Incomplete passport data"
         )
+
+    return {
+        'passport_no': passport_record.passport_number,
+        'given_names': passport_record.given_names,
+        'surname': passport_record.surname,
+        'full_name': passport_record.full_name,
+        'date_of_birth': passport_record.date_of_birth,
+        'date_of_expiry': passport_record.date_of_expiry,
+        'date_of_issue': passport_record.date_of_issue,
+        'gender': passport_record.gender,
+        'nationality': passport_record.nationality,
+        'issue_country': passport_record.issue_country,
+        'event_id': passport_record.event_id,
+        'user_email': passport_record.user_email
+    }
 
 @router.get("/participant/{participant_email}/event/{event_id}/check")
 async def check_loi_availability(
@@ -369,54 +342,39 @@ async def generate_loi_pdf(
 
         # Get event details
         # event already fetched above
-        
-        # Get passport data from external API if available
-        passport_data = {}
-        passport_record = None
-        try:
-            passport_record = db.query(PassportRecord).filter(
-                PassportRecord.user_email == participant.email,
-                PassportRecord.event_id == event_id
-            ).first()
-            
-            if not passport_record:
-                raise HTTPException(
-                    status_code=404,
-                    detail="No passport data found. Please upload passport details first."
-                )
-            
-            API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
-            API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-            
-            headers = {
-                'x-api-key': API_KEY,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            }
-            
-            payload = {"passport_id": passport_record.record_id}
-            response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                
-                if response_data.get('result', {}).get('status') == 'success':
-                    passport_data = response_data['result']['data']
-                    logger.info(f"Passport data fetched successfully")
-                else:
-                    logger.warning(f"External API returned unsuccessful status")
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Could not retrieve passport data from external system"
-                    )
-            else:
-                logger.warning(f"External API returned status {response.status_code}")
-                raise HTTPException(
-                    status_code=400,
-                    detail="Could not retrieve passport data from external system"
-                )
-        except HTTPException:
-            raise
+
+        # Get passport data from local database (extracted via Document Intelligence)
+        passport_record = db.query(PassportRecord).filter(
+            PassportRecord.user_email == participant.email,
+            PassportRecord.event_id == event_id
+        ).first()
+
+        if not passport_record:
+            raise HTTPException(
+                status_code=404,
+                detail="No passport data found. Please upload passport details first."
+            )
+
+        # Check if passport record has the required data
+        if not passport_record.passport_number:
+            raise HTTPException(
+                status_code=400,
+                detail="Incomplete passport data. Please re-upload your passport."
+            )
+
+        # Build passport_data from local database record
+        passport_data = {
+            'passport_no': passport_record.passport_number,
+            'given_names': passport_record.given_names,
+            'surname': passport_record.surname,
+            'date_of_birth': passport_record.date_of_birth,
+            'date_of_expiry': passport_record.date_of_expiry,
+            'date_of_issue': passport_record.date_of_issue,
+            'gender': passport_record.gender,
+            'nationality': passport_record.nationality,
+            'issue_country': passport_record.issue_country
+        }
+        logger.info(f"Passport data loaded from local database for {participant.email}")
         except Exception as e:
             logger.error(f"Error fetching passport data: {str(e)}")
             raise HTTPException(
@@ -652,45 +610,29 @@ async def get_loi_data_for_participant(
     # Get event details
     from app.models.event import Event
     event = db.query(Event).filter(Event.id == event_id).first()
-    
-    # Get passport data from external API if available
-    passport_data = {}
-    try:
-        passport_record = db.query(PassportRecord).filter(
-            PassportRecord.user_email == participant.email,
-            PassportRecord.event_id == event_id
-        ).first()
-        
-        if passport_record:
-            API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/get-passport-data/{passport_record.record_id}"
-            API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-            
-            headers = {
-                'x-api-key': API_KEY,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            }
-            
-            payload = {"passport_id": passport_record.record_id}
-            response = requests.get(API_URL, json=payload, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                if response_data.get('result', {}).get('status') == 'success':
-                    passport_data = response_data['result']['data']
-    except Exception as e:
-        print(f"Warning: Could not fetch passport data: {e}")
-    
-    # Return structured data instead of base64
+
+    # Get passport data from local database
+    passport_record = db.query(PassportRecord).filter(
+        PassportRecord.user_email == participant.email,
+        PassportRecord.event_id == event_id
+    ).first()
+
+    # Return structured data from local database
     return {
         "participant_name": participant.full_name,
         "participant_email": participant.email,
         "event_name": event.title if event else f"Event {event_id}",
         "event_dates": f"{event.start_date.strftime('%B %d')} - {event.end_date.strftime('%B %d, %Y')}" if event and event.start_date and event.end_date else "TBD",
         "event_location": event.location if event else "TBD",
-        "passport_number": passport_data.get('passport_no') or getattr(participant, 'passport_number', None) or 'N/A',
-        "nationality": passport_data.get('nationality') or getattr(participant, 'nationality', None) or 'N/A',
-        "date_of_birth": passport_data.get('date_of_birth') or getattr(participant, 'date_of_birth', None) or 'N/A',
+        "passport_number": passport_record.passport_number if passport_record else 'N/A',
+        "nationality": passport_record.nationality if passport_record else 'N/A',
+        "date_of_birth": passport_record.date_of_birth if passport_record else 'N/A',
+        "date_of_issue": passport_record.date_of_issue if passport_record else 'N/A',
+        "date_of_expiry": passport_record.date_of_expiry if passport_record else 'N/A',
+        "given_names": passport_record.given_names if passport_record else 'N/A',
+        "surname": passport_record.surname if passport_record else 'N/A',
+        "gender": passport_record.gender if passport_record else 'N/A',
+        "issue_country": passport_record.issue_country if passport_record else 'N/A',
         "loi_url": f"/v1/loi/events/{event_id}/participant/{participant_id}/generate",
         "has_template": True
     }

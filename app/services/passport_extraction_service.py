@@ -64,10 +64,12 @@ class PassportExtractionService:
                 "date_of_birth": None,
                 "passport_number": None,
                 "expiry_date": None,
+                "date_of_issue": None,
                 "nationality": None,
                 "gender": None,
                 "issue_country": None,
-                "confidence_scores": {}
+                "confidence_scores": {},
+                "ocr_quality_score": None
             }
 
             # Process the first document (passport)
@@ -82,6 +84,7 @@ class PassportExtractionService:
                     "DateOfBirth": "date_of_birth",
                     "DocumentNumber": "passport_number",
                     "DateOfExpiration": "expiry_date",
+                    "DateOfIssue": "date_of_issue",
                     "Nationality": "nationality",
                     "Sex": "gender",
                     "CountryRegion": "issue_country",
@@ -93,7 +96,7 @@ class PassportExtractionService:
                         value = field_value.value
 
                         # Handle date fields
-                        if our_field in ["date_of_birth", "expiry_date"]:
+                        if our_field in ["date_of_birth", "expiry_date", "date_of_issue"]:
                             if value:
                                 if isinstance(value, datetime):
                                     value = value.strftime("%Y-%m-%d")
@@ -110,6 +113,11 @@ class PassportExtractionService:
                     extracted_data["full_name"] = extracted_data["given_names"]
                 elif extracted_data["surname"]:
                     extracted_data["full_name"] = extracted_data["surname"]
+
+                # Calculate OCR quality score (average of all confidence scores)
+                if extracted_data["confidence_scores"]:
+                    scores = list(extracted_data["confidence_scores"].values())
+                    extracted_data["ocr_quality_score"] = sum(scores) / len(scores) if scores else 0.0
 
             logger.info(f"Successfully extracted passport data: {extracted_data['passport_number']}")
             return extracted_data
@@ -160,10 +168,12 @@ class PassportExtractionService:
                 "date_of_birth": None,
                 "passport_number": None,
                 "expiry_date": None,
+                "date_of_issue": None,
                 "nationality": None,
                 "gender": None,
                 "issue_country": None,
-                "confidence_scores": {}
+                "confidence_scores": {},
+                "ocr_quality_score": None
             }
 
             if result.documents:
@@ -176,6 +186,7 @@ class PassportExtractionService:
                     "DateOfBirth": "date_of_birth",
                     "DocumentNumber": "passport_number",
                     "DateOfExpiration": "expiry_date",
+                    "DateOfIssue": "date_of_issue",
                     "Nationality": "nationality",
                     "Sex": "gender",
                     "CountryRegion": "issue_country",
@@ -186,7 +197,7 @@ class PassportExtractionService:
                         field_value = fields[di_field]
                         value = field_value.value
 
-                        if our_field in ["date_of_birth", "expiry_date"]:
+                        if our_field in ["date_of_birth", "expiry_date", "date_of_issue"]:
                             if value:
                                 if isinstance(value, datetime):
                                     value = value.strftime("%Y-%m-%d")
@@ -202,6 +213,11 @@ class PassportExtractionService:
                     extracted_data["full_name"] = extracted_data["given_names"]
                 elif extracted_data["surname"]:
                     extracted_data["full_name"] = extracted_data["surname"]
+
+                # Calculate OCR quality score (average of all confidence scores)
+                if extracted_data["confidence_scores"]:
+                    scores = list(extracted_data["confidence_scores"].values())
+                    extracted_data["ocr_quality_score"] = sum(scores) / len(scores) if scores else 0.0
 
             logger.info(f"Successfully extracted passport data from bytes: {extracted_data['passport_number']}")
             return extracted_data

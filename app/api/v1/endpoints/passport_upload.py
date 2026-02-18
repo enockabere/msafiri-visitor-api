@@ -5,15 +5,23 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.event_participant import EventParticipant
 from app.models.passport_record import PassportRecord
-import requests
+from app.services.passport_extraction_service import passport_extraction_service
 import base64
 from typing import Dict, Any
 from pydantic import BaseModel
 import json
 import hashlib
 import os
+import uuid
+import logging
+from datetime import datetime
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Azure Blob Storage for passport images
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+AZURE_PASSPORTS_CONTAINER = os.getenv("AZURE_PASSPORTS_CONTAINER", "passports")
 
 def _slugify_record_id(record_id: int) -> str:
     """Create a secure slug from record ID to prevent enumeration attacks"""
@@ -45,6 +53,58 @@ def _extract_record_id_from_slug(slug: str) -> int:
             detail="Invalid LOI reference format"
         )
 
+async def upload_passport_to_azure(image_bytes: bytes, user_id: int, content_type: str = "image/jpeg") -> str:
+    """Upload passport image to Azure Blob Storage and return URL."""
+    try:
+        from azure.storage.blob import BlobServiceClient, ContentSettings
+
+        if not AZURE_STORAGE_CONNECTION_STRING:
+            raise HTTPException(
+                status_code=500,
+                detail="Azure Storage is not configured"
+            )
+
+        blob_service_client = BlobServiceClient.from_connection_string(
+            AZURE_STORAGE_CONNECTION_STRING
+        )
+
+        container_client = blob_service_client.get_container_client(AZURE_PASSPORTS_CONTAINER)
+
+        # Create container if it doesn't exist
+        try:
+            container_client.create_container(public_access='blob')
+        except Exception:
+            pass  # Container already exists
+
+        # Generate unique filename
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ext = ".jpg" if "jpeg" in content_type or "jpg" in content_type else ".png"
+        unique_filename = f"passport_{user_id}_{timestamp}_{uuid.uuid4().hex[:8]}{ext}"
+
+        blob_client = container_client.get_blob_client(unique_filename)
+        content_settings = ContentSettings(content_type=content_type)
+
+        blob_client.upload_blob(
+            image_bytes,
+            overwrite=True,
+            content_settings=content_settings
+        )
+
+        return blob_client.url
+
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="Azure Storage SDK not installed"
+        )
+    except Exception as e:
+        logger.error(f"Azure blob upload error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload passport image: {str(e)}"
+        )
+
+
 class PassportUploadRequest(BaseModel):
     image_data: str  # base64 encoded image
     event_id: int
@@ -71,93 +131,105 @@ async def upload_passport(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload passport image for processing"""
-    
-    print(f"🚀 PASSPORT UPLOAD START: User={current_user.email}, Event={request.event_id}")
-    
+    """Upload passport image for processing using Azure Document Intelligence"""
+
+    logger.info(f"🚀 PASSPORT UPLOAD START: User={current_user.email}, Event={request.event_id}")
+
     # Validate image format
     try:
         image_data = base64.b64decode(request.image_data)
-        # Check for common image file signatures
-        if not (image_data.startswith(b'\xff\xd8\xff') or  # JPEG
-                image_data.startswith(b'\x89PNG\r\n\x1a\n') or  # PNG
-                image_data.startswith(b'GIF87a') or  # GIF87a
-                image_data.startswith(b'GIF89a')):  # GIF89a
+        # Check for common image file signatures and determine content type
+        content_type = "image/jpeg"
+        if image_data.startswith(b'\xff\xd8\xff'):  # JPEG
+            content_type = "image/jpeg"
+        elif image_data.startswith(b'\x89PNG\r\n\x1a\n'):  # PNG
+            content_type = "image/png"
+        elif image_data.startswith(b'GIF87a') or image_data.startswith(b'GIF89a'):  # GIF
+            content_type = "image/gif"
+        else:
             raise HTTPException(
                 status_code=400,
                 detail="Only image files (JPEG, PNG, GIF) are supported"
             )
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(
             status_code=400,
             detail="Invalid image data format"
         )
-    
+
     # Verify user is registered for the event
     participant = db.query(EventParticipant).filter(
         EventParticipant.event_id == request.event_id,
         EventParticipant.email == current_user.email
     ).first()
-    
+
     if not participant:
         raise HTTPException(
             status_code=404,
             detail="User not registered for this event"
         )
-    
-    # Call external passport processing API
+
     try:
-        import os
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/extract-passport-data"
-        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-        
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": API_KEY
+        # Upload passport image to Azure Blob Storage
+        file_url = await upload_passport_to_azure(image_data, current_user.id, content_type)
+        logger.info(f"📤 Passport image uploaded to Azure: {file_url}")
+
+        # Extract passport data using Azure Document Intelligence
+        extracted_data = await passport_extraction_service.extract_passport_data_from_bytes(image_data)
+        logger.info(f"📋 Passport data extracted: {extracted_data.get('passport_number', 'N/A')}")
+
+        # Transform extracted data to match the expected format for event checklist
+        # The event checklist expects different field names
+        # Calculate OCR score as percentage for mobile app
+        ocr_quality_score = extracted_data.get("ocr_quality_score") or 0.0
+        # Convert to percentage (0-100) or star rating (1-5) format
+        score_percentage = round(ocr_quality_score * 100, 1) if ocr_quality_score else None
+
+        checklist_extracted_data = {
+            "passport_no": extracted_data.get("passport_number"),
+            "given_names": extracted_data.get("given_names"),
+            "surname": extracted_data.get("surname"),
+            "date_of_birth": extracted_data.get("date_of_birth"),
+            "date_of_expiry": extracted_data.get("expiry_date"),
+            "date_of_issue": extracted_data.get("date_of_issue"),
+            "gender": extracted_data.get("gender"),
+            "nationality": extracted_data.get("nationality"),
+            "issue_country": extracted_data.get("issue_country"),
+            "full_name": extracted_data.get("full_name"),
+            "ocr_quality_score": ocr_quality_score,
+            "score": score_percentage,  # For mobile app compatibility
+            "confidence_scores": extracted_data.get("confidence_scores", {}),
+            "file_url": file_url
         }
-        
-        payload = {
-            "image_data": request.image_data
-        }
-        
-        response = requests.post(API_URL, json=payload, headers=headers, timeout=30)
-        
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to process passport image"
-            )
-        
-        result = response.json()
-        
-        if result.get("result", {}).get("status") != "success":
-            raise HTTPException(
-                status_code=400,
-                detail="Passport processing failed"
-            )
-        
-        # Get the record ID but don't save it yet - only save after confirmation
-        record_id = result["result"]["record_id"]
-        
-        # For upload, we don't have a database record yet, so we'll use a placeholder
-        # The actual LOI URL will be generated in the confirm endpoint
+
+        # Create a temporary record ID (will be replaced with actual DB record on confirmation)
+        # Using participant ID + timestamp as a pseudo record ID
+        temp_record_id = int(f"{participant.id}{int(datetime.utcnow().timestamp() % 100000)}")
+
+        # For upload, generate a placeholder LOI URL
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-        loi_url = f"{base_url}/public/loi/pending-{record_id}"
-        
-        print(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}, RecordID={record_id}")
-        
+        loi_url = f"{base_url}/public/loi/pending-{temp_record_id}"
+
+        logger.info(f"✅ PASSPORT UPLOAD SUCCESS: User={current_user.email}, Event={request.event_id}")
+
         return {
             "status": "success",
-            "extracted_data": result["result"]["extracted_data"],
-            "record_id": record_id,
+            "extracted_data": checklist_extracted_data,
+            "record_id": temp_record_id,
+            "file_url": file_url,
             "loi_url": loi_url,
-            "message": "Passport data extracted successfully"
+            "message": "Passport data extracted successfully using Document Intelligence"
         }
-        
-    except requests.RequestException as e:
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Passport processing error: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"External API error: {str(e)}"
+            detail=f"Failed to process passport: {str(e)}"
         )
 
 @router.post("/confirm-passport")
@@ -166,10 +238,10 @@ async def confirm_passport(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Confirm passport data and update checklist"""
-    
-    print(f"📋 PASSPORT CONFIRM START: User={current_user.email}, RecordID={request.record_id}")
-    
+    """Confirm passport data and update checklist - stores data locally using Document Intelligence"""
+
+    logger.info(f"📋 PASSPORT CONFIRM START: User={current_user.email}, RecordID={request.record_id}")
+
     # Validate all required fields are not empty
     required_fields = {
         'passport_no': request.passport_no,
@@ -182,181 +254,116 @@ async def confirm_passport(
         'gender': request.gender,
         'nationality': request.nationality
     }
-    
+
     # Check for empty or placeholder values
     invalid_date_patterns = ['', 'YYYY-MM-DD', 'yyyy-mm-dd', 'DD/MM/YYYY', 'MM/DD/YYYY']
-    
+
     empty_fields = []
     for field, value in required_fields.items():
         if not value or not value.strip():
             empty_fields.append(field)
         elif field.startswith('date_') and value.strip() in invalid_date_patterns:
             empty_fields.append(f"{field} (invalid date format)")
-    
+
     if empty_fields:
         raise HTTPException(
             status_code=400,
             detail=f"The following fields are required and cannot be empty: {', '.join(empty_fields)}"
         )
-    
+
     # Additional validation for date_of_issue specifically
     if not request.date_of_issue or request.date_of_issue.strip() in invalid_date_patterns:
         raise HTTPException(
             status_code=400,
             detail="Date of Issue is required and must be a valid date"
         )
-    
-    print(f"📋 VALIDATION: All fields validated successfully")
-    print(f"📋 Date of Issue: '{request.date_of_issue}'")
-    print(f"📋 Passport No: '{request.passport_no}'")
-    print(f"📋 Given Names: '{request.given_names}'")
-    print(f"📋 Surname: '{request.surname}'")
-    
+
+    logger.info(f"📋 VALIDATION: All fields validated successfully")
+
     try:
-        # Update passport data on external API
-        import os
-        API_URL = f"{os.getenv('PASSPORT_API_URL', 'https://ko-hr.kenya.msf.org/api/v1')}/update-passport-data/{request.record_id}"
-        API_KEY = os.getenv('PASSPORT_API_KEY', 'n5BOC1ZH*o64Ux^%!etd4$rfUoj7iQrXSXOgk6uW')
-        
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": API_KEY
-        }
-        
-        # Generate the public LOI URL with slugified record ID
-        import os
-        base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
-        slugified_id = _slugify_record_id(request.record_id)
-        loi_url = f"{base_url}/public/loi/{slugified_id}"
-        
-        print(f"🔗 PUBLIC LOI URL GENERATED: {loi_url}")
-        print(f"🔗 BASE URL FROM ENV: {base_url}")
-        print(f"🔗 RECORD ID: {request.record_id}")
-        print(f"🔗 SLUGIFIED ID: {slugified_id}")
-        print(f"🔗 FRONTEND_URL ENV VAR: {os.getenv('FRONTEND_URL')}")
-        
-        payload = {
-            "passport_no": request.passport_no,
-            "given_names": request.given_names,
-            "surname": request.surname,
-            "issue_country": request.issue_country,
-            "date_of_birth": request.date_of_birth,
-            "date_of_expiry": request.date_of_expiry,
-            "date_of_issue": request.date_of_issue,
-            "gender": request.gender,
-            "nationality": request.nationality,
-            "user_email": request.user_email,
-            "location_id": request.location_id,
-            "confirmed": request.confirmed,
-            "url": loi_url
-        }
-        
-        print(f"🔗 URL IN PAYLOAD (BEING PATCHED): {payload['url']}")
-        print(f"🔗 URL BREAKDOWN:")
-        print(f"🔗   - Base URL: '{base_url}'")
-        print(f"🔗   - Slugified ID: '{slugified_id}'")
-        print(f"🔗   - Full URL: '{loi_url}'")
-        print(f"🔗   - URL Length: {len(loi_url)} characters")
-        
-        print(f"📤 SENDING TO EXTERNAL API: {API_URL}")
-        print(f"📤 HEADERS: {headers}")
-        print(f"📤 PAYLOAD WITH PUBLIC URL: {json.dumps(payload, indent=2)}")
-        print(f"📤 CONFIRMING URL BEING PATCHED TO EXTERNAL API: {payload['url']}")
-        print(f"📤 EXTERNAL API ENDPOINT: {API_URL}")
-        print(f"📤 PAYLOAD URL FIELD: '{payload['url']}'")
-        
-        response = requests.patch(API_URL, json=payload, headers=headers, timeout=30)
-        
-        print(f"📥 EXTERNAL API RESPONSE:")
-        print(f"📥 Status Code: {response.status_code}")
-        print(f"📥 Response Headers: {dict(response.headers)}")
-        print(f"📥 Response Text: {response.text}")
-        print(f"📥 URL PATCH SUCCESS: External API received URL '{payload['url']}'")
-        
-        # Verify what was actually sent
-        if response.status_code in [200, 204]:
-            print(f"✅ PATCH VERIFICATION: URL '{payload['url']}' successfully sent to external API")
-            print(f"✅ PATCH VERIFICATION: Slugified format confirmed: {slugified_id in payload['url']}")
-        else:
-            print(f"❌ PATCH FAILED: URL '{payload['url']}' was rejected by external API")
-        
-        if response.status_code not in [200, 204]:
-            print(f"❌ EXTERNAL API ERROR: Status {response.status_code}")
-            print(f"❌ Error Response: {response.text}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to confirm passport data: {response.text}"
-            )
-        
-        # Use event_id from the request
         event_id = request.event_id
-        
-        # Now save the record ID only after successful confirmation
+
+        # Check for existing passport record for this user and event
         existing_record = db.query(PassportRecord).filter(
             PassportRecord.user_email == current_user.email,
             PassportRecord.event_id == event_id
         ).first()
-        
+
         if existing_record:
-            # Update existing record
+            # Update existing record with passport data
             existing_record.record_id = request.record_id
+            existing_record.passport_number = request.passport_no
+            existing_record.given_names = request.given_names
+            existing_record.surname = request.surname
+            existing_record.date_of_birth = request.date_of_birth
+            existing_record.date_of_expiry = request.date_of_expiry
+            existing_record.date_of_issue = request.date_of_issue
+            existing_record.gender = request.gender
+            existing_record.nationality = request.nationality
+            existing_record.issue_country = request.issue_country
             # Generate slug if it doesn't exist
             if not existing_record.slug:
                 existing_record.generate_slug()
             db.commit()
             db.refresh(existing_record)
-            actual_slug = existing_record.slug
+            passport_record = existing_record
         else:
-            # Create new record
+            # Create new passport record with all data
             passport_record = PassportRecord(
                 user_email=current_user.email,
                 event_id=event_id,
-                record_id=request.record_id
+                record_id=request.record_id,
+                passport_number=request.passport_no,
+                given_names=request.given_names,
+                surname=request.surname,
+                date_of_birth=request.date_of_birth,
+                date_of_expiry=request.date_of_expiry,
+                date_of_issue=request.date_of_issue,
+                gender=request.gender,
+                nationality=request.nationality,
+                issue_country=request.issue_country
             )
             # Generate slug for new record
             passport_record.generate_slug()
             db.add(passport_record)
             db.commit()
             db.refresh(passport_record)
-            actual_slug = passport_record.slug
-        print(f"📋 PASSPORT CONFIRMATION: Found event_id: {event_id}")
-        
-        # Update participant passport status for the specific event - no sensitive data stored
+
+        actual_slug = passport_record.slug
+        logger.info(f"📋 PASSPORT CONFIRMATION: Saved passport record with slug: {actual_slug}")
+
+        # Update participant passport status for the specific event
         participant = db.query(EventParticipant).filter(
             EventParticipant.email == current_user.email,
             EventParticipant.event_id == event_id
         ).first()
-        
-        print(f"📋 PASSPORT CONFIRMATION: Looking for participant with email: {current_user.email}, event_id: {event_id}")
-        print(f"📋 PASSPORT CONFIRMATION: Found participant: {participant is not None}")
-        
+
         completion_status = False
         if participant:
-            print(f"📋 PASSPORT CONFIRMATION: Updating participant {participant.id} passport status to True")
+            logger.info(f"📋 PASSPORT CONFIRMATION: Updating participant {participant.id} passport status to True")
             participant.passport_document = True
             db.commit()
             db.refresh(participant)
             completion_status = True
-            print(f"✅ PASSPORT CONFIRMATION SUCCESS: Participant {participant.id} passport_document=True")
-            print(f"✅ DATABASE UPDATE: passport_document set to True for participant {participant.id}")
+            logger.info(f"✅ PASSPORT CONFIRMATION SUCCESS: Participant {participant.id} passport_document=True")
         else:
-            print(f"⚠️ PASSPORT CONFIRMATION WARNING: No participant found for email {current_user.email}, event_id {event_id}")
-        
+            logger.warning(f"⚠️ PASSPORT CONFIRMATION WARNING: No participant found for email {current_user.email}, event_id {event_id}")
+
         # Final status check
         final_participant = db.query(EventParticipant).filter(
             EventParticipant.email == current_user.email,
             EventParticipant.event_id == event_id
         ).first()
-        
+
         final_status = final_participant.passport_document if final_participant else False
-        print(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
-        
+        logger.info(f"🏁 PASSPORT PROCESS COMPLETE: User={current_user.email}, Event={event_id}, FinalStatus={final_status}")
+
         # Generate the public LOI URL for mobile app using actual database slug
         base_url = os.getenv('FRONTEND_URL', 'http://localhost:3000').rstrip('/')
         loi_url = f"{base_url}/public/loi/{actual_slug}"
-        
-        print(f"📱 MOBILE APP LOI URL: {loi_url}")
-        
+
+        logger.info(f"📱 MOBILE APP LOI URL: {loi_url}")
+
         api_response = {
             "status": "success",
             "message": "Passport confirmed and checklist updated",
@@ -365,22 +372,18 @@ async def confirm_passport(
             "loi_url": loi_url,
             "record_id": request.record_id
         }
-        
-        print(f"🏁 FINAL API RESPONSE TO MOBILE:")
-        print(f"🏁 {json.dumps(api_response, indent=2)}")
-        print(f"🏁 LOI URL RETURNED TO MOBILE: {api_response['loi_url']}")
-        print(f"🏁 RECORD ID: {api_response['record_id']}")
-        print(f"🏁 FULL PUBLIC URL (FINAL): {loi_url}")
-        print(f"🔒 SECURITY: Record ID {request.record_id} slugified to {slugified_id}")
-        print(f"🔒 SECURITY CHECK: URL contains slugified ID: {slugified_id in loi_url}")
-        print(f"🔒 SECURITY CHECK: URL does NOT contain raw record ID: {str(request.record_id) not in loi_url.replace(str(request.record_id), '')}")
-        
+
+        logger.info(f"🏁 FINAL API RESPONSE: {json.dumps(api_response, indent=2)}")
+
         return api_response
-        
-    except requests.RequestException as e:
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Passport confirmation error: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"External API error: {str(e)}"
+            detail=f"Failed to confirm passport data: {str(e)}"
         )
 
 @router.get("/events/{event_id}/checklist-status")
