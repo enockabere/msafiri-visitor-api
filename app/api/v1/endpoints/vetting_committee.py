@@ -904,8 +904,53 @@ def approve_final(
     committee.approved_at = datetime.utcnow()
     committee.approved_by = current_user.email
     
+    # Update participant statuses based on selections
+    selections = db.query(ParticipantSelection).filter(
+        ParticipantSelection.committee_id == committee_id
+    ).all()
+    
+    for selection in selections:
+        participant = db.query(EventParticipant).filter(
+            EventParticipant.id == selection.participant_id
+        ).first()
+        
+        if participant:
+            # Update status based on selection
+            new_status = "selected" if selection.selected else "not_selected"
+            participant.status = new_status
+            participant.updated_at = datetime.utcnow()
+    
     db.commit()
     db.refresh(committee)
+    
+    # Send notifications to participants
+    try:
+        from app.api.v1.endpoints.event_registration import send_status_notification
+        import asyncio
+        
+        # Get event for notification context
+        from app.models.event import Event
+        event = db.query(Event).filter(Event.id == committee.event_id).first()
+        
+        # Send notifications to all participants with updated status
+        for selection in selections:
+            participant = db.query(EventParticipant).filter(
+                EventParticipant.id == selection.participant_id
+            ).first()
+            
+            if participant and participant.email and participant.email.strip():
+                status_to_notify = "selected" if selection.selected else "not_selected"
+                try:
+                    # Run async notification
+                    asyncio.create_task(send_status_notification(participant, status_to_notify, db))
+                except Exception as e:
+                    print(f"Failed to send notification to {participant.email}: {e}")
+        
+        print(f"✅ Notifications sent for {len(selections)} participants")
+    except Exception as e:
+        print(f"❌ Error sending notifications: {e}")
+        # Don't fail the approval if notifications fail
+    
     return committee
 
 @router.post("/{committee_id}/cancel-approval", response_model=VettingCommitteeResponse)
