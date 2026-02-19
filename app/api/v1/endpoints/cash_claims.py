@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from datetime import datetime
 from decimal import Decimal
@@ -414,12 +415,13 @@ async def add_claim_item(
     )
 
     db.add(item)
-
-    # Update claim total amount
-    claim.total_amount = (claim.total_amount or Decimal('0')) + Decimal(str(item_data.amount))
-
     db.commit()
     db.refresh(item)
+    
+    # Recalculate total from all items
+    total = db.query(func.sum(ClaimItem.amount)).filter(ClaimItem.claim_id == claim_id).scalar() or Decimal('0')
+    claim.total_amount = total
+    db.commit()
 
     return {
         "id": item.id,
