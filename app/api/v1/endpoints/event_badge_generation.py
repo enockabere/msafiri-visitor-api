@@ -128,9 +128,6 @@ async def generate_badges_for_event(
             # Use badge_name if available, otherwise certificate_name, otherwise full_name
             display_badge_name = participant.badge_name or participant.certificate_name or participant.full_name
 
-            # Check if QR code is enabled (default to True if not specified)
-            enable_qr_code = badge_config.enable_qr_code if badge_config.enable_qr_code is not None else True
-
             # Generate badge PDF
             badge_url = await generate_badge(
                 participant_id=participant.id,
@@ -142,8 +139,7 @@ async def generate_badges_for_event(
                 event_dates=event_dates,
                 tagline=tagline,
                 logo_url=badge_config.logo_url or "",
-                avatar_url=badge_config.avatar_url or "",
-                enable_qr_code=enable_qr_code
+                avatar_url=badge_config.avatar_url or ""
             )
             
             # Save or update badge record
