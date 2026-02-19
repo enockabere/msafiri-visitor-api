@@ -494,9 +494,9 @@ async def approve_tenant_perdiem(
                 # Accommodation breakdown
                 per_diem_base_amount=per_diem_base_amount,
                 accommodation_type=request.accommodation_type,
-                accommodation_days=accommodation_days,
-                accommodation_rate=accommodation_rate,
-                accommodation_deduction=accommodation_deduction,
+                accommodation_days=accommodation_days_total,
+                accommodation_rate=accommodation_rate_avg,
+                accommodation_deduction=float(accommodation_deduction),
                 db=db
             )
         
