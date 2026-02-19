@@ -139,7 +139,7 @@ def auto_book_all_participants(
     # Get all confirmed participants who are STAYING AT VENUE (not travelling daily) with gender info
     # Use COALESCE to check gender_identity in both event_participants and public_registrations
     participants_query = text("""
-        SELECT ep.id, ep.full_name, ep.email, ep.role,
+        SELECT ep.id, ep.full_name, ep.email, ep.role, ep.participant_role,
                COALESCE(ep.gender_identity, pr.gender_identity) as gender_identity,
                ep.accommodation_preference
         FROM event_participants ep
@@ -147,7 +147,7 @@ def auto_book_all_participants(
         WHERE ep.event_id = :event_id
         AND ep.status = 'confirmed'
         AND ep.accommodation_preference = 'staying_at_venue'
-        ORDER BY ep.role, COALESCE(ep.gender_identity, pr.gender_identity), ep.id
+        ORDER BY ep.participant_role, ep.role, COALESCE(ep.gender_identity, pr.gender_identity), ep.id
     """)
     participants = db.execute(participants_query, {"event_id": event_id}).fetchall()
 
@@ -168,9 +168,13 @@ def auto_book_all_participants(
     male_visitors = []
     female_visitors = []
     other_visitors = []
-    
+
     for p in participants:
-        if p.role.lower() in ['facilitator', 'organizer']:
+        # Check BOTH role fields - if EITHER says facilitator/organizer, they get single room
+        role_value = (p.role or '').lower()
+        participant_role_value = (p.participant_role or '').lower()
+        is_facilitator = role_value in ['facilitator', 'organizer'] or participant_role_value in ['facilitator', 'organizer']
+        if is_facilitator:
             facilitators.append(p)
         else:
             gender = _normalize_gender(p.gender_identity)
@@ -277,7 +281,7 @@ def _auto_book_participant_internal(
     # Get participant details including accommodation_preference
     # Use COALESCE to check gender_identity in both event_participants and public_registrations
     participant_query = text("""
-        SELECT ep.id, ep.full_name, ep.email, ep.role,
+        SELECT ep.id, ep.full_name, ep.email, ep.role, ep.participant_role,
                COALESCE(ep.gender_identity, pr.gender_identity) as gender_identity,
                ep.accommodation_preference
         FROM event_participants ep
@@ -313,9 +317,11 @@ def _auto_book_participant_internal(
     if db.execute(existing_booking, {"participant_id": participant_id}).fetchone():
         return {"message": "Participant already has accommodation"}
     
-    # Determine room type based on role
-    role = participant.role.lower()
-    if role in ['facilitator', 'organizer']:
+    # Determine room type based on role - check BOTH role fields
+    role_value = (participant.role or '').lower()
+    participant_role_value = (participant.participant_role or '').lower()
+    is_facilitator = role_value in ['facilitator', 'organizer'] or participant_role_value in ['facilitator', 'organizer']
+    if is_facilitator:
         room_type = 'single'
         return _book_single_room(db, event, participant, tenant_id, current_user.id)
     else:
@@ -514,6 +520,7 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
     # Look for unmatched visitor of same gender in single rooms (exclude facilitators/organizers)
     # Use COALESCE to check gender in both event_participants and public_registrations
     # Also use LEFT JOIN so participants without public_registrations are still found
+    # Check BOTH role and participant_role fields to exclude facilitators/organizers
     unmatched_query = text("""
         SELECT aa.id, aa.participant_id, ep.full_name
         FROM accommodation_allocations aa
@@ -522,7 +529,8 @@ def _book_visitor_room(db, event, participant, gender, tenant_id, user_id):
         WHERE aa.event_id = :event_id
         AND aa.room_type = 'single'
         AND aa.status = 'booked'
-        AND LOWER(ep.role) NOT IN ('facilitator', 'organizer')
+        AND LOWER(COALESCE(ep.role, '')) NOT IN ('facilitator', 'organizer')
+        AND LOWER(COALESCE(ep.participant_role, '')) NOT IN ('facilitator', 'organizer')
         AND LOWER(COALESCE(ep.gender_identity, pr.gender_identity, '')) IN :gender_values
         AND aa.participant_id != :current_participant_id
         ORDER BY aa.created_at ASC
@@ -678,8 +686,9 @@ def _try_repair_visitors(db, event, tenant_id, user_id):
     logger.info(f"Running re-pairing for event {event.id}")
 
     # Get all unpaired visitors (single rooms) grouped by gender
+    # Check BOTH role and participant_role fields to exclude facilitators/organizers
     unpaired_query = text("""
-        SELECT aa.id as allocation_id, aa.participant_id, ep.full_name, ep.role,
+        SELECT aa.id as allocation_id, aa.participant_id, ep.full_name, ep.role, ep.participant_role,
                LOWER(COALESCE(ep.gender_identity, pr.gender_identity, '')) as gender
         FROM accommodation_allocations aa
         JOIN event_participants ep ON aa.participant_id = ep.id
@@ -687,7 +696,8 @@ def _try_repair_visitors(db, event, tenant_id, user_id):
         WHERE aa.event_id = :event_id
         AND aa.room_type = 'single'
         AND aa.status = 'booked'
-        AND LOWER(ep.role) NOT IN ('facilitator', 'organizer')
+        AND LOWER(COALESCE(ep.role, '')) NOT IN ('facilitator', 'organizer')
+        AND LOWER(COALESCE(ep.participant_role, '')) NOT IN ('facilitator', 'organizer')
         ORDER BY gender, aa.created_at ASC
     """)
 
