@@ -419,25 +419,129 @@ def update_perdiem_request_by_id(
         logger.error(f"❌ No per diem setup for tenant {event.tenant_id}")
         raise HTTPException(status_code=400, detail="Per diem setup not configured for this tenant")
     
-    request.daily_rate = perdiem_setup.daily_rate
-    request.currency = perdiem_setup.currency
-    logger.info(f"💰 Using tenant setup: {request.currency} {request.daily_rate}")
+    daily_rate = perdiem_setup.daily_rate
+    currency = perdiem_setup.currency
+    logger.info(f"💰 Using tenant setup: {currency} {daily_rate}")
     
     # Update fields
+    if 'arrival_date' in update_data:
+        request.arrival_date = update_data['arrival_date']
+    if 'departure_date' in update_data:
+        request.departure_date = update_data['departure_date']
     if 'requested_days' in update_data:
         request.requested_days = update_data['requested_days']
     if 'purpose' in update_data:
         request.justification = update_data['purpose']
+    if 'approver_title' in update_data:
+        request.approver_title = update_data['approver_title']
+    if 'approver_email' in update_data:
+        request.approver_email = update_data['approver_email']
+    if 'phone_number' in update_data:
+        request.phone_number = update_data['phone_number']
+    if 'email' in update_data:
+        request.email = update_data['email']
     if 'payment_method' in update_data:
         request.payment_method = update_data['payment_method']
     if 'cash_pickup_date' in update_data:
         request.cash_pickup_date = update_data['cash_pickup_date']
+    if 'cash_hours' in update_data:
+        request.cash_hours = update_data['cash_hours']
     if 'mpesa_number' in update_data:
         request.mpesa_number = update_data['mpesa_number']
+    if 'bank_account_id' in update_data:
+        request.bank_account_id = update_data['bank_account_id']
+    if 'accommodation_type' in update_data:
+        request.accommodation_type = update_data['accommodation_type']
+    if 'accommodation_name' in update_data:
+        request.accommodation_name = update_data['accommodation_name']
     
-    request.total_amount = request.daily_rate * request.requested_days
+    # Recalculate base amount
+    base_amount = daily_rate * request.requested_days
     
-    logger.info(f"💵 NEW: {request.currency} {request.daily_rate} x {request.requested_days} = {request.total_amount}")
+    # Get accommodations for deduction calculation
+    from app.models.guesthouse import AccommodationAllocation, VendorAccommodation, GuestHouse, Room
+    
+    accommodations = db.query(AccommodationAllocation).filter(
+        AccommodationAllocation.participant_id == participant.id,
+        AccommodationAllocation.tenant_id == event.tenant_id,
+        AccommodationAllocation.status.in_(["booked", "checked_in"]),
+        AccommodationAllocation.check_in_date <= request.departure_date,
+        AccommodationAllocation.check_out_date >= request.arrival_date
+    ).all()
+    
+    # Calculate accommodation deductions
+    accommodation_deduction = Decimal('0.00')
+    accommodation_details = []
+    
+    for allocation in accommodations:
+        rate_per_day = allocation.rate_per_day
+        
+        # Get rate from guesthouse or vendor if not in allocation
+        if not rate_per_day:
+            if allocation.vendor_accommodation_id:
+                vendor = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.id == allocation.vendor_accommodation_id
+                ).first()
+                if vendor and allocation.board_type:
+                    if allocation.board_type == 'FullBoard':
+                        rate_per_day = vendor.rate_full_board
+                    elif allocation.board_type == 'HalfBoard':
+                        rate_per_day = vendor.rate_half_board
+                    elif allocation.board_type == 'BedAndBreakfast':
+                        rate_per_day = vendor.rate_bed_breakfast
+                    elif allocation.board_type == 'BedOnly':
+                        rate_per_day = vendor.rate_bed_only
+            elif allocation.room_id:
+                room = db.query(Room).filter(Room.id == allocation.room_id).first()
+                if room:
+                    guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                    if guesthouse and allocation.board_type:
+                        if allocation.board_type == 'FullBoard':
+                            rate_per_day = guesthouse.fullboard_rate
+                        elif allocation.board_type == 'HalfBoard':
+                            rate_per_day = guesthouse.halfboard_rate
+                        elif allocation.board_type == 'BedAndBreakfast':
+                            rate_per_day = guesthouse.bed_and_breakfast_rate
+                        elif allocation.board_type == 'BedOnly':
+                            rate_per_day = guesthouse.bed_only_rate
+        
+        if rate_per_day:
+            # Calculate overlapping days
+            overlap_start = max(allocation.check_in_date, request.arrival_date)
+            overlap_end = min(allocation.check_out_date, request.departure_date)
+            overlap_days = (overlap_end - overlap_start).days
+            
+            if overlap_days > 0:
+                deduction = Decimal(str(rate_per_day)) * overlap_days
+                accommodation_deduction += deduction
+                
+                accommodation_details.append({
+                    "name": allocation.guest_name or "Accommodation",
+                    "board_type": allocation.board_type,
+                    "rate_per_day": float(rate_per_day),
+                    "days": overlap_days,
+                    "total": float(deduction)
+                })
+    
+    # Calculate final amount after deductions
+    total_amount = base_amount - accommodation_deduction
+    
+    # Store accommodation breakdown summary
+    accommodation_days_total = sum(detail['days'] for detail in accommodation_details)
+    accommodation_rate_avg = accommodation_deduction / accommodation_days_total if accommodation_days_total > 0 else Decimal('0.00')
+    
+    # Update request with new calculations
+    request.daily_rate = daily_rate
+    request.currency = currency
+    request.per_diem_base_amount = base_amount
+    request.accommodation_deduction = accommodation_deduction
+    request.accommodation_days = accommodation_days_total if accommodation_days_total > 0 else None
+    request.accommodation_rate = accommodation_rate_avg if accommodation_days_total > 0 else None
+    request.total_amount = total_amount
+    
+    logger.info(f"💵 NEW: {currency} {daily_rate} x {request.requested_days} = {total_amount}")
+    logger.info(f"🏨 Accommodation Deduction: {accommodation_deduction}")
+    logger.info(f"💰 Final Amount: {total_amount}")
     
     db.commit()
     db.refresh(request)
