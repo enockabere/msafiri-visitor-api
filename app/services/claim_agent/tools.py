@@ -50,6 +50,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             mpesa_number: M-Pesa phone number. Required if payment_method is MPESA.
             bank_account: Bank account number. Required if payment_method is BANK.
         """
+        logger.info(f"📝 create_claim called: total_amount={total_amount}, expense_type={expense_type}, payment_method={payment_method}")
         # Validate payment details are complete before creating
         if payment_method == "CASH":
             if not cash_pickup_date:
@@ -115,6 +116,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             category: The expense category (e.g. meals, transport, accommodation, supplies, other).
             receipt_image_url: Optional URL of the receipt image.
         """
+        logger.info(f"📝 add_claim_item called: claim_id={claim_id}, merchant={merchant_name}, amount={amount}")
         claim = db.query(Claim).filter(
             Claim.id == claim_id, Claim.user_id == user_id
         ).first()
@@ -137,16 +139,20 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             receipt_image_url=receipt_image_url,
         )
         db.add(item)
+        db.commit()  # Commit first so the item is in the database
+        db.refresh(item)
 
-        # Recalculate total
-        claim.total_amount = (
+        # Recalculate total from all items (including the newly added one)
+        new_total = (
             db.query(func.sum(ClaimItem.amount))
             .filter(ClaimItem.claim_id == claim_id)
             .scalar()
             or Decimal(0)
-        ) + Decimal(str(amount))
+        )
+        claim.total_amount = new_total
         db.commit()
-        db.refresh(item)
+
+        logger.info(f"✅ Item added: id={item.id}, amount={float(item.amount)}, new_claim_total={float(new_total)}")
 
         return {
             "item_id": item.id,
@@ -439,6 +445,7 @@ def get_claim_tools(db: Session, user_id: int) -> list:
         Args:
             image_url: The URL of the receipt image to process.
         """
+        logger.info(f"📷 extract_receipt called: image_url={image_url[:100]}...")
         try:
             service = AzureDocumentIntelligenceService()
             if not service.client:
@@ -491,6 +498,11 @@ def get_claim_tools(db: Session, user_id: int) -> list:
             # Only default to KES if no currency was extracted
             if extracted_data["currency"] is None:
                 extracted_data["currency"] = "KES"
+
+            logger.info(f"✅ Receipt extracted: merchant={extracted_data['merchant_name']}, total={extracted_data['total_amount']}, currency={extracted_data['currency']}, items_count={len(extracted_data['items'])}")
+            if extracted_data['items']:
+                for i, item in enumerate(extracted_data['items']):
+                    logger.info(f"   Item {i+1}: {item.get('name', 'unnamed')} = {item.get('price', 0)}")
 
             return _decimal_to_float(extracted_data)
         except Exception as e:

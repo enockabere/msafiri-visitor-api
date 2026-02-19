@@ -380,6 +380,8 @@ async def add_claim_item(
     current_user: User = Depends(get_current_user)
 ):
     """Add an item to a claim"""
+    logger.info(f"📝 add_claim_item API called: claim_id={claim_id}, merchant={item_data.merchant_name}, amount={item_data.amount}, currency={item_data.currency}")
+
     claim = db.query(Claim).filter(
         Claim.id == claim_id,
         Claim.user_id == current_user.id
@@ -417,11 +419,13 @@ async def add_claim_item(
     db.add(item)
     db.commit()
     db.refresh(item)
-    
+
     # Recalculate total from all items
     total = db.query(func.sum(ClaimItem.amount)).filter(ClaimItem.claim_id == claim_id).scalar() or Decimal('0')
     claim.total_amount = total
     db.commit()
+
+    logger.info(f"✅ Item added: id={item.id}, amount={float(item.amount)}, new_claim_total={float(total)}")
 
     return {
         "id": item.id,
