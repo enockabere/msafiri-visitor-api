@@ -1155,21 +1155,168 @@ async def update_participant_travel_details(
         participant.badge_name = travel_data['badge_name']
         print(f"🔥 API: Updated badge_name: {travel_data['badge_name']}")
     
+    # If participant is "selected", submitting travel details confirms them
+    status_updated = False
+    if participant.status == "selected":
+        participant.status = "confirmed"
+        status_updated = True
+        logger.info(f"📋 Participant {participant_id} status updated to 'confirmed'")
+
     try:
         db.commit()
         print(f"🔥 API: DATABASE COMMIT SUCCESSFUL - Travel details saved!")
         logger.info(f"✅ Travel details updated successfully for participant {participant_id}")
-        
+
+        # Auto-book accommodation if participant selected "staying_at_venue"
+        auto_booking_result = None
+        proof_result = None
+
+        # Trigger auto-booking for confirmed participants who want to stay at venue
+        if participant.accommodation_preference == "staying_at_venue" and participant.status == "confirmed":
+            logger.info(f"🏨 Triggering auto-booking for participant {participant_id}")
+            try:
+                from app.api.v1.endpoints.auto_booking import _auto_book_participant_internal
+
+                # Get event's tenant_id for proper context
+                event = db.query(Event).filter(Event.id == participant.event_id).first()
+                if not event:
+                    raise Exception(f"Event {participant.event_id} not found")
+
+                # Create a mock user for auto-booking (system user)
+                class MockUser:
+                    def __init__(self, tenant_id):
+                        self.id = 1
+                        self.tenant_id = tenant_id
+                        self.email = "system@msf.org"
+
+                mock_user = MockUser(event.tenant_id)
+                # Pass tenant_id as string number for proper resolution
+                tenant_context = str(event.tenant_id)
+
+                auto_booking_result = _auto_book_participant_internal(
+                    event_id=participant.event_id,
+                    participant_id=participant.id,
+                    db=db,
+                    current_user=mock_user,
+                    tenant_context=tenant_context
+                )
+                logger.info(f"✅ Auto-booking completed: {auto_booking_result}")
+
+                # Auto-generate proof of accommodation after successful booking
+                try:
+                    proof_result = await _generate_proof_for_participant(participant.id, participant.event_id, db)
+                    logger.info(f"✅ Proof of accommodation generated: {proof_result}")
+                except Exception as proof_error:
+                    logger.error(f"❌ Proof generation failed: {str(proof_error)}")
+                    proof_result = {"error": str(proof_error)}
+
+            except Exception as booking_error:
+                logger.error(f"❌ Auto-booking failed for participant {participant_id}: {str(booking_error)}")
+                auto_booking_result = {"error": str(booking_error)}
+
         return {
             "message": "Travel details updated successfully",
-            "participant_id": participant_id
+            "participant_id": participant_id,
+            "status": participant.status,
+            "status_updated": status_updated,
+            "auto_booking": auto_booking_result,
+            "proof_of_accommodation": proof_result
         }
-        
+
     except Exception as e:
         db.rollback()
         print(f"🔥 API: DATABASE COMMIT FAILED: {e}")
         logger.error(f"❌ Failed to update travel details: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update travel details: {str(e)}")
+
+
+async def _generate_proof_for_participant(participant_id: int, event_id: int, db: Session):
+    """Generate proof of accommodation after successful booking"""
+    try:
+        from sqlalchemy import text
+        from app.services.proof_of_accommodation import generate_proof_of_accommodation
+        from datetime import datetime
+
+        # Get accommodation allocation details
+        allocation_query = text("""
+            SELECT aa.id as allocation_id, aa.vendor_accommodation_id, aa.room_type,
+                   aa.check_in_date, aa.check_out_date,
+                   va.vendor_name, va.location,
+                   ep.full_name, ep.email,
+                   e.title as event_name, e.start_date, e.end_date,
+                   t.name as tenant_name,
+                   pt.template_content, pt.logo_url, pt.signature_url, pt.enable_qr_code
+            FROM accommodation_allocations aa
+            JOIN vendor_accommodations va ON aa.vendor_accommodation_id = va.id
+            JOIN event_participants ep ON aa.participant_id = ep.id
+            JOIN events e ON aa.event_id = e.id
+            LEFT JOIN tenants t ON e.tenant_id = t.id
+            LEFT JOIN poa_templates pt ON va.id = pt.vendor_accommodation_id
+            WHERE aa.participant_id = :participant_id AND aa.event_id = :event_id
+            AND aa.status != 'cancelled'
+            ORDER BY aa.created_at DESC
+            LIMIT 1
+        """)
+
+        allocation = db.execute(allocation_query, {
+            "participant_id": participant_id,
+            "event_id": event_id
+        }).fetchone()
+
+        if not allocation:
+            return {"message": "No allocation found for participant"}
+
+        if not allocation.template_content:
+            return {"message": "No POA template configured for this accommodation"}
+
+        # Format dates
+        check_in_date = allocation.check_in_date.strftime('%B %d, %Y') if allocation.check_in_date else 'TBD'
+        check_out_date = allocation.check_out_date.strftime('%B %d, %Y') if allocation.check_out_date else 'TBD'
+        event_dates = f"{check_in_date} - {check_out_date}"
+
+        # Generate proof PDF
+        pdf_url, poa_slug = await generate_proof_of_accommodation(
+            participant_id=participant_id,
+            event_id=event_id,
+            allocation_id=allocation.allocation_id,
+            template_html=allocation.template_content,
+            hotel_name=allocation.vendor_name,
+            hotel_address=allocation.location or "Address TBD",
+            check_in_date=check_in_date,
+            check_out_date=check_out_date,
+            room_type=allocation.room_type.capitalize() if allocation.room_type else "Standard",
+            event_name=allocation.event_name,
+            event_dates=event_dates,
+            participant_name=allocation.full_name,
+            tenant_name=allocation.tenant_name or "Organization",
+            logo_url=allocation.logo_url,
+            signature_url=allocation.signature_url,
+            enable_qr_code=allocation.enable_qr_code or True
+        )
+
+        # Update participant record with proof URL
+        db.execute(text("""
+            UPDATE event_participants
+            SET proof_of_accommodation_url = :proof_url,
+                proof_generated_at = :generated_at,
+                poa_slug = :poa_slug
+            WHERE id = :participant_id
+        """), {
+            "proof_url": pdf_url,
+            "generated_at": datetime.utcnow(),
+            "poa_slug": poa_slug,
+            "participant_id": participant_id
+        })
+
+        db.commit()
+
+        return {"proof_url": pdf_url, "poa_slug": poa_slug}
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"❌ Failed to generate proof: {str(e)}")
+        raise
+
 
 @router.post("/user/update-fcm-token")
 async def update_fcm_token(
