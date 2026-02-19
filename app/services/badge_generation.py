@@ -37,9 +37,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
         'tagline': data.get('tagline', ''),
         'currentDate': datetime.now().strftime('%B %d, %Y'),
         'logo': data.get('logo', ''),
-        'qrCode': data.get('qr_code', '') or data.get('qrCode', ''),
-        'qr_code': data.get('qr_code', '') or data.get('qrCode', ''),
-        'QR': data.get('qr_code', '') or data.get('QR', ''),
+        'qrCode': data.get('qr_code', ''),
     }
 
     # Replace each variable with both {{variable}} and {{{variable}}} formats
@@ -49,7 +47,7 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
             img_tag = f'<img src="{value}" alt="Logo" style="max-width:150px;max-height:100px" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
-        elif key in ['qr_code', 'qrCode', 'QR'] and value and (value.startswith('http') or value.startswith('data:image')):
+        elif key in ['qr_code', 'qrCode', 'QR'] and value and value.startswith('http'):
             img_tag = f'<img src="{value}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
             result = result.replace(f'{{{{{key}}}}}', img_tag)
             result = result.replace(f'{{{{{{{key}}}}}}}', img_tag)
@@ -72,16 +70,13 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     try:
         from weasyprint import HTML, CSS
 
-        # Badge-specific CSS for proper sizing
+        # Minimal CSS that doesn't override template styles
         css_string = """
             @page {
-                size: 4in 6in;
-                margin: 0;
+                size: A4 portrait;
+                margin: 0.5cm;
             }
-            body {
-                margin: 0;
-                padding: 0;
-            }
+            /* Preserve original template styles */
         """
 
         css = CSS(string=css_string)
@@ -153,8 +148,7 @@ async def generate_badge(
     end_date: str = "",
     participant_role: str = "Participant",
     logo_url: str = "",
-    avatar_url: str = "",
-    enable_qr_code: bool = True
+    avatar_url: str = ""
 ) -> str:
     """
     Generate complete badge PDF and upload to Cloudinary.
@@ -162,38 +156,14 @@ async def generate_badge(
     try:
         logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
 
-        # Generate QR code as base64 data URI (same as LOI)
-        import qrcode
-        from io import BytesIO
-        import base64
-        
+        # Generate QR code URL that points to the badge itself
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        
-        # Generate QR code with same settings as LOI
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=6,
-            border=2,
-        )
-        qr.add_data(badge_view_url)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white")
-        
-        # Convert to base64 data URI
-        buffered = BytesIO()
-        qr_img.save(buffered, format="PNG")
-        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-        qr_code_data_uri = f"data:image/png;base64,{qr_base64}"
-        
-        logger.info(f"QR code generated as base64 data URI")
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
 
-        # Prepare data for template
-        display_name = badge_name if badge_name else participant_name
-
+        # Prepare data for template - only use template variables, no text replacement
         template_data = {
-            'participant_name': display_name,
+            'participant_name': participant_name,
             'badge_name': badge_name,
             'event_name': event_name,
             'event_title': event_name,
@@ -204,190 +174,25 @@ async def generate_badge(
             'participant_role': participant_role,
             'tagline': tagline,
             'badge_tagline': tagline,
-            'qr_code': qr_code_data_uri,
-            'qrCode': qr_code_data_uri,
-            'QR': qr_code_data_uri,
+            'qr_code': qr_code_url,
+            'qrCode': qr_code_url,  # Alternative QR code variable name
+            'QR': qr_code_url,      # Another alternative
             'logo': logo_url if logo_url else '',
             'avatar': avatar_url if avatar_url else '',
         }
 
-        logger.info(f"Template data prepared with QR code data URI")
+        logger.info(f"Template data: {template_data}")
 
-        # Use original badge design matching ParticipantBadge.tsx
-        personalized_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Badge</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    width: 4in;
-                    height: 6in;
-                    margin: 0;
-                    padding: 0;
-                    background: white;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                }}
-                .badge-wrapper {{
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: #f3f4f6;
-                }}
-                .badge-container {{
-                    width: 320px;
-                    height: 480px;
-                    background: white;
-                    border-radius: 24px;
-                    overflow: hidden;
-                    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-                }}
-                .side-dots {{
-                    width: 32px;
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-around;
-                    align-items: center;
-                    padding: 32px 0;
-                    z-index: 10;
-                }}
-                .dot {{
-                    width: 12px;
-                    height: 12px;
-                    border-radius: 50%;
-                    background: #d1d5db;
-                }}
-                .top-section {{
-                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
-                    padding: 48px 32px 64px;
-                    min-height: 280px;
-                    text-align: center;
-                    color: white;
-                }}
-                .event-logo {{
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 12px;
-                    margin-bottom: 24px;
-                }}
-                .logo-icon {{
-                    width: 40px;
-                    height: 40px;
-                    background: #2563eb;
-                    border-radius: 8px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 20px;
-                    font-weight: bold;
-                }}
-                .logo-text {{
-                    font-size: 18px;
-                    font-weight: bold;
-                    letter-spacing: 2px;
-                }}
-                .event-title {{
-                    font-size: 32px;
-                    font-weight: 900;
-                    margin-bottom: 12px;
-                    letter-spacing: -0.5px;
-                    line-height: 1.1;
-                }}
-                .event-location, .event-date {{
-                    font-size: 14px;
-                    color: #d1d5db;
-                    margin: 8px 0;
-                }}
-                .qr-container {{
-                    display: flex;
-                    justify-content: center;
-                    margin-top: 32px;
-                }}
-                .qr-box {{
-                    background: white;
-                    padding: 12px;
-                    border-radius: 12px;
-                    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-                }}
-                .qr-box img {{
-                    width: 80px;
-                    height: 80px;
-                    display: block;
-                }}
-                .bottom-section {{
-                    background: white;
-                    padding: 24px 32px;
-                    min-height: 200px;
-                    text-align: center;
-                }}
-                .participant-name {{
-                    font-size: 28px;
-                    font-weight: 900;
-                    color: #111827;
-                    margin-bottom: 12px;
-                    letter-spacing: -0.5px;
-                    line-height: 1.2;
-                }}
-                .participant-email {{
-                    font-size: 11px;
-                    color: #6b7280;
-                    font-weight: 500;
-                    word-break: break-all;
-                    padding: 0 8px;
-                }}
-                .bottom-bar {{
-                    background: #2563eb;
-                    color: white;
-                    padding: 16px;
-                    text-align: center;
-                    margin-top: 32px;
-                    border-radius: 0 0 24px 24px;
-                }}
-                .bottom-bar p {{
-                    font-size: 12px;
-                    font-weight: bold;
-                    text-transform: uppercase;
-                    letter-spacing: 3px;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="badge-wrapper">
-                <div class="badge-container">
-                    <div class="top-section">
-                        <div class="event-logo">
-                            <div class="logo-icon">★</div>
-                            <span class="logo-text">EVENT</span>
-                        </div>
-                        <h1 class="event-title">{event_name}</h1>
-                        <div class="event-location">📍 {tagline or 'Event Location'}</div>
-                        <div class="event-date">📅 {event_dates}</div>
-                        <div class="qr-container">
-                            <div class="qr-box">
-                                <img src="{qr_code_data_uri}" alt="QR Code" />
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bottom-section">
-                        <h2 class="participant-name">{display_name}</h2>
-                        <p class="participant-email">{participant_role}</p>
-                        <div class="bottom-bar">
-                            <p>Participant</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        # Replace variables in template - avoid any text replacements that cause escaping
+        personalized_html = replace_template_variables(template_html, template_data)
         
-        logger.info("Using original badge design matching ParticipantBadge.tsx")
+        # Fallback: Replace static "QR" text with QR code image if no variable was found
+        if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
+            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
+            # Replace standalone "QR" text (not part of variables)
+            personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
+        
+        logger.info(f"Final HTML preview: {personalized_html[:500]}...")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
