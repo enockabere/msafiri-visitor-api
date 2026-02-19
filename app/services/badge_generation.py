@@ -210,84 +210,29 @@ async def generate_badge(
 
         logger.info(f"Template data prepared with QR code data URI")
 
-        # TEMPORARY: Gradually add template elements to find what breaks QR rendering
-        personalized_html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <title>Badge</title>
-            <style>
-                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-                body {{
-                    width: 400px;
-                    height: 600px;
-                    margin: 0;
-                    padding: 20px;
-                    background: white;
-                }}
-                .badge-container {{
-                    width: 100%;
-                    height: 100%;
-                    border: 2px solid #ccc;
-                    position: relative;
-                }}
-                .top-section {{
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 10px;
-                    background: #f5f5f5;
-                }}
-                .logo-container img {{
-                    max-width: 150px;
-                    max-height: 100px;
-                }}
-                .qr-top-right {{
-                    width: 100px;
-                    height: 100px;
-                    background: white;
-                    border: 1px solid #ddd;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }}
-                .qr-top-right img {{
-                    width: 80px;
-                    height: 80px;
-                    display: block;
-                }}
-                .participant-info {{
-                    padding: 20px;
-                    text-align: center;
-                }}
-                .participant-name {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #dc2626;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="badge-container">
-                <div class="top-section">
-                    <div class="logo-container">
-                        <img src="{logo_url}" alt="Logo" />
-                    </div>
-                    <div class="qr-top-right">
-                        <img src="{qr_code_data_uri}" alt="QR Code" />
-                    </div>
-                </div>
-                <div class="participant-info">
-                    <div class="participant-name">{display_name}</div>
-                    <p>{event_name}</p>
-                    <p>{event_dates}</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        # Use original template and inject QR code properly
+        personalized_html = replace_template_variables(template_html, template_data)
+
+        # Ensure QR section is visible
+        import re
+        personalized_html = re.sub(
+            r'(\.qr-top-right\s*\{[^}]*display\s*:\s*)none',
+            r'\1flex',
+            personalized_html
+        )
         
-        logger.info("Created simplified badge HTML with logo and QR code")
+        # Inject QR code - replace entire qr-inner content
+        if '<div class="qr-inner">' in personalized_html:
+            qr_html = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px;height:80px;display:block;" />'
+            personalized_html = re.sub(
+                r'<div class="qr-inner"[^>]*>.*?</div>',
+                f'<div class="qr-inner" style="background:white;padding:5px;">{qr_html}</div>',
+                personalized_html,
+                flags=re.DOTALL
+            )
+            logger.info("Injected QR code into original template")
+        else:
+            logger.warning("qr-inner div not found in template")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
