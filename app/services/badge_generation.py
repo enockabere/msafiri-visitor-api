@@ -210,7 +210,7 @@ async def generate_badge(
 
         logger.info(f"Template data prepared with QR code data URI")
 
-        # Use simplified working template (don't use replace_template_variables - it breaks QR)
+        # Use simplified working template with gradual CSS additions
         personalized_html = f"""
         <!DOCTYPE html>
         <html>
@@ -236,7 +236,7 @@ async def generate_badge(
                     display: flex;
                     justify-content: space-between;
                     padding: 10px;
-                    background: #f5f5f5;
+                    background: linear-gradient(135deg, #f5f5f5 0%, #e5e7eb 100%);
                 }}
                 .logo-container img {{
                     max-width: 150px;
@@ -247,6 +247,7 @@ async def generate_badge(
                     height: 100px;
                     background: white;
                     border: 1px solid #ddd;
+                    border-radius: 4px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -265,6 +266,18 @@ async def generate_badge(
                     font-weight: bold;
                     color: #dc2626;
                 }}
+                .bottom-section {{
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    right: 0;
+                    height: 150px;
+                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
             </style>
         </head>
         <body>
@@ -282,12 +295,15 @@ async def generate_badge(
                     <p>{event_name}</p>
                     <p>{event_dates}</p>
                 </div>
+                <div class="bottom-section">
+                    <p>MSF Event Badge</p>
+                </div>
             </div>
         </body>
         </html>
         """
         
-        logger.info("Using simplified working badge template")
+        logger.info("Using enhanced badge template with gradients and positioning")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
