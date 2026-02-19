@@ -79,7 +79,8 @@ def refresh_automatic_room_booking(db: Session, event_id: int, tenant_id: int):
             participant_gender = gender_result[0] if gender_result and gender_result[0] else None
 
             # Check if participant is facilitator/organizer - they get single rooms
-            role = (participant.role or '').lower()
+            # Check both role and participant_role fields
+            role = (participant.participant_role or participant.role or '').lower()
             if role in ['facilitator', 'organizer']:
                 facilitators.append(participant)
                 continue
