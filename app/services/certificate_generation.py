@@ -50,15 +50,21 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
         css_string = """
             @page {
                 size: A4 landscape;
-                margin: 1cm;
+                margin: 0;
             }
             body {
                 font-family: 'Arial', 'Helvetica', sans-serif;
                 line-height: 1.6;
                 color: #333;
+                margin: 0;
+                padding: 0;
             }
             h1, h2, h3 {
                 color: #dc2626;
+            }
+            /* Ensure content fits on one page */
+            * {
+                box-sizing: border-box;
             }
         """
 
