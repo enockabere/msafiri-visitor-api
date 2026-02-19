@@ -387,7 +387,7 @@ async def approve_tenant_perdiem(
             request.cost_center = approval_data.get("costCenter")
             request.section = approval_data.get("section")
         
-        # Get per-diem setup for amount calculation and lock in the rates
+        # Get per-diem setup for daily rate and lock it in
         setup = db.query(PerDiemSetup).filter(PerDiemSetup.tenant_id == tenant.id).first()
         daily_rate = float(setup.daily_rate) if setup else 0
         currency = setup.currency if setup else "USD"
@@ -395,44 +395,79 @@ async def approve_tenant_perdiem(
         # Calculate base amount (daily_rate * requested_days)
         per_diem_base_amount = daily_rate * request.requested_days
 
-        # Calculate accommodation deduction based on accommodation_type
-        # Accommodation should only apply to event days, not all requested days
-        accommodation_rate = 0
-        accommodation_deduction = 0
+        # Get accommodation deductions from actual allocations
+        from app.models.guesthouse import AccommodationAllocation, VendorAccommodation, GuestHouse, Room
+        from decimal import Decimal
         
-        # Get event dates to calculate actual event duration
-        event_start = event.start_date
-        event_end = event.end_date
-        event_duration_days = (event_end - event_start).days + 1
-        accommodation_days = event_duration_days  # Accommodation only for event days
+        accommodations = db.query(AccommodationAllocation).filter(
+            AccommodationAllocation.participant_id == request.participant_id,
+            AccommodationAllocation.tenant_id == tenant.id,
+            AccommodationAllocation.status.in_(["booked", "checked_in"]),
+            AccommodationAllocation.check_in_date <= request.departure_date,
+            AccommodationAllocation.check_out_date >= request.arrival_date
+        ).all()
+        
+        accommodation_deduction = Decimal('0.00')
+        accommodation_details = []
+        
+        for allocation in accommodations:
+            rate_per_day = allocation.rate_per_day
+            
+            if not rate_per_day:
+                if allocation.vendor_accommodation_id:
+                    vendor = db.query(VendorAccommodation).filter(
+                        VendorAccommodation.id == allocation.vendor_accommodation_id
+                    ).first()
+                    if vendor and allocation.board_type:
+                        if allocation.board_type == 'FullBoard':
+                            rate_per_day = vendor.rate_full_board
+                        elif allocation.board_type == 'HalfBoard':
+                            rate_per_day = vendor.rate_half_board
+                        elif allocation.board_type == 'BedAndBreakfast':
+                            rate_per_day = vendor.rate_bed_breakfast
+                        elif allocation.board_type == 'BedOnly':
+                            rate_per_day = vendor.rate_bed_only
+                elif allocation.room_id:
+                    room = db.query(Room).filter(Room.id == allocation.room_id).first()
+                    if room:
+                        guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                        if guesthouse and allocation.board_type:
+                            if allocation.board_type == 'FullBoard':
+                                rate_per_day = guesthouse.fullboard_rate
+                            elif allocation.board_type == 'HalfBoard':
+                                rate_per_day = guesthouse.halfboard_rate
+                            elif allocation.board_type == 'BedAndBreakfast':
+                                rate_per_day = guesthouse.bed_and_breakfast_rate
+                            elif allocation.board_type == 'BedOnly':
+                                rate_per_day = guesthouse.bed_only_rate
+            
+            if rate_per_day:
+                overlap_start = max(allocation.check_in_date, request.arrival_date)
+                overlap_end = min(allocation.check_out_date, request.departure_date)
+                overlap_days = (overlap_end - overlap_start).days
+                
+                if overlap_days > 0:
+                    deduction = Decimal(str(rate_per_day)) * overlap_days
+                    accommodation_deduction += deduction
+                    
+                    accommodation_details.append({
+                        "days": overlap_days,
+                        "rate": float(rate_per_day),
+                        "total": float(deduction)
+                    })
+        
+        total_amount = per_diem_base_amount - float(accommodation_deduction)
+        accommodation_days_total = sum(detail['days'] for detail in accommodation_details)
+        accommodation_rate_avg = float(accommodation_deduction) / accommodation_days_total if accommodation_days_total > 0 else 0
 
-        if setup and request.accommodation_type:
-            accommodation_type = request.accommodation_type.lower().replace(' ', '').replace('_', '')
-            if accommodation_type == 'fullboard':
-                accommodation_rate = float(setup.fullboard_rate or 0)
-            elif accommodation_type == 'halfboard':
-                accommodation_rate = float(setup.halfboard_rate or 0)
-            elif accommodation_type in ['bedandbreakfast', 'b&b', 'bb']:
-                accommodation_rate = float(setup.bed_and_breakfast_rate or 0)
-            elif accommodation_type in ['bedonly', 'roomonly']:
-                accommodation_rate = float(setup.bed_only_rate or 0)
-
-            # Calculate total deduction (only for event days)
-            accommodation_deduction = accommodation_rate * accommodation_days
-
-        # Calculate final total amount after deduction
-        total_amount = per_diem_base_amount - accommodation_deduction
-
-        # Lock in the rates at approval time so they don't change later
+        # Lock in the rates at approval time
         request.daily_rate = daily_rate
         request.currency = currency
         request.total_amount = total_amount
-
-        # Save the accommodation deduction breakdown
         request.per_diem_base_amount = per_diem_base_amount
-        request.accommodation_days = accommodation_days
-        request.accommodation_rate = accommodation_rate
-        request.accommodation_deduction = accommodation_deduction
+        request.accommodation_days = accommodation_days_total if accommodation_days_total > 0 else None
+        request.accommodation_rate = accommodation_rate_avg if accommodation_days_total > 0 else None
+        request.accommodation_deduction = float(accommodation_deduction)
         
         # Send email to Finance Admin
         if participant and event:
