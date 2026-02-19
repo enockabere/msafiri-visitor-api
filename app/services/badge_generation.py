@@ -159,26 +159,32 @@ async def generate_badge(
     try:
         logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
 
-        # Generate QR code and save as temporary file for WeasyPrint
+        # Generate QR code as base64 data URI (same as LOI)
         import qrcode
         from io import BytesIO
-        import tempfile
-        import os
+        import base64
         
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
         
-        # Generate QR code image
-        qr = qrcode.QRCode(version=1, box_size=10, border=1)
+        # Generate QR code with same settings as LOI
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=6,
+            border=2,
+        )
         qr.add_data(badge_view_url)
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color="black", back_color="white")
         
-        # Save to temporary file
-        temp_qr_path = f"/tmp/qr_badge_{event_id}_{participant_id}.png"
-        qr_img.save(temp_qr_path)
+        # Convert to base64 data URI
+        buffered = BytesIO()
+        qr_img.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        qr_code_data_uri = f"data:image/png;base64,{qr_base64}"
         
-        logger.info(f"QR code saved to temp file: {temp_qr_path}")
+        logger.info(f"QR code generated as base64 data URI")
 
         # Prepare data for template
         display_name = badge_name if badge_name else participant_name
@@ -195,14 +201,14 @@ async def generate_badge(
             'participant_role': participant_role,
             'tagline': tagline,
             'badge_tagline': tagline,
-            'qr_code': temp_qr_path,
-            'qrCode': temp_qr_path,
-            'QR': temp_qr_path,
+            'qr_code': qr_code_data_uri,
+            'qrCode': qr_code_data_uri,
+            'QR': qr_code_data_uri,
             'logo': logo_url if logo_url else '',
             'avatar': avatar_url if avatar_url else '',
         }
 
-        logger.info(f"Template data prepared with QR code file path")
+        logger.info(f"Template data prepared with QR code data URI")
 
         # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
@@ -216,39 +222,23 @@ async def generate_badge(
         )
         logger.info("Ensuring .qr-top-right is visible")
 
-        # Replace static "QR" text with actual QR code image (handles nested divs)
-        import re
-        qr_img_tag = f'<img src="file://{temp_qr_path}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
+        # Replace static "QR" text with actual QR code image
+        qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
         
-        # Replace <div class="qr-inner">QR</div> or similar patterns
+        # Replace <div class="qr-inner">QR</div>
         personalized_html = re.sub(
             r'<div class="qr-inner">QR</div>',
             f'<div class="qr-inner">{qr_img_tag}</div>',
             personalized_html
         )
         
-        # Also handle simple >QR< pattern as fallback
+        # Also handle simple >QR< pattern
         personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
         
         logger.info("Replaced QR placeholder with QR code image")
-        
-        print(f"\n=== FINAL HTML CHECK ===")
-        print(f"Final HTML contains QR file path: {temp_qr_path in personalized_html}")
-        if temp_qr_path in personalized_html:
-            # Find and print context around QR code
-            idx = personalized_html.find(temp_qr_path)
-            context_start = max(0, idx - 100)
-            context_end = min(len(personalized_html), idx + 200)
-            print(f"QR code context: ...{personalized_html[context_start:context_end]}...")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
-        
-        # Clean up temp QR file
-        try:
-            os.remove(temp_qr_path)
-        except:
-            pass
 
         # Generate filename
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

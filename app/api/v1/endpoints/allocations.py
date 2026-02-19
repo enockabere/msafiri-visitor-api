@@ -323,10 +323,10 @@ async def get_event_voucher_allocations(
     tenant_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Get voucher allocations specifically for this event only"""
-    
+    """Get voucher allocations specifically for this event only, including venue details"""
+
     print(f"DEBUG VOUCHER GET: Looking for event_id={event_id}, tenant_id={tenant_id}")
-    
+
     # Only get allocations that are specifically for this event AND have vouchers
     allocations = db.query(EventAllocation).filter(
         EventAllocation.event_id == event_id,
@@ -336,14 +336,33 @@ async def get_event_voucher_allocations(
             EventAllocation.vouchers_per_participant > 0
         )
     ).all()
-    
+
     print(f"DEBUG VOUCHER GET: Found {len(allocations)} voucher allocations for event {event_id}")
     for alloc in allocations:
         print(f"DEBUG VOUCHER GET: Allocation ID={alloc.id}, Event={alloc.event_id}, Vouchers={alloc.drink_vouchers_per_participant}")
-    
-    # Convert to voucher allocation format
+
+    # Convert to voucher allocation format with venue details
     voucher_allocations = []
     for allocation in allocations:
+        # Get associated venues for this allocation
+        venues = []
+        voucher_venues = db.query(VoucherVenue).filter(
+            VoucherVenue.allocation_id == allocation.id
+        ).all()
+
+        for vv in voucher_venues:
+            venue = db.query(VendorAccommodation).filter(
+                VendorAccommodation.id == vv.vendor_accommodation_id
+            ).first()
+            if venue:
+                venues.append({
+                    "id": venue.id,
+                    "name": venue.vendor_name,
+                    "location": venue.location,
+                    "latitude": venue.latitude,
+                    "longitude": venue.longitude
+                })
+
         voucher_allocations.append({
             "id": allocation.id,
             "voucher_type": allocation.voucher_type or "Drinks",
@@ -353,9 +372,10 @@ async def get_event_voucher_allocations(
             "notes": allocation.notes,
             "created_by": allocation.created_by,
             "approved_by": allocation.approved_by,
-            "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+            "created_at": allocation.created_at.isoformat() if allocation.created_at else None,
+            "venues": venues  # New: list of valid venues for this allocation
         })
-    
+
     return voucher_allocations
 
 @router.get("/participant/{participant_id}/vouchers")
@@ -364,7 +384,7 @@ async def get_participant_voucher_allocations(
     event_id: int = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Get all voucher allocations for a specific participant with redemption status"""
+    """Get all voucher allocations for a specific participant with redemption status and venue details"""
 
     # Get participant to verify they exist
     participant = db.query(EventParticipant).filter(
@@ -407,6 +427,25 @@ async def get_participant_voucher_allocations(
         total_redeemed = sum(r.quantity for r in redemptions)
         remaining = total_quantity - total_redeemed
 
+        # Get associated venues for this allocation
+        venues = []
+        voucher_venues = db.query(VoucherVenue).filter(
+            VoucherVenue.allocation_id == allocation.id
+        ).all()
+
+        for vv in voucher_venues:
+            venue = db.query(VendorAccommodation).filter(
+                VendorAccommodation.id == vv.vendor_accommodation_id
+            ).first()
+            if venue:
+                venues.append({
+                    "id": venue.id,
+                    "name": venue.vendor_name,
+                    "location": venue.location,
+                    "latitude": venue.latitude,
+                    "longitude": venue.longitude
+                })
+
         voucher_allocations.append({
             "id": allocation.id,
             "voucher_type": voucher_type,
@@ -415,7 +454,8 @@ async def get_participant_voucher_allocations(
             "remaining_quantity": remaining,
             "allows_over_redemption": voucher_type == "Drinks",
             "status": allocation.status,
-            "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+            "created_at": allocation.created_at.isoformat() if allocation.created_at else None,
+            "venues": venues  # New: list of valid venues for this allocation
         })
 
     return {"allocations": voucher_allocations}
@@ -921,7 +961,7 @@ async def update_voucher_allocation(
     tenant_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Update voucher allocation"""
+    """Update voucher allocation with optional venue updates"""
 
     allocation = db.query(EventAllocation).filter(EventAllocation.id == allocation_id).first()
     if not allocation:
@@ -931,6 +971,7 @@ async def update_voucher_allocation(
     voucher_type = request_data.get("voucher_type")
     vouchers_per_participant = request_data.get("vouchers_per_participant", request_data.get("drink_vouchers_per_participant"))
     notes = request_data.get("notes")
+    venue_ids = request_data.get("venue_ids")  # New: venue IDs for meal vouchers
 
     if voucher_type is not None:
         allocation.voucher_type = voucher_type
@@ -941,6 +982,25 @@ async def update_voucher_allocation(
             allocation.drink_vouchers_per_participant = vouchers_per_participant
     if notes is not None:
         allocation.notes = notes
+
+    # Update venue associations if provided
+    if venue_ids is not None:
+        # Delete existing venue associations
+        db.query(VoucherVenue).filter(VoucherVenue.allocation_id == allocation_id).delete()
+
+        # Create new venue associations
+        meal_types = ["Lunch", "Dinner", "Breakfast"]
+        current_type = voucher_type or allocation.voucher_type
+        if current_type in meal_types:
+            for venue_id in venue_ids:
+                venue = db.query(VendorAccommodation).filter(VendorAccommodation.id == venue_id).first()
+                if venue:
+                    voucher_venue = VoucherVenue(
+                        allocation_id=allocation_id,
+                        vendor_accommodation_id=venue_id,
+                        created_by=request_data.get("updated_by", "admin")
+                    )
+                    db.add(voucher_venue)
 
     db.commit()
     db.refresh(allocation)
