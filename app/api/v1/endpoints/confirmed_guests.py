@@ -13,6 +13,7 @@ router = APIRouter()
 @router.get("/confirmed-guests")
 async def get_confirmed_guests(
     tenant_context: str,
+    event_id: int = None,
     current_user = Depends(deps.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -32,7 +33,7 @@ async def get_confirmed_guests(
     from sqlalchemy import text
     one_month_ago = datetime.now() - timedelta(days=30)
     
-    confirmed_guests = db.query(
+    query = db.query(
         EventParticipant.full_name,
         EventParticipant.email,
         EventParticipant.id.label("participant_id"),
@@ -44,7 +45,13 @@ async def get_confirmed_guests(
         Event.tenant_id == tenant.id,
         EventParticipant.status == "confirmed",
         Event.end_date >= one_month_ago
-    ).all()
+    )
+    
+    # Filter by event_id if provided
+    if event_id:
+        query = query.filter(Event.id == event_id)
+    
+    confirmed_guests = query.all()
     
     # Format response
     guests = []
