@@ -221,14 +221,13 @@ async def generate_badge(
             personalized_html
         )
         
-        # Inject QR code - replace entire qr-inner content
+        # Inject QR code - replace qr-inner content more carefully
         if '<div class="qr-inner">' in personalized_html:
             qr_html = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px;height:80px;display:block;" />'
-            personalized_html = re.sub(
-                r'<div class="qr-inner"[^>]*>.*?</div>',
-                f'<div class="qr-inner" style="background:white;padding:5px;">{qr_html}</div>',
-                personalized_html,
-                flags=re.DOTALL
+            # Simple string replacement for the specific pattern we know exists
+            personalized_html = personalized_html.replace(
+                '<div class="qr-inner">QR</div>',
+                f'<div class="qr-inner" style="background:white;padding:5px;">{qr_html}</div>'
             )
             logger.info("Injected QR code into original template")
         else:
