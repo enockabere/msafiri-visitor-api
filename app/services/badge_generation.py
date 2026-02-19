@@ -243,14 +243,19 @@ async def generate_badge(
                     max-height: 100px;
                 }}
                 .qr-top-right {{
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
                     width: 100px;
-                    height: 100px;
+                    height: 110px;
+                    padding: 5px;
                     background: white;
                     border: 1px solid #ddd;
                     border-radius: 4px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    z-index: 10;
                 }}
                 .qr-top-right img {{
                     width: 80px;
