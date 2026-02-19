@@ -72,13 +72,16 @@ async def html_to_pdf_bytes(html_content: str) -> BytesIO:
     try:
         from weasyprint import HTML, CSS
 
-        # Minimal CSS that doesn't override template styles
+        # Badge-specific CSS for proper sizing
         css_string = """
             @page {
-                size: A4 portrait;
-                margin: 0.5cm;
+                size: 4in 6in;
+                margin: 0;
             }
-            /* Preserve original template styles */
+            body {
+                margin: 0;
+                padding: 0;
+            }
         """
 
         css = CSS(string=css_string)
@@ -220,27 +223,33 @@ async def generate_badge(
             <style>
                 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
                 body {{
-                    width: 400px;
-                    height: 600px;
+                    width: 4in;
+                    height: 6in;
                     margin: 0;
-                    padding: 20px;
+                    padding: 0;
                     background: white;
+                    font-family: Arial, sans-serif;
                 }}
                 .badge-container {{
                     width: 100%;
                     height: 100%;
-                    border: 2px solid #ccc;
                     position: relative;
+                    overflow: hidden;
                 }}
                 .top-section {{
                     display: flex;
                     justify-content: space-between;
-                    padding: 10px;
+                    align-items: flex-start;
+                    padding: 15px;
                     background: linear-gradient(135deg, #f5f5f5 0%, #e5e7eb 100%);
+                    min-height: 120px;
+                }}
+                .logo-container {{
+                    flex: 1;
                 }}
                 .logo-container img {{
-                    max-width: 150px;
-                    max-height: 100px;
+                    max-width: 180px;
+                    max-height: 80px;
                 }}
                 .qr-top-right {{
                     width: 100px;
@@ -258,25 +267,34 @@ async def generate_badge(
                     display: block;
                 }}
                 .participant-info {{
-                    padding: 20px;
+                    padding: 30px 20px;
                     text-align: center;
                 }}
                 .participant-name {{
-                    font-size: 24px;
+                    font-size: 28px;
                     font-weight: bold;
                     color: #dc2626;
+                    margin-bottom: 10px;
+                }}
+                .participant-info p {{
+                    font-size: 14px;
+                    margin: 5px 0;
+                    color: #333;
                 }}
                 .bottom-section {{
                     position: absolute;
                     bottom: 0;
                     left: 0;
                     right: 0;
-                    height: 150px;
+                    height: 120px;
                     background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
                     color: white;
                     display: flex;
+                    flex-direction: column;
                     align-items: center;
                     justify-content: center;
+                    font-size: 16px;
+                    font-weight: 600;
                 }}
             </style>
         </head>
