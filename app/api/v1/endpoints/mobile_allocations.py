@@ -113,6 +113,21 @@ def get_participant_allocations(
 
                 print(f"🔍 ALLOCATIONS DEBUG: Allocation {allocation.id} - Total: {voucher_qty}, Redeemed: {total_redeemed}, Remaining: {remaining}")
 
+                # Get venues for Lunch/Dinner vouchers
+                venues_data = []
+                if voucher_type in ['Lunch', 'Dinner'] and allocation.venue_ids:
+                    from app.models.vendor_accommodation import VendorAccommodation
+                    venue_ids = allocation.venue_ids if isinstance(allocation.venue_ids, list) else []
+                    if venue_ids:
+                        venues = db.query(VendorAccommodation).filter(
+                            VendorAccommodation.id.in_(venue_ids)
+                        ).all()
+                        venues_data = [{
+                            "id": v.id,
+                            "vendor_name": v.vendor_name
+                        } for v in venues]
+                        print(f"🔍 ALLOCATIONS DEBUG: Found {len(venues_data)} venues for {voucher_type}")
+
                 allocation_data = {
                     "id": allocation.id,
                     "participant_id": participant.id,
@@ -125,7 +140,8 @@ def get_participant_allocations(
                     "remaining_quantity": remaining,
                     "redeemed_quantity": max(0, total_redeemed),
                     "status": allocation.status,
-                    "created_at": allocation.created_at.isoformat() if allocation.created_at else None
+                    "created_at": allocation.created_at.isoformat() if allocation.created_at else None,
+                    "venues": venues_data if venues_data else None
                 }
 
                 all_allocations.append(allocation_data)
