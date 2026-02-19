@@ -157,15 +157,13 @@ async def generate_badge(
     Generate complete badge PDF and upload to Cloudinary.
     """
     try:
-        logger.info(f"Generating badge for participant {participant_id}, event {event_id}, enable_qr_code={enable_qr_code}")
+        logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
 
-        # Generate QR code URL only if enabled
-        qr_code_url = ""
-        if enable_qr_code:
-            base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
-            badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-            qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
-            logger.info(f"QR code URL generated: {qr_code_url}")
+        # QR codes are mandatory on all badges - always generate
+        base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
+        badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
+        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
+        logger.info(f"QR code URL generated: {qr_code_url}")
 
         # Prepare data for template - only use template variables, no text replacement
         # Use badge_name for participantName if available (this is what templates use)
@@ -195,13 +193,23 @@ async def generate_badge(
 
         # Replace variables in template - avoid any text replacements that cause escaping
         personalized_html = replace_template_variables(template_html, template_data)
-        
-        # Fallback: Replace static "QR" text with QR code image if no variable was found
-        if 'QR' in personalized_html and qr_code_url and not any(var in personalized_html for var in ['{{qr', '{{QR']):
+
+        # QR codes are mandatory - ensure QR section is always visible
+        # The template may have hardcoded display:none, so we force it to flex
+        import re
+        personalized_html = re.sub(
+            r'(\.qr-top-right\s*\{[^}]*display\s*:\s*)none',
+            r'\1flex',
+            personalized_html
+        )
+        logger.info("Ensuring .qr-top-right is visible (QR codes are mandatory)")
+
+        # Replace static "QR" text with actual QR code image
+        if '>QR<' in personalized_html and qr_code_url:
             qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
-            # Replace standalone "QR" text (not part of variables)
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
-        
+            logger.info(f"Replaced QR placeholder with actual QR code image: {qr_code_url}")
+
         logger.info(f"Final HTML preview: {personalized_html[:500]}...")
 
         # Convert to PDF
