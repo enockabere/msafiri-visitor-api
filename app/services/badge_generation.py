@@ -210,30 +210,50 @@ async def generate_badge(
 
         logger.info(f"Template data prepared with QR code data URI")
 
-        # Replace variables in template
-        personalized_html = replace_template_variables(template_html, template_data)
-
-        # Ensure QR section is visible
-        import re
-        personalized_html = re.sub(
-            r'(\.qr-top-right\s*\{[^}]*display\s*:\s*)none',
-            r'\1flex',
-            personalized_html
-        )
-        logger.info("Ensuring .qr-top-right is visible")
-
-        # Inject QR code exactly like LOI does - replace entire qr-inner content
-        if '<div class="qr-inner">' in personalized_html:
-            qr_html = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px;height:80px;display:block;" />'
-            personalized_html = re.sub(
-                r'<div class="qr-inner"[^>]*>.*?</div>',
-                f'<div class="qr-inner" style="background:white;padding:5px;">{qr_html}</div>',
-                personalized_html,
-                flags=re.DOTALL
-            )
-            logger.info("Injected QR code into qr-inner div")
-        else:
-            logger.warning("qr-inner div not found in template")
+        # TEMPORARY: Create minimal HTML with just QR code for testing
+        personalized_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Badge Test</title>
+            <style>
+                body {{
+                    margin: 0;
+                    padding: 20px;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                }}
+                .qr-container {{
+                    text-align: center;
+                }}
+                .qr-container img {{
+                    width: 200px;
+                    height: 200px;
+                    display: block;
+                    margin: 0 auto;
+                }}
+                .qr-container p {{
+                    margin-top: 10px;
+                    font-size: 14px;
+                    font-weight: bold;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="qr-container">
+                <p>QR Code Test</p>
+                <img src="{qr_code_data_uri}" alt="QR Code" />
+                <p>Participant: {display_name}</p>
+                <p>Event: {event_name}</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        logger.info("Created minimal test HTML with QR code")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
