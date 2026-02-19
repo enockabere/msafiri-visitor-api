@@ -210,50 +210,84 @@ async def generate_badge(
 
         logger.info(f"Template data prepared with QR code data URI")
 
-        # TEMPORARY: Create minimal HTML with just QR code for testing
+        # TEMPORARY: Gradually add template elements to find what breaks QR rendering
         personalized_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="UTF-8">
-            <title>Badge Test</title>
+            <title>Badge</title>
             <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
                 body {{
+                    width: 400px;
+                    height: 600px;
                     margin: 0;
                     padding: 20px;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 100vh;
+                    background: white;
                 }}
-                .qr-container {{
+                .badge-container {{
+                    width: 100%;
+                    height: 100%;
+                    border: 2px solid #ccc;
+                    position: relative;
+                }}
+                .top-section {{
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 10px;
+                    background: #f5f5f5;
+                }}
+                .logo-container img {{
+                    max-width: 150px;
+                    max-height: 100px;
+                }}
+                .qr-top-right {{
+                    width: 100px;
+                    height: 100px;
+                    background: white;
+                    border: 1px solid #ddd;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }}
+                .qr-top-right img {{
+                    width: 80px;
+                    height: 80px;
+                    display: block;
+                }}
+                .participant-info {{
+                    padding: 20px;
                     text-align: center;
                 }}
-                .qr-container img {{
-                    width: 200px;
-                    height: 200px;
-                    display: block;
-                    margin: 0 auto;
-                }}
-                .qr-container p {{
-                    margin-top: 10px;
-                    font-size: 14px;
+                .participant-name {{
+                    font-size: 24px;
                     font-weight: bold;
+                    color: #dc2626;
                 }}
             </style>
         </head>
         <body>
-            <div class="qr-container">
-                <p>QR Code Test</p>
-                <img src="{qr_code_data_uri}" alt="QR Code" />
-                <p>Participant: {display_name}</p>
-                <p>Event: {event_name}</p>
+            <div class="badge-container">
+                <div class="top-section">
+                    <div class="logo-container">
+                        <img src="{logo_url}" alt="Logo" />
+                    </div>
+                    <div class="qr-top-right">
+                        <img src="{qr_code_data_uri}" alt="QR Code" />
+                    </div>
+                </div>
+                <div class="participant-info">
+                    <div class="participant-name">{display_name}</div>
+                    <p>{event_name}</p>
+                    <p>{event_dates}</p>
+                </div>
             </div>
         </body>
         </html>
         """
         
-        logger.info("Created minimal test HTML with QR code")
+        logger.info("Created simplified badge HTML with logo and QR code")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
