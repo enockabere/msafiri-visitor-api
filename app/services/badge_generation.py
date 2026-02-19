@@ -247,6 +247,14 @@ async def generate_badge(
         # Also handle simple >QR< pattern as fallback
         personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
         
+        # Save HTML to file for debugging
+        try:
+            with open('/tmp/badge_debug.html', 'w') as f:
+                f.write(personalized_html)
+            logger.info("Saved debug HTML to /tmp/badge_debug.html")
+        except Exception as e:
+            logger.error(f"Failed to save debug HTML: {e}")
+        
         print(f"Replaced QR placeholder with QR image tag")
         logger.info("Replaced QR placeholder with QR code image")
         
