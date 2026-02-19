@@ -351,11 +351,6 @@ async def generate_participant_badge(
         # Use badge_name if available, otherwise use certificate_name, otherwise use full_name
         badge_name = participant.badge_name or participant.certificate_name or participant.full_name
 
-        # Check if QR code is enabled for this badge template (default to True if not specified)
-        enable_qr_code = badge_config.enable_qr_code if hasattr(badge_config, 'enable_qr_code') and badge_config.enable_qr_code is not None else True
-
-        logger.info(f"Generating badge for {badge_name}, enable_qr_code={enable_qr_code}")
-
         # Generate badge PDF with template content and replace image placeholders
         badge_url = await generate_badge(
             participant_id=participant.id,
@@ -370,8 +365,7 @@ async def generate_participant_badge(
             tagline=tagline,
             participant_role="Participant",
             logo_url=badge_config.logo_url,
-            avatar_url=badge_config.avatar_url,
-            enable_qr_code=enable_qr_code
+            avatar_url=badge_config.avatar_url
         )
         
         # Save badge record
