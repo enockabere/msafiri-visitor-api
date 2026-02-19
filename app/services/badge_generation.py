@@ -179,6 +179,9 @@ async def generate_badge(
         qr_base64 = base64.b64encode(buffered.getvalue()).decode()
         qr_code_data_uri = f"data:image/png;base64,{qr_base64}"
         
+        print(f"\n=== QR CODE DEBUG ===")
+        print(f"QR code data URI length: {len(qr_code_data_uri)}")
+        print(f"QR code data URI prefix: {qr_code_data_uri[:100]}...")
         logger.info(f"QR code generated as data URI for: {badge_view_url}")
 
         # Prepare data for template
@@ -203,10 +206,23 @@ async def generate_badge(
             'avatar': avatar_url if avatar_url else '',
         }
 
+        print(f"Template data keys: {list(template_data.keys())}")
+        print(f"QR code in template_data: {template_data['qr_code'][:100]}...")
         logger.info(f"Template data prepared with QR code data URI")
 
         # Replace variables in template
+        print(f"\n=== BEFORE TEMPLATE REPLACEMENT ===")
+        print(f"Template contains '{{{{qr_code}}}}': {'{{qr_code}}' in template_html}")
+        print(f"Template contains '{{{{qrCode}}}}': {'{{qrCode}}' in template_html}")
+        print(f"Template contains '{{{{QR}}}}': {'{{QR}}' in template_html}")
+        print(f"Template contains '>QR<': {'>QR<' in template_html}")
+        
         personalized_html = replace_template_variables(template_html, template_data)
+        
+        print(f"\n=== AFTER TEMPLATE REPLACEMENT ===")
+        print(f"HTML contains 'data:image/png;base64': {'data:image/png;base64' in personalized_html}")
+        print(f"HTML still contains '{{{{qr_code}}}}': {'{{qr_code}}' in personalized_html}")
+        print(f"HTML still contains '>QR<': {'>QR<' in personalized_html}")
 
         # Ensure QR section is visible
         import re
@@ -221,7 +237,19 @@ async def generate_badge(
         if '>QR<' in personalized_html:
             qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
             personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
+            print(f"Replaced '>QR<' with QR image tag")
             logger.info("Replaced QR placeholder with QR code image")
+        else:
+            print(f"WARNING: '>QR<' not found in HTML for replacement")
+        
+        print(f"\n=== FINAL HTML CHECK ===")
+        print(f"Final HTML contains QR data URI: {'data:image/png;base64' in personalized_html}")
+        if 'data:image/png;base64' in personalized_html:
+            # Find and print context around QR code
+            idx = personalized_html.find('data:image/png;base64')
+            context_start = max(0, idx - 100)
+            context_end = min(len(personalized_html), idx + 200)
+            print(f"QR code context: ...{personalized_html[context_start:context_end]}...")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
