@@ -198,6 +198,10 @@ def create_perdiem_request(
     # Calculate final amount after deductions
     total_amount = base_amount - accommodation_deduction
     
+    # Store accommodation breakdown summary
+    accommodation_days_total = sum(detail['days'] for detail in accommodation_details)
+    accommodation_rate_avg = accommodation_deduction / accommodation_days_total if accommodation_days_total > 0 else Decimal('0.00')
+    
     # Create request
     perdiem_request = PerdiemRequest(
         participant_id=participant.id,
@@ -209,7 +213,10 @@ def create_perdiem_request(
         currency=currency,
         total_amount=total_amount,
         justification=request_data.justification,
-        accommodation_deduction=accommodation_deduction
+        accommodation_deduction=accommodation_deduction,
+        per_diem_base_amount=base_amount,
+        accommodation_days=accommodation_days_total if accommodation_days_total > 0 else None,
+        accommodation_rate=accommodation_rate_avg if accommodation_days_total > 0 else None
     )
     
     db.add(perdiem_request)
