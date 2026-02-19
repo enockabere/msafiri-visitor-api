@@ -127,7 +127,76 @@ def create_perdiem_request(
     daily_rate = perdiem_setup.daily_rate
     currency = perdiem_setup.currency
     
-    total_amount = daily_rate * requested_days
+    # Calculate base amount
+    base_amount = daily_rate * requested_days
+    
+    # Get accommodations for deduction calculation
+    from app.models.guesthouse import AccommodationAllocation, VendorAccommodation, GuestHouse, Room
+    
+    accommodations = db.query(AccommodationAllocation).filter(
+        AccommodationAllocation.participant_id == participant.id,
+        AccommodationAllocation.tenant_id == event.tenant_id,
+        AccommodationAllocation.status.in_(["booked", "checked_in"]),
+        AccommodationAllocation.check_in_date <= request_data.departure_date,
+        AccommodationAllocation.check_out_date >= request_data.arrival_date
+    ).all()
+    
+    # Calculate accommodation deductions
+    accommodation_deduction = Decimal('0.00')
+    accommodation_details = []
+    
+    for allocation in accommodations:
+        rate_per_day = allocation.rate_per_day
+        
+        # Get rate from guesthouse or vendor if not in allocation
+        if not rate_per_day:
+            if allocation.vendor_accommodation_id:
+                vendor = db.query(VendorAccommodation).filter(
+                    VendorAccommodation.id == allocation.vendor_accommodation_id
+                ).first()
+                if vendor and allocation.board_type:
+                    if allocation.board_type == 'FullBoard':
+                        rate_per_day = vendor.rate_full_board
+                    elif allocation.board_type == 'HalfBoard':
+                        rate_per_day = vendor.rate_half_board
+                    elif allocation.board_type == 'BedAndBreakfast':
+                        rate_per_day = vendor.rate_bed_breakfast
+                    elif allocation.board_type == 'BedOnly':
+                        rate_per_day = vendor.rate_bed_only
+            elif allocation.room_id:
+                room = db.query(Room).filter(Room.id == allocation.room_id).first()
+                if room:
+                    guesthouse = db.query(GuestHouse).filter(GuestHouse.id == room.guesthouse_id).first()
+                    if guesthouse and allocation.board_type:
+                        if allocation.board_type == 'FullBoard':
+                            rate_per_day = guesthouse.fullboard_rate
+                        elif allocation.board_type == 'HalfBoard':
+                            rate_per_day = guesthouse.halfboard_rate
+                        elif allocation.board_type == 'BedAndBreakfast':
+                            rate_per_day = guesthouse.bed_and_breakfast_rate
+                        elif allocation.board_type == 'BedOnly':
+                            rate_per_day = guesthouse.bed_only_rate
+        
+        if rate_per_day:
+            # Calculate overlapping days
+            overlap_start = max(allocation.check_in_date, request_data.arrival_date)
+            overlap_end = min(allocation.check_out_date, request_data.departure_date)
+            overlap_days = (overlap_end - overlap_start).days
+            
+            if overlap_days > 0:
+                deduction = Decimal(str(rate_per_day)) * overlap_days
+                accommodation_deduction += deduction
+                
+                accommodation_details.append({
+                    "name": allocation.guest_name or "Accommodation",
+                    "board_type": allocation.board_type,
+                    "rate_per_day": float(rate_per_day),
+                    "days": overlap_days,
+                    "total": float(deduction)
+                })
+    
+    # Calculate final amount after deductions
+    total_amount = base_amount - accommodation_deduction
     
     # Create request
     perdiem_request = PerdiemRequest(
@@ -139,12 +208,17 @@ def create_perdiem_request(
         daily_rate=daily_rate,
         currency=currency,
         total_amount=total_amount,
-        justification=request_data.justification
+        justification=request_data.justification,
+        accommodation_deduction=accommodation_deduction
     )
     
     db.add(perdiem_request)
     db.commit()
     db.refresh(perdiem_request)
+    
+    # Add accommodation details to response
+    perdiem_request.accommodation_breakdown = accommodation_details
+    perdiem_request.base_amount = float(base_amount)
     
     return perdiem_request
 

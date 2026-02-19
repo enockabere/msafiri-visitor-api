@@ -1544,7 +1544,7 @@ def get_participant_accommodation(
         
         print(f"DEBUG: Found {len(allocations)} allocations for participant {participant_id}")
         for i, allocation in enumerate(allocations):
-            print(f"DEBUG: Allocation {i+1}: ID={allocation.id}, Event ID={allocation.event_id}, Type={allocation.accommodation_type}, Status={allocation.status}")
+            print(f"DEBUG: Allocation {i+1}: ID={allocation.id}, Event ID={allocation.event_id}, Type={allocation.accommodation_type}, Status={allocation.status}, room_type={allocation.room_type}, notes={allocation.notes}")
         
         accommodations = []
         for allocation in allocations:
@@ -1769,7 +1769,7 @@ def get_participant_accommodation(
         
         print(f"[DEBUG] DEBUG: Returning {len(accommodations)} accommodation details")
         for i, acc in enumerate(accommodations):
-            print(f"[DEBUG] DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - Status: {acc['status']}")
+            print(f"[DEBUG] DEBUG: Accommodation {i+1}: {acc['type']} - {acc['name']} - room_type={acc.get('room_type')} - room_capacity={acc.get('room_capacity')} - is_shared={acc.get('is_shared')} - roommates={len(acc.get('roommates', []))}")
         return accommodations
         
     except Exception as e:
