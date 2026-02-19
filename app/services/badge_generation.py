@@ -233,14 +233,22 @@ async def generate_badge(
         )
         logger.info("Ensuring .qr-top-right is visible")
 
-        # Replace static "QR" text with actual QR code image
-        if '>QR<' in personalized_html:
-            qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
-            personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
-            print(f"Replaced '>QR<' with QR image tag")
-            logger.info("Replaced QR placeholder with QR code image")
-        else:
-            print(f"WARNING: '>QR<' not found in HTML for replacement")
+        # Replace static "QR" text with actual QR code image (handles nested divs)
+        import re
+        qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
+        
+        # Replace <div class="qr-inner">QR</div> or similar patterns
+        personalized_html = re.sub(
+            r'<div class="qr-inner">QR</div>',
+            f'<div class="qr-inner">{qr_img_tag}</div>',
+            personalized_html
+        )
+        
+        # Also handle simple >QR< pattern as fallback
+        personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
+        
+        print(f"Replaced QR placeholder with QR image tag")
+        logger.info("Replaced QR placeholder with QR code image")
         
         print(f"\n=== FINAL HTML CHECK ===")
         print(f"Final HTML contains QR data URI: {'data:image/png;base64' in personalized_html}")
