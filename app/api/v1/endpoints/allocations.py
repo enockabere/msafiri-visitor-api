@@ -2,9 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from typing import List
+from typing import List, Optional
 from app.db.database import get_db
 from app.models.allocation import EventAllocation
+from app.models.voucher_venue import VoucherVenue
+from app.models.guesthouse import VendorAccommodation
 from app.models.inventory import Inventory
 from app.models.event import Event
 from app.models.event_participant import EventParticipant
@@ -79,32 +81,33 @@ async def create_voucher_allocation(
     created_by: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    """Create voucher allocation"""
-    
+    """Create voucher allocation with optional venue associations for meal vouchers"""
+
     try:
         print(f"DEBUG VOUCHER: Request data: {request_data}")
         print(f"DEBUG VOUCHER: tenant_id={tenant_id}, created_by={created_by}")
-        
+
         event_id = request_data.get("event_id")
         voucher_type = request_data.get("voucher_type", "Drinks")
         vouchers_per_participant = request_data.get("vouchers_per_participant", request_data.get("drink_vouchers_per_participant", 0))
         notes = request_data.get("notes", "")
-        
-        print(f"DEBUG VOUCHER: event_id={event_id}, type={voucher_type}, vouchers={vouchers_per_participant}")
-        
+        venue_ids = request_data.get("venue_ids", [])  # New: venue IDs for meal vouchers
+
+        print(f"DEBUG VOUCHER: event_id={event_id}, type={voucher_type}, vouchers={vouchers_per_participant}, venues={venue_ids}")
+
         if vouchers_per_participant <= 0:
             raise HTTPException(status_code=400, detail="Vouchers per participant must be greater than 0")
-        
+
         # Check for existing allocation of the same type for this event
         existing_allocation = db.query(EventAllocation).filter(
             EventAllocation.event_id == event_id,
             EventAllocation.tenant_id == tenant_id,
             EventAllocation.voucher_type == voucher_type
         ).first()
-        
+
         if existing_allocation:
             raise HTTPException(status_code=400, detail=f"{voucher_type} voucher allocation already exists for this event")
-        
+
         # Find any inventory item to use as dummy (or create without inventory_item_id constraint)
         dummy_inventory = db.query(Inventory).filter(Inventory.tenant_id == str(tenant_id)).first()
         if not dummy_inventory:
@@ -119,9 +122,9 @@ async def create_voucher_allocation(
             db.add(dummy_inventory)
             db.commit()
             db.refresh(dummy_inventory)
-        
+
         print(f"DEBUG VOUCHER: Using dummy inventory item ID: {dummy_inventory.id}")
-        
+
         # Create voucher-only allocation
         db_allocation = EventAllocation(
             event_id=event_id,
@@ -135,17 +138,33 @@ async def create_voucher_allocation(
             tenant_id=tenant_id,
             created_by=created_by
         )
-        
+
         print(f"DEBUG VOUCHER: Creating allocation with data: {db_allocation.__dict__}")
-        
+
         db.add(db_allocation)
         db.commit()
         db.refresh(db_allocation)
-        
+
+        # Create venue associations for meal vouchers (Lunch, Dinner, Breakfast)
+        meal_types = ["Lunch", "Dinner", "Breakfast"]
+        if voucher_type in meal_types and venue_ids:
+            for venue_id in venue_ids:
+                # Verify venue exists
+                venue = db.query(VendorAccommodation).filter(VendorAccommodation.id == venue_id).first()
+                if venue:
+                    voucher_venue = VoucherVenue(
+                        allocation_id=db_allocation.id,
+                        vendor_accommodation_id=venue_id,
+                        created_by=created_by
+                    )
+                    db.add(voucher_venue)
+            db.commit()
+            print(f"DEBUG VOUCHER: Created {len(venue_ids)} venue associations")
+
         print(f"DEBUG VOUCHER: Successfully created allocation ID: {db_allocation.id}")
-        
+
         return {"message": "Voucher allocation created successfully", "id": db_allocation.id}
-        
+
     except Exception as e:
         db.rollback()
         print(f"DEBUG VOUCHER ERROR: {str(e)}")

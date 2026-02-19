@@ -42,6 +42,7 @@ from .travel_request import (
 from .travel_request_checklist import TravelRequestChecklist
 from .travel_request_approval_step import TravelRequestApprovalStep
 from .travel_advance import TravelAdvance, ExpenseCategory, AdvanceStatus
+from .voucher_venue import VoucherVenue
 
 __all__ = [
     "BaseModel", "TenantBaseModel", "Tenant", "User", "UserRole",
@@ -61,5 +62,6 @@ __all__ = [
     "TravelRequestStatus", "TransportMode", "MessageSenderType", "DocumentType",
     "Dependant", "TravelRequestTraveler", "DependantRelationship", "TravelerType",
     "TravelRequestChecklist", "TravelRequestApprovalStep",
-    "TravelAdvance", "ExpenseCategory", "AdvanceStatus"
+    "TravelAdvance", "ExpenseCategory", "AdvanceStatus",
+    "VoucherVenue"
 ]

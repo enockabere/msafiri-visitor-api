@@ -24,3 +24,4 @@ class EventAllocation(Base):
     
     # Relationships
     inventory_item = relationship("Inventory")
+    venues = relationship("VoucherVenue", back_populates="allocation", cascade="all, delete-orphan")
