@@ -36,14 +36,11 @@ def fix_templates():
             if "position: absolute" in content or "position:absolute" in content:
                 print(f"\n  Fixing template: {name} (ID: {template_id})")
                 
-                # Remove position: absolute and related positioning
-                fixed_content = content.replace("position: absolute;", "")
-                fixed_content = fixed_content.replace("position:absolute;", "")
-                fixed_content = fixed_content.replace("position: absolute", "")
-                fixed_content = fixed_content.replace("position:absolute", "")
-                
-                # Also remove top, left, right, bottom that were used with absolute positioning
-                # But be careful not to break other styles
+                # Replace position: absolute with position: relative
+                fixed_content = content.replace("position: absolute;", "position: relative;")
+                fixed_content = fixed_content.replace("position:absolute;", "position:relative;")
+                fixed_content = fixed_content.replace("position: absolute", "position: relative")
+                fixed_content = fixed_content.replace("position:absolute", "position:relative")
                 
                 # Update the template
                 conn.execute(
