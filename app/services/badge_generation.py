@@ -159,19 +159,33 @@ async def generate_badge(
     try:
         logger.info(f"Generating badge for participant {participant_id}, event {event_id}")
 
-        # QR codes are mandatory on all badges - always generate
+        # Generate QR code as base64 data URI for reliable rendering
+        import qrcode
+        from io import BytesIO
+        import base64
+        
         base_url = os.getenv('API_BASE_URL', 'http://localhost:8000')
         badge_view_url = f"{base_url}/api/v1/events/{event_id}/participant/{participant_id}/badge/generate"
-        qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={badge_view_url}"
-        logger.info(f"QR code URL generated: {qr_code_url}")
+        
+        # Generate QR code image
+        qr = qrcode.QRCode(version=1, box_size=10, border=1)
+        qr.add_data(badge_view_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Convert to base64 data URI
+        buffered = BytesIO()
+        qr_img.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        qr_code_data_uri = f"data:image/png;base64,{qr_base64}"
+        
+        logger.info(f"QR code generated as data URI for: {badge_view_url}")
 
-        # Prepare data for template - only use template variables, no text replacement
-        # Use badge_name for participantName if available (this is what templates use)
-        # badge_name is already the preferred name: badge_name > certificate_name > full_name
+        # Prepare data for template
         display_name = badge_name if badge_name else participant_name
 
         template_data = {
-            'participant_name': display_name,  # Use badge_name for template display
+            'participant_name': display_name,
             'badge_name': badge_name,
             'event_name': event_name,
             'event_title': event_name,
@@ -182,35 +196,32 @@ async def generate_badge(
             'participant_role': participant_role,
             'tagline': tagline,
             'badge_tagline': tagline,
-            'qr_code': qr_code_url,
-            'qrCode': qr_code_url,  # Alternative QR code variable name
-            'QR': qr_code_url,      # Another alternative
+            'qr_code': qr_code_data_uri,
+            'qrCode': qr_code_data_uri,
+            'QR': qr_code_data_uri,
             'logo': logo_url if logo_url else '',
             'avatar': avatar_url if avatar_url else '',
         }
 
-        logger.info(f"Template data: {template_data}")
+        logger.info(f"Template data prepared with QR code data URI")
 
-        # Replace variables in template - avoid any text replacements that cause escaping
+        # Replace variables in template
         personalized_html = replace_template_variables(template_html, template_data)
 
-        # QR codes are mandatory - ensure QR section is always visible
-        # The template may have hardcoded display:none, so we force it to flex
+        # Ensure QR section is visible
         import re
         personalized_html = re.sub(
             r'(\.qr-top-right\s*\{[^}]*display\s*:\s*)none',
             r'\1flex',
             personalized_html
         )
-        logger.info("Ensuring .qr-top-right is visible (QR codes are mandatory)")
+        logger.info("Ensuring .qr-top-right is visible")
 
         # Replace static "QR" text with actual QR code image
-        if '>QR<' in personalized_html and qr_code_url:
-            qr_img = f'<img src="{qr_code_url}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
-            personalized_html = personalized_html.replace('>QR<', f'>{qr_img}<')
-            logger.info(f"Replaced QR placeholder with actual QR code image: {qr_code_url}")
-
-        logger.info(f"Final HTML preview: {personalized_html[:500]}...")
+        if '>QR<' in personalized_html:
+            qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
+            personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
+            logger.info("Replaced QR placeholder with QR code image")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
