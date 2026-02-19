@@ -22,8 +22,8 @@ def replace_template_variables(template_html: str, data: Dict[str, Any]) -> str:
 
     # Define all supported variables with both formats
     variables = {
-        # New format
-        'participantName': data.get('participant_name', ''),
+        # New format - use badge_name as participantName
+        'participantName': data.get('badge_name', '') or data.get('participant_name', ''),
         'badgeName': data.get('badge_name', ''),
         'eventName': data.get('event_name', ''),
         'eventTitle': data.get('event_name', ''),  # Alternative name
