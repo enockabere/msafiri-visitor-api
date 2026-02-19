@@ -213,7 +213,7 @@ async def generate_badge(
 
         logger.info(f"Template data prepared with QR code data URI")
 
-        # Use simplified working template with gradual CSS additions
+        # Use original badge design matching ParticipantBadge.tsx
         personalized_html = f"""
         <!DOCTYPE html>
         <html>
@@ -228,100 +228,166 @@ async def generate_badge(
                     margin: 0;
                     padding: 0;
                     background: white;
-                    font-family: Arial, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
                 }}
-                .badge-container {{
+                .badge-wrapper {{
                     width: 100%;
                     height: 100%;
-                    position: relative;
-                    overflow: hidden;
-                }}
-                .top-section {{
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    padding: 15px;
-                    background: linear-gradient(135deg, #f5f5f5 0%, #e5e7eb 100%);
-                    min-height: 120px;
-                }}
-                .logo-container {{
-                    flex: 1;
-                }}
-                .logo-container img {{
-                    max-width: 180px;
-                    max-height: 80px;
-                }}
-                .qr-top-right {{
-                    width: 100px;
-                    height: 100px;
-                    background: white;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    background: #f3f4f6;
                 }}
-                .qr-top-right img {{
+                .badge-container {{
+                    width: 320px;
+                    height: 480px;
+                    background: white;
+                    border-radius: 24px;
+                    overflow: hidden;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+                }}
+                .side-dots {{
+                    width: 32px;
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-around;
+                    align-items: center;
+                    padding: 32px 0;
+                    z-index: 10;
+                }}
+                .dot {{
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: #d1d5db;
+                }}
+                .top-section {{
+                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #991b1b 100%);
+                    padding: 48px 32px 64px;
+                    min-height: 280px;
+                    text-align: center;
+                    color: white;
+                }}
+                .event-logo {{
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                    margin-bottom: 24px;
+                }}
+                .logo-icon {{
+                    width: 40px;
+                    height: 40px;
+                    background: #2563eb;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 20px;
+                    font-weight: bold;
+                }}
+                .logo-text {{
+                    font-size: 18px;
+                    font-weight: bold;
+                    letter-spacing: 2px;
+                }}
+                .event-title {{
+                    font-size: 32px;
+                    font-weight: 900;
+                    margin-bottom: 12px;
+                    letter-spacing: -0.5px;
+                    line-height: 1.1;
+                }}
+                .event-location, .event-date {{
+                    font-size: 14px;
+                    color: #d1d5db;
+                    margin: 8px 0;
+                }}
+                .qr-container {{
+                    display: flex;
+                    justify-content: center;
+                    margin-top: 32px;
+                }}
+                .qr-box {{
+                    background: white;
+                    padding: 12px;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                }}
+                .qr-box img {{
                     width: 80px;
                     height: 80px;
                     display: block;
                 }}
-                .participant-info {{
-                    padding: 30px 20px;
+                .bottom-section {{
+                    background: white;
+                    padding: 24px 32px;
+                    min-height: 200px;
                     text-align: center;
                 }}
                 .participant-name {{
                     font-size: 28px;
-                    font-weight: bold;
-                    color: #dc2626;
-                    margin-bottom: 10px;
+                    font-weight: 900;
+                    color: #111827;
+                    margin-bottom: 12px;
+                    letter-spacing: -0.5px;
+                    line-height: 1.2;
                 }}
-                .participant-info p {{
-                    font-size: 14px;
-                    margin: 5px 0;
-                    color: #333;
+                .participant-email {{
+                    font-size: 11px;
+                    color: #6b7280;
+                    font-weight: 500;
+                    word-break: break-all;
+                    padding: 0 8px;
                 }}
-                .bottom-section {{
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    right: 0;
-                    height: 120px;
-                    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                .bottom-bar {{
+                    background: #2563eb;
                     color: white;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 16px;
-                    font-weight: 600;
+                    padding: 16px;
+                    text-align: center;
+                    margin-top: 32px;
+                    border-radius: 0 0 24px 24px;
+                }}
+                .bottom-bar p {{
+                    font-size: 12px;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                    letter-spacing: 3px;
                 }}
             </style>
         </head>
         <body>
-            <div class="badge-container">
-                <div class="top-section">
-                    <div class="logo-container">
-                        <img src="{logo_url}" alt="Logo" />
+            <div class="badge-wrapper">
+                <div class="badge-container">
+                    <div class="top-section">
+                        <div class="event-logo">
+                            <div class="logo-icon">★</div>
+                            <span class="logo-text">EVENT</span>
+                        </div>
+                        <h1 class="event-title">{event_name}</h1>
+                        <div class="event-location">📍 {tagline or 'Event Location'}</div>
+                        <div class="event-date">📅 {event_dates}</div>
+                        <div class="qr-container">
+                            <div class="qr-box">
+                                <img src="{qr_code_data_uri}" alt="QR Code" />
+                            </div>
+                        </div>
                     </div>
-                    <div class="qr-top-right">
-                        <img src="{qr_code_data_uri}" alt="QR Code" />
+                    <div class="bottom-section">
+                        <h2 class="participant-name">{display_name}</h2>
+                        <p class="participant-email">{participant_role}</p>
+                        <div class="bottom-bar">
+                            <p>Participant</p>
+                        </div>
                     </div>
-                </div>
-                <div class="participant-info">
-                    <div class="participant-name">{display_name}</div>
-                    <p>{event_name}</p>
-                    <p>{event_dates}</p>
-                </div>
-                <div class="bottom-section">
-                    <p>MSF Event Badge</p>
                 </div>
             </div>
         </body>
         </html>
         """
         
-        logger.info("Using enhanced badge template with gradients and positioning")
+        logger.info("Using original badge design matching ParticipantBadge.tsx")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
