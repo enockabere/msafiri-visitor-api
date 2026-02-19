@@ -222,20 +222,18 @@ async def generate_badge(
         )
         logger.info("Ensuring .qr-top-right is visible")
 
-        # Replace static "QR" text with actual QR code image
-        qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px !important;height:80px !important;display:block !important;margin:0 auto !important;" />'
-        
-        # Replace <div class="qr-inner">QR</div> and override its background
-        personalized_html = re.sub(
-            r'<div class="qr-inner">QR</div>',
-            f'<div class="qr-inner" style="background:white !important;padding:5px;">{qr_img_tag}</div>',
-            personalized_html
-        )
-        
-        # Also handle simple >QR< pattern
-        personalized_html = personalized_html.replace('>QR<', f'>{qr_img_tag}<')
-        
-        logger.info("Replaced QR placeholder with QR code image")
+        # Inject QR code exactly like LOI does - replace entire qr-inner content
+        if '<div class="qr-inner">' in personalized_html:
+            qr_html = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px;height:80px;display:block;" />'
+            personalized_html = re.sub(
+                r'<div class="qr-inner"[^>]*>.*?</div>',
+                f'<div class="qr-inner" style="background:white;padding:5px;">{qr_html}</div>',
+                personalized_html,
+                flags=re.DOTALL
+            )
+            logger.info("Injected QR code into qr-inner div")
+        else:
+            logger.warning("qr-inner div not found in template")
 
         # Convert to PDF
         pdf_bytes = await html_to_pdf_bytes(personalized_html)
