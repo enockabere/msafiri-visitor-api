@@ -1669,38 +1669,41 @@ def get_participant_accommodation(
                     # Get roommates for shared vendor rooms
                     roommates = []
                     if allocation.room_type == "double":
-                        # Find other allocations for the same vendor with double room type
+                        # Find other allocations for the same event and vendor with double room type
                         other_allocations = db.query(AccommodationAllocation).filter(
                             AccommodationAllocation.vendor_accommodation_id == vendor.id,
+                            AccommodationAllocation.event_id == allocation.event_id,
                             AccommodationAllocation.room_type == "double",
                             AccommodationAllocation.id != allocation.id,
                             AccommodationAllocation.status.in_(["booked", "checked_in"])
                         ).all()
-                        
+
                         for other_alloc in other_allocations:
                             if other_alloc.participant_id:
-                                participant = db.query(EventParticipant).filter(
-                                    EventParticipant.id == other_alloc.participant_id
-                                ).first()
-                                if participant:
-                                    # Get gender from registration
-                                    gender_result = db.execute(text(
-                                        "SELECT gender_identity FROM public_registrations WHERE participant_id = :participant_id"
-                                    ), {"participant_id": other_alloc.participant_id}).fetchone()
-                                    
+                                # Get participant with gender using COALESCE
+                                roommate_result = db.execute(text("""
+                                    SELECT ep.full_name, ep.role,
+                                           COALESCE(ep.gender_identity, pr.gender_identity) as gender
+                                    FROM event_participants ep
+                                    LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+                                    WHERE ep.id = :participant_id
+                                """), {"participant_id": other_alloc.participant_id}).fetchone()
+
+                                if roommate_result:
+                                    # Normalize gender
                                     gender = None
-                                    if gender_result and gender_result[0]:
-                                        reg_gender = gender_result[0].lower()
+                                    if roommate_result.gender:
+                                        reg_gender = roommate_result.gender.lower()
                                         if reg_gender in ['man', 'male']:
-                                            gender = 'male'
+                                            gender = 'Male'
                                         elif reg_gender in ['woman', 'female']:
-                                            gender = 'female'
+                                            gender = 'Female'
                                         else:
-                                            gender = 'other'
-                                    
+                                            gender = roommate_result.gender.capitalize()
+
                                     roommates.append({
-                                        "name": participant.full_name,
-                                        "role": participant.role,
+                                        "name": roommate_result.full_name,
+                                        "role": roommate_result.role,
                                         "gender": gender
                                     })
                     
@@ -1863,21 +1866,26 @@ def update_vendor_event_setup(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    
+
     tenant_id = get_tenant_id_from_context(db, tenant_context, current_user)
-    
+
     from app.models.guesthouse import VendorEventAccommodation
     setup = db.query(VendorEventAccommodation).filter(
         VendorEventAccommodation.id == setup_id,
         VendorEventAccommodation.tenant_id == tenant_id
     ).first()
-    
+
     if not setup:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Event setup not found"
         )
-    
+
+    # Track if room counts changed for automatic re-booking
+    old_single_rooms = setup.single_rooms
+    old_double_rooms = setup.double_rooms
+    rooms_changed = False
+
     # Check if reducing capacity below current occupants
     if setup_data.single_rooms is not None and setup_data.double_rooms is not None:
         new_capacity = setup_data.single_rooms + (setup_data.double_rooms * 2)
@@ -1887,21 +1895,136 @@ def update_vendor_event_setup(
                 detail=f"Cannot reduce capacity below current occupants ({setup.current_occupants})"
             )
         setup.total_capacity = new_capacity
-    
+
     # Update fields
     if setup_data.single_rooms is not None:
+        if setup_data.single_rooms != old_single_rooms:
+            rooms_changed = True
         setup.single_rooms = setup_data.single_rooms
     if setup_data.double_rooms is not None:
+        if setup_data.double_rooms != old_double_rooms:
+            rooms_changed = True
         setup.double_rooms = setup_data.double_rooms
     if setup_data.event_name is not None and setup.current_occupants == 0:
         setup.event_name = setup_data.event_name
     if setup_data.is_active is not None:
         setup.is_active = setup_data.is_active
-    
+
     db.commit()
     db.refresh(setup)
-    
-    return setup
+
+    # If room counts changed, trigger automatic re-booking with optimal pairing
+    rebook_result = None
+    if rooms_changed and setup.event_id:
+        try:
+            rebook_result = _refresh_event_accommodations_internal(
+                event_id=setup.event_id,
+                db=db,
+                current_user=current_user,
+                tenant_context=tenant_context,
+                old_single=old_single_rooms,
+                old_double=old_double_rooms,
+                new_single=setup.single_rooms,
+                new_double=setup.double_rooms
+            )
+            print(f"[ACCOMMODATION] Auto re-booking triggered for event {setup.event_id}: {rebook_result}")
+        except Exception as e:
+            print(f"[ACCOMMODATION] Auto re-booking failed for event {setup.event_id}: {str(e)}")
+
+    # Return setup with rebook info if applicable
+    result = setup
+    if rebook_result:
+        # Add rebook result to response (will be in JSON but not in Pydantic model)
+        setattr(result, '_rebook_result', rebook_result)
+
+    return result
+
+
+def _refresh_event_accommodations_internal(
+    event_id: int,
+    db: Session,
+    current_user,
+    tenant_context: str,
+    old_single: int,
+    old_double: int,
+    new_single: int,
+    new_double: int
+):
+    """
+    Internal function to refresh accommodations when room counts change.
+    Clears existing bookings and re-books with optimal pairing based on new room availability.
+    """
+    from datetime import datetime
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Re-booking event {event_id}: rooms changed from {old_single}S/{old_double}D to {new_single}S/{new_double}D")
+
+    # Get event and verify it hasn't started yet
+    event_query = text("""
+        SELECT e.id, e.title, e.start_date, e.end_date
+        FROM events e
+        WHERE e.id = :event_id
+    """)
+    event = db.execute(event_query, {"event_id": event_id}).fetchone()
+
+    if not event:
+        logger.warning(f"Event {event_id} not found for re-booking")
+        return {"message": "Event not found", "rebooked": False}
+
+    if event.start_date and event.start_date <= datetime.now().date():
+        logger.info(f"Event {event_id} has already started - skipping re-booking")
+        return {"message": "Event has already started - no re-booking", "rebooked": False}
+
+    # Clear all existing vendor accommodation allocations for this event
+    existing_allocations = db.execute(text("""
+        SELECT id, room_type FROM accommodation_allocations
+        WHERE event_id = :event_id AND accommodation_type = 'vendor' AND status IN ('booked', 'checked_in')
+    """), {"event_id": event_id}).fetchall()
+
+    allocation_count = len(existing_allocations)
+
+    if existing_allocations:
+        # Delete all existing allocations (room counts are already updated in setup)
+        db.execute(text("""
+            DELETE FROM accommodation_allocations
+            WHERE event_id = :event_id AND accommodation_type = 'vendor' AND status IN ('booked', 'checked_in')
+        """), {"event_id": event_id})
+
+        # Reset current_occupants
+        db.execute(text("""
+            UPDATE vendor_event_accommodations
+            SET current_occupants = 0
+            WHERE event_id = :event_id
+        """), {"event_id": event_id})
+
+        db.commit()
+        logger.info(f"Cleared {allocation_count} allocations for event {event_id}")
+
+    # Now re-book all participants with optimal pairing
+    try:
+        from app.api.v1.endpoints.auto_booking import auto_book_all_participants
+
+        booking_result = auto_book_all_participants(
+            event_id=event_id,
+            db=db,
+            current_user=current_user,
+            tenant_context=tenant_context
+        )
+
+        return {
+            "message": "Accommodations refreshed with optimal pairing",
+            "rebooked": True,
+            "cleared_allocations": allocation_count,
+            "booking_result": booking_result
+        }
+    except Exception as e:
+        logger.error(f"Re-booking failed for event {event_id}: {str(e)}")
+        return {
+            "message": f"Re-booking failed: {str(e)}",
+            "rebooked": False,
+            "cleared_allocations": allocation_count
+        }
 
 @router.delete("/vendor-event-setup/{setup_id}")
 def delete_vendor_event_setup(
