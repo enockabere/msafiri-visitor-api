@@ -223,12 +223,12 @@ async def generate_badge(
         logger.info("Ensuring .qr-top-right is visible")
 
         # Replace static "QR" text with actual QR code image
-        qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:74px;height:74px;margin:3px;background:white;display:block;object-fit:contain;border:0.5px solid #d1d5db" />'
+        qr_img_tag = f'<img src="{qr_code_data_uri}" alt="QR Code" style="width:80px !important;height:80px !important;display:block !important;margin:0 auto !important;" />'
         
-        # Replace <div class="qr-inner">QR</div>
+        # Replace <div class="qr-inner">QR</div> and override its background
         personalized_html = re.sub(
             r'<div class="qr-inner">QR</div>',
-            f'<div class="qr-inner">{qr_img_tag}</div>',
+            f'<div class="qr-inner" style="background:white !important;padding:5px;">{qr_img_tag}</div>',
             personalized_html
         )
         
