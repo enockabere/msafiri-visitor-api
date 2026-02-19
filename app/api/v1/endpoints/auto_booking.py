@@ -378,6 +378,10 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
     """Book a single room for participant"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"📝 Booking single room for: {participant.full_name}")
 
     # Check single room availability in vendor event accommodation
     vendor_query = text("""
@@ -410,12 +414,14 @@ def _book_single_room(db, event, participant, tenant_id, user_id):
         event_id=event.id,
         board_type=board_type,
         rate_per_day=rate_per_day,
-        rate_currency=rate_currency
+        rate_currency=rate_currency,
+        notes="Auto-assigned single room"
     )
 
     allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
+    logger.info(f"✅ Created single room allocation {allocation.id} for {participant.full_name}, room_type={allocation.room_type}")
 
     # Update room count in vendor event accommodation
     db.execute(text("""
@@ -451,7 +457,11 @@ def _book_paired_double_room(db, event, visitor1, visitor2, tenant_id, user_id):
     board_type = _get_event_board_type(db, event.id)
     rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
 
-    # Create allocation for first visitor
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📝 Creating double room allocation for pair: {visitor1.full_name} and {visitor2.full_name}")
+
+    # Create allocation for first visitor (notes include roommate name for matching)
     allocation_data1 = AccommodationAllocationCreate(
         guest_name=visitor1.full_name,
         guest_email=visitor1.email,
@@ -465,14 +475,16 @@ def _book_paired_double_room(db, event, visitor1, visitor2, tenant_id, user_id):
         event_id=event.id,
         board_type=board_type,
         rate_per_day=rate_per_day,
-        rate_currency=rate_currency
+        rate_currency=rate_currency,
+        notes=f"Auto-assigned double room (shared with {visitor2.full_name})"
     )
 
     allocation1 = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data1, tenant_id=tenant_id, user_id=user_id
     )
+    logger.info(f"✅ Created allocation {allocation1.id} for {visitor1.full_name}, room_type={allocation1.room_type}")
 
-    # Create allocation for second visitor (same double room)
+    # Create allocation for second visitor (notes include roommate name for matching)
     allocation_data2 = AccommodationAllocationCreate(
         guest_name=visitor2.full_name,
         guest_email=visitor2.email,
@@ -486,12 +498,14 @@ def _book_paired_double_room(db, event, visitor1, visitor2, tenant_id, user_id):
         event_id=event.id,
         board_type=board_type,
         rate_per_day=rate_per_day,
-        rate_currency=rate_currency
+        rate_currency=rate_currency,
+        notes=f"Auto-assigned double room (shared with {visitor1.full_name})"
     )
 
     allocation2 = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data2, tenant_id=tenant_id, user_id=user_id
     )
+    logger.info(f"✅ Created allocation {allocation2.id} for {visitor2.full_name}, room_type={allocation2.room_type}")
 
     # Update room count (take 1 double room)
     db.execute(text("""
@@ -559,31 +573,38 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
     """Merge two single room bookings into one double room"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"🔄 Merging {new_participant.full_name} with existing allocation {existing_allocation.id} ({existing_allocation.full_name})")
 
     # Get board type from event and rate from vendor
     board_type = _get_event_board_type(db, event.id)
     rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
 
-    # Update existing allocation to double room with board_type and rate
+    # Update existing allocation to double room with board_type, rate, and roommate notes
     db.execute(text("""
         UPDATE accommodation_allocations
         SET room_type = 'double', number_of_guests = 2,
-            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency
+            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency,
+            notes = :notes
         WHERE id = :allocation_id
     """), {
         "allocation_id": existing_allocation.id,
         "board_type": board_type,
         "rate_per_day": rate_per_day,
-        "rate_currency": rate_currency
+        "rate_currency": rate_currency,
+        "notes": f"Auto-assigned double room (shared with {new_participant.full_name})"
     })
+    logger.info(f"✅ Updated allocation {existing_allocation.id} to double room, roommate: {new_participant.full_name}")
 
-    # Create new allocation for second person with board_type and rate
+    # Create new allocation for second person with board_type, rate, and roommate notes
     allocation_data = AccommodationAllocationCreate(
         guest_name=new_participant.full_name,
         guest_email=new_participant.email,
         check_in_date=event.start_date,
         check_out_date=event.end_date,
-        number_of_guests=1,
+        number_of_guests=2,
         accommodation_type="vendor",
         vendor_accommodation_id=event.vendor_accommodation_id,
         room_type="double",
@@ -591,12 +612,14 @@ def _merge_to_double_room(db, event, new_participant, existing_allocation, tenan
         event_id=event.id,
         board_type=board_type,
         rate_per_day=rate_per_day,
-        rate_currency=rate_currency
+        rate_currency=rate_currency,
+        notes=f"Auto-assigned double room (shared with {existing_allocation.full_name})"
     )
 
     new_allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
+    logger.info(f"✅ Created allocation {new_allocation.id} for {new_participant.full_name}, room_type={new_allocation.room_type}")
 
     # Update room counts (return 1 single, take 1 double)
     db.execute(text("""
@@ -619,6 +642,10 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
     """Book single room temporarily (waiting for match)"""
     from app import crud
     from app.schemas.accommodation import AccommodationAllocationCreate
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"📝 Booking temporary single room for: {participant.full_name} (waiting for potential match)")
 
     # Check single room availability
     vendor_query = text("""
@@ -651,12 +678,14 @@ def _book_single_room_temp(db, event, participant, tenant_id, user_id):
         event_id=event.id,
         board_type=board_type,
         rate_per_day=rate_per_day,
-        rate_currency=rate_currency
+        rate_currency=rate_currency,
+        notes="Auto-assigned single room (pending match)"
     )
 
     allocation = crud.accommodation_allocation.create_with_tenant(
         db, obj_in=allocation_data, tenant_id=tenant_id, user_id=user_id
     )
+    logger.info(f"✅ Created temp single allocation {allocation.id} for {participant.full_name}, room_type={allocation.room_type}")
 
     # Update room count
     db.execute(text("""
@@ -728,23 +757,44 @@ def _try_repair_visitors(db, event, tenant_id, user_id):
 
 def _pair_visitors(db, event, visitor1, visitor2):
     """Pair two visitors into a double room"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔄 Pairing {visitor1.full_name} (alloc {visitor1.allocation_id}) with {visitor2.full_name} (alloc {visitor2.allocation_id})")
+
     # Get board type and rate
     board_type = _get_event_board_type(db, event.id)
     rate_per_day, rate_currency = _get_vendor_rate_for_board_type(db, event.vendor_accommodation_id, board_type)
 
-    # Update both allocations to double room
+    # Update first visitor's allocation with roommate info
     db.execute(text("""
         UPDATE accommodation_allocations
         SET room_type = 'double', number_of_guests = 2,
-            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency
-        WHERE id IN (:id1, :id2)
+            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency,
+            notes = :notes
+        WHERE id = :id
     """), {
-        "id1": visitor1.allocation_id,
-        "id2": visitor2.allocation_id,
+        "id": visitor1.allocation_id,
         "board_type": board_type,
         "rate_per_day": rate_per_day,
-        "rate_currency": rate_currency
+        "rate_currency": rate_currency,
+        "notes": f"Auto-assigned double room (shared with {visitor2.full_name})"
     })
+
+    # Update second visitor's allocation with roommate info
+    db.execute(text("""
+        UPDATE accommodation_allocations
+        SET room_type = 'double', number_of_guests = 2,
+            board_type = :board_type, rate_per_day = :rate_per_day, rate_currency = :rate_currency,
+            notes = :notes
+        WHERE id = :id
+    """), {
+        "id": visitor2.allocation_id,
+        "board_type": board_type,
+        "rate_per_day": rate_per_day,
+        "rate_currency": rate_currency,
+        "notes": f"Auto-assigned double room (shared with {visitor1.full_name})"
+    })
+    logger.info(f"✅ Paired allocations {visitor1.allocation_id} and {visitor2.allocation_id}")
 
     # Update room counts (return 2 singles, take 1 double)
     db.execute(text("""

@@ -1668,7 +1668,20 @@ def get_participant_accommodation(
                 if vendor:
                     # Get roommates for shared vendor rooms
                     roommates = []
+                    print(f"[DEBUG] Checking roommates for allocation {allocation.id}, room_type={allocation.room_type}, participant_id={allocation.participant_id}")
+                    print(f"[DEBUG] Allocation notes: {allocation.notes}")
+
                     if allocation.room_type == "double":
+                        # First try to find roommate from notes (more accurate)
+                        # Notes format: "Auto-assigned double room (shared with [roommate_name])"
+                        roommate_from_notes = None
+                        if allocation.notes and "shared with" in allocation.notes:
+                            import re
+                            match = re.search(r'\(shared with (.+?)\)', allocation.notes)
+                            if match:
+                                roommate_from_notes = match.group(1)
+                                print(f"[DEBUG] Found roommate name from notes: {roommate_from_notes}")
+
                         # Find other allocations for the same event and vendor with double room type
                         other_allocations = db.query(AccommodationAllocation).filter(
                             AccommodationAllocation.vendor_accommodation_id == vendor.id,
@@ -1677,6 +1690,7 @@ def get_participant_accommodation(
                             AccommodationAllocation.id != allocation.id,
                             AccommodationAllocation.status.in_(["booked", "checked_in"])
                         ).all()
+                        print(f"[DEBUG] Found {len(other_allocations)} other double room allocations")
 
                         for other_alloc in other_allocations:
                             if other_alloc.participant_id:
@@ -1690,22 +1704,44 @@ def get_participant_accommodation(
                                 """), {"participant_id": other_alloc.participant_id}).fetchone()
 
                                 if roommate_result:
-                                    # Normalize gender
-                                    gender = None
-                                    if roommate_result.gender:
-                                        reg_gender = roommate_result.gender.lower()
-                                        if reg_gender in ['man', 'male']:
-                                            gender = 'Male'
-                                        elif reg_gender in ['woman', 'female']:
-                                            gender = 'Female'
-                                        else:
-                                            gender = roommate_result.gender.capitalize()
+                                    print(f"[DEBUG] Checking potential roommate: {roommate_result.full_name}")
 
-                                    roommates.append({
-                                        "name": roommate_result.full_name,
-                                        "role": roommate_result.role,
-                                        "gender": gender
-                                    })
+                                    # Only add as roommate if:
+                                    # 1. Name matches the roommate from notes, OR
+                                    # 2. The other allocation's notes mention this participant's name
+                                    is_actual_roommate = False
+
+                                    # Check if this person is mentioned in our notes
+                                    if roommate_from_notes and roommate_result.full_name.lower() == roommate_from_notes.lower():
+                                        is_actual_roommate = True
+                                        print(f"[DEBUG] Match found via notes: {roommate_result.full_name}")
+
+                                    # Also check if our name is in the other allocation's notes (reverse check)
+                                    if not is_actual_roommate and other_alloc.notes:
+                                        if allocation.guest_name and allocation.guest_name.lower() in other_alloc.notes.lower():
+                                            is_actual_roommate = True
+                                            print(f"[DEBUG] Match found via reverse check: {roommate_result.full_name}")
+
+                                    if is_actual_roommate:
+                                        # Normalize gender
+                                        gender = None
+                                        if roommate_result.gender:
+                                            reg_gender = roommate_result.gender.lower()
+                                            if reg_gender in ['man', 'male']:
+                                                gender = 'Male'
+                                            elif reg_gender in ['woman', 'female']:
+                                                gender = 'Female'
+                                            else:
+                                                gender = roommate_result.gender.capitalize()
+
+                                        roommates.append({
+                                            "name": roommate_result.full_name,
+                                            "role": roommate_result.role,
+                                            "gender": gender
+                                        })
+                                        print(f"[DEBUG] Added roommate: {roommate_result.full_name}, gender: {gender}")
+                                    else:
+                                        print(f"[DEBUG] Not a match: {roommate_result.full_name}")
                     
                     accommodation_data = {
                         "allocation_id": allocation.id,

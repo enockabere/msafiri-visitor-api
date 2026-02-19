@@ -202,6 +202,10 @@ def _create_room_allocation(db: Session, participant: EventParticipant, event: E
     """Create a room allocation for a participant"""
 
     try:
+        logger.info(f"📝 Creating {room_type} room allocation for {participant.full_name} (ID: {participant.id})")
+        logger.info(f"   - Participant role: {participant.participant_role}, role: {participant.role}")
+        logger.info(f"   - Number of guests: {number_of_guests}, Roommate: {roommate_name}")
+
         notes = f"Auto-assigned {room_type} room"
         if roommate_name:
             notes += f" (shared with {roommate_name})"
@@ -249,8 +253,11 @@ def _create_room_allocation(db: Session, participant: EventParticipant, event: E
         )
 
         db.add(allocation)
+        logger.info(f"✅ Created allocation ID pending (room_type={allocation.room_type}) for {participant.full_name}")
         return True
 
     except Exception as e:
         logger.error(f"💥 Error creating room allocation for {participant.full_name}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
