@@ -37,7 +37,6 @@ async def get_confirmed_guests(
         EventParticipant.full_name,
         EventParticipant.email,
         EventParticipant.id.label("participant_id"),
-        EventParticipant.travelling_from_country,
         Event.title.label("event_title")
     ).join(
         Event, EventParticipant.event_id == Event.id
@@ -74,11 +73,10 @@ async def get_confirmed_guests(
         guests.append({
             "name": guest.full_name,
             "email": guest.email,
-            "phone": "",  # Phone not available in EventParticipant model
+            "phone": "",
             "event": guest.event_title,
             "gender": gender,
             "participant_id": guest.participant_id,
-            "travelling_from_country": guest.travelling_from_country,
             "display_text": f"{guest.full_name} ({guest.event_title})"
         })
     
