@@ -115,18 +115,16 @@ def get_participant_allocations(
 
                 # Get venues for Lunch/Dinner vouchers
                 venues_data = []
-                if voucher_type in ['Lunch', 'Dinner'] and allocation.venue_ids:
-                    from app.models.vendor_accommodation import VendorAccommodation
-                    venue_ids = allocation.venue_ids if isinstance(allocation.venue_ids, list) else []
-                    if venue_ids:
-                        venues = db.query(VendorAccommodation).filter(
-                            VendorAccommodation.id.in_(venue_ids)
-                        ).all()
-                        venues_data = [{
-                            "id": v.id,
-                            "vendor_name": v.vendor_name
-                        } for v in venues]
-                        print(f"🔍 ALLOCATIONS DEBUG: Found {len(venues_data)} venues for {voucher_type}")
+                if voucher_type in ['Lunch', 'Dinner']:
+                    try:
+                        if hasattr(allocation, 'venues') and allocation.venues:
+                            venues_data = [{
+                                "id": v.vendor_accommodation.id,
+                                "vendor_name": v.vendor_accommodation.vendor_name
+                            } for v in allocation.venues if v.vendor_accommodation]
+                            print(f"🔍 ALLOCATIONS DEBUG: Found {len(venues_data)} venues for {voucher_type}")
+                    except Exception as venue_error:
+                        print(f"🔍 ALLOCATIONS DEBUG: Error loading venues: {venue_error}")
 
                 allocation_data = {
                     "id": allocation.id,
