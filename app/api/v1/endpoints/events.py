@@ -151,7 +151,7 @@ def get_my_confirmed_international_events(
         # Query events where user is confirmed and travelling internationally
         result = db.execute(
             text("""
-                SELECT DISTINCT e.id, e.title, e.location, e.start_date, e.end_date
+                SELECT DISTINCT e.id, e.title, e.location, e.start_date, e.end_date, e.tenant_id, e.country
                 FROM events e
                 JOIN event_participants ep ON e.id = ep.event_id
                 LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
@@ -162,7 +162,7 @@ def get_my_confirmed_international_events(
             """),
             {"email": current_user.email}
         ).fetchall()
-        
+
         events = []
         for row in result:
             events.append({
@@ -170,7 +170,9 @@ def get_my_confirmed_international_events(
                 "title": row.title,
                 "location": row.location,
                 "start_date": row.start_date.isoformat() if row.start_date else None,
-                "end_date": row.end_date.isoformat() if row.end_date else None
+                "end_date": row.end_date.isoformat() if row.end_date else None,
+                "tenant_id": row.tenant_id,
+                "country": row.country
             })
         
         logger.info(f"📊 Found {len(events)} confirmed international events for {current_user.email}")
