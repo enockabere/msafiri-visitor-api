@@ -157,7 +157,7 @@ def get_my_confirmed_international_events(
                 LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
                 WHERE ep.email = :email
                 AND ep.status = 'confirmed'
-                AND (ep.travelling_internationally = true 
+                AND (ep.travelling_internationally IN ('yes', 'Yes', 'YES', 'true', 'True', 'TRUE', '1')
                      OR pr.travelling_internationally IN ('yes', 'Yes', 'YES', 'true', 'True', 'TRUE', '1'))
             """),
             {"email": current_user.email}
