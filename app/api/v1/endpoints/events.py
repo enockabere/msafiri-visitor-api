@@ -133,6 +133,56 @@ def get_my_selected_events(
             detail=f"Internal server error: {str(e)}"
         )
 
+@router.get("/mobile/my-confirmed-international")
+def get_my_confirmed_international_events(
+    *,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(deps.get_current_user)
+) -> Any:
+    """Get events where user has confirmed attendance and is travelling internationally."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from app.models.event_participant import EventParticipant
+        from app.models.event import Event
+        from sqlalchemy import text
+        
+        # Query events where user is confirmed and travelling internationally
+        result = db.execute(
+            text("""
+                SELECT DISTINCT e.id, e.title, e.location, e.start_date, e.end_date
+                FROM events e
+                JOIN event_participants ep ON e.id = ep.event_id
+                LEFT JOIN public_registrations pr ON ep.id = pr.participant_id
+                WHERE ep.email = :email
+                AND ep.status = 'confirmed'
+                AND (ep.travelling_internationally = true 
+                     OR pr.travelling_internationally IN ('yes', 'Yes', 'YES', 'true', 'True', 'TRUE', '1'))
+            """),
+            {"email": current_user.email}
+        ).fetchall()
+        
+        events = []
+        for row in result:
+            events.append({
+                "id": row.id,
+                "title": row.title,
+                "location": row.location,
+                "start_date": row.start_date.isoformat() if row.start_date else None,
+                "end_date": row.end_date.isoformat() if row.end_date else None
+            })
+        
+        logger.info(f"📊 Found {len(events)} confirmed international events for {current_user.email}")
+        return events
+        
+    except Exception as e:
+        logger.error(f"💥 ERROR: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
+
 @router.get("/mobile/{event_id}", response_model=schemas.Event)
 def get_event_for_mobile(
     *,
