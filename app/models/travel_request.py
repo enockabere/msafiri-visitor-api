@@ -1,7 +1,7 @@
 """Travel request models for managing travel booking requests."""
 from datetime import datetime
 from enum import Enum as PyEnum
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date, Enum
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, Date, Enum, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -107,8 +107,13 @@ class TravelRequest(Base):
     cost_center = Column(String(100), nullable=True)
     section = Column(String(100), nullable=True)
 
+    # Event-related travel fields
+    event_id = Column(Integer, ForeignKey("events.id", ondelete="SET NULL"), nullable=True, index=True)
+    visa_assistance_required = Column(Boolean, default=False, nullable=False)
+
     # Relationships
     tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    event = relationship("Event", foreign_keys=[event_id])
     user = relationship("User", foreign_keys=[user_id], backref="travel_requests")
     approver = relationship("User", foreign_keys=[approved_by])
     rejector = relationship("User", foreign_keys=[rejected_by])

@@ -211,6 +211,8 @@ class TravelRequestBase(BaseModel):
 class TravelRequestCreate(TravelRequestBase):
     """Schema for creating a travel request."""
     tenant_id: int
+    event_id: Optional[int] = None  # For event-related travel
+    visa_assistance_required: bool = False  # User needs help with visa application
     destinations: Optional[List[DestinationCreate]] = None
     travelers: Optional[List[TravelerCreate]] = None
     checklist_data: Optional[List[dict]] = None
@@ -220,6 +222,7 @@ class TravelRequestUpdate(BaseModel):
     """Schema for updating a travel request."""
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     purpose: Optional[str] = None
+    visa_assistance_required: Optional[bool] = None
 
 
 class TravelRequestResponse(TravelRequestBase):
@@ -246,6 +249,9 @@ class TravelRequestResponse(TravelRequestBase):
     activity_code: Optional[str] = None
     cost_center: Optional[str] = None
     section: Optional[str] = None
+    # Event-related travel fields
+    event_id: Optional[int] = None
+    visa_assistance_required: bool = False
 
     class Config:
         from_attributes = True
