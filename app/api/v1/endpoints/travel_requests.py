@@ -96,7 +96,9 @@ async def create_travel_request(
         user_id=current_user.id,
         title=request_data.title,
         purpose=request_data.purpose,
-        status=status_value
+        status=status_value,
+        event_id=request_data.event_id,
+        visa_assistance_required=request_data.visa_assistance_required
     )
     
     logger.info(f"TravelRequest object created, status attribute: {travel_request.status} (type: {type(travel_request.status)})")
