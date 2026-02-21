@@ -90,6 +90,10 @@ async def create_travel_request(
     logger.info(f"Creating travel request with status: {status_value} (type: {type(status_value)})")
     logger.info(f"TravelRequestStatus.DRAFT = {TravelRequestStatus.DRAFT}")
     logger.info(f"TravelRequestStatus.DRAFT.value = {TravelRequestStatus.DRAFT.value}")
+    logger.info(f"=== CREATE TRAVEL REQUEST DEBUG ===")
+    logger.info(f"event_id received: {request_data.event_id}")
+    logger.info(f"visa_assistance_required: {request_data.visa_assistance_required}")
+    logger.info(f"checklist_data: {request_data.checklist_data}")
     
     travel_request = TravelRequest(
         tenant_id=request_data.tenant_id,
