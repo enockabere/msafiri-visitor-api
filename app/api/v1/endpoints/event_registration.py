@@ -945,6 +945,128 @@ async def resend_invitation(
     
     return {"message": "Invitation resent successfully", "email_sent": email_sent}
 
+
+class BulkInvitationRequest(BaseModel):
+    participant_ids: List[int]
+    selected_email_subject: str = None
+    selected_email_body: str = None
+    not_selected_email_subject: str = None
+    not_selected_email_body: str = None
+
+
+@router.post("/event/{event_id}/send-bulk-invitations")
+async def send_bulk_invitations(
+    event_id: int,
+    request: BulkInvitationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Send bulk invitation/notification emails to selected participants using custom templates"""
+
+    # Get event details
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Get all participants that are in the list and have "selected" status
+    participants = db.query(EventParticipant).filter(
+        EventParticipant.id.in_(request.participant_ids),
+        EventParticipant.event_id == event_id,
+        EventParticipant.status == "selected"
+    ).all()
+
+    if not participants:
+        raise HTTPException(status_code=400, detail="No participants with 'selected' status found in the provided list")
+
+    success_count = 0
+    failed_count = 0
+
+    for participant in participants:
+        if not participant.email or not participant.email.strip():
+            print(f"⚠️ No email for participant {participant.full_name}, skipping")
+            failed_count += 1
+            continue
+
+        try:
+            # Use custom email template if provided, otherwise use default
+            if request.selected_email_subject and request.selected_email_body:
+                # Replace template variables
+                subject = request.selected_email_subject
+                body = request.selected_email_body
+
+                # Replace placeholders
+                subject = subject.replace("{{PARTICIPANT_NAME}}", participant.full_name or "")
+                subject = subject.replace("{{PARTICIPANT_EMAIL}}", participant.email or "")
+                subject = subject.replace("{{EVENT_TITLE}}", event.title or "")
+
+                body = body.replace("{{PARTICIPANT_NAME}}", participant.full_name or "")
+                body = body.replace("{{PARTICIPANT_EMAIL}}", participant.email or "")
+                body = body.replace("{{EVENT_TITLE}}", event.title or "")
+                body = body.replace("{{EVENT_LOCATION}}", event.location or "")
+
+                # Format date range
+                date_range = ""
+                if event.start_date and event.end_date:
+                    date_range = f"{event.start_date.strftime('%B %d, %Y')} - {event.end_date.strftime('%B %d, %Y')}"
+                elif event.start_date:
+                    date_range = event.start_date.strftime('%B %d, %Y')
+                body = body.replace("{{EVENT_DATE_RANGE}}", date_range)
+
+                print(f"📧 Sending custom invitation to {participant.full_name} ({participant.email})")
+
+                # Send the email
+                email_sent = email_service.send_email(
+                    to_email=participant.email,
+                    subject=subject,
+                    html_content=body
+                )
+
+                if email_sent:
+                    success_count += 1
+                    print(f"✅ Email sent to {participant.email}")
+                else:
+                    failed_count += 1
+                    print(f"❌ Failed to send email to {participant.email}")
+            else:
+                # Use default notification
+                email_sent = await send_status_notification(participant, "selected", db)
+                if email_sent:
+                    success_count += 1
+                else:
+                    failed_count += 1
+
+            # Also send push notification
+            try:
+                from app.services.firebase_service import firebase_service
+                push_sent = firebase_service.send_to_user(
+                    db=db,
+                    user_email=participant.email,
+                    title="🎉 You've been selected!",
+                    body=f"Congratulations! You've been selected for {event.title}",
+                    data={
+                        "type": "event_selection",
+                        "event_id": str(event.id),
+                        "participant_id": str(participant.id)
+                    }
+                )
+                if push_sent:
+                    print(f"✅ Push notification sent to {participant.email}")
+            except Exception as e:
+                print(f"⚠️ Failed to send push notification: {str(e)}")
+
+        except Exception as e:
+            print(f"❌ Error sending invitation to {participant.email}: {str(e)}")
+            failed_count += 1
+
+    db.commit()
+
+    return {
+        "message": f"Invitations sent to {success_count} participant(s). {failed_count} failed.",
+        "success_count": success_count,
+        "failed_count": failed_count
+    }
+
+
 @router.post("/participant/{participant_id}/accept-invitation")
 async def accept_invitation(
     participant_id: int,
