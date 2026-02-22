@@ -1016,7 +1016,7 @@ async def send_bulk_invitations(
 
                 # Send the email
                 email_sent = email_service.send_email(
-                    to_email=participant.email,
+                    to_emails=[participant.email],
                     subject=subject,
                     html_content=body
                 )
