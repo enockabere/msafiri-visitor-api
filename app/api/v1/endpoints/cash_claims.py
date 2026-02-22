@@ -344,6 +344,35 @@ async def get_chat_messages(
     """Get chat history for a claim (placeholder for future implementation)"""
     return {"messages": []}
 
+@router.delete("/{claim_id}")
+async def delete_claim(
+    claim_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a claim (only Open or Pending Approval)"""
+    claim = db.query(Claim).filter(
+        Claim.id == claim_id,
+        Claim.user_id == current_user.id
+    ).first()
+    
+    if not claim:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Claim not found"
+        )
+    
+    if claim.status not in ("Open", "Pending Approval"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can only delete Open or Pending Approval claims"
+        )
+    
+    db.delete(claim)
+    db.commit()
+    
+    return {"message": "Claim deleted successfully"}
+
 @router.get("/{claim_id}", response_model=ClaimResponse)
 async def get_claim(
     claim_id: int,
