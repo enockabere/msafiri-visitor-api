@@ -55,7 +55,7 @@ class PerdiemRequest(BaseModel):
     mpesa_number = Column(String(20))
     
     # Bank transfer details
-    bank_account_id = Column(Integer, ForeignKey("bank_accounts.id"))
+    bank_account_id = Column(Integer, nullable=True)
     
     # Approval workflow
     line_manager_approved_by = Column(String(255))
