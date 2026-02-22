@@ -20,14 +20,12 @@ def upgrade():
     # Add BANK_TRANSFER to paymentmethod enum
     op.execute("ALTER TYPE paymentmethod ADD VALUE IF NOT EXISTS 'BANK_TRANSFER'")
     
-    # Add bank_account_id column
+    # Add bank_account_id column (nullable, no foreign key since bank_accounts table may not exist)
     op.add_column('perdiem_requests', sa.Column('bank_account_id', sa.Integer(), nullable=True))
-    op.create_foreign_key('fk_perdiem_bank_account', 'perdiem_requests', 'bank_accounts', ['bank_account_id'], ['id'])
 
 
 def downgrade():
-    # Remove foreign key and column
-    op.drop_constraint('fk_perdiem_bank_account', 'perdiem_requests', type_='foreignkey')
+    # Remove column
     op.drop_column('perdiem_requests', 'bank_account_id')
     
     # Note: Cannot remove enum value in PostgreSQL without recreating the enum
