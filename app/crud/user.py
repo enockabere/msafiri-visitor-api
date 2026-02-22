@@ -139,6 +139,7 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
                 "job_title": user_data.get("job_title"),
                 "external_id": user_data.get("external_id"),
                 "azure_tenant_id": user_data.get("azure_tenant_id"),
+                "auth_provider": AuthProvider.MICROSOFT_SSO,
                 "last_login": func.now()
             }
             return self.update(db, db_obj=existing_user, obj_in=update_data)
