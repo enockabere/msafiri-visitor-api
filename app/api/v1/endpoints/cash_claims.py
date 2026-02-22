@@ -351,6 +351,8 @@ async def delete_claim(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a claim (only Open or Pending Approval)"""
+    from app.models.claim_approval import ClaimApproval
+    
     claim = db.query(Claim).filter(
         Claim.id == claim_id,
         Claim.user_id == current_user.id
@@ -368,6 +370,13 @@ async def delete_claim(
             detail="Can only delete Open or Pending Approval claims"
         )
     
+    # Delete related approvals first
+    db.query(ClaimApproval).filter(ClaimApproval.claim_id == claim_id).delete()
+    
+    # Delete related items
+    db.query(ClaimItem).filter(ClaimItem.claim_id == claim_id).delete()
+    
+    # Delete the claim
     db.delete(claim)
     db.commit()
     
