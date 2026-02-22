@@ -56,8 +56,10 @@ async def get_user_claims(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get all claims for the current user"""
-    claims = db.query(Claim).filter(Claim.user_id == current_user.id).all()
+    """Get all claims for the current user, sorted by latest first"""
+    claims = db.query(Claim).filter(
+        Claim.user_id == current_user.id
+    ).order_by(Claim.created_at.desc()).all()
     return claims
 
 @router.post("/", response_model=ClaimResponse)
@@ -71,7 +73,8 @@ async def create_claim(
         user_id=current_user.id,
         description=claim_data.description,
         total_amount=claim_data.total_amount or 0.0,
-        status="Open",
+        status="Pending Approval",
+        submitted_at=datetime.utcnow(),
         expense_type=claim_data.expense_type,
         payment_method=claim_data.payment_method,
         cash_pickup_date=claim_data.cash_pickup_date,
