@@ -120,9 +120,12 @@ def get_participant_allocations(
                         if hasattr(allocation, 'venues') and allocation.venues:
                             venues_data = [{
                                 "id": v.vendor_accommodation.id,
-                                "vendor_name": v.vendor_accommodation.vendor_name
+                                "vendor_name": v.vendor_accommodation.vendor_name,
+                                "location": getattr(v.vendor_accommodation, 'location', None) or getattr(v.vendor_accommodation, 'address', None),
+                                "latitude": getattr(v.vendor_accommodation, 'latitude', None),
+                                "longitude": getattr(v.vendor_accommodation, 'longitude', None)
                             } for v in allocation.venues if v.vendor_accommodation]
-                            print(f"🔍 ALLOCATIONS DEBUG: Found {len(venues_data)} venues for {voucher_type}")
+                            print(f"🔍 ALLOCATIONS DEBUG: Found {len(venues_data)} venues for {voucher_type}: {venues_data}")
                     except Exception as venue_error:
                         print(f"🔍 ALLOCATIONS DEBUG: Error loading venues: {venue_error}")
 

@@ -16,6 +16,7 @@ class PerdiemStatus(enum.Enum):
 class PaymentMethod(enum.Enum):
     CASH = "CASH"
     MOBILE_MONEY = "MOBILE_MONEY"
+    BANK_TRANSFER = "BANK_TRANSFER"
 
 class CashHours(enum.Enum):
     MORNING = "MORNING"
@@ -52,6 +53,9 @@ class PerdiemRequest(BaseModel):
     
     # Mobile money details
     mpesa_number = Column(String(20))
+    
+    # Bank transfer details
+    bank_account_id = Column(Integer, ForeignKey("bank_accounts.id"))
     
     # Approval workflow
     line_manager_approved_by = Column(String(255))
